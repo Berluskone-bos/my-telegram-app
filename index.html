@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моё Telegram Приложение</title>
+    <!-- Подключаем специальный скрипт Telegram -->
+    <script src="https://telegram.org"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #242f3d;
+            color: white;
+            padding-top: 50px;
+        }
+        button {
+            padding: 20px 40px;
+            font-size: 24px;
+            background-color: #248bcf;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Привет! Это мое первое приложение.</h1>
+    <button id="clickBtn">Нажми меня!</button>
+    <p>Счет: <span id="score">0</span></p>
+
+    <script>
+        // Инициализируем Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Расширяем окно на весь экран
+
+        let count = 0;
+        const btn = document.getElementById('clickBtn');
+        const scoreDisplay = document.getElementById('score');
+
+        btn.addEventListener('click', () => {
+            count++;
+            scoreDisplay.innerText = count;
+        });
+    </script>
+</body>
+</html>
