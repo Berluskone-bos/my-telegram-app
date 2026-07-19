@@ -52,6 +52,13 @@
         .product-title { font-size: 13px; color: #ccc; margin-bottom: 8px; }
         .btn-buy { background: #ffffff; color: #000000; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
+        /* Стили экрана КОРЗИНЫ */
+        .cart-container { padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #aaa; }
+        .form-group input, .form-group select { width: 100%; padding: 12px; background: #1c1c1e; border: 1px solid #333; border-radius: 8px; color: white; box-sizing: border-box; font-size: 15px; }
+        .btn-order { background: #28a745; color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 16px; width: 100%; cursor: pointer; margin-top: 10px; }
+
         /* Стили экрана ПРОФИЛЯ */
         .profile-container { padding: 20px; text-align: center; }
         .profile-avatar { width: 90px; height: 90px; background: linear-gradient(135deg, #002d62, #0055b8); border-radius: 50%; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
@@ -75,7 +82,7 @@
         /* Нижнее меню навигации */
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1c1c1e; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #222; z-index: 100; }
         .nav-item { text-align: center; font-size: 11px; color: #777; cursor: pointer; flex: 1; }
-        .nav-item.active { color: #002d62; }
+        .nav-item.active { color: #0055b8; }
         .nav-icon { font-size: 20px; margin-bottom: 2px; }
     </style>
 </head>
@@ -113,7 +120,7 @@
                 <div class="product-info">
                     <div class="product-price">4 200 ₽</div>
                     <div class="product-title">Syn-X 3000 5W-40</div>
-                    <button class="btn-buy" onclick="alert('Добавлено')">В корзину</button>
+                    <button class="btn-buy" onclick="alert('Товар добавлен в корзину!')">В корзину</button>
                 </div>
             </div>
         </div>
@@ -124,9 +131,27 @@
         <h3 style="text-align: center; margin-top: 40px; color: #666;">Список избранного пуст</h3>
     </div>
 
-    <!-- ================= ЭКРАН 3: КОРЗИНА ================= -->
+    <!-- ================= ЭКРАН 3: КОРЗИНА (ФОРМА ДОСТАВКИ) ================= -->
     <div id="screen-cart" class="app-screen">
-        <h3 style="text-align: center; margin-top: 40px; color: #666;">Корзина пуста</h3>
+        <div class="cart-container">
+            <h2>Оформление доставки</h2>
+            <div class="form-group">
+                <label>Регион доставки:</label>
+                <select id="delivery-zone">
+                    <option value="spb">Санкт-Петербург (В пределах КАД)</option>
+                    <option value="lo">Ленинградская область</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Точный адрес:</label>
+                <input type="text" id="address" placeholder="Улица, дом, квартира">
+            </div>
+            <div class="form-group">
+                <label>Номер телефона:</label>
+                <input type="tel" id="phone" placeholder="+7 (999) 000-00-00">
+            </div>
+            <button class="btn-order" onclick="makeOrder()">Подтвердить заказ</button>
+        </div>
     </div>
 
     <!-- ================= ЭКРАН 4: ПРОФИЛЬ (ЛИЧНЫЙ КАБИНЕТ) ================= -->
@@ -155,40 +180,3 @@
                 <div class="p-menu-item" onclick="alert('История заказов пуста')">
                     <div class="p-menu-left">
                         <span class="p-menu-icon">📦</span>
-                        <span class="p-menu-text">История заказов</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-                <div class="p-menu-item">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon">💬</span>
-                        <span class="p-menu-text">Связаться с поддержкой</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Нижнее меню навигации -->
-    <div class="bottom-nav">
-        <div class="nav-item active" id="btn-nav-main" onclick="switchScreen('main')">
-            <div class="nav-icon">🏠</div><div>Главная</div>
-        </div>
-        <div class="nav-item" id="btn-nav-favorites" onclick="switchScreen('favorites')">
-            <div class="nav-icon">🖤</div><div>Избранное</div>
-        </div>
-        <div class="nav-item" id="btn-nav-cart" onclick="switchScreen('cart')">
-            <div class="nav-icon">🛒</div><div>Корзина</div>
-        </div>
-        <div class="nav-item" id="btn-nav-profile" onclick="switchScreen('profile')">
-            <div class="nav-icon">👤</div><div>Профиль</div>
-        </div>
-    </div>
-
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-
-        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            const user = tg.initDataUnsafe.user;
