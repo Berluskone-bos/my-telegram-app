@@ -6,155 +6,189 @@
     <title>Gulf Western Oil Магазин</title>
     <script src="https://telegram.org"></script>
     <style>
-        /* Фирменный стиль магазина */
         body {
             font-family: 'Segoe UI', Roboto, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f6f9;
-            color: #333;
+            background-color: #131313;
+            color: #ffffff;
+            padding-bottom: 80px;
+            overflow-x: hidden;
         }
+
+        /* Шапка */
         .header {
-            background-color: #002d62; /* Темно-синий бренд */
-            color: white;
-            text-align: center;
-            padding: 15px;
-            font-size: 20px;
-            font-weight: bold;
-        }
-        /* Вкладки категорий */
-        .tabs {
             display: flex;
-            background: #fff;
-            border-bottom: 1px solid #ddd;
-        }
-        .tab {
-            flex: 1;
-            text-align: center;
-            padding: 12px;
-            cursor: pointer;
-            font-weight: 600;
-            color: #666;
-        }
-        .tab.active {
-            color: #002d62;
-            border-bottom: 3px solid #002d62;
-        }
-        /* Список товаров */
-        .catalog {
-            padding: 15px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        .product-card {
-            background: white;
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .product-title {
-            font-size: 14px;
-            margin: 8px 0;
-            height: 40px;
-            overflow: hidden;
-        }
-        .product-price {
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            font-size: 18px;
             font-weight: bold;
-            color: #002d62;
-            margin-bottom: 10px;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #222;
         }
-        .btn-add {
-            background: #002d62;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            width: 100%;
-            cursor: pointer;
-        }
-        /* Корзина на весь экран (выезжающая) */
-        .cart-section {
-            padding: 15px;
-            background: white;
-            margin-top: 20px;
-            border-top: 2px solid #002d62;
-        }
-        .form-group {
-            margin-bottom: 12px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+        .burger-btn { cursor: pointer; font-size: 22px; padding: 5px; }
+
+        /* Боковое меню */
+        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 999; display: none; opacity: 0; transition: opacity 0.3s ease; }
+        .side-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background-color: #1a1a1a; z-index: 1000; box-shadow: 5px 0 15px rgba(0,0,0,0.5); transition: left 0.3s ease; padding-top: 10px; box-sizing: border-box; }
+        .menu-back { display: flex; align-items: center; padding: 15px 20px; font-size: 16px; font-weight: bold; cursor: pointer; border-bottom: 1px solid #2a2a2a; margin-bottom: 15px; }
+        .menu-item { padding: 15px 25px; font-size: 16px; color: #ffffff; cursor: pointer; }
+
+        /* Экраны приложения (Управление видимостью) */
+        .app-screen { display: none; }
+        .app-screen.active { display: block; }
+
+        /* Стили Главного экрана */
+        .categories-scroll { display: flex; gap: 10px; overflow-x: auto; padding: 15px 20px; scrollbar-width: none; }
+        .cat-badge { background: #222; padding: 8px 16px; border-radius: 20px; font-size: 14px; white-space: nowrap; cursor: pointer; border: 1px solid #333; }
+        .cat-badge.active { background: #002d62; }
+        .promo-banner { margin: 0 20px 20px 20px; background: linear-gradient(135deg, #002d62 0%, #000000 100%); border-radius: 12px; padding: 25px 20px; text-align: center; border: 1px solid #222; }
+        .products-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 0 20px; }
+        .product-card { background: #1c1c1e; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+        .product-image-stub { background: #2c2c2e; height: 160px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+        .product-info { padding: 12px; display: flex; flex-direction: column; flex-grow: 1; }
+        .product-price { font-size: 16px; font-weight: bold; }
+        .product-title { font-size: 13px; color: #ccc; margin-bottom: 8px; }
+        .btn-buy { background: #ffffff; color: #000000; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* Стили экрана ПРОФИЛЯ */
+        .profile-container { padding: 20px; text-align: center; }
+        .profile-avatar { width: 90px; height: 90px; background: linear-gradient(135deg, #002d62, #0055b8); border-radius: 50%; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .profile-name { font-size: 22px; font-weight: bold; margin-bottom: 25px; }
+        
+        /* Бонусная карта */
+        .loyalty-card { background: linear-gradient(135deg, #002d62 0%, #001025 100%); border-radius: 12px; padding: 15px; text-align: left; margin-bottom: 20px; border: 1px solid #003a80; }
+        .card-header { font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        .card-discount { font-size: 28px; font-weight: bold; margin: 10px 0; color: #ffcc00; }
+        .card-footer { font-size: 12px; color: #eee; display: flex; justify-content: space-between; }
+
+        /* Пункты меню в профиле */
+        .profile-menu { background: #1c1c1e; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+        .p-menu-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #2c2c2e; cursor: pointer; }
+        .p-menu-item:last-child { border-bottom: none; }
+        .p-menu-left { display: flex; align-items: center; gap: 15px; }
+        .p-menu-icon { font-size: 20px; }
+        .p-menu-text { font-size: 15px; }
+        .p-menu-arrow { color: #555; }
+
+        /* Нижнее меню навигации */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1c1c1e; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #222; z-index: 100; }
+        .nav-item { text-align: center; font-size: 11px; color: #777; cursor: pointer; flex: 1; }
+        .nav-item.active { color: #002d62; }
+        .nav-icon { font-size: 20px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
-    <div class="header">Gulf Western Oil</div>
-
-    <!-- Вкладки (Переключатели) -->
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('oil')">Моторные масла</div>
-        <div class="tab" onclick="switchTab('filters')">Фильтры</div>
+    <!-- Шапка приложения -->
+    <div class="header">
+        <div class="burger-btn" onclick="toggleMenu(true)">☰</div>
+        <div id="headerTitle">GULF WESTERN</div>
+        <div>🔍</div>
     </div>
 
-    <!-- Каталог товаров -->
-    <div id="catalog" class="catalog">
-        <!-- Сюда код сам добавит товары на следующем шаге -->
-        <p style="grid-column: 1/3; text-align: center; color: #999;">Загрузка категорий...</p>
+    <!-- Боковое меню -->
+    <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu(false)"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="menu-back" onclick="toggleMenu(false)">← Назад</div>
+        <div class="menu-item" onclick="menuClick('О нас')">О нас</div>
+        <div class="menu-item" onclick="menuClick('Доставка')">Доставка</div>
     </div>
 
-    <!-- Оформление заказа и Доставка -->
-    <div class="cart-section">
-        <h3>Оформление доставки (СПб и ЛО)</h3>
-        <div class="form-group">
-            <label>Зона доставки:</label>
-            <select id="delivery-zone">
-                <option value="spb">Санкт-Петербург (В пределах КАД)</option>
-                <option value="lo">Ленинградская область</option>
-            </select>
+    <!-- ================= ЭКРАН 1: ГЛАВНАЯ (ВИТРИНА) ================= -->
+    <div id="screen-main" class="app-screen active">
+        <div class="categories-scroll">
+            <div class="cat-badge active">Все товары</div>
+            <div class="cat-badge">Моторные масла</div>
+            <div class="cat-badge">Масляные фильтры</div>
         </div>
-        <div class="form-group">
-            <label>Адрес доставки:</label>
-            <input type="text" id="address" placeholder="Улица, дом, квартира">
+        <div class="promo-banner">
+            <h2>Оригинальное масло</h2>
+            <p>Доставка по СПб и ЛО со склада</p>
         </div>
-        <div class="form-group">
-            <label>Телефон для связи:</label>
-            <input type="tel" id="phone" placeholder="+7 (999) 000-00-00">
+        <div class="products-grid">
+            <div class="product-card">
+                <div class="product-image-stub">Масло Gulf Western</div>
+                <div class="product-info">
+                    <div class="product-price">4 200 ₽</div>
+                    <div class="product-title">Syn-X 3000 5W-40</div>
+                    <button class="btn-buy" onclick="alert('Добавлено')">В корзину</button>
+                </div>
+            </div>
         </div>
-        <button class="btn-add" style="background: #28a745; padding: 12px;" onclick="orderCheckout()">Оформить заказ</button>
+    </div>
+
+    <!-- ================= ЭКРАН 2: ИЗБРАННОЕ ================= -->
+    <div id="screen-favorites" class="app-screen">
+        <h3 style="text-align: center; margin-top: 40px; color: #666;">Список избранного пуст</h3>
+    </div>
+
+    <!-- ================= ЭКРАН 3: КОРЗИНА ================= -->
+    <div id="screen-cart" class="app-screen">
+        <h3 style="text-align: center; margin-top: 40px; color: #666;">Корзина пуста</h3>
+    </div>
+
+    <!-- ================= ЭКРАН 4: ПРОФИЛЬ (ЛИЧНЫЙ КАБИНЕТ) ================= -->
+    <div id="screen-profile" class="app-screen">
+        <div class="profile-container">
+            <div class="profile-avatar" id="userAvatar">U</div>
+            <div class="profile-name" id="userName">Пользователь</div>
+
+            <div class="loyalty-card">
+                <div class="card-header">Дисконтная карта покупателя</div>
+                <div class="card-discount">Скидка: <span id="cardDiscountValue">3%</span></div>
+                <div class="card-footer">
+                    <div>Статус: Начальный</div>
+                    <div>До 5% осталось: 3 000 ₽</div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <div class="p-menu-item" onclick="openReferral()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon">➕👤</span>
+                        <span class="p-menu-text">Промокод за рекомендацию</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="alert('История заказов пуста')">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon">📦</span>
+                        <span class="p-menu-text">История заказов</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon">💬</span>
+                        <span class="p-menu-text">Связаться с поддержкой</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Нижнее меню навигации -->
+    <div class="bottom-nav">
+        <div class="nav-item active" id="btn-nav-main" onclick="switchScreen('main')">
+            <div class="nav-icon">🏠</div><div>Главная</div>
+        </div>
+        <div class="nav-item" id="btn-nav-favorites" onclick="switchScreen('favorites')">
+            <div class="nav-icon">🖤</div><div>Избранное</div>
+        </div>
+        <div class="nav-item" id="btn-nav-cart" onclick="switchScreen('cart')">
+            <div class="nav-icon">🛒</div><div>Корзина</div>
+        </div>
+        <div class="nav-item" id="btn-nav-profile" onclick="switchScreen('profile')">
+            <div class="nav-icon">👤</div><div>Профиль</div>
+        </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Функции переключения вкладок сделаем на следующем шаге, когда получим категории
-        function switchTab(category) {
-            alert('Тут будут фильтроваться: ' + category);
-        }
-
-        function orderCheckout() {
-            const zone = document.getElementById('delivery-zone').value;
-            const address = document.getElementById('address').value;
-            const phone = document.getElementById('phone').value;
-            
-            if(!address || !phone) {
-                alert('Пожалуйста, заполните адрес и телефон');
-                return;
-            }
-            alert('Заказ принят! Зона: ' + zone + ', Адрес: ' + address);
-        }
-    </script>
-</body>
-</html>
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            const user = tg.initDataUnsafe.user;
