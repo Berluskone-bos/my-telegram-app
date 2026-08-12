@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Gulf Western Oil Магазин</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+    <!-- ===== ШАПКА ===== -->
+    <div class="header">
+        <div class="burger-btn" onclick="App.toggleMenu(true)">☰</div>
+        <div class="header-title" id="headerTitle">GULF WESTERN</div>
+        <div class="header-icon" onclick="App.toggleSearch()">🔍</div>
+    </div>
+
+    <!-- ===== ПОИСК ===== -->
+    <div class="search-container" id="searchContainer">
+        <input type="text" class="search-input" id="searchInput" placeholder="Поиск масел, фильтров, присадок..." />
+    </div>
+
+    <!-- ===== БОКОВОЕ МЕНЮ ===== -->
+    <div class="menu-overlay" id="menuOverlay" onclick="App.toggleMenu(false)"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="menu-back" onclick="App.toggleMenu(false)">← Назад</div>
+        <div class="menu-item" onclick="App.menuClick('О нас')">О нас</div>
+        <div class="menu-item" onclick="App.menuClick('Доставка и оплата')">Доставка и оплата</div>
+        <div class="menu-item" onclick="App.menuClick('Контакты')">Контакты</div>
+        <div class="menu-item" onclick="App.menuClick('Политика конфиденциальности')">Политика</div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 1: ГЛАВНАЯ ================ -->
+    <!-- ================================================== -->
+    <div id="screen-main" class="app-screen active">
+        <div class="categories-scroll" id="categoriesScroll">
+            <!-- Категории загружаются через JS -->
+        </div>
+
+        <div class="filters-row" id="subcategoriesRow" style="display: none;">
+            <!-- Подкатегории загружаются через JS -->
+        </div>
+
+        <div class="promo-banner">
+            <h2>Оригинальное масло Gulf Western</h2>
+            <p>Доставка по СПб и ЛО со склада</p>
+        </div>
+
+        <div class="sort-row">
+            <span class="products-count" id="productsCount">0 товаров</span>
+            <select class="sort-select" id="sortSelect">
+                <option value="popular">По популярности</option>
+                <option value="price_asc">Цена: по возрастанию</option>
+                <option value="price_desc">Цена: по убыванию</option>
+                <option value="rating">По рейтингу</option>
+                <option value="new">Новинки</option>
+            </select>
+        </div>
+
+        <div class="products-grid" id="productGrid">
+            <!-- Товары загружаются через JS -->
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ============ ЭКРАН: ДЕТАЛИ ТОВАРА ================= -->
+    <!-- ================================================== -->
+    <div id="screen-detail" class="app-screen">
+        <!-- Заполняется через JS -->
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 2: ИЗБРАННОЕ ============== -->
+    <!-- ================================================== -->
+    <div id="screen-favorites" class="app-screen">
+        <div id="favoritesContainer">
+            <div class="empty-state">
+                <span>🖤</span>
+                <p>У вас пока нет избранных товаров</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 3: КОРЗИНА ================ -->
+    <!-- ================================================== -->
+    <div id="screen-cart" class="app-screen">
+        <div class="cart-container">
+            <h2>🛒 Корзина</h2>
+            <div id="cartList"></div>
+            <div id="cartTotal" class="cart-total">Итого: 0 ₽</div>
+
+            <hr style="border-color: #222; margin: 20px 0;" />
+
+            <h3 style="margin-bottom: 15px;">Данные для доставки</h3>
+            <div class="form-group">
+                <label>Регион доставки:</label>
+                <select id="delivery-zone">
+                    <option value="spb">Санкт-Петербург (в пределах КАД)</option>
+                    <option value="lo">Ленинградская область</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Точный адрес:</label>
+                <input type="text" id="address" placeholder="Улица, дом, квартира" />
+            </div>
+            <div class="form-group">
+                <label>Номер телефона:</label>
+                <input type="tel" id="phone" placeholder="+7 (999) 000-00-00" />
+            </div>
+            <button class="btn-order" onclick="App.makeOrder()">Подтвердить заказ</button>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 4: ПРОФИЛЬ ================ -->
+    <!-- ================================================== -->
+    <div id="screen-profile" class="app-screen">
+        <div class="profile-container">
+            <div class="profile-avatar" id="userAvatar">U</div>
+            <div class="profile-name" id="userName">Пользователь</div>
+
+            <div class="loyalty-card">
+                <div class="card-header">💳 Дисконтная карта</div>
+                <div class="card-discount">Скидка: <span id="cardDiscountValue">3%</span></div>
+                <div class="card-footer">
+                    <div>Статус: <span id="loyaltyStatus">Начальный</span></div>
+                    <div>До следующей скидки: <span id="loyaltyNext">3 000 ₽</span></div>
+                </div>
+                <div class="card-progress">
+                    <div class="card-progress-bar" id="loyaltyProgress" style="width: 10%;"></div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <div class="p-menu-item" onclick="App.openReferral()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon">🎁</span>
+                        <span class="p-menu-text">Промокод за рекомендацию</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="App.showOrderHistory()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon">📦</span>
+                        <span class="p-menu-text">История заказов</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="App.contactSupport()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon">💬</span>
+                        <span class="p-menu-text">Связаться с поддержкой</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== НИЖНЕЕ МЕНЮ ===== -->
+    <div class="bottom-nav">
+        <div class="nav-item active" id="btn-nav-main" onclick="App.switchScreen('main')">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-label">Главная</div>
+        </div>
+        <div class="nav-item" id="btn-nav-favorites" onclick="App.switchScreen('favorites')">
+            <div class="nav-icon">🖤</div>
+            <div class="nav-label">Избранное</div>
+        </div>
+        <div class="nav-item" id="btn-nav-cart" onclick="App.switchScreen('cart')">
+            <div class="nav-icon">🛒</div>
+            <div class="nav-label">Корзина</div>
+            <span class="badge" id="cartBadge">0</span>
+        </div>
+        <div class="nav-item" id="btn-nav-profile" onclick="App.switchScreen('profile')">
+            <div class="nav-icon">👤</div>
+            <div class="nav-label">Профиль</div>
+        </div>
+    </div>
+
+    <!-- ===== СКРИПТЫ ===== -->
+    <script src="js/telegram.js"></script>
+    <script src="js/products.js"></script>
+    <script src="js/cart.js"></script>
+    <script src="js/favorites.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/app.js"></script>
+
+</body>
+</html>

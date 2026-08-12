@@ -1,0 +1,345 @@
+require('dotenv').config();
+const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
+const path = require('path');
+
+const app = express();
+const token = process.env.BOT_TOKEN;
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+const PORT = process.env.PORT || 3000;
+const WEB_APP_URL = process.env.WEB_APP_URL;
+
+// ═══════════════════════════════════════════
+// ПРОВЕРКА КОНФИГУРАЦИИ
+// ═══════════════════════════════════════════
+
+console.log('');
+console.log('═══════════════════════════════════════════');
+console.log('  GULF WESTERN OIL — ЗАПУСК БОТА');
+console.log('═══════════════════════════════════════════');
+console.log('');
+
+if (!token) {
+    console.error('❌ ОШИБКА: BOT_TOKEN не задан!');
+    console.error('   Откройте файл bot/.env и добавьте токен от @BotFather');
+    process.exit(1);
+}
+console.log('✅ BOT_TOKEN: задан');
+
+if (!ADMIN_CHAT_ID) {
+    console.warn('⚠️  ADMIN_CHAT_ID не задан — уведомления о заказах не будут отправляться');
+} else {
+    console.log('✅ ADMIN_CHAT_ID: ' + ADMIN_CHAT_ID);
+}
+
+if (!WEB_APP_URL) {
+    console.error('❌ ОШИБКА: WEB_APP_URL не задан!');
+    console.error('   Откройте файл bot/.env и добавьте URL вашего Mini App');
+    process.exit(1);
+}
+console.log('✅ WEB_APP_URL: ' + WEB_APP_URL);
+console.log('');
+
+// ═══════════════════════════════════════════
+// ИНИЦИАЛИЗАЦИЯ БОТА
+// ═══════════════════════════════════════════
+
+const bot = new TelegramBot(token, { polling: true });
+console.log('🤖 Бот запущен и ожидает сообщения...');
+console.log('');
+
+// ═══════════════════════════════════════════
+// ОБРАБОТКА КОМАНД БОТА
+// ═══════════════════════════════════════════
+
+// Команда /start — приветствие и кнопка открытия магазина
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    const userName = msg.from.first_name || 'Покупатель';
+
+    console.log(`📩 /start от ${userName} (ID: ${chatId})`);
+
+    bot.sendMessage(chatId, `
+🛢️ *Добро пожаловать в Gulf Western Oil, ${userName}!*
+
+Мы предлагаем качественные автomasла и расходники с доставкой по Санкт-Петербургу и Ленинградской области.
+
+*Наш ассортимент:*
+• Моторные масла (синтетика, полусинтетика, минералка)
+• Трансмиссионные масла
+• Фильтры (масляные, воздушные, салона)
+• Присадки и жидкости
+• Антифризы
+• Тормозные жидкости
+
+Нажмите кнопку ниже, чтобы открыть магазин 👇
+    `, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: '🛒 Открыть магазин',
+                    web_app: { url: WEB_APP_URL }
+                }]
+            ]
+        }
+    });
+});
+
+// Команда /shop — открыть магазин
+bot.onText(/\/shop/, (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`📩 /shop от ${msg.from.first_name} (ID: ${chatId})`);
+
+    bot.sendMessage(chatId, '🛒 Нажмите кнопку, чтобы открыть магазин:', {
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: '🛒 Открыть магазин Gulf Western',
+                    web_app: { url: WEB_APP_URL }
+                }]
+            ]
+        }
+    });
+});
+
+// Команда /help — помощь
+bot.onText(/\/help/, (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`📩 /help от ${msg.from.first_name} (ID: ${chatId})`);
+
+    bot.sendMessage(chatId, `
+📋 *Помощь*
+
+*Команды:*
+/start — Приветствие и открытие магазина
+/shop — Открыть магазин
+/orders — Мои заказы
+/help — Эта справка
+
+*Как сделать заказ:*
+1. Откройте магазин через кнопку
+2. Выберите товары
+3. Добавьте в корзину
+4. Укажите адрес и телефон
+5. Подтвердите заказ
+
+*Доставка:*
+• Санкт-Петербург (в пределах КАД) — бесплатно от 3000 ₽
+• Ленинградская область — по тарифам транспортной компании
+
+*Оплата:*
+• Наличные при получении
+• Перевод на карту
+• Онлайн-оплата (скоро)
+
+*Контакты:*
+📞 8-800-555-35-35 (бесплатно)
+💬 @gulf_support
+    `, { parse_mode: 'Markdown' });
+});
+
+// Команда /orders — история заказов
+bot.onText(/\/orders/, (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`📩 /orders от ${msg.from.first_name} (ID: ${chatId})`);
+
+    bot.sendMessage(chatId, `
+📦 *Ваши заказы*
+
+Для просмотра истории заказов откройте магазин и перейдите в раздел "Профиль" → "История заказов".
+    `, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: '📦 Открыть историю заказов',
+                    web_app: { url: WEB_APP_URL }
+                }]
+            ]
+        }
+    });
+});
+
+// ═══════════════════════════════════════════
+// ОБРАБОТКА ДАННЫХ ОТ MINI APP
+// ═══════════════════════════════════════════
+
+bot.on('message', async (msg) => {
+    // Проверяем, есть ли данные от Web App
+    if (msg.web_app_data) {
+        const chatId = msg.chat.id;
+        let orderData;
+
+        try {
+            orderData = JSON.parse(msg.web_app_data.data);
+        } catch (e) {
+            console.error('❌ Ошибка парсинга данных от Mini App:', e.message);
+            bot.sendMessage(chatId, '❌ Произошла ошибка при обработке заказа. Попробуйте еще раз.');
+            return;
+        }
+
+        console.log('📦 Получены данные от Mini App:', JSON.stringify(orderData, null, 2));
+
+        // Если это заказ
+        if (orderData.type === 'order') {
+            await handleNewOrder(chatId, orderData);
+        }
+    }
+});
+
+// ═══════════════════════════════════════════
+// ОБРАБОТКА ЗАКАЗОВ
+// ═══════════════════════════════════════════
+
+async function handleNewOrder(chatId, order) {
+    const orderId = Date.now().toString().slice(-6);
+    const itemsList = order.items
+        .map(i => `• ${i.name} (${i.volume}) × ${i.qty} = ${(i.price * i.qty).toLocaleString()} ₽`)
+        .join('\n');
+
+    const zoneName = order.zone === 'spb' ? 'Санкт-Петербург (КАД)' : 'Ленинградская область';
+
+    console.log('');
+    console.log('═══════════════════════════════════════════');
+    console.log(`  НОВЫЙ ЗАКАЗ #${orderId}`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`Клиент: ${order.userName}`);
+    console.log(`Телефон: ${order.phone}`);
+    console.log(`Адрес: ${order.address}`);
+    console.log(`Сумма: ${order.total} ₽`);
+    console.log('');
+
+    // Отправляем подтверждение покупателю
+    try {
+        await bot.sendMessage(chatId, `
+✅ *Заказ оформлен!*
+
+📦 *Номер заказа:* #${orderId}
+📅 *Дата:* ${new Date().toLocaleString('ru-RU')}
+
+*Товары:*
+${itemsList}
+
+💰 *Сумма:* ${order.total.toLocaleString()} ₽${order.discount > 0 ? ` (скидка ${order.discount}%)` : ''}
+🚚 *Доставка:* ${zoneName}
+📍 *Адрес:* ${order.address}
+
+Мы свяжемся с вами в ближайшее время для подтверждения заказа.
+        `, { parse_mode: 'Markdown' });
+        console.log('✅ Подтверждение отправлено покупателю');
+    } catch (err) {
+        console.error('❌ Ошибка отправки подтверждения:', err.message);
+    }
+
+    // Отправляем уведомление администратору
+    if (ADMIN_CHAT_ID) {
+        const adminMsg = `
+🆕 *НОВЫЙ ЗАКАЗ #${orderId}!*
+
+👤 *Клиент:* ${order.userName || 'Не указано'}
+📞 *Телефон:* ${order.phone}
+📍 *Адрес:* ${order.address}
+🚚 *Доставка:* ${zoneName}
+
+📦 *Товары:*
+${itemsList}
+
+💰 *Сумма:* ${order.total.toLocaleString()} ₽${order.discount > 0 ? ` (скидка ${order.discount}%)` : ''}
+
+💳 *Оплата:* При получении
+📅 *Дата:* ${new Date().toLocaleString('ru-RU')}
+        `;
+
+        try {
+            await bot.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'Markdown' });
+            console.log('✅ Уведомление отправлено администратору');
+        } catch (err) {
+            console.error('❌ Ошибка отправки уведомления администратору:', err.message);
+        }
+    } else {
+        console.log('⚠️  ADMIN_CHAT_ID не задан — уведомление не отправлено');
+    }
+}
+
+// ═══════════════════════════════════════════
+// EXPRESS СЕРВЕР (для статических файлов и API)
+// ═══════════════════════════════════════════
+
+// Раздача статических файлов Mini App
+app.use(express.static(path.join(__dirname, '..')));
+
+// API для получения заказов (альтернатива sendData)
+app.use(express.json());
+
+app.post('/api/order', async (req, res) => {
+    const order = req.body;
+    console.log('📦 Получен заказ через API:', JSON.stringify(order, null, 2));
+
+    if (ADMIN_CHAT_ID) {
+        const itemsList = order.items
+            .map(i => `• ${i.name} (${i.volume}) × ${i.qty} = ${(i.price * i.qty).toLocaleString()} ₽`)
+            .join('\n');
+
+        const msg = `
+🆕 *НОВЫЙ ЗАКАЗ (API)!*
+
+👤 *Клиент:* ${order.userName || 'Не указано'}
+📞 *Телефон:* ${order.phone}
+📍 *Адрес:* ${order.address}
+
+📦 *Товары:*
+${itemsList}
+
+💰 *Сумма:* ${order.total.toLocaleString()} ₽
+        `;
+
+        try {
+            await bot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'Markdown' });
+        } catch (err) {
+            console.error('❌ Ошибка отправки:', err.message);
+        }
+    }
+
+    res.json({ success: true, orderId: Date.now() });
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Запуск сервера
+app.listen(PORT, () => {
+    console.log(`🌐 Веб-сервер запущен: http://localhost:${PORT}`);
+    console.log('');
+    console.log('═══════════════════════════════════════════');
+    console.log('  БОТ ГОТОВ К РАБОТЕ!');
+    console.log('═══════════════════════════════════════════');
+    console.log('');
+    console.log('Команды бота:');
+    console.log('  /start  — Приветствие и открытие магазина');
+    console.log('  /shop   — Открыть магазин');
+    console.log('  /help   — Помощь');
+    console.log('  /orders — Мои заказы');
+    console.log('');
+    console.log('Для тестирования:');
+    console.log('  1. Откройте @Gulf_Western_Oil_bot в Telegram');
+    console.log('  2. Отправьте /start');
+    console.log('  3. Нажмите "Открыть магазин"');
+    console.log('');
+    console.log('Для остановки нажмите Ctrl+C');
+    console.log('');
+});
+
+// Обработка ошибок
+bot.on('polling_error', (error) => {
+    console.error('❌ Ошибка polling:', error.code, error.message);
+});
+
+process.on('SIGINT', () => {
+    console.log('');
+    console.log('⏹  Остановка бота...');
+    bot.stopPolling();
+    process.exit(0);
+});
