@@ -449,6 +449,7 @@ a, button, input, select { font-family: inherit; }
     align-items: center;
     justify-content: center;
     gap: 6px;
+    margin-top: auto;
 }
 .btn-buy:active { transform: scale(0.96); opacity: 0.85; }
 .btn-buy.added {
