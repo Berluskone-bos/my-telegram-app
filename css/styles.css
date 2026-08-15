@@ -279,8 +279,12 @@ a, button, input, select { font-family: inherit; }
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px 10px;
+    position: relative;
 }
-.sort-select {
+.sort-dropdown {
+    position: relative;
+}
+.sort-btn {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: 20px;
@@ -289,21 +293,55 @@ a, button, input, select { font-family: inherit; }
     font-size: 12px;
     font-weight: 600;
     font-family: var(--font);
-    outline: none;
     cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    padding-right: 28px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: 0.2s;
 }
-.sort-select option {
+.sort-btn:active {
+    background: var(--border);
+}
+.sort-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
     background: var(--bg);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
+    overflow: hidden;
+    z-index: 200;
+    display: none;
+    min-width: 180px;
+    animation: dropIn 0.15s ease;
+}
+@keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.sort-menu.open {
+    display: block;
+}
+.sort-option {
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
     font-family: var(--font);
-    padding: 8px;
-    border-radius: 12px;
+}
+.sort-option:last-child {
+    border-bottom: none;
+}
+.sort-option:active {
+    background: var(--bg-secondary);
+}
+.sort-option.active {
+    color: var(--accent);
+    font-weight: 700;
+    background: var(--accent-light);
 }
 .products-count {
     font-size: 13px;

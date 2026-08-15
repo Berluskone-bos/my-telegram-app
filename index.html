@@ -94,13 +94,19 @@
 
         <div class="sort-row">
             <span class="products-count" id="productsCount">0 товаров</span>
-            <select class="sort-select" id="sortSelect">
-                <option value="popular">По популярности</option>
-                <option value="price_asc">Цена: по возрастанию</option>
-                <option value="price_desc">Цена: по убыванию</option>
-                <option value="rating">По рейтингу</option>
-                <option value="new">Новинки</option>
-            </select>
+            <div class="sort-dropdown" id="sortDropdown">
+                <button class="sort-btn" id="sortBtn" onclick="App.toggleSort()">
+                    <span id="sortLabel">По популярности</span>
+                    <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                </button>
+                <div class="sort-menu" id="sortMenu">
+                    <div class="sort-option active" data-value="popular" onclick="App.selectSort('popular', 'По популярности')">По популярности</div>
+                    <div class="sort-option" data-value="price_asc" onclick="App.selectSort('price_asc', 'Цена ↑')">Цена: по возрастанию</div>
+                    <div class="sort-option" data-value="price_desc" onclick="App.selectSort('price_desc', 'Цена ↓')">Цена: по убыванию</div>
+                    <div class="sort-option" data-value="rating" onclick="App.selectSort('rating', 'По рейтингу')">По рейтингу</div>
+                    <div class="sort-option" data-value="new" onclick="App.selectSort('new', 'Новинки')">Новинки</div>
+                </div>
+            </div>
         </div>
 
         <div class="products-grid" id="productGrid">

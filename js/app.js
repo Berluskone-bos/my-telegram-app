@@ -45,14 +45,12 @@ const App = {
             }
         });
 
-        // Сортировка
-        const sortSelect = document.getElementById('sortSelect');
-        if (sortSelect) {
-            sortSelect.addEventListener('change', (e) => {
-                this.currentSort = e.target.value;
-                this.renderProducts();
-            });
-        }
+        // Закрытие dropdown при клике вне
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.sort-dropdown')) {
+                document.getElementById('sortMenu').classList.remove('open');
+            }
+        });
 
         // Поиск
         const searchInput = document.getElementById('searchInput');
@@ -62,6 +60,20 @@ const App = {
                 this.renderProducts();
             });
         }
+    },
+
+    toggleSort() {
+        document.getElementById('sortMenu').classList.toggle('open');
+    },
+
+    selectSort(value, label) {
+        this.currentSort = value;
+        document.getElementById('sortLabel').textContent = label;
+        document.querySelectorAll('.sort-option').forEach(opt => {
+            opt.classList.toggle('active', opt.dataset.value === value);
+        });
+        document.getElementById('sortMenu').classList.remove('open');
+        this.renderProducts();
     },
 
     renderCategories() {
