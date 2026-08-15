@@ -16,8 +16,7 @@
             <i data-lucide="menu" class="icon-sm"></i>
         </div>
         <div class="header-logo" id="headerTitle">
-            <img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-            <span class="header-logo-text" style="display:none;">АВТОПРОМОЙЛ</span>
+            <span class="header-logo-text">АВТОПРОМОЙЛ</span>
         </div>
         <div class="header-icon" onclick="App.toggleSearch()">
             <i data-lucide="search" class="icon-sm"></i>
@@ -43,49 +42,41 @@
     <!-- ================ ЭКРАН 1: ГЛАВНАЯ ================ -->
     <!-- ================================================== -->
     <div id="screen-main" class="app-screen active">
-        <div class="categories-scroll" id="categoriesScroll">
-            <!-- Категории загружаются через JS -->
-        </div>
-
-        <div class="filters-row" id="subcategoriesRow" style="display: none;">
-            <!-- Подкатегории загружаются через JS -->
-        </div>
-
         <!-- ===== БАННЕР-КАРУСЕЛЬ ===== -->
         <div class="promo-carousel">
             <div class="carousel-track" id="carouselTrack">
                 <div class="carousel-slide">
                     <div class="slide-content">
-                        <h2>Оригинальное масло</h2>
-                        <p>Доставка по СПб и ЛО со склада</p>
+                        <p>Качественные масла и расходники</p>
+                        <h2>ОРИГИНАЛЬНОЕ МАСЛО</h2>
                         <span class="slide-badge">ХИТ</span>
                     </div>
                 </div>
                 <div class="carousel-slide slide-blue">
                     <div class="slide-content">
-                        <h2>Скидка 15% на первые заказ</h2>
-                        <p>Используйте промокод АВТО15</p>
+                        <p>Для новых клиентов</p>
+                        <h2>СКИДКА 15% НА ПЕРВЫЙ ЗАКАЗ</h2>
                         <span class="slide-badge">АКЦИЯ</span>
                     </div>
                 </div>
                 <div class="carousel-slide slide-green">
                     <div class="slide-content">
-                        <h2>Бесплатная доставка</h2>
-                        <p>При заказе от 3000 ₽ по КАД</p>
+                        <p>Быстрая доставка по городу</p>
+                        <h2>БЕСПЛАТНАЯ ДОСТАВКА ОТ 3000 ₽</h2>
                         <span class="slide-badge">БОНУС</span>
                     </div>
                 </div>
                 <div class="carousel-slide slide-orange">
                     <div class="slide-content">
-                        <h2>Фильтры и присадки</h2>
                         <p>Полный ассортимент для ТО</p>
+                        <h2>ФИЛЬТРЫ И ПРИСАДКИ</h2>
                         <span class="slide-badge">НОВИНКА</span>
                     </div>
                 </div>
                 <div class="carousel-slide slide-purple">
                     <div class="slide-content">
-                        <h2>Консультация специалиста</h2>
                         <p>Подберём масло для вашего авто</p>
+                        <h2>КОНСУЛЬТАЦИЯ СПЕЦИАЛИСТА</h2>
                         <span class="slide-badge">УСЛУГА</span>
                     </div>
                 </div>
@@ -98,6 +89,8 @@
                 <span class="dot"></span>
             </div>
         </div>
+
+        <div class="section-title">Товары</div>
 
         <div class="sort-row">
             <span class="products-count" id="productsCount">0 товаров</span>
@@ -128,7 +121,7 @@
     <div id="screen-favorites" class="app-screen">
         <div id="favoritesContainer">
             <div class="empty-state">
-                <span>🖤</span>
+                <i data-lucide="heart" style="width:48px;height:48px;color:#ccc;"></i>
                 <p>У вас пока нет избранных товаров</p>
             </div>
         </div>
@@ -143,7 +136,7 @@
             <div id="cartList"></div>
             <div id="cartTotal" class="cart-total">Итого: 0 ₽</div>
 
-            <hr style="border-color: #222; margin: 20px 0;" />
+            <hr style="border-color: #E8E8E8; margin: 20px 0;" />
 
             <h3 style="margin-bottom: 15px;">Данные для доставки</h3>
             <div class="form-group">

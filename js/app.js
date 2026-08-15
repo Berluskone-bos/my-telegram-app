@@ -23,9 +23,6 @@ const App = {
         document.getElementById('userName').innerText = userName;
         document.getElementById('userAvatar').innerText = userInitial;
 
-        // Рендерим категории
-        this.renderCategories();
-
         // Рендерим главную
         this.renderProducts();
         this.updateCartBadge();
@@ -139,6 +136,9 @@ const App = {
         }
 
         grid.innerHTML = products.map(p => Products.renderCard(p, Favorites.has(p.id))).join('');
+
+        // Re-init Lucide icons for dynamically added elements
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     },
 
     showProduct(productId) {
@@ -152,7 +152,7 @@ const App = {
         // Переключаемся на экран деталей
         document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
         container.classList.add('active');
-        document.getElementById('headerTitle').innerText = product.name;
+        document.getElementById('headerTitle').innerHTML = `<span class="header-logo-text">${product.name}</span>`;
 
         // Скрываем нижнее меню
         document.querySelector('.bottom-nav').style.display = 'none';
@@ -187,12 +187,12 @@ const App = {
 
         // Меняем заголовок
         const titles = {
-            main: 'АВТОПРОМОЙЛ',
-            favorites: 'ИЗБРАННОЕ',
-            cart: 'КОРЗИНА',
-            profile: 'ПРОФИЛЬ'
+            main: '<span class="header-logo-text">АВТОПРОМОЙЛ</span>',
+            favorites: '<span class="header-logo-text">ИЗБРАННОЕ</span>',
+            cart: '<span class="header-logo-text">КОРЗИНА</span>',
+            profile: '<span class="header-logo-text">ПРОФИЛЬ</span>'
         };
-        document.getElementById('headerTitle').innerText = titles[screenName] || 'АВТОПРОМОЙЛ';
+        document.getElementById('headerTitle').innerHTML = titles[screenName] || '<span class="header-logo-text">АВТОПРОМОЙЛ</span>';
 
         // Рендерим содержимое
         if (screenName === 'cart') Cart.render();

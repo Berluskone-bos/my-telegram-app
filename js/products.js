@@ -109,29 +109,27 @@ const Products = {
             <div class="product-card" onclick="App.showProduct(${product.id})">
                 <div class="product-image">
                     <img src="${product.image}" alt="${product.name}"
-                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px\\'>🛢️</span>';">
+                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px;opacity:0.3\\'>📦</span>';">
                     <div class="product-badges">
                         ${product.is_new ? '<span class="badge-new">NEW</span>' : ''}
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
                     </div>
                     <button class="favorite-btn ${isFavorite ? 'active' : ''}"
                             onclick="event.stopPropagation(); App.toggleFavorite(${product.id})">
-                        ${isFavorite ? '❤️' : '🤍'}
+                        <i data-lucide="heart" style="width:18px;height:18px;${isFavorite ? 'fill:#E52020;color:#E52020;' : ''}"></i>
                     </button>
                 </div>
                 <div class="product-info">
                     <div class="product-title">${product.name}</div>
                     <div class="product-volume">${product.volume}</div>
-                    <div class="product-rating">
-                        <span class="stars">${'★'.repeat(Math.round(product.rating))}${'☆'.repeat(5 - Math.round(product.rating))}</span>
-                        <span>${product.rating}</span>
-                        <span>(${product.reviews_count})</span>
-                    </div>
                     <div class="product-price-row">
-                        <div class="product-price">${product.price.toLocaleString()} ₽</div>
-                        ${product.old_price > 0 ? `<div class="product-old-price">${product.old_price.toLocaleString()} ₽</div>` : ''}
+                        <span class="product-price">${product.price.toLocaleString()} ₽</span>
+                        ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : ''}
                     </div>
-                    <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">В корзину</button>
+                    <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
+                        <i data-lucide="shopping-cart" style="width:16px;height:16px;"></i>
+                        В корзину
+                    </button>
                 </div>
             </div>
         `;
