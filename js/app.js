@@ -284,7 +284,7 @@ const App = {
             overlay.style.display = 'block';
             setTimeout(() => { overlay.style.opacity = '1'; menu.style.left = '0'; }, 10);
         } else {
-            menu.style.left = '-280px';
+            menu.style.left = '-300px';
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 300);
         }
