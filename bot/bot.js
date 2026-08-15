@@ -57,9 +57,7 @@ async function setupBotOnStart() {
         // Устанавливаем команды бота
         await bot.setMyCommands([
             { command: 'start', description: 'Открыть магазин' },
-            { command: 'shop', description: 'Открыть магазин масел' },
-            { command: 'help', description: 'Помощь' },
-            { command: 'orders', description: 'Мои заказы' }
+            { command: 'help', description: 'Помощь' }
         ]);
         console.log('✅ Команды бота установлены');
 
@@ -154,8 +152,6 @@ bot.onText(/\/help/, (msg) => {
         `📋 <b>Помощь</b>\n\n` +
         `<b>Команды:</b>\n` +
         `/start — Приветствие и открытие магазина\n` +
-        `/shop — Открыть магазин\n` +
-        `/orders — Мои заказы\n` +
         `/help — Эта справка\n\n` +
         `<b>Как сделать заказ:</b>\n` +
         `1. Откройте магазин через кнопку\n` +
