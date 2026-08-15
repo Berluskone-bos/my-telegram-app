@@ -21,7 +21,7 @@ a, button, input, select {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 20px;
+    padding: 12px 20px;
     font-size: 18px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -33,21 +33,40 @@ a, button, input, select {
 }
 .burger-btn {
     cursor: pointer;
-    font-size: 24px;
     padding: 5px;
     user-select: none;
+    display: flex;
+    align-items: center;
 }
-.header-title {
+.header-logo {
     flex: 1;
     text-align: center;
-    font-size: 16px;
-    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.header-logo-img {
+    height: 32px;
+    max-width: 180px;
+    object-fit: contain;
+}
+.header-logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: #fff;
 }
 .header-icon {
-    font-size: 20px;
     cursor: pointer;
     padding: 5px;
+    display: flex;
+    align-items: center;
 }
+
+/* ===== LUCIDE ИКОНКИ ===== */
+.icon-sm { width: 22px; height: 22px; }
+.icon-md { width: 24px; height: 24px; }
+.icon-lg { width: 28px; height: 28px; }
 
 /* ===== ПОИСК ===== */
 .search-container {
@@ -189,23 +208,97 @@ a, button, input, select {
     color: #fff;
 }
 
-.promo-banner {
+/* ===== БАННЕР-КАРУСЕЛЬ ===== */
+.promo-carousel {
     margin: 0 20px 20px 20px;
-    background: linear-gradient(135deg, #002d62 0%, #000000 100%);
     border-radius: 16px;
-    padding: 25px 20px;
-    text-align: center;
+    overflow: hidden;
+    position: relative;
     border: 1px solid #2a2a2a;
-    box-shadow: 0 4px 15px rgba(0, 45, 98, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
-.promo-banner h2 {
-    font-size: 22px;
-    margin-bottom: 6px;
+.carousel-track {
+    display: flex;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+}
+.carousel-slide {
+    min-width: 100%;
+    background: linear-gradient(135deg, #002d62 0%, #001025 100%);
+    padding: 40px 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.carousel-slide::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+}
+.carousel-slide.slide-blue {
+    background: linear-gradient(135deg, #0055b8 0%, #001a3d 100%);
+}
+.carousel-slide.slide-green {
+    background: linear-gradient(135deg, #00a650 0%, #003d1f 100%);
+}
+.carousel-slide.slide-orange {
+    background: linear-gradient(135deg, #ff6b00 0%, #3d1a00 100%);
+}
+.carousel-slide.slide-purple {
+    background: linear-gradient(135deg, #7b2d8e 0%, #2a0f30 100%);
+}
+.slide-content {
+    position: relative;
+    z-index: 1;
+}
+.slide-content h2 {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.slide-content p {
+    color: rgba(255,255,255,0.85);
+    font-size: 15px;
+    line-height: 1.4;
+}
+.slide-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-top: 14px;
     letter-spacing: 1px;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.15);
 }
-.promo-banner p {
-    color: #bbb;
-    font-size: 14px;
+.carousel-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 0;
+    background: rgba(0,0,0,0.3);
+}
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+.dot.active {
+    background: #fff;
+    width: 24px;
+    border-radius: 4px;
 }
 
 /* ===== СОРТИРОВКА ===== */
@@ -706,9 +799,17 @@ a, button, input, select {
     color: #4a8bf5;
 }
 .nav-icon {
-    font-size: 22px;
     margin-bottom: 2px;
     line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.nav-icon svg,
+.nav-icon i {
+    width: 22px;
+    height: 22px;
+    stroke-width: 1.8;
 }
 .nav-label {
     font-size: 10px;

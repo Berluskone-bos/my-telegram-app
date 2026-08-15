@@ -3,17 +3,25 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Gulf Western Oil Магазин</title>
+    <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
     <!-- ===== ШАПКА ===== -->
     <div class="header">
-        <div class="burger-btn" onclick="App.toggleMenu(true)">☰</div>
-        <div class="header-title" id="headerTitle">GULF WESTERN</div>
-        <div class="header-icon" onclick="App.toggleSearch()">🔍</div>
+        <div class="burger-btn" onclick="App.toggleMenu(true)">
+            <i data-lucide="menu" class="icon-sm"></i>
+        </div>
+        <div class="header-logo" id="headerTitle">
+            <img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <span class="header-logo-text" style="display:none;">АВТОПРОМОЙЛ</span>
+        </div>
+        <div class="header-icon" onclick="App.toggleSearch()">
+            <i data-lucide="search" class="icon-sm"></i>
+        </div>
     </div>
 
     <!-- ===== ПОИСК ===== -->
@@ -43,9 +51,52 @@
             <!-- Подкатегории загружаются через JS -->
         </div>
 
-        <div class="promo-banner">
-            <h2>Оригинальное масло Gulf Western</h2>
-            <p>Доставка по СПб и ЛО со склада</p>
+        <!-- ===== БАННЕР-КАРУСЕЛЬ ===== -->
+        <div class="promo-carousel">
+            <div class="carousel-track" id="carouselTrack">
+                <div class="carousel-slide">
+                    <div class="slide-content">
+                        <h2>Оригинальное масло</h2>
+                        <p>Доставка по СПб и ЛО со склада</p>
+                        <span class="slide-badge">ХИТ</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-blue">
+                    <div class="slide-content">
+                        <h2>Скидка 15% на первые заказ</h2>
+                        <p>Используйте промокод АВТО15</p>
+                        <span class="slide-badge">АКЦИЯ</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-green">
+                    <div class="slide-content">
+                        <h2>Бесплатная доставка</h2>
+                        <p>При заказе от 3000 ₽ по КАД</p>
+                        <span class="slide-badge">БОНУС</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-orange">
+                    <div class="slide-content">
+                        <h2>Фильтры и присадки</h2>
+                        <p>Полный ассортимент для ТО</p>
+                        <span class="slide-badge">НОВИНКА</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-purple">
+                    <div class="slide-content">
+                        <h2>Консультация специалиста</h2>
+                        <p>Подберём масло для вашего авто</p>
+                        <span class="slide-badge">УСЛУГА</span>
+                    </div>
+                </div>
+            </div>
+            <div class="carousel-dots" id="carouselDots">
+                <span class="dot active"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
         </div>
 
         <div class="sort-row">
@@ -163,20 +214,20 @@
     <!-- ===== НИЖНЕЕ МЕНЮ ===== -->
     <div class="bottom-nav">
         <div class="nav-item active" id="btn-nav-main" onclick="App.switchScreen('main')">
-            <div class="nav-icon">🏠</div>
+            <div class="nav-icon"><i data-lucide="home"></i></div>
             <div class="nav-label">Главная</div>
         </div>
         <div class="nav-item" id="btn-nav-favorites" onclick="App.switchScreen('favorites')">
-            <div class="nav-icon">🖤</div>
+            <div class="nav-icon"><i data-lucide="heart"></i></div>
             <div class="nav-label">Избранное</div>
         </div>
         <div class="nav-item" id="btn-nav-cart" onclick="App.switchScreen('cart')">
-            <div class="nav-icon">🛒</div>
+            <div class="nav-icon"><i data-lucide="shopping-cart"></i></div>
             <div class="nav-label">Корзина</div>
             <span class="badge" id="cartBadge">0</span>
         </div>
         <div class="nav-item" id="btn-nav-profile" onclick="App.switchScreen('profile')">
-            <div class="nav-icon">👤</div>
+            <div class="nav-icon"><i data-lucide="user"></i></div>
             <div class="nav-label">Профиль</div>
         </div>
     </div>
@@ -188,6 +239,45 @@
     <script src="js/favorites.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Инициализация Lucide иконок
+        lucide.createIcons();
+
+        // Автоматическая карусель
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.carousel-slide');
+        const dots = document.querySelectorAll('.dot');
+        const track = document.getElementById('carouselTrack');
+
+        function goToSlide(index) {
+            currentSlide = index;
+            track.style.transform = `translateX(-${index * 100}%)`;
+            dots.forEach((dot, i) => dot.classList.toggle('active', i === index));
+        }
+
+        // Автопрокрутка каждые 4 секунды
+        setInterval(() => {
+            currentSlide = (currentSlide + 1) % slides.length;
+            goToSlide(currentSlide);
+        }, 4000);
+
+        // Клик по точкам
+        dots.forEach((dot, i) => {
+            dot.addEventListener('click', () => goToSlide(i));
+        });
+
+        // Свайп для карусели
+        let touchStartX = 0;
+        const carousel = document.querySelector('.promo-carousel');
+        carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+        carousel.addEventListener('touchend', (e) => {
+            const diff = touchStartX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 50) {
+                if (diff > 0 && currentSlide < slides.length - 1) goToSlide(currentSlide + 1);
+                else if (diff < 0 && currentSlide > 0) goToSlide(currentSlide - 1);
+            }
+        });
+    </script>
 
 </body>
 </html>

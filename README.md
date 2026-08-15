@@ -1,6 +1,6 @@
-# Gulf Western Oil — Telegram Mini App
+# АВТОПРОМОЙЛ — Telegram Mini App
 
-Магазин автomasел Gulf Western для Telegram.
+Магазин автотоваров АВТОПРОМОЙЛ для Telegram.
 
 ## Быстрый старт
 

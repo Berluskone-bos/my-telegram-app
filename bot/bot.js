@@ -15,7 +15,7 @@ const WEB_APP_URL = process.env.WEB_APP_URL;
 
 console.log('');
 console.log('═══════════════════════════════════════════');
-console.log('  GULF WESTERN OIL — ЗАПУСК БОТА');
+console.log('  АВТОПРОМОЙЛ — ЗАПУСК БОТА');
 console.log('═══════════════════════════════════════════');
 console.log('');
 
@@ -75,7 +75,7 @@ async function setupBotOnStart() {
 
         // Устанавливаем описание бота
         await bot.setMyDescription(
-            '🛢️ Магазин автomasел Gulf Western\n\n' +
+            '🏪 Магазин автотоваров АВТОПРОМОЙЛ\n\n' +
             'Откройте магазин через кнопку меню или команду /shop\n\n' +
             '• Моторные масла\n' +
             '• Трансмиссионные масла\n' +
@@ -106,7 +106,7 @@ bot.onText(/\/start/, (msg) => {
     console.log(`📩 /start от ${userName} (ID: ${chatId})`);
 
     bot.sendMessage(chatId,
-        `🛢️ <b>Добро пожаловать в Gulf Western Oil, ${userName}!</b>\n\n` +
+        `🏪 <b>Добро пожаловать в АВТОПРОМОЙЛ, ${userName}!</b>\n\n` +
         `Мы предлагаем качественные автomasла и расходники с доставкой по Санкт-Петербургу и Ленинградской области.\n\n` +
         `<b>Наш ассортимент:</b>\n` +
         `• Моторные масла (синтетика, полусинтетика, минералка)\n` +
@@ -137,7 +137,7 @@ bot.onText(/\/shop/, (msg) => {
         reply_markup: {
             inline_keyboard: [
                 [{
-                    text: '🛒 Открыть магазин Gulf Western',
+                    text: '🏪 Открыть магазин АВТОПРОМОЙЛ',
                     web_app: { url: WEB_APP_URL }
                 }]
             ]
@@ -172,7 +172,7 @@ bot.onText(/\/help/, (msg) => {
         `• Онлайн-оплата (скоро)\n\n` +
         `<b>Контакты:</b>\n` +
         `📞 8-800-555-35-35 (бесплатно)\n` +
-        `💬 @gulf_support`,
+        `💬 @avtopromol_support`,
         { parse_mode: 'HTML' });
 });
 

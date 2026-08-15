@@ -22,8 +22,8 @@ if (!token) {
     console.log('Шаг 1: Создайте бота');
     console.log('  → Откройте @BotFather в Telegram');
     console.log('  → Отправьте /newbot');
-    console.log('  → Укажите имя: Gulf Western Oil Shop');
-    console.log('  → Укажите username: gulf_western_shop_bot');
+    console.log('  → Укажите имя: АВТОПРОМОЙЛ Shop');
+    console.log('  → Укажите username: avtopromol_bot');
     console.log('  → Скопируйте токен');
     console.log('');
     console.log('Шаг 2: Настройте токен');
@@ -65,7 +65,7 @@ async function setupBot() {
         // 3. Устанавливаем описание бота
         console.log('3. Установка описания бота...');
         await bot.setMyDescription(
-            '🛢️ Магазин автomasел Gulf Western\n\n' +
+            '🏪 Магазин автотоваров АВТОПРОМОЙЛ\n\n' +
             'Откройте магазин через кнопку меню или команду /shop\n\n' +
             '• Моторные масла\n' +
             '• Трансмиссионные масла\n' +
@@ -80,7 +80,7 @@ async function setupBot() {
 
         // 4. Устанавливаем короткое описание
         console.log('4. Установка короткого описания...');
-        await bot.setMyShortDescription('🛢️ Магазин автomasел Gulf Western Oil. Доставка по СПб и ЛО');
+        await bot.setMyShortDescription('🏪 Магазин автотоваров АВТОПРОМОЙЛ. Доставка по СПб и ЛО');
         console.log('   ✅ Короткое описание установлено');
         console.log('');
 

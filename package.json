@@ -1,7 +1,7 @@
 {
-  "name": "gulf-western-oil-shop",
+  "name": "avtopromol-shop",
   "version": "1.0.0",
-  "description": "Gulf Western Oil Telegram Mini App",
+  "description": "АВТОПРОМОЙЛ Telegram Mini App",
   "main": "bot/bot.js",
   "scripts": {
     "start": "node bot/bot.js",

@@ -187,12 +187,12 @@ const App = {
 
         // Меняем заголовок
         const titles = {
-            main: 'GULF WESTERN',
+            main: 'АВТОПРОМОЙЛ',
             favorites: 'ИЗБРАННОЕ',
             cart: 'КОРЗИНА',
             profile: 'ПРОФИЛЬ'
         };
-        document.getElementById('headerTitle').innerText = titles[screenName] || 'GULF WESTERN';
+        document.getElementById('headerTitle').innerText = titles[screenName] || 'АВТОПРОМОЙЛ';
 
         // Рендерим содержимое
         if (screenName === 'cart') Cart.render();
@@ -364,7 +364,7 @@ const App = {
     },
 
     contactSupport() {
-        alert('💬 Поддержка: напишите нам в Telegram @gulf_support или позвоните 8-800-555-35-35');
+        alert('💬 Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
     }
 };
 

@@ -1,7 +1,7 @@
 {
-  "name": "gulf-western-bot",
+  "name": "avtopromol-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for Gulf Western Oil shop order notifications",
+  "description": "Telegram bot for АВТОПРОМОЙЛ shop order notifications",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
