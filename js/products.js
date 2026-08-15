@@ -121,10 +121,10 @@ const Products = {
                 </div>
                 <div class="product-info">
                     <div class="product-title">${product.name}</div>
-                    <div class="product-volume">${product.volume}</div>
+                    <div class="product-volume">${product.volume || '&nbsp;'}</div>
                     <div class="product-price-row">
                         <span class="product-price">${product.price.toLocaleString()} ₽</span>
-                        ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : ''}
+                        ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : '<span class="product-old-price" style="visibility:hidden;">0 ₽</span>'}
                     </div>
                     <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
                         <i data-lucide="shopping-cart" style="width:16px;height:16px;"></i>

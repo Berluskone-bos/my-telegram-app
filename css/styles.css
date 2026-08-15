@@ -405,6 +405,7 @@ a, button, input, select { font-family: inherit; }
     color: var(--text-muted);
     margin-bottom: 8px;
     font-weight: 500;
+    min-height: 16px;
 }
 .product-price-row {
     display: flex;
@@ -412,6 +413,7 @@ a, button, input, select { font-family: inherit; }
     gap: 6px;
     margin-bottom: 10px;
     flex-wrap: wrap;
+    min-height: 28px;
 }
 .product-price {
     background: var(--price-bg);
