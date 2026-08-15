@@ -175,10 +175,12 @@ a, button, input, select { font-family: inherit; }
 
 /* ===== БАННЕР-КАРУСЕЛЬ (ROSTICS STYLE) ===== */
 .promo-carousel {
-    margin: 0;
+    margin: 12px;
     position: relative;
     overflow: hidden;
     background: #1a1a1a;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
 }
 .carousel-track {
     display: flex;
@@ -255,6 +257,7 @@ a, button, input, select { font-family: inherit; }
     left: 0;
     right: 0;
     z-index: 3;
+    border-radius: 0 0 20px 20px;
 }
 .dot {
     width: 6px;
