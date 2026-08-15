@@ -155,10 +155,6 @@ const App = {
         // Сортировка
         products = Products.sort(products, this.currentSort);
 
-        // Счётчик
-        const countEl = document.getElementById('productsCount');
-        if (countEl) countEl.textContent = `${products.length} товаров`;
-
         if (products.length === 0) {
             grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#666; padding:30px;">Товары не найдены</div>';
             return;
