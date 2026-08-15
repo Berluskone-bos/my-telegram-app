@@ -118,6 +118,9 @@ const Products = {
                             onclick="event.stopPropagation(); App.toggleFavorite(${product.id})">
                         <i data-lucide="heart" style="width:18px;height:18px;${isFavorite ? 'fill:#E52020;color:#E52020;' : ''}"></i>
                     </button>
+                    <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
+                        <i data-lucide="shopping-bag" style="width:20px;height:20px;"></i>
+                    </button>
                 </div>
                 <div class="product-info">
                     <div class="product-title">${product.name}</div>
@@ -126,10 +129,6 @@ const Products = {
                         <span class="product-price">${product.price.toLocaleString()} ₽</span>
                         ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : '<span class="product-old-price" style="visibility:hidden;">0 ₽</span>'}
                     </div>
-                    <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
-                        <i data-lucide="shopping-cart" style="width:16px;height:16px;"></i>
-                        В корзину
-                    </button>
                 </div>
             </div>
         `;

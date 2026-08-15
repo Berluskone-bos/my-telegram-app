@@ -231,11 +231,13 @@ const App = {
         // Визуальный фидбек
         const btns = document.querySelectorAll(`.btn-buy[onclick*="addToCart(${productId})"]`);
         btns.forEach(btn => {
-            btn.textContent = '✅ Добавлено';
+            btn.innerHTML = '<i data-lucide="check" style="width:20px;height:20px;"></i>';
             btn.classList.add('added');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             setTimeout(() => {
-                btn.textContent = 'В корзину';
+                btn.innerHTML = '<i data-lucide="shopping-bag" style="width:20px;height:20px;"></i>';
                 btn.classList.remove('added');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
             }, 800);
         });
     },

@@ -1,5 +1,5 @@
 /* ===== ROSTICS-STYLE LIGHT THEME — АВТОПРОМОЙЛ ===== */
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root {
     --bg: #FFFFFF;
@@ -17,7 +17,7 @@
     --radius-sm: 12px;
     --radius-pill: 50px;
     --price-bg: #F0E8D8;
-    --font: 'Manrope', -apple-system, system-ui, sans-serif;
+    --font: 'Inter', -apple-system, system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -445,9 +445,6 @@ a, button, input, select { font-family: inherit; }
 
 .product-info {
     padding: 10px 12px 14px;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
 }
 .product-title {
     font-size: 13px;
@@ -495,22 +492,28 @@ a, button, input, select { font-family: inherit; }
 }
 .product-rating .stars { color: #FFB800; }
 .btn-buy {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
     background: var(--text-primary);
     color: #fff;
     border: none;
-    padding: 10px 0;
-    border-radius: var(--radius-sm);
-    font-weight: 700;
-    font-size: 14px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
     cursor: pointer;
     transition: 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    margin-top: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 5;
 }
-.btn-buy:active { transform: scale(0.96); opacity: 0.85; }
+.btn-buy svg {
+    width: 20px;
+    height: 20px;
+}
+.btn-buy:active { transform: scale(0.9); }
 .btn-buy.added {
     background: #28a745;
 }
