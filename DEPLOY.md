@@ -3,7 +3,7 @@
 ## Архитектура
 
 ```
-GitHub Pages (бесплатно)          Railway.app (бесплатно)
+GitHub Pages (бесплатно)          Railway.app / Render.com (бесплатно)
 ┌─────────────────────┐          ┌─────────────────────┐
 │  Фронтенд (сайт)    │          │  Бот (Node.js)      │
 │  - index.html        │          │  - Обработка /start │
@@ -15,93 +15,82 @@ GitHub Pages (бесплатно)          Railway.app (бесплатно)
          └────────── Telegram ────────────┘
 ```
 
-## Шаг 1: Загрузить фронтенд на GitHub Pages
+## Шаг 1: Фронтенд на GitHub Pages
 
-Фронтенд уже на GitHub Pages:
-https://berluskone-bos.github.io/my-telegram-app/
+Фронтенд автоматически деплоится при push в ветку `main`.
+URL: https://berluskone-bos.github.io/my-telegram-app/
 
-## Шаг 2: Деплой бота на Railway.app (бесплатно)
+Для включения GitHub Pages:
+1. Откройте репозиторий на GitHub
+2. Settings → Pages
+3. Source: "GitHub Actions"
+4. Сохраните
 
-### 2.1. Зарегистрируйтесь на Railway
+## Шаг 2: Деплой бота
 
-1. Откройте https://railway.app
-2. Нажмите "Login with GitHub"
-3. Авторизуйтесь через GitHub
+### Вариант A: Railway.app (рекомендуется)
 
-### 2.2. Создайте проект
-
-1. Нажмите "New Project"
-2. Выберите "Deploy from GitHub repo"
-3. Найдите репозиторий `my-telegram-app`
-4. Нажмите "Deploy"
-
-### 2.3. Добавьте переменные окружения
-
-1. В проекте нажмите на сервис
-2. Перейдите в "Variables"
-3. Добавьте переменные:
+1. Откройте https://railway.app → Login with GitHub
+2. New Project → Deploy from GitHub repo → `my-telegram-app`
+3. Перейдите в Variables и добавьте:
 
 ```
-BOT_TOKEN = 8002826024:AAH7vy9AgUfoIv7j0Y3Wt3zfg7cO3an_z0o
-ADMIN_CHAT_ID = 695826264
+BOT_TOKEN = ваш_токен_от_botfather
+ADMIN_CHAT_ID = ваш_chat_id
 WEB_APP_URL = https://berluskone-bos.github.io/my-telegram-app/
 ```
 
-### 2.4. Добавьте Procfile
-
-Railway автоматически найдёт файл `Procfile` в корне проекта.
-
-### 2.5. Проверьте деплой
-
-1. Перейдите в "Deployments"
-2. Дождитесь успешного деплоя
-3. Проверьте логи — должны видеть:
+4. Railway автоматически найдёт `Procfile` и запустит бота
+5. Проверьте логи — должны видеть:
    ```
    ✅ BOT_TOKEN: задан
-   ✅ ADMIN_CHAT_ID: 695826264
-   ✅ WEB_APP_URL: https://berluskone-bos.github.io/my-telegram-app/
+   ✅ Кнопка меню "Открыть магазин" установлена
    🤖 Бот запущен и ожидает сообщения...
    ```
 
-### 2.6. Протестируйте бота
+### Вариант B: Render.com
 
-1. Откройте @Gulf_Western_Oil_bot в Telegram
-2. Отправьте `/start`
-3. Должна появиться кнопка "Открыть магазин"
-
-## Альтернативы Railway
-
-### Render.com (бесплатно)
-
-1. Откройте https://render.com
-2. Создайте "New Web Service"
-3. Подключите GitHub репозиторий
-4. Настройки:
+1. Откройте https://render.com → New Web Service
+2. Подключите GitHub репозиторий
+3. Настройки:
    - Build Command: `npm install`
    - Start Command: `node bot/bot.js`
-5. Добавьте переменные окружения
-6. Deploy
+4. Добавьте переменные окружения (Environment)
+5. Deploy
 
-### Fly.io (бесплатно)
+### Вариант C: Локально (для отладки)
 
 ```bash
-# Установите flyctl
-curl -L https://fly.io/install.sh | sh
+# Установите зависимости
+cd bot && npm install
 
-# Авторизуйтесь
-fly auth login
+# Создайте bot/.env файл:
+# BOT_TOKEN=ваш_токен
+# ADMIN_CHAT_ID=ваш_chat_id
+# WEB_APP_URL=https://berluskone-bos.github.io/my-telegram-app/
 
-# Инициализируйте проект
-fly launch
-
-# Добавьте переменные
-fly secrets set BOT_TOKEN=ваш_токен
-fly secrets set ADMIN_CHAT_ID=695826264
-fly secrets set WEB_APP_URL=https://berluskone-bos.github.io/my-telegram-app/
-
-# Деплой
-fly deploy
+# Запустите бота
+node bot.js
 ```
+
+## Получение токена и Chat ID
+
+1. **BOT_TOKEN**: Откройте @BotFather → `/newbot` → скопируйте токен
+2. **ADMIN_CHAT_ID**: Откройте @userinfobot → отправьте сообщение → скопируйте ID
+
+## Проверка работы
+
+### Бот:
+Откройте @Gulf_Western_Oil_bot → `/start` → должна появиться кнопка "Открыть магазин"
+
+### Кнопка меню:
+После запуска бота в чате появится кнопка 🛒 внизу экрана
+
+### Сайт:
+https://berluskone-bos.github.io/my-telegram-app/
+
+### API:
+https://ваш-проект.railway.app/api/health
 
 ## Обновление каталога
 
@@ -114,14 +103,3 @@ fly deploy
    ```
 3. GitHub Pages обновится автоматически
 4. Бот на Railway перезапустится автоматически
-
-## Проверка работы
-
-### Проверить бота:
-Откройте @Gulf_Western_Oil_bot → /start
-
-### Проверить сайт:
-Откройте https://berluskone-bos.github.io/my-telegram-app/
-
-### Проверить API бота:
-Откройте https://ваш-проект.railway.app/api/health

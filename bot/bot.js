@@ -49,6 +49,52 @@ console.log('🤖 Бот запущен и ожидает сообщения...'
 console.log('');
 
 // ═══════════════════════════════════════════
+// АВТОМАТИЧЕСКАЯ НАСТРОЙКА БОТА
+// ═══════════════════════════════════════════
+
+async function setupBotOnStart() {
+    try {
+        // Устанавливаем команды бота
+        await bot.setMyCommands([
+            { command: 'start', description: 'Открыть магазин' },
+            { command: 'shop', description: 'Открыть магазин масел' },
+            { command: 'help', description: 'Помощь' },
+            { command: 'orders', description: 'Мои заказы' }
+        ]);
+        console.log('✅ Команды бота установлены');
+
+        // Устанавливаем кнопку меню для открытия Mini App
+        await bot.setChatMenuButton({
+            menu_button: {
+                type: 'web_app',
+                text: '🛒 Открыть магазин',
+                web_app: { url: WEB_APP_URL }
+            }
+        });
+        console.log('✅ Кнопка меню "Открыть магазин" установлена');
+
+        // Устанавливаем описание бота
+        await bot.setMyDescription(
+            '🛢️ Магазин автomasел Gulf Western\n\n' +
+            'Откройте магазин через кнопку меню или команду /shop\n\n' +
+            '• Моторные масла\n' +
+            '• Трансмиссионные масла\n' +
+            '• Фильтры\n' +
+            '• Присадки\n' +
+            '• Антифризы\n' +
+            '• Тормозные жидкости\n\n' +
+            'Доставка по СПб и ЛО'
+        );
+        console.log('✅ Описание бота установлено');
+
+    } catch (err) {
+        console.error('⚠️  Ошибка настройки бота:', err.message);
+    }
+}
+
+setupBotOnStart();
+
+// ═══════════════════════════════════════════
 // ОБРАБОТКА КОМАНД БОТА
 // ═══════════════════════════════════════════
 
@@ -59,22 +105,18 @@ bot.onText(/\/start/, (msg) => {
 
     console.log(`📩 /start от ${userName} (ID: ${chatId})`);
 
-    bot.sendMessage(chatId, `
-🛢️ *Добро пожаловать в Gulf Western Oil, ${userName}!*
-
-Мы предлагаем качественные автomasла и расходники с доставкой по Санкт-Петербургу и Ленинградской области.
-
-*Наш ассортимент:*
-• Моторные масла (синтетика, полусинтетика, минералка)
-• Трансмиссионные масла
-• Фильтры (масляные, воздушные, салона)
-• Присадки и жидкости
-• Антифризы
-• Тормозные жидкости
-
-Нажмите кнопку ниже, чтобы открыть магазин 👇
-    `, {
-        parse_mode: 'Markdown',
+    bot.sendMessage(chatId,
+        `🛢️ <b>Добро пожаловать в Gulf Western Oil, ${userName}!</b>\n\n` +
+        `Мы предлагаем качественные автomasла и расходники с доставкой по Санкт-Петербургу и Ленинградской области.\n\n` +
+        `<b>Наш ассортимент:</b>\n` +
+        `• Моторные масла (синтетика, полусинтетика, минералка)\n` +
+        `• Трансмиссионные масла\n` +
+        `• Фильтры (масляные, воздушные, салона)\n` +
+        `• Присадки и жидкости\n` +
+        `• Антифризы\n` +
+        `• Тормозные жидкости\n\n` +
+        `Нажмите кнопку ниже, чтобы открыть магазин 👇`, {
+        parse_mode: 'HTML',
         reply_markup: {
             inline_keyboard: [
                 [{
@@ -108,35 +150,30 @@ bot.onText(/\/help/, (msg) => {
     const chatId = msg.chat.id;
     console.log(`📩 /help от ${msg.from.first_name} (ID: ${chatId})`);
 
-    bot.sendMessage(chatId, `
-📋 *Помощь*
-
-*Команды:*
-/start — Приветствие и открытие магазина
-/shop — Открыть магазин
-/orders — Мои заказы
-/help — Эта справка
-
-*Как сделать заказ:*
-1. Откройте магазин через кнопку
-2. Выберите товары
-3. Добавьте в корзину
-4. Укажите адрес и телефон
-5. Подтвердите заказ
-
-*Доставка:*
-• Санкт-Петербург (в пределах КАД) — бесплатно от 3000 ₽
-• Ленинградская область — по тарифам транспортной компании
-
-*Оплата:*
-• Наличные при получении
-• Перевод на карту
-• Онлайн-оплата (скоро)
-
-*Контакты:*
-📞 8-800-555-35-35 (бесплатно)
-💬 @gulf_support
-    `, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId,
+        `📋 <b>Помощь</b>\n\n` +
+        `<b>Команды:</b>\n` +
+        `/start — Приветствие и открытие магазина\n` +
+        `/shop — Открыть магазин\n` +
+        `/orders — Мои заказы\n` +
+        `/help — Эта справка\n\n` +
+        `<b>Как сделать заказ:</b>\n` +
+        `1. Откройте магазин через кнопку\n` +
+        `2. Выберите товары\n` +
+        `3. Добавьте в корзину\n` +
+        `4. Укажите адрес и телефон\n` +
+        `5. Подтвердите заказ\n\n` +
+        `<b>Доставка:</b>\n` +
+        `• Санкт-Петербург (в пределах КАД) — бесплатно от 3000 ₽\n` +
+        `• Ленинградская область — по тарифам транспортной компании\n\n` +
+        `<b>Оплата:</b>\n` +
+        `• Наличные при получении\n` +
+        `• Перевод на карту\n` +
+        `• Онлайн-оплата (скоро)\n\n` +
+        `<b>Контакты:</b>\n` +
+        `📞 8-800-555-35-35 (бесплатно)\n` +
+        `💬 @gulf_support`,
+        { parse_mode: 'HTML' });
 });
 
 // Команда /orders — история заказов
@@ -144,12 +181,10 @@ bot.onText(/\/orders/, (msg) => {
     const chatId = msg.chat.id;
     console.log(`📩 /orders от ${msg.from.first_name} (ID: ${chatId})`);
 
-    bot.sendMessage(chatId, `
-📦 *Ваши заказы*
-
-Для просмотра истории заказов откройте магазин и перейдите в раздел "Профиль" → "История заказов".
-    `, {
-        parse_mode: 'Markdown',
+    bot.sendMessage(chatId,
+        `📦 <b>Ваши заказы</b>\n\n` +
+        `Для просмотра истории заказов откройте магазин и перейдите в раздел "Профиль" → "История заказов".`, {
+        parse_mode: 'HTML',
         reply_markup: {
             inline_keyboard: [
                 [{
@@ -212,21 +247,16 @@ async function handleNewOrder(chatId, order) {
 
     // Отправляем подтверждение покупателю
     try {
-        await bot.sendMessage(chatId, `
-✅ *Заказ оформлен!*
-
-📦 *Номер заказа:* #${orderId}
-📅 *Дата:* ${new Date().toLocaleString('ru-RU')}
-
-*Товары:*
-${itemsList}
-
-💰 *Сумма:* ${order.total.toLocaleString()} ₽${order.discount > 0 ? ` (скидка ${order.discount}%)` : ''}
-🚚 *Доставка:* ${zoneName}
-📍 *Адрес:* ${order.address}
-
-Мы свяжемся с вами в ближайшее время для подтверждения заказа.
-        `, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId,
+            `✅ <b>Заказ оформлен!</b>\n\n` +
+            `📦 <b>Номер заказа:</b> #${orderId}\n` +
+            `📅 <b>Дата:</b> ${new Date().toLocaleString('ru-RU')}\n\n` +
+            `<b>Товары:</b>\n${itemsList}\n\n` +
+            `💰 <b>Сумма:</b> ${order.total.toLocaleString()} ₽${order.discount > 0 ? ` (скидка ${order.discount}%)` : ''}\n` +
+            `🚚 <b>Доставка:</b> ${zoneName}\n` +
+            `📍 <b>Адрес:</b> ${order.address}\n\n` +
+            `Мы свяжемся с вами в ближайшее время для подтверждения заказа.`,
+            { parse_mode: 'HTML' });
         console.log('✅ Подтверждение отправлено покупателю');
     } catch (err) {
         console.error('❌ Ошибка отправки подтверждения:', err.message);
@@ -234,25 +264,19 @@ ${itemsList}
 
     // Отправляем уведомление администратору
     if (ADMIN_CHAT_ID) {
-        const adminMsg = `
-🆕 *НОВЫЙ ЗАКАЗ #${orderId}!*
-
-👤 *Клиент:* ${order.userName || 'Не указано'}
-📞 *Телефон:* ${order.phone}
-📍 *Адрес:* ${order.address}
-🚚 *Доставка:* ${zoneName}
-
-📦 *Товары:*
-${itemsList}
-
-💰 *Сумма:* ${order.total.toLocaleString()} ₽${order.discount > 0 ? ` (скидка ${order.discount}%)` : ''}
-
-💳 *Оплата:* При получении
-📅 *Дата:* ${new Date().toLocaleString('ru-RU')}
-        `;
+        const adminMsg =
+            `🆕 <b>НОВЫЙ ЗАКАЗ #${orderId}!</b>\n\n` +
+            `👤 <b>Клиент:</b> ${order.userName || 'Не указано'}\n` +
+            `📞 <b>Телефон:</b> ${order.phone}\n` +
+            `📍 <b>Адрес:</b> ${order.address}\n` +
+            `🚚 <b>Доставка:</b> ${zoneName}\n\n` +
+            `📦 <b>Товары:</b>\n${itemsList}\n\n` +
+            `💰 <b>Сумма:</b> ${order.total.toLocaleString()} ₽${order.discount > 0 ? ` (скидка ${order.discount}%)` : ''}\n\n` +
+            `💳 <b>Оплата:</b> При получении\n` +
+            `📅 <b>Дата:</b> ${new Date().toLocaleString('ru-RU')}`;
 
         try {
-            await bot.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'Markdown' });
+            await bot.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
             console.log('✅ Уведомление отправлено администратору');
         } catch (err) {
             console.error('❌ Ошибка отправки уведомления администратору:', err.message);
@@ -281,21 +305,16 @@ app.post('/api/order', async (req, res) => {
             .map(i => `• ${i.name} (${i.volume}) × ${i.qty} = ${(i.price * i.qty).toLocaleString()} ₽`)
             .join('\n');
 
-        const msg = `
-🆕 *НОВЫЙ ЗАКАЗ (API)!*
-
-👤 *Клиент:* ${order.userName || 'Не указано'}
-📞 *Телефон:* ${order.phone}
-📍 *Адрес:* ${order.address}
-
-📦 *Товары:*
-${itemsList}
-
-💰 *Сумма:* ${order.total.toLocaleString()} ₽
-        `;
+        const msg =
+            `🆕 <b>НОВЫЙ ЗАКАЗ (API)!</b>\n\n` +
+            `👤 <b>Клиент:</b> ${order.userName || 'Не указано'}\n` +
+            `📞 <b>Телефон:</b> ${order.phone}\n` +
+            `📍 <b>Адрес:</b> ${order.address}\n\n` +
+            `📦 <b>Товары:</b>\n${itemsList}\n\n` +
+            `💰 <b>Сумма:</b> ${order.total.toLocaleString()} ₽`;
 
         try {
-            await bot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'Markdown' });
+            await bot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' });
         } catch (err) {
             console.error('❌ Ошибка отправки:', err.message);
         }
