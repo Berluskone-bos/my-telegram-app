@@ -47,8 +47,11 @@ const App = {
 
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.sort-dropdown')) {
+            if (!e.target.closest('#sortDropdown')) {
                 document.getElementById('sortMenu').classList.remove('open');
+            }
+            if (!e.target.closest('#categoryDropdown')) {
+                document.getElementById('categoryMenu').classList.remove('open');
             }
         });
 
@@ -69,10 +72,24 @@ const App = {
     selectSort(value, label) {
         this.currentSort = value;
         document.getElementById('sortLabel').textContent = label;
-        document.querySelectorAll('.sort-option').forEach(opt => {
+        document.querySelectorAll('#sortMenu .sort-option').forEach(opt => {
             opt.classList.toggle('active', opt.dataset.value === value);
         });
         document.getElementById('sortMenu').classList.remove('open');
+        this.renderProducts();
+    },
+
+    toggleCategoryFilter() {
+        document.getElementById('categoryMenu').classList.toggle('open');
+    },
+
+    selectCategory(value, label) {
+        this.currentCategory = value;
+        document.getElementById('catLabel').textContent = label;
+        document.querySelectorAll('#categoryMenu .sort-option').forEach(opt => {
+            opt.classList.toggle('active', opt.dataset.value === value);
+        });
+        document.getElementById('categoryMenu').classList.remove('open');
         this.renderProducts();
     },
 

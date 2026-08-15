@@ -93,7 +93,24 @@
         <div class="section-title">Товары</div>
 
         <div class="sort-row">
-            <span class="products-count" id="productsCount">0 товаров</span>
+            <div class="sort-left">
+                <div class="sort-dropdown" id="categoryDropdown">
+                    <button class="sort-btn cat-btn" id="catBtn" onclick="App.toggleCategoryFilter()">
+                        <span id="catLabel">Товары</span>
+                        <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                    </button>
+                    <div class="sort-menu" id="categoryMenu">
+                        <div class="sort-option active" data-value="all" onclick="App.selectCategory('all', 'Все товары')">Все товары</div>
+                        <div class="sort-option" data-value="motor" onclick="App.selectCategory('motor', 'Моторные масла')">Моторные масла</div>
+                        <div class="sort-option" data-value="transmission" onclick="App.selectCategory('transmission', 'Трансмиссионные')">Трансмиссионные масла</div>
+                        <div class="sort-option" data-value="filter" onclick="App.selectCategory('filter', 'Фильтры')">Фильтры</div>
+                        <div class="sort-option" data-value="additive" onclick="App.selectCategory('additive', 'Присадки')">Присадки и жидкости</div>
+                        <div class="sort-option" data-value="coolant" onclick="App.selectCategory('coolant', 'Антифризы')">Антифризы</div>
+                        <div class="sort-option" data-value="brake" onclick="App.selectCategory('brake', 'Тормозные жидкости')">Тормозные жидкости</div>
+                    </div>
+                </div>
+                <span class="products-count" id="productsCount">0 товаров</span>
+            </div>
             <div class="sort-dropdown" id="sortDropdown">
                 <button class="sort-btn" id="sortBtn" onclick="App.toggleSort()">
                     <span id="sortLabel">По популярности</span>

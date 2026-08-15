@@ -281,6 +281,11 @@ a, button, input, select { font-family: inherit; }
     padding: 12px 16px 10px;
     position: relative;
 }
+.sort-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 .sort-dropdown {
     position: relative;
 }
@@ -289,14 +294,14 @@ a, button, input, select { font-family: inherit; }
     border: 1px solid var(--border);
     border-radius: 20px;
     color: var(--text-primary);
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 8px 14px;
+    font-size: 13px;
     font-weight: 600;
     font-family: var(--font);
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     transition: 0.2s;
 }
 .sort-btn:active {
