@@ -71,7 +71,6 @@ const App = {
 
     selectSort(value, label) {
         this.currentSort = value;
-        document.getElementById('sortLabel').textContent = label;
         document.querySelectorAll('#sortMenu .sort-option').forEach(opt => {
             opt.classList.toggle('active', opt.dataset.value === value);
         });
@@ -85,7 +84,6 @@ const App = {
 
     selectCategory(value, label) {
         this.currentCategory = value;
-        document.getElementById('catLabel').textContent = label;
         document.querySelectorAll('#categoryMenu .sort-option').forEach(opt => {
             opt.classList.toggle('active', opt.dataset.value === value);
         });

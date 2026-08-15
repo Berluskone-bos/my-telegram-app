@@ -280,11 +280,27 @@ a, button, input, select { font-family: inherit; }
     align-items: center;
     padding: 12px 16px 10px;
     position: relative;
+    gap: 8px;
 }
 .sort-left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 0;
+    flex: 1;
+}
+.sort-left .sort-dropdown {
+    flex: 1;
+}
+.sort-left .sort-btn {
+    width: 100%;
+    justify-content: center;
+}
+#sortDropdown {
+    flex: 1;
+}
+#sortDropdown .sort-btn {
+    width: 100%;
+    justify-content: center;
 }
 .sort-dropdown {
     position: relative;
@@ -327,6 +343,10 @@ a, button, input, select { font-family: inherit; }
 }
 .sort-menu.open {
     display: block;
+}
+#sortDropdown .sort-menu {
+    left: auto;
+    right: 0;
 }
 .sort-option {
     padding: 12px 16px;
