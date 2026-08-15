@@ -458,6 +458,8 @@ a, button, input, select { font-family: inherit; }
 
 .product-info {
     padding: 10px 12px 14px;
+    display: flex;
+    flex-direction: column;
 }
 .product-title {
     font-size: 13px;
@@ -516,8 +518,7 @@ a, button, input, select { font-family: inherit; }
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 6px 0;
-    align-self: flex-end;
+    margin: 6px 0 6px auto;
 }
 .btn-buy i,
 .btn-buy svg {

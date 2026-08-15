@@ -39,10 +39,11 @@ const Favorites = {
         if (favProducts.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <span>🖤</span>
+                    <i data-lucide="heart" style="width:48px;height:48px;color:#ccc;"></i>
                     <p>У вас пока нет избранных товаров</p>
                 </div>
             `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
 
@@ -52,5 +53,6 @@ const Favorites = {
         });
         html += '</div>';
         container.innerHTML = html;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 };
