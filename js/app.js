@@ -69,7 +69,7 @@ const App = {
         document.getElementById('sortMenu').classList.toggle('open');
     },
 
-    selectSort(value, label) {
+    selectSort(value) {
         this.currentSort = value;
         document.querySelectorAll('#sortMenu .sort-option').forEach(opt => {
             opt.classList.toggle('active', opt.dataset.value === value);
@@ -82,7 +82,7 @@ const App = {
         document.getElementById('categoryMenu').classList.toggle('open');
     },
 
-    selectCategory(value, label) {
+    selectCategory(value) {
         this.currentCategory = value;
         document.querySelectorAll('#categoryMenu .sort-option').forEach(opt => {
             opt.classList.toggle('active', opt.dataset.value === value);

@@ -90,37 +90,33 @@
             </div>
         </div>
 
-        <div class="section-title">Товары</div>
-
         <div class="sort-row">
-            <div class="sort-left">
-                <div class="sort-dropdown" id="categoryDropdown">
-                    <button class="sort-btn cat-btn" id="catBtn" onclick="App.toggleCategoryFilter()">
-                        <span id="catLabel">Товары</span>
-                        <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
-                    </button>
-                    <div class="sort-menu" id="categoryMenu">
-                        <div class="sort-option active" data-value="all" onclick="App.selectCategory('all', 'Все товары')">Все товары</div>
-                        <div class="sort-option" data-value="motor" onclick="App.selectCategory('motor', 'Моторные масла')">Моторные масла</div>
-                        <div class="sort-option" data-value="transmission" onclick="App.selectCategory('transmission', 'Трансмиссионные')">Трансмиссионные масла</div>
-                        <div class="sort-option" data-value="filter" onclick="App.selectCategory('filter', 'Фильтры')">Фильтры</div>
-                        <div class="sort-option" data-value="additive" onclick="App.selectCategory('additive', 'Присадки')">Присадки и жидкости</div>
-                        <div class="sort-option" data-value="coolant" onclick="App.selectCategory('coolant', 'Антифризы')">Антифризы</div>
-                        <div class="sort-option" data-value="brake" onclick="App.selectCategory('brake', 'Тормозные жидкости')">Тормозные жидкости</div>
-                    </div>
+            <div class="sort-dropdown" id="categoryDropdown" style="flex:1;">
+                <button class="sort-btn" onclick="App.toggleCategoryFilter()">
+                    <span>Товары</span>
+                    <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                </button>
+                <div class="sort-menu" id="categoryMenu">
+                    <div class="sort-option active" data-value="all" onclick="App.selectCategory('all')">Все товары</div>
+                    <div class="sort-option" data-value="motor" onclick="App.selectCategory('motor')">Моторные масла</div>
+                    <div class="sort-option" data-value="transmission" onclick="App.selectCategory('transmission')">Трансмиссионные масла</div>
+                    <div class="sort-option" data-value="filter" onclick="App.selectCategory('filter')">Фильтры</div>
+                    <div class="sort-option" data-value="additive" onclick="App.selectCategory('additive')">Присадки и жидкости</div>
+                    <div class="sort-option" data-value="coolant" onclick="App.selectCategory('coolant')">Антифризы</div>
+                    <div class="sort-option" data-value="brake" onclick="App.selectCategory('brake')">Тормозные жидкости</div>
                 </div>
             </div>
-            <div class="sort-dropdown" id="sortDropdown">
-                <button class="sort-btn" id="sortBtn" onclick="App.toggleSort()">
-                    <span id="sortLabel">По популярности</span>
+            <div class="sort-dropdown" id="sortDropdown" style="flex:1;">
+                <button class="sort-btn" onclick="App.toggleSort()">
+                    <span>Сортировка</span>
                     <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                 </button>
                 <div class="sort-menu" id="sortMenu">
-                    <div class="sort-option active" data-value="popular" onclick="App.selectSort('popular', 'По популярности')">По популярности</div>
-                    <div class="sort-option" data-value="price_asc" onclick="App.selectSort('price_asc', 'Цена ↑')">Цена: по возрастанию</div>
-                    <div class="sort-option" data-value="price_desc" onclick="App.selectSort('price_desc', 'Цена ↓')">Цена: по убыванию</div>
-                    <div class="sort-option" data-value="rating" onclick="App.selectSort('rating', 'По рейтингу')">По рейтингу</div>
-                    <div class="sort-option" data-value="new" onclick="App.selectSort('new', 'Новинки')">Новинки</div>
+                    <div class="sort-option active" data-value="popular" onclick="App.selectSort('popular')">По популярности</div>
+                    <div class="sort-option" data-value="price_asc" onclick="App.selectSort('price_asc')">Цена: по возрастанию</div>
+                    <div class="sort-option" data-value="price_desc" onclick="App.selectSort('price_desc')">Цена: по убыванию</div>
+                    <div class="sort-option" data-value="rating" onclick="App.selectSort('rating')">По рейтингу</div>
+                    <div class="sort-option" data-value="new" onclick="App.selectSort('new')">Новинки</div>
                 </div>
             </div>
         </div>
