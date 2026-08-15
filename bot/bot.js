@@ -166,6 +166,8 @@ bot.onText(/\/help/, (msg) => {
         `• Наличные при получении\n` +
         `• Перевод на карту\n` +
         `• Онлайн-оплата (скоро)\n\n` +
+        `<b>Документы:</b>\n` +
+        `<a href="https://berluskone-bos.github.io/my-telegram-app/privacy.html">Политика конфиденциальности</a>\n\n` +
         `<b>Контакты:</b>\n` +
         `📞 8-800-555-35-35 (бесплатно)\n` +
         `💬 @avtopromol_support`,
