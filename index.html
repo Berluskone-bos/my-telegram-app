@@ -90,23 +90,18 @@
             </div>
         </div>
 
+        <div class="categories-scroll" id="categoriesScroll">
+            <div class="cat-badge active" data-cat="all" onclick="App.selectCategory('all')">Все товары</div>
+            <div class="cat-badge" data-cat="motor" onclick="App.selectCategory('motor')">🛢️ Моторные масла</div>
+            <div class="cat-badge" data-cat="transmission" onclick="App.selectCategory('transmission')">⚙️ Трансмиссионные</div>
+            <div class="cat-badge" data-cat="filter" onclick="App.selectCategory('filter')">🔧 Фильтры</div>
+            <div class="cat-badge" data-cat="additive" onclick="App.selectCategory('additive')">🧪 Присадки</div>
+            <div class="cat-badge" data-cat="coolant" onclick="App.selectCategory('coolant')">❄️ Антифризы</div>
+            <div class="cat-badge" data-cat="brake" onclick="App.selectCategory('brake')">🛑 Тормозные жидкости</div>
+        </div>
+
         <div class="sort-row">
-            <div class="sort-dropdown" id="categoryDropdown" style="flex:1;">
-                <button class="sort-btn" onclick="App.toggleCategoryFilter()">
-                    <span>Категории</span>
-                    <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
-                </button>
-                <div class="sort-menu" id="categoryMenu">
-                    <div class="sort-option active" data-value="all" onclick="App.selectCategory('all')">Все товары</div>
-                    <div class="sort-option" data-value="motor" onclick="App.selectCategory('motor')">Моторные масла</div>
-                    <div class="sort-option" data-value="transmission" onclick="App.selectCategory('transmission')">Трансмиссионные масла</div>
-                    <div class="sort-option" data-value="filter" onclick="App.selectCategory('filter')">Фильтры</div>
-                    <div class="sort-option" data-value="additive" onclick="App.selectCategory('additive')">Присадки и жидкости</div>
-                    <div class="sort-option" data-value="coolant" onclick="App.selectCategory('coolant')">Антифризы</div>
-                    <div class="sort-option" data-value="brake" onclick="App.selectCategory('brake')">Тормозные жидкости</div>
-                </div>
-            </div>
-            <div class="sort-dropdown" id="sortDropdown" style="flex:1;">
+            <div class="sort-dropdown" id="sortDropdown">
                 <button class="sort-btn" onclick="App.toggleSort()">
                     <span>Сортировка</span>
                     <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>

@@ -32,26 +32,10 @@ const App = {
     },
 
     bindEvents() {
-        // Категории
-        document.addEventListener('click', (e) => {
-            const badge = e.target.closest('.cat-badge');
-            if (badge) {
-                document.querySelectorAll('.cat-badge').forEach(b => b.classList.remove('active'));
-                badge.classList.add('active');
-                this.currentCategory = badge.dataset.cat;
-                this.currentSubcategory = null;
-                this.renderSubcategories();
-                this.renderProducts();
-            }
-        });
-
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#sortDropdown')) {
                 document.getElementById('sortMenu').classList.remove('open');
-            }
-            if (!e.target.closest('#categoryDropdown')) {
-                document.getElementById('categoryMenu').classList.remove('open');
             }
         });
 
@@ -79,15 +63,14 @@ const App = {
     },
 
     toggleCategoryFilter() {
-        document.getElementById('categoryMenu').classList.toggle('open');
+        // removed — categories now use horizontal scroll
     },
 
     selectCategory(value) {
         this.currentCategory = value;
-        document.querySelectorAll('#categoryMenu .sort-option').forEach(opt => {
-            opt.classList.toggle('active', opt.dataset.value === value);
+        document.querySelectorAll('.cat-badge').forEach(badge => {
+            badge.classList.toggle('active', badge.dataset.cat === value);
         });
-        document.getElementById('categoryMenu').classList.remove('open');
         this.renderProducts();
     },
 
