@@ -457,9 +457,9 @@ a, button, input, select { font-family: inherit; }
 }
 .favorite-btn.active i,
 .favorite-btn.active svg { 
-    color: var(--accent); 
-    stroke: var(--accent);
-    fill: var(--accent);
+    color: #E52020; 
+    stroke: #E52020;
+    fill: #E52020;
 }
 .favorite-btn:active { transform: scale(0.85); }
 
