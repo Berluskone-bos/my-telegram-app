@@ -382,6 +382,14 @@
         <div class="page-content">
             <button class="btn-back" onclick="App.goBack()"><i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Назад</button>
             <h2 class="page-title">Мои заказы</h2>
+            <div class="orders-actions" id="ordersActions" style="display:none;">
+                <button class="orders-action-btn" onclick="Profile.selectAllOrders()">
+                    <i data-lucide="check-square" style="width:16px;height:16px;"></i> Выбрать все
+                </button>
+                <button class="orders-action-btn orders-action-delete" onclick="Profile.deleteSelectedOrders()">
+                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i> Удалить
+                </button>
+            </div>
             <div id="orderHistoryList"></div>
         </div>
     </div>

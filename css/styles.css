@@ -1101,12 +1101,71 @@ a, button, input, select { font-family: inherit; }
 }
 
 /* ===== МОИ ЗАКАЗЫ ===== */
+.orders-edit-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+.orders-edit-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 0;
+}
+.orders-actions {
+    display: flex;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+.orders-action-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-primary);
+    transition: 0.2s;
+}
+.orders-action-btn:active { transform: scale(0.96); }
+.orders-action-delete {
+    background: rgba(220,38,38,0.06);
+    border-color: rgba(220,38,38,0.2);
+    color: #dc2626;
+}
 .order-card {
     background: var(--bg-card);
     border-radius: var(--radius);
     padding: 14px 16px;
     margin-bottom: 10px;
     box-shadow: var(--shadow);
+    position: relative;
+    transition: 0.15s;
+}
+.order-card-edit {
+    padding-left: 48px;
+    cursor: pointer;
+}
+.order-card-edit:active {
+    background: var(--bg-secondary);
+}
+.order-checkbox {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
 }
 .order-header {
     display: flex;
