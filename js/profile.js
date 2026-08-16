@@ -109,8 +109,6 @@ const Profile = {
 
         const sorted = [...this.selectedOrders].sort((a, b) => b - a);
         sorted.forEach(idx => {
-            const order = this.orderHistory[idx];
-            if (order) this.totalSpent = Math.max(0, this.totalSpent - order.total);
             this.orderHistory.splice(idx, 1);
         });
         this.save();
@@ -119,7 +117,6 @@ const Profile = {
         const actionsBar = document.getElementById('ordersActions');
         if (actionsBar) actionsBar.style.display = 'none';
         this.renderOrderHistory();
-        this.updateUI();
     },
 
     renderOrderHistory() {
