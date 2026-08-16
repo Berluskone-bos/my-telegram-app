@@ -28,32 +28,53 @@ const Profile = {
         this.save();
     },
 
+    getCardNumber() {
+        let num = localStorage.getItem('gulf_card');
+        if (!num) {
+            const digits = String(Math.floor(100000 + Math.random() * 900000));
+            num = 'AR-' + digits;
+            localStorage.setItem('gulf_card', num);
+        }
+        return num;
+    },
+
+    getLevel() {
+        if (this.totalSpent >= 120000) return 4;
+        if (this.totalSpent >= 80000) return 3;
+        if (this.totalSpent >= 40000) return 2;
+        return 1;
+    },
+
     getDiscount() {
-        if (this.totalSpent >= 40000) return 12;
-        if (this.totalSpent >= 15000) return 8;
-        if (this.totalSpent >= 5000) return 5;
-        return 3;
+        const level = this.getLevel();
+        if (level === 4) return 12;
+        if (level === 3) return 8;
+        if (level === 2) return 5;
+        return 0;
     },
 
     getStatus() {
-        if (this.totalSpent >= 40000) return 'Платиновый';
-        if (this.totalSpent >= 15000) return 'Золотой';
-        if (this.totalSpent >= 5000) return 'Серебряный';
-        return 'Начальный';
+        const level = this.getLevel();
+        if (level === 4) return 'Золотой';
+        if (level === 3) return 'Серебряный';
+        if (level === 2) return 'Бронзовый';
+        return 'Железный';
     },
 
     getNextLevelAmount() {
-        if (this.totalSpent >= 40000) return 0;
-        if (this.totalSpent >= 15000) return 40000;
-        if (this.totalSpent >= 5000) return 15000;
-        return 5000;
+        const level = this.getLevel();
+        if (level === 4) return 0;
+        if (level === 3) return 120000;
+        if (level === 2) return 80000;
+        return 40000;
     },
 
     getProgress() {
-        if (this.totalSpent >= 40000) return 100;
-        if (this.totalSpent >= 15000) return ((this.totalSpent - 15000) / 25000) * 100;
-        if (this.totalSpent >= 5000) return ((this.totalSpent - 5000) / 10000) * 100;
-        return (this.totalSpent / 5000) * 100;
+        const level = this.getLevel();
+        if (level === 4) return 100;
+        if (level === 3) return ((this.totalSpent - 80000) / 40000) * 100;
+        if (level === 2) return ((this.totalSpent - 40000) / 40000) * 100;
+        return (this.totalSpent / 40000) * 100;
     },
 
     getReferralCode() {
@@ -66,6 +87,7 @@ const Profile = {
     },
 
     updateUI() {
+        document.getElementById('cardNumber').textContent = this.getCardNumber();
         document.getElementById('cardDiscountValue').textContent = this.getDiscount() + '%';
         document.getElementById('loyaltyStatus').textContent = this.getStatus();
         const next = this.getNextLevelAmount();

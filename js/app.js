@@ -6,6 +6,7 @@ const App = {
     currentSort: 'popular',
     searchQuery: '',
     previousScreen: null,
+    deferredPrompt: null,
 
     async init() {
         // Загружаем данные
@@ -29,6 +30,12 @@ const App = {
 
         // Обработчики событий
         this.bindEvents();
+
+        // PWA: сохраняем событие установки
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            App.deferredPrompt = e;
+        });
     },
 
     bindEvents() {
@@ -400,6 +407,27 @@ const App = {
 
     contactSupport() {
         alert('Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
+    },
+
+    addToHomeScreen() {
+        if (this.deferredPrompt) {
+            this.deferredPrompt.prompt();
+            this.deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    alert('Приложение добавлено на главный экран!');
+                }
+                this.deferredPrompt = null;
+            });
+        } else {
+            const ua = navigator.userAgent.toLowerCase();
+            if (ua.includes('iphone') || ua.includes('ipad')) {
+                alert('Нажмите кнопку "Поделиться" внизу экрана, затем "На экран Домой".');
+            } else if (ua.includes('android')) {
+                alert('Откройте меню браузера (три точки) и выберите "Добавить на главный экран".');
+            } else {
+                alert('Откройте это приложение на смартфоне, чтобы добавить его на главный экран.');
+            }
+        }
     }
 };
 

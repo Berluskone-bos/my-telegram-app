@@ -96,7 +96,10 @@
                 <div class="select-oil-title">Подобрать масло</div>
                 <div class="select-oil-sub">По марке и модели автомобиля</div>
             </div>
-            <i data-lucide="chevron-right" style="width:18px;height:18px;"></i>
+            <div class="select-oil-right">
+                <i data-lucide="chevron-right" style="width:18px;height:18px;opacity:0.5;"></i>
+                <i data-lucide="car" style="width:20px;height:20px;opacity:0.6;"></i>
+            </div>
         </div>
 
         <div class="categories-scroll" id="categoriesScroll">
@@ -189,14 +192,17 @@
             <div class="profile-name" id="userName">Пользователь</div>
 
             <div class="loyalty-card">
-                <div class="card-header">Дисконтная карта</div>
-                <div class="card-discount">Скидка: <span id="cardDiscountValue">3%</span></div>
+                <div class="card-header">
+                    <span>Дисконтная карта</span>
+                    <span class="card-number" id="cardNumber">AR-000000</span>
+                </div>
+                <div class="card-discount">Скидка: <span id="cardDiscountValue">0%</span></div>
                 <div class="card-footer">
-                    <div>Статус: <span id="loyaltyStatus">Начальный</span></div>
-                    <div>До следующей скидки: <span id="loyaltyNext">3 000 ₽</span></div>
+                    <div>Статус: <span id="loyaltyStatus">Железный</span></div>
+                    <div>До следующего уровня: <span id="loyaltyNext">40 000 руб.</span></div>
                 </div>
                 <div class="card-progress">
-                    <div class="card-progress-bar" id="loyaltyProgress" style="width: 10%;"></div>
+                    <div class="card-progress-bar" id="loyaltyProgress" style="width: 0%;"></div>
                 </div>
             </div>
 
@@ -219,6 +225,16 @@
                     <div class="p-menu-left">
                         <span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span>
                         <span class="p-menu-text">Связаться с поддержкой</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="App.addToHomeScreen()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="smartphone" class="icon-sm"></i></span>
+                        <div>
+                            <span class="p-menu-text">Добавить на Главный экран</span>
+                            <span class="p-menu-hint">Добавьте значок магазина на главный экран вашего смартфона, чтобы он всегда был под рукой</span>
+                        </div>
                     </div>
                     <span class="p-menu-arrow">›</span>
                 </div>
