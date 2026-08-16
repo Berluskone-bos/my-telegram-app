@@ -62,8 +62,9 @@ const Cart = {
         const totalEl = document.getElementById('cartTotal');
 
         if (this.isEmpty()) {
-            container.innerHTML = '<div class="empty-state"><p>Корзина пуста</p></div>';
+            container.innerHTML = '<div class="empty-state"><i data-lucide="shopping-cart" style="width:48px;height:48px;color:#ccc;"></i><p>Корзина пуста</p></div>';
             totalEl.textContent = 'Итого: 0 ₽';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
 

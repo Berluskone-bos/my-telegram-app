@@ -76,7 +76,8 @@ const Profile = {
         if (!container) return;
 
         if (this.orderHistory.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p>История заказов пуста</p></div>';
+            container.innerHTML = '<div class="empty-state"><i data-lucide="package" style="width:48px;height:48px;color:#ccc;"></i><p>История заказов пуста</p></div>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
 
