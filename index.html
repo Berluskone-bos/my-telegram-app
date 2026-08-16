@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
+    <meta name="theme-color" content="#101B4D">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="img/logo.png">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="css/styles.css" />
@@ -485,6 +488,11 @@
                 else if (diff < 0 && currentSlide > 0) goToSlide(currentSlide - 1);
             }
         });
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
     </script>
 
 </body>
