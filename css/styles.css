@@ -894,7 +894,12 @@ a, button, input, select { font-family: inherit; }
     align-items: center;
     gap: 14px;
 }
-.p-menu-icon { font-size: 20px; }
+.p-menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+}
 .p-menu-text { font-size: 15px; font-weight: 500; }
 .p-menu-arrow { color: var(--text-muted); font-size: 18px; }
 

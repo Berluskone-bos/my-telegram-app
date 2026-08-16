@@ -92,12 +92,12 @@
 
         <div class="categories-scroll" id="categoriesScroll">
             <div class="cat-badge active" data-cat="all" onclick="App.selectCategory('all')">Все товары</div>
-            <div class="cat-badge" data-cat="motor" onclick="App.selectCategory('motor')">🛢️ Моторные масла</div>
-            <div class="cat-badge" data-cat="transmission" onclick="App.selectCategory('transmission')">⚙️ Трансмиссионные</div>
-            <div class="cat-badge" data-cat="filter" onclick="App.selectCategory('filter')">🔧 Фильтры</div>
-            <div class="cat-badge" data-cat="additive" onclick="App.selectCategory('additive')">🧪 Присадки</div>
-            <div class="cat-badge" data-cat="coolant" onclick="App.selectCategory('coolant')">❄️ Антифризы</div>
-            <div class="cat-badge" data-cat="brake" onclick="App.selectCategory('brake')">🛑 Тормозные жидкости</div>
+            <div class="cat-badge" data-cat="motor" onclick="App.selectCategory('motor')">Моторные масла</div>
+            <div class="cat-badge" data-cat="transmission" onclick="App.selectCategory('transmission')">Трансмиссионные</div>
+            <div class="cat-badge" data-cat="filter" onclick="App.selectCategory('filter')">Фильтры</div>
+            <div class="cat-badge" data-cat="additive" onclick="App.selectCategory('additive')">Присадки</div>
+            <div class="cat-badge" data-cat="coolant" onclick="App.selectCategory('coolant')">Антифризы</div>
+            <div class="cat-badge" data-cat="brake" onclick="App.selectCategory('brake')">Тормозные жидкости</div>
         </div>
 
         <div class="sort-row">
@@ -145,7 +145,7 @@
     <!-- ================================================== -->
     <div id="screen-cart" class="app-screen">
         <div class="cart-container">
-            <h2>🛒 Корзина</h2>
+            <h2>Корзина</h2>
             <div id="cartList"></div>
             <div id="cartTotal" class="cart-total">Итого: 0 ₽</div>
 
@@ -180,7 +180,7 @@
             <div class="profile-name" id="userName">Пользователь</div>
 
             <div class="loyalty-card">
-                <div class="card-header">💳 Дисконтная карта</div>
+                <div class="card-header">Дисконтная карта</div>
                 <div class="card-discount">Скидка: <span id="cardDiscountValue">3%</span></div>
                 <div class="card-footer">
                     <div>Статус: <span id="loyaltyStatus">Начальный</span></div>
@@ -194,21 +194,21 @@
             <div class="profile-menu">
                 <div class="p-menu-item" onclick="App.openReferral()">
                     <div class="p-menu-left">
-                        <span class="p-menu-icon">🎁</span>
+                        <span class="p-menu-icon"><i data-lucide="gift" class="icon-sm"></i></span>
                         <span class="p-menu-text">Промокод за рекомендацию</span>
                     </div>
                     <span class="p-menu-arrow">›</span>
                 </div>
                 <div class="p-menu-item" onclick="App.showOrderHistory()">
                     <div class="p-menu-left">
-                        <span class="p-menu-icon">📦</span>
+                        <span class="p-menu-icon"><i data-lucide="package" class="icon-sm"></i></span>
                         <span class="p-menu-text">История заказов</span>
                     </div>
                     <span class="p-menu-arrow">›</span>
                 </div>
                 <div class="p-menu-item" onclick="App.contactSupport()">
                     <div class="p-menu-left">
-                        <span class="p-menu-icon">💬</span>
+                        <span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span>
                         <span class="p-menu-text">Связаться с поддержкой</span>
                     </div>
                     <span class="p-menu-arrow">›</span>
