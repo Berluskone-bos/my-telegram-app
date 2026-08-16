@@ -47,10 +47,10 @@ const Profile = {
 
     getDiscount() {
         const level = this.getLevel();
-        if (level === 4) return 12;
-        if (level === 3) return 8;
+        if (level === 4) return 10;
+        if (level === 3) return 7;
         if (level === 2) return 5;
-        return 0;
+        return 3;
     },
 
     getStatus() {
@@ -87,6 +87,11 @@ const Profile = {
     },
 
     updateUI() {
+        const level = this.getLevel();
+        const card = document.querySelector('.loyalty-card');
+        if (card) {
+            card.className = 'loyalty-card loyalty-level-' + level;
+        }
         document.getElementById('cardNumber').textContent = this.getCardNumber();
         document.getElementById('cardDiscountValue').textContent = this.getDiscount() + '%';
         document.getElementById('loyaltyStatus').textContent = this.getStatus();

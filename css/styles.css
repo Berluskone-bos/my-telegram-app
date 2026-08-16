@@ -868,12 +868,24 @@ a, button, input, select { font-family: inherit; }
 }
 
 .loyalty-card {
-    background: linear-gradient(135deg, var(--navy) 0%, #1a2d6d 100%);
     border-radius: var(--radius);
     padding: 20px;
     text-align: left;
     margin-bottom: 24px;
     color: #fff;
+    transition: background 0.3s;
+}
+.loyalty-level-1 {
+    background: linear-gradient(135deg, #5a5a6a 0%, #3d3d4a 100%);
+}
+.loyalty-level-2 {
+    background: linear-gradient(135deg, #8B6914 0%, #6B4F10 100%);
+}
+.loyalty-level-3 {
+    background: linear-gradient(135deg, #8a8a9a 0%, #6a6a7a 100%);
+}
+.loyalty-level-4 {
+    background: linear-gradient(135deg, #D4A017 0%, #B8860B 100%);
 }
 .card-header {
     font-family: var(--font-heading);
