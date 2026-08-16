@@ -76,24 +76,34 @@ const Profile = {
         if (!container) return;
 
         if (this.orderHistory.length === 0) {
-            container.innerHTML = '<div class="empty-state"><i data-lucide="package" style="width:48px;height:48px;color:#ccc;"></i><p>История заказов пуста</p></div>';
+            container.innerHTML = '<div class="empty-state"><i data-lucide="package" style="width:48px;height:48px;color:#ccc;"></i><p>У вас пока нет заказов</p><p style="font-size:13px;color:var(--text-muted);">Оформите первый заказ в каталоге</p></div>';
             if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
 
         let html = '';
         this.orderHistory.forEach((order, idx) => {
+            const orderNum = this.orderHistory.length - idx;
+            const itemsSummary = order.items.map(i => i.name).join(', ');
+            const statusClass = 'order-status-new';
+            const statusText = 'Новый';
+
             html += `
-                <div class="cart-item" style="flex-direction: column; align-items: flex-start;">
-                    <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: 8px;">
-                        <div style="font-weight: bold;">Заказ #${this.orderHistory.length - idx}</div>
-                        <div style="color: #888; font-size: 12px;">${order.date}</div>
+                <div class="order-card">
+                    <div class="order-header">
+                        <div class="order-number">Заказ #AP-${String(orderNum).padStart(6, '0')}</div>
+                        <span class="${statusClass}">${statusText}</span>
                     </div>
-                    <div style="font-size: 13px; color: #bbb; margin-bottom: 4px;">${order.items.map(i => i.name + ' ×' + i.qty).join(', ')}</div>
-                    <div style="font-weight: bold; color: #4a8bf5;">${order.total.toLocaleString()} ₽</div>
+                    <div class="order-date">${order.date}</div>
+                    <div class="order-items">${itemsSummary}</div>
+                    <div class="order-footer">
+                        <div class="order-total">${order.total.toLocaleString()} руб.</div>
+                        <div class="order-count">${order.items.length} ${order.items.length === 1 ? 'товар' : 'товара'}</div>
+                    </div>
                 </div>
             `;
         });
         container.innerHTML = html;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 };

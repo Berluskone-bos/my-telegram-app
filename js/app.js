@@ -385,8 +385,15 @@ const App = {
     },
 
     showOrderHistory() {
-        this.switchScreen('profile');
+        this.previousScreen = this.currentScreen;
+        document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+        const target = document.getElementById('screen-orders');
+        if (target) target.classList.add('active');
+        document.querySelector('.bottom-nav').style.display = 'flex';
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('headerTitle').innerHTML = '<span class="header-logo-text">МОИ ЗАКАЗЫ</span>';
         Profile.renderOrderHistory();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     },
 
     contactSupport() {
