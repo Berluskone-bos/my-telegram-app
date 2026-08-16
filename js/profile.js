@@ -76,7 +76,7 @@ const Profile = {
         if (!container) return;
 
         if (this.orderHistory.length === 0) {
-            container.innerHTML = '<div class="empty-state"><span>📦</span><p>История заказов пуста</p></div>';
+            container.innerHTML = '<div class="empty-state"><p>История заказов пуста</p></div>';
             return;
         }
 

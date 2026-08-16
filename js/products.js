@@ -109,7 +109,7 @@ const Products = {
             <div class="product-card" onclick="App.showProduct(${product.id})">
                 <div class="product-image">
                     <img src="${product.image}" alt="${product.name}"
-                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px;opacity:0.3\\'>📦</span>';">
+                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px;opacity:0.3;color:#999\\'>[фото]</span>';">
                     <div class="product-badges">
                         ${product.is_new ? '<span class="badge-new">NEW</span>' : ''}
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
@@ -146,7 +146,7 @@ const Products = {
                 <button class="btn-back" onclick="App.goBack()">← Назад</button>
                 <div class="product-detail-image">
                     <img src="${product.image}" alt="${product.name}"
-                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:80px\\'>🛢️</span>';">
+                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:24px;opacity:0.3;color:#999\\'>[фото товара]</span>';">
                 </div>
                 <div class="product-detail-name">${product.full_name}</div>
                 <div class="product-detail-volume">${product.volume}${product.viscosity ? ' · ' + product.viscosity : ''}</div>

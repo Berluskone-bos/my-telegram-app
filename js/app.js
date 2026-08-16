@@ -278,7 +278,7 @@ const App = {
     menuClick(pageName) {
         this.toggleMenu(false);
         // TODO: открыть страницу с информацией
-        alert('📄 Раздел: ' + pageName + '\n(информация будет добавлена позже)');
+        alert('Раздел: ' + pageName + '\n(информация будет добавлена позже)');
     },
 
     makeOrder() {
@@ -334,11 +334,10 @@ const App = {
             console.log('Заказ отправлен через Telegram WebApp:', order);
 
             // Показываем подтверждение
-            alert(`✅ Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} ₽${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\nАдрес: ${address}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+            alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\nАдрес: ${address}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
         } catch (e) {
             console.log('Telegram sendData не доступен, пробуем API:', e);
 
-            // Метод 2: Через fetch API (запасной способ)
             fetch('/api/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -347,11 +346,11 @@ const App = {
             .then(response => response.json())
             .then(data => {
                 console.log('Заказ отправлен через API:', data);
-                alert(`✅ Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} ₽${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\nАдрес: ${address}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+                alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\nАдрес: ${address}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
             })
             .catch(err => {
                 console.error('Ошибка отправки через API:', err);
-                alert(`✅ Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} ₽\nАдрес: ${address}\nТелефон: ${phone}\n\nМы свяжемся с вами для подтверждения.`);
+                alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nАдрес: ${address}\nТелефон: ${phone}\n\nМы свяжемся с вами для подтверждения.`);
             });
         }
 
@@ -363,7 +362,7 @@ const App = {
 
     openReferral() {
         const code = Profile.getReferralCode();
-        alert(`🎁 Ваш промокод: ${code}\n\nДайте его друзьям. За каждый заказ по вашему промокоду вы получите бонус 100 ₽ на счёт!`);
+        alert(`Ваш промокод: ${code}\n\nДайте его друзьям. За каждый заказ по вашему промокоду вы получите бонус 100 руб. на счёт!`);
     },
 
     showOrderHistory() {
@@ -372,7 +371,7 @@ const App = {
     },
 
     contactSupport() {
-        alert('💬 Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
+        alert('Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
     }
 };
 

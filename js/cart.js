@@ -62,7 +62,7 @@ const Cart = {
         const totalEl = document.getElementById('cartTotal');
 
         if (this.isEmpty()) {
-            container.innerHTML = '<div class="empty-state"><span>🛒</span><p>Корзина пуста</p></div>';
+            container.innerHTML = '<div class="empty-state"><p>Корзина пуста</p></div>';
             totalEl.textContent = 'Итого: 0 ₽';
             return;
         }
