@@ -980,6 +980,126 @@ a, button, input, select { font-family: inherit; }
 }
 .nav-item .badge.show { display: block; }
 
+/* ===== ИНФОРМАЦИОННЫЕ СТРАНИЦЫ ===== */
+.page-content {
+    padding: 20px 16px 40px;
+}
+.page-icon {
+    text-align: center;
+    margin-bottom: 12px;
+}
+.page-title {
+    font-family: var(--font-heading);
+    font-size: 22px;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--navy);
+}
+.page-block {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+}
+.page-block h3 {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 10px;
+}
+.page-block p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+.page-block p:last-child { margin-bottom: 0; }
+.info-list {
+    list-style: none;
+    padding: 0;
+}
+.info-list li {
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding: 6px 0 6px 16px;
+    position: relative;
+    line-height: 1.5;
+}
+.info-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 13px;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+}
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+.delivery-zone {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.zone-item {
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+}
+.zone-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.zone-item p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+    padding-left: 26px;
+}
+.zone-price {
+    font-weight: 600;
+    color: var(--accent) !important;
+}
+.contact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.contact-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.contact-item strong {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+}
+.contact-item p {
+    font-size: 15px;
+    color: var(--text-primary);
+    font-weight: 500;
+    margin: 0;
+}
+
 /* ===== ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ ===== */
 .hidden { display: none !important; }
 .text-muted { color: var(--text-muted); }

@@ -277,8 +277,27 @@ const App = {
 
     menuClick(pageName) {
         this.toggleMenu(false);
-        // TODO: открыть страницу с информацией
-        alert('Раздел: ' + pageName + '\n(информация будет добавлена позже)');
+        const screenMap = {
+            'О нас': 'about',
+            'Доставка и оплата': 'delivery',
+            'Контакты': 'contacts'
+        };
+        const screen = screenMap[pageName];
+        if (screen) {
+            this.previousScreen = this.currentScreen;
+            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById('screen-' + screen);
+            if (target) target.classList.add('active');
+            document.querySelector('.bottom-nav').style.display = 'flex';
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const titles = {
+                about: '<span class="header-logo-text">О НАС</span>',
+                delivery: '<span class="header-logo-text">ДОСТАВКА И ОПЛАТА</span>',
+                contacts: '<span class="header-logo-text">КОНТАКТЫ</span>'
+            };
+            document.getElementById('headerTitle').innerHTML = titles[screen] || '<span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
     },
 
     makeOrder() {
