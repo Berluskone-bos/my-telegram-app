@@ -47,10 +47,10 @@ const Profile = {
 
     getDiscount() {
         const level = this.getLevel();
-        if (level === 4) return 10;
-        if (level === 3) return 7;
-        if (level === 2) return 5;
-        return 3;
+        if (level === 4) return 7;
+        if (level === 3) return 5;
+        if (level === 2) return 3;
+        return 0;
     },
 
     getStatus() {
