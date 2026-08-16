@@ -6,7 +6,6 @@ const App = {
     currentSort: 'popular',
     searchQuery: '',
     previousScreen: null,
-    deferredPrompt: null,
 
     async init() {
         // Загружаем данные
@@ -30,12 +29,6 @@ const App = {
 
         // Обработчики событий
         this.bindEvents();
-
-        // PWA: сохраняем событие установки
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            App.deferredPrompt = e;
-        });
     },
 
     bindEvents() {
@@ -407,50 +400,6 @@ const App = {
 
     contactSupport() {
         alert('Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
-    },
-
-    addToHomeScreen() {
-        const ua = navigator.userAgent.toLowerCase();
-        const isTelegram = ua.includes('telegram');
-
-        if (isTelegram) {
-            const url = window.location.href;
-            if (ua.includes('android')) {
-                const confirmed = confirm('Чтобы добавить на главный экран, нужно открыть магазин в браузере.\n\nНажмите OK, чтобы скопировать ссылку.');
-                if (confirmed) {
-                    navigator.clipboard.writeText(url).then(() => {
-                        alert('Ссылка скопирована!\n\n1. Откройте браузер Chrome\n2. Вставьте ссылку\n3. Меню (три точки) → "Добавить на главный экран"');
-                    }).catch(() => {
-                        alert('Скопируйте ссылку вручную:\n' + url + '\n\nЗатем откройте Chrome → Меню → "Добавить на главный экран"');
-                    });
-                }
-            } else if (ua.includes('iphone') || ua.includes('ipad')) {
-                const confirmed = confirm('Чтобы добавить на главный экран, нужно открыть магазин в браузере Safari.\n\nНажмите OK, чтобы скопировать ссылку.');
-                if (confirmed) {
-                    navigator.clipboard.writeText(url).then(() => {
-                        alert('Ссылка скопирована!\n\n1. Откройте браузер Safari\n2. Вставьте ссылку\n3. Нажмите "Поделиться" → "На экран Домой"');
-                    }).catch(() => {
-                        alert('Скопируйте ссылку вручную:\n' + url + '\n\nЗатем откройте Safari → "Поделиться" → "На экран Домой"');
-                    });
-                }
-            } else {
-                alert('Откройте магазин в браузере смартфона, чтобы добавить на главный экран.');
-            }
-        } else if (this.deferredPrompt) {
-            this.deferredPrompt.prompt();
-            this.deferredPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') {
-                    alert('Приложение добавлено на главный экран!');
-                }
-                this.deferredPrompt = null;
-            });
-        } else if (ua.includes('iphone') || ua.includes('ipad')) {
-            alert('Нажмите кнопку "Поделиться" внизу экрана Safari, затем "На экран Домой".');
-        } else if (ua.includes('android')) {
-            alert('Откройте меню браузера (три точки) и выберите "Добавить на главный экран".');
-        } else {
-            alert('Откройте это приложение на смартфоне, чтобы добавить его на главный экран.');
-        }
     }
 };
 

@@ -4,9 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
-    <meta name="theme-color" content="#101B4D">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="img/logo.png">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="css/styles.css" />
@@ -228,16 +225,6 @@
                     <div class="p-menu-left">
                         <span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span>
                         <span class="p-menu-text">Связаться с поддержкой</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-                <div class="p-menu-item" onclick="App.addToHomeScreen()">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon"><i data-lucide="smartphone" class="icon-sm"></i></span>
-                        <div>
-                            <span class="p-menu-text">Добавить на Главный экран</span>
-                            <span class="p-menu-hint">Добавьте значок магазина на главный экран вашего смартфона, чтобы он всегда был под рукой</span>
-                        </div>
                     </div>
                     <span class="p-menu-arrow">›</span>
                 </div>
@@ -488,11 +475,6 @@
                 else if (diff < 0 && currentSlide > 0) goToSlide(currentSlide - 1);
             }
         });
-    </script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(() => {});
-        }
     </script>
 
 </body>
