@@ -167,6 +167,35 @@ a, button, input, select { font-family: inherit; }
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* ===== ПОДОБРАТЬ МАСЛО (ГЛАВНАЯ) ===== */
+.select-oil-banner {
+    margin: 12px 12px 4px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--navy) 0%, #1a2d6d 100%);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.2s;
+    color: #fff;
+}
+.select-oil-banner:active { transform: scale(0.98); opacity: 0.9; }
+.select-oil-title {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 700;
+}
+.select-oil-sub {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+.select-oil-banner i:last-child {
+    margin-left: auto;
+    opacity: 0.5;
+}
+
 /* ===== КАТЕГОРИИ (ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ) ===== */
 .categories-scroll {
     display: flex;
@@ -669,25 +698,6 @@ a, button, input, select { font-family: inherit; }
     transition: 0.2s;
 }
 .btn-add-cart:active { transform: scale(0.97); opacity: 0.9; }
-.btn-select-oil {
-    background: none;
-    border: 2px solid var(--accent);
-    color: var(--accent);
-    padding: 14px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-heading);
-    font-weight: 700;
-    font-size: 15px;
-    width: 100%;
-    cursor: pointer;
-    transition: 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 10px;
-}
-.btn-select-oil:active { transform: scale(0.97); background: var(--accent-light); }
 .btn-back {
     background: none;
     border: none;
