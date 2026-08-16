@@ -669,6 +669,25 @@ a, button, input, select { font-family: inherit; }
     transition: 0.2s;
 }
 .btn-add-cart:active { transform: scale(0.97); opacity: 0.9; }
+.btn-select-oil {
+    background: none;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 15px;
+    width: 100%;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+.btn-select-oil:active { transform: scale(0.97); background: var(--accent-light); }
 .btn-back {
     background: none;
     border: none;

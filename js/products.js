@@ -157,6 +157,9 @@ const Products = {
                 <div class="product-detail-description">${product.description}</div>
                 ${specsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${specsHtml}</div>` : ''}
                 <button class="btn-add-cart" onclick="App.addToCart(${product.id})">Добавить в корзину</button>
+                <button class="btn-select-oil" onclick="App.goBack()">
+                    <i data-lucide="search" style="width:16px;height:16px;"></i> Подобрать масло
+                </button>
             </div>
         `;
     }

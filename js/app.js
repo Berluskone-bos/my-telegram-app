@@ -162,6 +162,8 @@ const App = {
 
         // Скрываем нижнее меню
         document.querySelector('.bottom-nav').style.display = 'none';
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     },
 
     goBack() {
