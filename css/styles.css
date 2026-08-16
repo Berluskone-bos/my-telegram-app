@@ -1,23 +1,26 @@
-/* ===== ROSTICS-STYLE LIGHT THEME — АВТОПРОМОЙЛ ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+/* ===== АВТОПРОМОЙЛ — ФИРМЕННЫЙ СТИЛЬ ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800&display=swap');
 
 :root {
+    --navy: #101B4D;
+    --accent: #00AFC7;
+    --accent-light: rgba(0,175,199,0.08);
+    --accent-secondary: #66D6E6;
     --bg: #FFFFFF;
     --bg-card: #FFFFFF;
-    --bg-secondary: #F5F5F5;
-    --text-primary: #000000;
-    --text-secondary: #666666;
-    --text-muted: #999999;
-    --accent: #E52020;
-    --accent-light: #FFEBEB;
-    --border: #E8E8E8;
-    --shadow: 0 2px 8px rgba(0,0,0,0.08);
-    --shadow-lg: 0 4px 20px rgba(0,0,0,0.12);
+    --bg-secondary: #F5F6F8;
+    --text-primary: #25282B;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --border: #e0e4e8;
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.1);
     --radius: 16px;
     --radius-sm: 12px;
     --radius-pill: 50px;
-    --price-bg: #F0E8D8;
+    --price-bg: rgba(0,175,199,0.08);
     --font: 'Inter', -apple-system, system-ui, sans-serif;
+    --font-heading: 'Montserrat', 'Inter', -apple-system, system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -65,10 +68,11 @@ a, button, input, select { font-family: inherit; }
     object-fit: contain;
 }
 .header-logo-text {
+    font-family: var(--font-heading);
     font-size: 16px;
     font-weight: 800;
     letter-spacing: 2px;
-    color: var(--text-primary);
+    color: var(--navy);
     text-transform: uppercase;
 }
 .header-icon {
@@ -178,9 +182,9 @@ a, button, input, select { font-family: inherit; }
     margin: 12px;
     position: relative;
     overflow: hidden;
-    background: #1a1a1a;
+    background: var(--navy);
     border-radius: 20px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 24px rgba(16,27,77,0.2);
 }
 .carousel-track {
     display: flex;
@@ -195,7 +199,7 @@ a, button, input, select { font-family: inherit; }
     align-items: flex-end;
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%);
+    background: linear-gradient(135deg, var(--navy) 0%, #1a2d6d 100%);
 }
 .carousel-slide::before {
     content: '';
@@ -205,16 +209,16 @@ a, button, input, select { font-family: inherit; }
     z-index: 1;
 }
 .carousel-slide.slide-blue {
-    background: linear-gradient(135deg, #0a1628 0%, #0d1f3c 100%);
+    background: linear-gradient(135deg, #0d1f3c 0%, #162d5a 100%);
 }
 .carousel-slide.slide-green {
-    background: linear-gradient(135deg, #0a1a0f 0%, #0d2818 100%);
+    background: linear-gradient(135deg, var(--navy) 0%, #0a3d5c 100%);
 }
 .carousel-slide.slide-orange {
-    background: linear-gradient(135deg, #1a0f0a 0%, #2d1508 100%);
+    background: linear-gradient(135deg, #1a2d6d 0%, #00AFC7 100%);
 }
 .carousel-slide.slide-purple {
-    background: linear-gradient(135deg, #1a0a1e 0%, #2d0f30 100%);
+    background: linear-gradient(135deg, #0d1f3c 0%, var(--navy) 100%);
 }
 .slide-content {
     position: relative;
@@ -223,6 +227,7 @@ a, button, input, select { font-family: inherit; }
     max-width: 85%;
 }
 .slide-content h2 {
+    font-family: var(--font-heading);
     font-size: 28px;
     font-weight: 800;
     color: #fff;
@@ -292,7 +297,7 @@ a, button, input, select { font-family: inherit; }
     padding: 8px 12px;
     font-size: 13px;
     font-weight: 600;
-    font-family: var(--font);
+    font-family: var(--font-heading);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -354,6 +359,7 @@ a, button, input, select { font-family: inherit; }
 
 /* ===== СЕКЦИЯ "ТОВАРЫ" ===== */
 .section-title {
+    font-family: var(--font-heading);
     font-size: 22px;
     font-weight: 800;
     padding: 20px 16px 14px;
@@ -409,6 +415,7 @@ a, button, input, select { font-family: inherit; }
 .badge-new {
     background: var(--accent);
     color: #fff;
+    font-family: var(--font-heading);
     font-size: 10px;
     font-weight: 700;
     padding: 3px 8px;
@@ -554,6 +561,7 @@ a, button, input, select { font-family: inherit; }
     padding: 16px;
 }
 .product-detail-name {
+    font-family: var(--font-heading);
     font-size: 22px;
     font-weight: 800;
     margin-bottom: 8px;
@@ -595,6 +603,7 @@ a, button, input, select { font-family: inherit; }
     margin-bottom: 20px;
 }
 .product-detail-specs h3 {
+    font-family: var(--font-heading);
     font-size: 16px;
     font-weight: 700;
     margin-bottom: 12px;
@@ -615,6 +624,7 @@ a, button, input, select { font-family: inherit; }
     border: none;
     padding: 16px;
     border-radius: var(--radius-sm);
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: 16px;
     width: 100%;
@@ -654,6 +664,7 @@ a, button, input, select { font-family: inherit; }
     padding: 16px;
 }
 .cart-container h2 {
+    font-family: var(--font-heading);
     font-size: 22px;
     font-weight: 800;
     margin-bottom: 16px;
@@ -749,6 +760,7 @@ a, button, input, select { font-family: inherit; }
     border: none;
     padding: 16px;
     border-radius: var(--radius-sm);
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: 16px;
     width: 100%;
@@ -766,24 +778,26 @@ a, button, input, select { font-family: inherit; }
 .profile-avatar {
     width: 80px;
     height: 80px;
-    background: var(--accent);
+    background: linear-gradient(135deg, var(--navy) 0%, var(--accent) 100%);
     border-radius: 50%;
     margin: 0 auto 14px;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: var(--font-heading);
     font-size: 32px;
     font-weight: 800;
     color: #fff;
 }
 .profile-name {
+    font-family: var(--font-heading);
     font-size: 22px;
     font-weight: 800;
     margin-bottom: 24px;
 }
 
 .loyalty-card {
-    background: var(--accent);
+    background: linear-gradient(135deg, var(--navy) 0%, #1a2d6d 100%);
     border-radius: var(--radius);
     padding: 20px;
     text-align: left;
@@ -791,6 +805,7 @@ a, button, input, select { font-family: inherit; }
     color: #fff;
 }
 .card-header {
+    font-family: var(--font-heading);
     font-size: 12px;
     color: rgba(255,255,255,0.7);
     text-transform: uppercase;
