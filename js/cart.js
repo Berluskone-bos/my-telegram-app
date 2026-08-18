@@ -9,6 +9,12 @@ const Cart = {
         } catch (e) {
             this.items = [];
         }
+        this.cleanup();
+    },
+
+    cleanup() {
+        this.items = this.items.filter(item => Products.getById(item.id));
+        this.save();
     },
 
     save() {
