@@ -78,7 +78,7 @@ const App = {
         const container = document.getElementById('categoriesScroll');
         let html = '<div class="cat-badge active" data-cat="all">Все товары</div>';
         Products.categories.forEach(cat => {
-            html += `<div class="cat-badge" data-cat="${cat.id}">${cat.icon} ${cat.name}</div>`;
+            html += `<div class="cat-badge" data-cat="${cat.id}"><i data-lucide="${cat.icon}"></i> ${cat.name}</div>`;
         });
         container.innerHTML = html;
     },
@@ -213,7 +213,7 @@ const App = {
         Cart.add(productId);
         this.updateCartBadge();
 
-        // Визуальный фидбек
+        // Визуальный фидбек на карточках в каталоге
         const btns = document.querySelectorAll(`.btn-buy[onclick*="addToCart(${productId})"]`);
         btns.forEach(btn => {
             btn.innerHTML = '<i data-lucide="check"></i>';
@@ -225,6 +225,13 @@ const App = {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }, 800);
         });
+
+        // Обновляем кнопку на экране деталей
+        const detailBtn = document.querySelector('.btn-add-cart');
+        if (detailBtn && detailBtn.getAttribute('onclick') === `App.addToCart(${productId})`) {
+            detailBtn.textContent = 'В корзине';
+            detailBtn.classList.add('in-cart');
+        }
     },
 
     removeFromCart(productId) {

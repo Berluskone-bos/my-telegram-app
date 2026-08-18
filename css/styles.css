@@ -700,6 +700,7 @@ a, button, input, select { font-family: inherit; }
     transition: 0.2s;
 }
 .btn-add-cart:active { transform: scale(0.97); opacity: 0.9; }
+.btn-add-cart.in-cart { background: #2a3a4a; color: var(--accent); }
 .btn-back {
     background: none;
     border: none;

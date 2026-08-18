@@ -156,7 +156,7 @@ const Products = {
                 </div>
                 <div class="product-detail-description">${product.description}</div>
                 ${specsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${specsHtml}</div>` : ''}
-                <button class="btn-add-cart" onclick="App.addToCart(${product.id})">Добавить в корзину</button>
+                <button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>
             </div>
         `;
     }
