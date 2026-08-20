@@ -1,6 +1,11 @@
 {
   "categories": [
-    { "id": "motor", "name": "Моторные масла", "icon": "droplets" }
+    { "id": "motor", "name": "Моторные масла", "icon": "droplets" },
+    { "id": "transmission", "name": "Трансмиссионные масла", "icon": "cog" },
+    { "id": "filter", "name": "Фильтры", "icon": "filter" },
+    { "id": "fluid", "name": "Технические жидкости", "icon": "flask-conical" },
+    { "id": "additive", "name": "Присадки", "icon": "beaker" },
+    { "id": "special", "name": "Масла для спецтехники", "icon": "truck" }
   ],
   "products": [
     {
@@ -294,6 +299,118 @@
       "is_bestseller": false,
       "rating": 4.6,
       "reviews_count": 8
+    },
+    {
+      "id": 13,
+      "name": "ATF Dexron III",
+      "full_name": "Gulf Western ATF Dexron III Трансмиссионное масло",
+      "category": "transmission",
+      "subcategory": "atf",
+      "viscosity": "ATF",
+      "volume": "4 л",
+      "price": 3200,
+      "old_price": 0,
+      "image": "img/oils/webp/syn-x-3000-5w40-4l.webp",
+      "description": "Трансмиссионное масло для автоматических коробок передач. Обеспечивает плавное переключение и защиту от износа.",
+      "specs": {
+        "Тип": "ATF Dexron III",
+        "Применение": "Автоматические коробки передач"
+      },
+      "in_stock": true,
+      "is_new": false,
+      "is_bestseller": false,
+      "rating": 4.5,
+      "reviews_count": 12
+    },
+    {
+      "id": 14,
+      "name": "Масляный фильтр",
+      "full_name": "Масляный фильтр Gulf Western",
+      "category": "filter",
+      "subcategory": "oil_filter",
+      "viscosity": "",
+      "volume": "1 шт",
+      "price": 800,
+      "old_price": 0,
+      "image": "img/oils/webp/syn-x-3000-5w40-1l.webp",
+      "description": "Высококачественный масляный фильтр для эффективной очистки моторного масла.",
+      "specs": {
+        "Тип": "Масляный фильтр",
+        "Применение": "Легковые автомобили"
+      },
+      "in_stock": true,
+      "is_new": false,
+      "is_bestseller": true,
+      "rating": 4.7,
+      "reviews_count": 25
+    },
+    {
+      "id": 15,
+      "name": "Антифриз G12+",
+      "full_name": "Антифриз G12+ красный",
+      "category": "fluid",
+      "subcategory": "coolant",
+      "viscosity": "",
+      "volume": "5 л",
+      "price": 1800,
+      "old_price": 0,
+      "image": "img/oils/webp/syn-x-6000-5w30-4l.webp",
+      "description": "Антифриз G12+ для систем охлаждения двигателей. Защита от замерзания и перегрева.",
+      "specs": {
+        "Тип": "Антифриз G12+",
+        "Цвет": "Красный",
+        "Применение": "Системы охлаждения"
+      },
+      "in_stock": true,
+      "is_new": false,
+      "is_bestseller": false,
+      "rating": 4.4,
+      "reviews_count": 8
+    },
+    {
+      "id": 16,
+      "name": "Промывка двигателя",
+      "full_name": "Промывка двигателя Gulf Western",
+      "category": "additive",
+      "subcategory": "engine_flush",
+      "viscosity": "",
+      "volume": "350 мл",
+      "price": 600,
+      "old_price": 0,
+      "image": "img/oils/webp/syn-x-6000-5w30-1l.webp",
+      "description": "Промывка двигателя для удаления отложений и нагара. Подготовка к замене масла.",
+      "specs": {
+        "Тип": "Промывка двигателя",
+        "Объём": "350 мл",
+        "Применение": "Бензиновые и дизельные двигатели"
+      },
+      "in_stock": true,
+      "is_new": true,
+      "is_bestseller": false,
+      "rating": 4.3,
+      "reviews_count": 6
+    },
+    {
+      "id": 17,
+      "name": "Масло для гидроусилителя",
+      "full_name": "Жидкость ГУР Gulf Western",
+      "category": "fluid",
+      "subcategory": "psf",
+      "viscosity": "",
+      "volume": "1 л",
+      "price": 900,
+      "old_price": 0,
+      "image": "img/oils/webp/syn-star-lv-0w20-1l.webp",
+      "description": "Специальная жидкость для гидроусилителя руля. Обеспечивает надёжную работу системы.",
+      "specs": {
+        "Тип": "Жидкость ГУР",
+        "Применение": "Гидроусилитель руля"
+      },
+      "in_stock": true,
+      "is_new": false,
+      "is_bestseller": false,
+      "rating": 4.5,
+      "reviews_count": 10
     }
   ]
 }
