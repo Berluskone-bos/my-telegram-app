@@ -6,6 +6,14 @@ const App = {
     currentSort: 'popular',
     searchQuery: '',
     previousScreen: null,
+    filters: {
+        brand: [],
+        viscosity: [],
+        volume: [],
+        type: [],
+        priceMin: null,
+        priceMax: null
+    },
 
     async init() {
         // Загружаем данные
@@ -60,6 +68,163 @@ const App = {
         });
         document.getElementById('sortMenu').classList.remove('open');
         this.renderProducts();
+    },
+
+    toggleFilter() {
+        const panel = document.getElementById('filterPanel');
+        const overlay = document.getElementById('filterOverlay');
+        const isOpen = panel.classList.contains('open');
+
+        if (isOpen) {
+            panel.classList.remove('open');
+            overlay.classList.remove('open');
+        } else {
+            this.renderFilterOptions();
+            panel.classList.add('open');
+            overlay.classList.add('open');
+        }
+    },
+
+    renderFilterOptions() {
+        const products = Products.getAll();
+
+        // Бренды
+        const brands = [...new Set(products.map(p => {
+            const name = p.full_name || p.name;
+            if (name.includes('Gulf Western')) return 'Gulf Western';
+            return 'Другой';
+        }))].sort();
+        this.renderFilterChips('filterBrand', brands, this.filters.brand);
+
+        // Вязкость
+        const viscosities = [...new Set(products.map(p => p.viscosity).filter(Boolean))].sort();
+        this.renderFilterChips('filterViscosity', viscosities, this.filters.viscosity);
+
+        // Объём
+        const volumes = [...new Set(products.map(p => p.volume).filter(Boolean))].sort((a, b) => {
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            return numA - numB;
+        });
+        this.renderFilterChips('filterVolume', volumes, this.filters.volume);
+
+        // Тип масла
+        const types = [...new Set(products.map(p => {
+            if (p.subcategory === 'synthetic') return 'Синтетика';
+            if (p.subcategory === 'semi_synthetic') return 'Полусинтетика';
+            if (p.subcategory === 'mineral') return 'Минеральное';
+            if (p.subcategory === 'diesel') return 'Дизельное';
+            return null;
+        }).filter(Boolean))].sort();
+        this.renderFilterChips('filterType', types, this.filters.type);
+
+        // Цена
+        document.getElementById('filterPriceMin').value = this.filters.priceMin || '';
+        document.getElementById('filterPriceMax').value = this.filters.priceMax || '';
+    },
+
+    renderFilterChips(containerId, options, selectedArray) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        container.innerHTML = options.map(opt => {
+            const isActive = selectedArray.includes(opt);
+            return `<div class="filter-chip ${isActive ? 'active' : ''}" data-value="${opt}" onclick="App.toggleFilterChip(this, '${containerId}')">${opt}</div>`;
+        }).join('');
+    },
+
+    toggleFilterChip(chip, containerId) {
+        chip.classList.toggle('active');
+        const value = chip.dataset.value;
+
+        // Определяем массив фильтра по containerId
+        let filterArray;
+        switch (containerId) {
+            case 'filterBrand': filterArray = this.filters.brand; break;
+            case 'filterViscosity': filterArray = this.filters.viscosity; break;
+            case 'filterVolume': filterArray = this.filters.volume; break;
+            case 'filterType': filterArray = this.filters.type; break;
+            default: return;
+        }
+
+        const index = filterArray.indexOf(value);
+        if (index === -1) {
+            filterArray.push(value);
+        } else {
+            filterArray.splice(index, 1);
+        }
+    },
+
+    resetFilters() {
+        this.filters = {
+            brand: [],
+            viscosity: [],
+            volume: [],
+            type: [],
+            priceMin: null,
+            priceMax: null
+        };
+        this.renderFilterOptions();
+        this.renderProducts();
+        this.updateFilterButton();
+    },
+
+    applyFilters() {
+        this.filters.priceMin = document.getElementById('filterPriceMin').value ? parseInt(document.getElementById('filterPriceMin').value) : null;
+        this.filters.priceMax = document.getElementById('filterPriceMax').value ? parseInt(document.getElementById('filterPriceMax').value) : null;
+
+        this.toggleFilter();
+        this.renderProducts();
+        this.updateFilterButton();
+    },
+
+    updateFilterButton() {
+        const btn = document.querySelector('.filter-btn');
+        const hasFilters = this.filters.brand.length > 0 ||
+            this.filters.viscosity.length > 0 ||
+            this.filters.volume.length > 0 ||
+            this.filters.type.length > 0 ||
+            this.filters.priceMin !== null ||
+            this.filters.priceMax !== null;
+
+        btn.classList.toggle('active', hasFilters);
+    },
+
+    applyFiltersToProducts(products) {
+        return products.filter(p => {
+            // Бренд
+            if (this.filters.brand.length > 0) {
+                const brand = (p.full_name || p.name).includes('Gulf Western') ? 'Gulf Western' : 'Другой';
+                if (!this.filters.brand.includes(brand)) return false;
+            }
+
+            // Вязкость
+            if (this.filters.viscosity.length > 0) {
+                if (!p.viscosity || !this.filters.viscosity.includes(p.viscosity)) return false;
+            }
+
+            // Объём
+            if (this.filters.volume.length > 0) {
+                if (!p.volume || !this.filters.volume.includes(p.volume)) return false;
+            }
+
+            // Тип
+            if (this.filters.type.length > 0) {
+                let typeName;
+                if (p.subcategory === 'synthetic') typeName = 'Синтетика';
+                else if (p.subcategory === 'semi_synthetic') typeName = 'Полусинтетика';
+                else if (p.subcategory === 'mineral') typeName = 'Минеральное';
+                else if (p.subcategory === 'diesel') typeName = 'Дизельное';
+                else typeName = null;
+                if (!typeName || !this.filters.type.includes(typeName)) return false;
+            }
+
+            // Цена
+            if (this.filters.priceMin !== null && p.price < this.filters.priceMin) return false;
+            if (this.filters.priceMax !== null && p.price > this.filters.priceMax) return false;
+
+            return true;
+        });
     },
 
     toggleCategoryFilter() {
@@ -132,6 +297,9 @@ const App = {
                 products = products.filter(p => p.subcategory === this.currentSubcategory);
             }
         }
+
+        // Применяем фильтры
+        products = this.applyFiltersToProducts(products);
 
         // Сортировка
         products = Products.sort(products, this.currentSort);

@@ -113,6 +113,10 @@
         </div>
 
         <div class="sort-row">
+            <button class="filter-btn" onclick="App.toggleFilter()">
+                <i data-lucide="sliders-horizontal" style="width:16px;height:16px;"></i>
+                <span>Фильтр</span>
+            </button>
             <div class="sort-dropdown" id="sortDropdown">
                 <button class="sort-btn" onclick="App.toggleSort()">
                     <span>Сортировка</span>
@@ -125,6 +129,47 @@
                     <div class="sort-option" data-value="rating" onclick="App.selectSort('rating')">По рейтингу</div>
                     <div class="sort-option" data-value="new" onclick="App.selectSort('new')">Новинки</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Панель фильтров -->
+        <div class="filter-overlay" id="filterOverlay" onclick="App.toggleFilter()"></div>
+        <div class="filter-panel" id="filterPanel">
+            <div class="filter-header">
+                <h3>Фильтры</h3>
+                <button class="filter-close" onclick="App.toggleFilter()">
+                    <i data-lucide="x" style="width:20px;height:20px;"></i>
+                </button>
+            </div>
+            <div class="filter-body">
+                <div class="filter-section">
+                    <h4>Бренд</h4>
+                    <div class="filter-options" id="filterBrand"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Вязкость</h4>
+                    <div class="filter-options" id="filterViscosity"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Объём</h4>
+                    <div class="filter-options" id="filterVolume"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Тип масла</h4>
+                    <div class="filter-options" id="filterType"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Цена</h4>
+                    <div class="filter-price-row">
+                        <input type="number" id="filterPriceMin" placeholder="От" class="filter-price-input">
+                        <span class="filter-price-sep">—</span>
+                        <input type="number" id="filterPriceMax" placeholder="До" class="filter-price-input">
+                    </div>
+                </div>
+            </div>
+            <div class="filter-footer">
+                <button class="filter-reset" onclick="App.resetFilters()">Сбросить</button>
+                <button class="filter-apply" onclick="App.applyFilters()">Применить</button>
             </div>
         </div>
 
