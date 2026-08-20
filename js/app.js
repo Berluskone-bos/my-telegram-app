@@ -210,12 +210,15 @@ const App = {
 
             // Тип
             if (this.filters.type.length > 0) {
-                let typeName;
-                if (p.subcategory === 'synthetic') typeName = 'Синтетика';
-                else if (p.subcategory === 'semi_synthetic') typeName = 'Полусинтетика';
-                else if (p.subcategory === 'mineral') typeName = 'Минеральное';
-                else if (p.subcategory === 'diesel') typeName = 'Дизельное';
-                else typeName = null;
+                const oilType = p.oil_type || '';
+                const subcategory = p.subcategory || '';
+                let typeName = null;
+                
+                if (oilType.includes('синтетическое') || subcategory === 'synthetic') typeName = 'Синтетика';
+                else if (oilType.includes('Полусинтетическое') || subcategory === 'semi_synthetic') typeName = 'Полусинтетика';
+                else if (oilType.includes('Минеральное') || subcategory === 'mineral') typeName = 'Минеральное';
+                else if (subcategory === 'diesel') typeName = 'Дизельное';
+                
                 if (!typeName || !this.filters.type.includes(typeName)) return false;
             }
 

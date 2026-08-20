@@ -35,11 +35,11 @@ const Products = {
 
     getByCategory(categoryId) {
         if (categoryId === 'all') return this.data;
-        return this.data.filter(p => p.category === categoryId);
+        return this.data.filter(p => (p.category_id || p.category) === categoryId);
     },
 
     getBySubcategory(subcategoryId) {
-        return this.data.filter(p => p.subcategory === subcategoryId);
+        return this.data.filter(p => (p.subcategory || p.oil_type) === subcategoryId);
     },
 
     search(query) {
@@ -50,6 +50,9 @@ const Products = {
             p.full_name.toLowerCase().includes(q) ||
             p.description.toLowerCase().includes(q) ||
             (p.viscosity && p.viscosity.toLowerCase().includes(q)) ||
+            (p.sku && p.sku.toLowerCase().includes(q)) ||
+            (p.series && p.series.toLowerCase().includes(q)) ||
+            (p.api && p.api.toLowerCase().includes(q)) ||
             (p.specs && Object.values(p.specs).some(v => String(v).toLowerCase().includes(q)))
         );
     },
@@ -74,7 +77,7 @@ const Products = {
 
     getSubcategories(categoryId) {
         const products = this.getByCategory(categoryId);
-        const subs = new Set(products.map(p => p.subcategory));
+        const subs = new Set(products.map(p => p.subcategory || p.oil_type).filter(Boolean));
         return [...subs];
     },
 
@@ -113,11 +116,12 @@ const Products = {
         const discount = product.old_price > 0
             ? Math.round((1 - product.price / product.old_price) * 100)
             : 0;
+        const image = product.main_image || product.image;
 
         return `
             <div class="product-card" onclick="App.showProduct(${product.id})">
                 <div class="product-image">
-                    ${this.getPictureHtml(product.image, product.name, 'loading="lazy"')}
+                    ${this.getPictureHtml(image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
                         ${product.is_new ? '<span class="badge-new">NEW</span>' : ''}
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
@@ -148,12 +152,25 @@ const Products = {
                 `<div class="spec-row"><span class="spec-label">${key}</span><span class="spec-value">${val}</span></div>`
               ).join('')
             : '';
+        const image = product.main_image || product.image;
+
+        // Дополнительные характеристики из ТЗ 6.3.2
+        const techSpecs = [];
+        if (product.sku) techSpecs.push({ key: 'Артикул', val: product.sku });
+        if (product.series) techSpecs.push({ key: 'Серия', val: product.series });
+        if (product.api) techSpecs.push({ key: 'API', val: product.api });
+        if (product.acea) techSpecs.push({ key: 'ACEA', val: product.acea });
+        if (product.ilsac) techSpecs.push({ key: 'ILSAC', val: product.ilsac });
+        if (product.oil_type) techSpecs.push({ key: 'Тип масла', val: product.oil_type });
+        const techSpecsHtml = techSpecs.length > 0
+            ? techSpecs.map(s => `<div class="spec-row"><span class="spec-label">${s.key}</span><span class="spec-value">${s.val}</span></div>`).join('')
+            : '';
 
         return `
             <div class="product-detail">
                 <button class="btn-back" onclick="App.goBack()">← Назад</button>
                 <div class="product-detail-image">
-                    ${this.getPictureHtml(product.image, product.name)}
+                    ${this.getPictureHtml(image, product.name)}
                 </div>
                 <div class="product-detail-name">${product.full_name}</div>
                 <div class="product-detail-volume">${product.volume}${product.viscosity ? ' · ' + product.viscosity : ''}</div>
@@ -162,7 +179,8 @@ const Products = {
                     ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString()} ₽</div>` : ''}
                 </div>
                 <div class="product-detail-description">${product.description}</div>
-                ${specsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${specsHtml}</div>` : ''}
+                ${techSpecsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${techSpecsHtml}</div>` : ''}
+                ${specsHtml ? `<div class="product-detail-specs"><h3>Дополнительно</h3>${specsHtml}</div>` : ''}
                 <button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>
             </div>
         `;
