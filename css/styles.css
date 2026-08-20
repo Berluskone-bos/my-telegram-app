@@ -64,7 +64,7 @@ a, button, input, select { font-family: inherit; }
 }
 .header-logo-img {
     height: 40px;
-    max-width: 200px;
+    width: 100%;
     object-fit: contain;
 }
 .header-logo-text {
