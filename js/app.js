@@ -374,10 +374,50 @@ const App = {
         document.getElementById('headerTitle').innerHTML = titles[screenName] || '<span class="header-logo-text">АВТОПРОМОЙЛ</span>';
 
         // Рендерим содержимое
-        if (screenName === 'cart') Cart.render();
+        if (screenName === 'cart') {
+            Cart.render();
+            this.autoFillOrderForm();
+        }
         if (screenName === 'favorites') Favorites.render();
         if (screenName === 'main') this.renderProducts();
         if (screenName === 'profile') Profile.updateUI();
+    },
+
+    autoFillOrderForm() {
+        const profile = Profile.getProfileData();
+        if (!profile) return;
+
+        // Заполняем имя
+        const nameInput = document.getElementById('orderName');
+        if (nameInput && profile.name && !nameInput.value) {
+            nameInput.value = profile.name;
+        }
+
+        // Заполняем телефон
+        const phoneInput = document.getElementById('orderPhone');
+        if (phoneInput && profile.phone && !phoneInput.value) {
+            phoneInput.value = profile.phone;
+        }
+
+        // Заполняем адрес (если есть)
+        if (profile.address) {
+            const addressParts = profile.address.split(',').map(s => s.trim());
+            const cityInput = document.getElementById('orderCity');
+            const streetInput = document.getElementById('orderStreet');
+            const houseInput = document.getElementById('orderHouse');
+
+            if (cityInput && addressParts[0] && !cityInput.value) {
+                cityInput.value = addressParts[0];
+            }
+            if (streetInput && addressParts[1] && !streetInput.value) {
+                // Убираем "ул." если есть
+                streetInput.value = addressParts[1].replace(/^ул\.\s*/i, '');
+            }
+            if (houseInput && addressParts[2] && !houseInput.value) {
+                // Убираем "д." если есть
+                houseInput.value = addressParts[2].replace(/^д\.\s*/i, '');
+            }
+        }
     },
 
     addToCart(productId) {
