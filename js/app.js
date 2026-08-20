@@ -477,18 +477,61 @@ const App = {
         }
     },
 
-    makeOrder() {
-        const address = document.getElementById('address').value.trim();
-        const phone = document.getElementById('phone').value.trim();
-        const zone = document.getElementById('delivery-zone').value;
+    toggleDeliveryType() {
+        const isDelivery = document.querySelector('input[name="deliveryType"]:checked').value === 'delivery';
+        document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
+        document.getElementById('labelDelivery').classList.toggle('active', isDelivery);
+        document.getElementById('labelPickup').classList.toggle('active', !isDelivery);
+    },
 
-        if (!address || !phone) {
-            alert('Пожалуйста, укажите адрес и телефон для доставки!');
+    makeOrder() {
+        const name = document.getElementById('orderName').value.trim();
+        const phone = document.getElementById('orderPhone').value.trim();
+        const deliveryType = document.querySelector('input[name="deliveryType"]:checked').value;
+        const comment = document.getElementById('orderComment').value.trim();
+        const payment = document.getElementById('orderPayment').value;
+
+        // Валидация
+        if (!name) {
+            alert('Пожалуйста, укажите имя!');
+            return;
+        }
+        if (!phone) {
+            alert('Пожалуйста, укажите телефон!');
             return;
         }
         if (Cart.isEmpty()) {
             alert('Корзина пуста! Добавьте товары.');
             return;
+        }
+
+        // Сбор адреса
+        let address = '';
+        let zone = '';
+        let city = '';
+        let street = '';
+        let house = '';
+        let entrance = '';
+        let apartment = '';
+
+        if (deliveryType === 'delivery') {
+            zone = document.getElementById('orderZone').value;
+            city = document.getElementById('orderCity').value.trim();
+            street = document.getElementById('orderStreet').value.trim();
+            house = document.getElementById('orderHouse').value.trim();
+            entrance = document.getElementById('orderEntrance').value.trim();
+            apartment = document.getElementById('orderApartment').value.trim();
+
+            if (!street || !house) {
+                alert('Пожалуйста, укажите улицу и дом!');
+                return;
+            }
+
+            address = `${city}, ул. ${street}, д. ${house}`;
+            if (entrance) address += `, под. ${entrance}`;
+            if (apartment) address += `, кв. ${apartment}`;
+        } else {
+            address = 'Самовывоз';
         }
 
         const total = Cart.getTotal();
@@ -497,24 +540,34 @@ const App = {
 
         const orderItems = Cart.items.map(item => {
             const prod = Products.getById(item.id);
-            return { name: prod.name, volume: prod.volume, price: prod.price, qty: item.quantity };
+            return { id: prod.id, name: prod.name, volume: prod.volume, price: prod.price, qty: item.quantity };
         });
 
         // Получаем данные пользователя Telegram
         const tg = window.Telegram.WebApp;
         const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
-        const userName = user ? ((user.first_name || '') + ' ' + (user.last_name || '')).trim() : 'Не указано';
+        const userName = name || (user ? ((user.first_name || '') + ' ' + (user.last_name || '')).trim() : 'Не указано');
 
         const order = {
             type: 'order',
             items: orderItems,
             total: discountedTotal,
+            deliveryType: deliveryType,
             address: address,
-            phone: phone,
             zone: zone,
+            city: city,
+            street: street,
+            house: house,
+            entrance: entrance,
+            apartment: apartment,
+            comment: comment,
+            phone: phone,
+            payment: payment,
             discount: discount,
             userName: userName,
             userId: user ? user.id : null,
+            status: 'NEW',
+            paymentStatus: 'PENDING',
             date: new Date().toLocaleDateString('ru-RU'),
             timestamp: Date.now()
         };
@@ -524,13 +577,12 @@ const App = {
 
         // Отправляем данные в Telegram бот
         try {
-            // Метод 1: Через Telegram.WebApp.sendData() (основной способ)
             const orderJson = JSON.stringify(order);
             tg.sendData(orderJson);
             console.log('Заказ отправлен через Telegram WebApp:', order);
 
-            // Показываем подтверждение
-            alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\nАдрес: ${address}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+            const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
+            alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
         } catch (e) {
             console.log('Telegram sendData не доступен, пробуем API:', e);
 
@@ -542,11 +594,12 @@ const App = {
             .then(response => response.json())
             .then(data => {
                 console.log('Заказ отправлен через API:', data);
-                alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\nАдрес: ${address}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+                const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
+                alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
             })
             .catch(err => {
                 console.error('Ошибка отправки через API:', err);
-                alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nАдрес: ${address}\nТелефон: ${phone}\n\nМы свяжемся с вами для подтверждения.`);
+                alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nМы свяжемся с вами для подтверждения.`);
             });
         }
 

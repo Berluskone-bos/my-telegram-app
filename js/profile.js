@@ -5,6 +5,32 @@ const Profile = {
     editMode: false,
     selectedOrders: new Set(),
 
+    // Статусы заказов
+    ORDER_STATUSES: {
+        NEW: { text: 'Новый', class: 'order-status-new' },
+        CONFIRMED: { text: 'Подтверждён', class: 'order-status-confirmed' },
+        ASSEMBLING: { text: 'Собирается', class: 'order-status-assembling' },
+        SHIPPED: { text: 'В доставке', class: 'order-status-shipped' },
+        DELIVERED: { text: 'Доставлен', class: 'order-status-delivered' },
+        CANCELLED: { text: 'Отменён', class: 'order-status-cancelled' }
+    },
+
+    // Статусы оплаты
+    PAYMENT_STATUSES: {
+        PENDING: 'Ожидает оплаты',
+        PAID: 'Оплачен',
+        FAILED: 'Ошибка оплаты',
+        REFUNDED: 'Возврат'
+    },
+
+    getStatusText(status) {
+        return this.ORDER_STATUSES[status] || { text: status, class: 'order-status-new' };
+    },
+
+    getPaymentStatusText(status) {
+        return this.PAYMENT_STATUSES[status] || status;
+    },
+
     load() {
         try {
             const savedSpent = localStorage.getItem('gulf_spent');
@@ -26,6 +52,42 @@ const Profile = {
         this.orderHistory.unshift(order);
         this.totalSpent += order.total;
         this.save();
+    },
+
+    reorder(idx) {
+        const order = this.orderHistory[idx];
+        if (!order) return;
+
+        let addedCount = 0;
+        let missingItems = [];
+        let priceChanges = [];
+
+        order.items.forEach(item => {
+            const product = Products.getById(item.id);
+            if (product) {
+                if (product.price !== item.price) {
+                    priceChanges.push(`${product.name}: было ${item.price} ₽, стало ${product.price} ₽`);
+                }
+                Cart.add(product.id);
+                addedCount++;
+            } else {
+                missingItems.push(item.name);
+            }
+        });
+
+        let message = `Добавлено в корзину: ${addedCount} товар(ов)`;
+
+        if (priceChanges.length > 0) {
+            message += '\n\n⚠️ Цены изменились:\n' + priceChanges.join('\n');
+        }
+
+        if (missingItems.length > 0) {
+            message += '\n\n❌ Нет в наличии:\n' + missingItems.join(', ');
+        }
+
+        alert(message);
+        App.updateCartBadge();
+        App.switchScreen('cart');
     },
 
     getCardNumber() {
@@ -179,19 +241,29 @@ const Profile = {
             const orderNum = this.orderHistory.length - idx;
             const itemsSummary = order.items.map(i => i.name).join(', ');
             const checked = this.selectedOrders.has(idx);
+            const status = this.getStatusText(order.status || 'NEW');
+            const paymentStatus = order.paymentStatus || 'PENDING';
+            const deliveryType = order.deliveryType || 'delivery';
+            const deliveryLabel = deliveryType === 'pickup' ? 'Самовывоз' : 'Доставка';
 
             html += `
                 <div class="order-card ${this.editMode ? 'order-card-edit' : ''}" ${this.editMode ? `onclick="Profile.toggleOrderSelection(${idx})"` : ''}>
                     ${this.editMode ? `<div class="order-checkbox">${checked ? '<i data-lucide="check-circle" style="width:22px;height:22px;color:var(--accent);"></i>' : '<i data-lucide="circle" style="width:22px;height:22px;color:var(--border);"></i>'}</div>` : ''}
                     <div class="order-header">
                         <div class="order-number">Заказ #AP-${String(orderNum).padStart(6, '0')}</div>
-                        <span class="order-status-new">Новый</span>
+                        <span class="order-status ${status.class}">${status.text}</span>
                     </div>
-                    <div class="order-date">${order.date}</div>
+                    <div class="order-date">${order.date} · ${deliveryLabel}</div>
                     <div class="order-items">${itemsSummary}</div>
+                    <div class="order-payment-status">${this.getPaymentStatusText(paymentStatus)}</div>
                     <div class="order-footer">
-                        <div class="order-total">${order.total.toLocaleString()} руб.</div>
-                        <div class="order-count">${order.items.length} ${order.items.length === 1 ? 'товар' : 'товара'}</div>
+                        <div>
+                            <div class="order-total">${order.total.toLocaleString()} руб.</div>
+                            <div class="order-count">${order.items.length} ${order.items.length === 1 ? 'товар' : 'товара'}</div>
+                        </div>
+                        ${!this.editMode ? `<button class="order-reorder-btn" onclick="event.stopPropagation(); Profile.reorder(${idx})">
+                            <i data-lucide="repeat" style="width:14px;height:14px;"></i> Заказать повторно
+                        </button>` : ''}
                     </div>
                 </div>
             `;

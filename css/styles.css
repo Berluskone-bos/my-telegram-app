@@ -1009,10 +1009,68 @@ a, button, input, select { font-family: inherit; }
     transition: 0.2s;
 }
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: var(--accent);
     background: var(--bg);
+}
+.form-group textarea {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-family: var(--font);
+    transition: 0.2s;
+    resize: vertical;
+}
+.form-row {
+    display: flex;
+    gap: 12px;
+}
+.form-row .form-group {
+    flex: 1;
+}
+.form-row-3 {
+    display: flex;
+    gap: 12px;
+}
+.form-row-3 .form-group {
+    flex: 1;
+}
+.delivery-toggle {
+    display: flex;
+    gap: 8px;
+}
+.radio-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: 0.2s;
+}
+.radio-label input[type="radio"] {
+    display: none;
+}
+.radio-label.active {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.radio-label:active {
+    transform: scale(0.98);
 }
 .btn-order {
     background: var(--accent);
@@ -1421,13 +1479,60 @@ a, button, input, select { font-family: inherit; }
     font-weight: 700;
     color: var(--navy);
 }
-.order-status-new {
+.order-status {
     font-size: 11px;
     font-weight: 600;
     padding: 3px 10px;
     border-radius: var(--radius-pill);
+    display: inline-block;
+}
+.order-status-new {
     background: rgba(0,175,199,0.1);
     color: var(--accent);
+}
+.order-status-confirmed {
+    background: rgba(59,130,246,0.1);
+    color: #3b82f6;
+}
+.order-status-assembling {
+    background: rgba(234,179,8,0.1);
+    color: #ca8a04;
+}
+.order-status-shipped {
+    background: rgba(249,115,22,0.1);
+    color: #ea580c;
+}
+.order-status-delivered {
+    background: rgba(34,197,94,0.1);
+    color: #16a34a;
+}
+.order-status-cancelled {
+    background: rgba(220,38,38,0.1);
+    color: #dc2626;
+}
+.order-payment-status {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+.order-reorder-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: 0.2s;
+    margin-top: 10px;
+}
+.order-reorder-btn:active {
+    background: var(--border);
 }
 .order-date {
     font-size: 12px;

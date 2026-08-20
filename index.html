@@ -208,22 +208,79 @@
 
             <hr style="border-color: var(--border); margin: 20px 0;" />
 
-            <h3 style="margin-bottom: 15px;">Данные для доставки</h3>
+            <h3 style="margin-bottom: 15px;">Оформление заказа</h3>
+
             <div class="form-group">
-                <label>Регион доставки:</label>
-                <select id="delivery-zone">
-                    <option value="spb">Санкт-Петербург (в пределах КАД)</option>
-                    <option value="lo">Ленинградская область</option>
+                <label>Имя:</label>
+                <input type="text" id="orderName" placeholder="Ваше имя" />
+            </div>
+            <div class="form-group">
+                <label>Телефон:</label>
+                <input type="tel" id="orderPhone" placeholder="+7 (999) 000-00-00" />
+            </div>
+
+            <div class="form-group">
+                <label>Способ получения:</label>
+                <div class="delivery-toggle">
+                    <label class="radio-label active" id="labelDelivery">
+                        <input type="radio" name="deliveryType" value="delivery" checked onchange="App.toggleDeliveryType()">
+                        <span>Доставка</span>
+                    </label>
+                    <label class="radio-label" id="labelPickup">
+                        <input type="radio" name="deliveryType" value="pickup" onchange="App.toggleDeliveryType()">
+                        <span>Самовывоз</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="deliveryFields">
+                <div class="form-group">
+                    <label>Регион:</label>
+                    <select id="orderZone">
+                        <option value="spb">Санкт-Петербург (в пределах КАД)</option>
+                        <option value="lo">Ленинградская область</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Город:</label>
+                    <input type="text" id="orderCity" placeholder="Санкт-Петербург" value="Санкт-Петербург" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Улица:</label>
+                        <input type="text" id="orderStreet" placeholder="Улица" />
+                    </div>
+                </div>
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label>Дом:</label>
+                        <input type="text" id="orderHouse" placeholder="Дом" />
+                    </div>
+                    <div class="form-group">
+                        <label>Подъезд:</label>
+                        <input type="text" id="orderEntrance" placeholder="Под." />
+                    </div>
+                    <div class="form-group">
+                        <label>Квартира:</label>
+                        <input type="text" id="orderApartment" placeholder="Кв." />
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Комментарий:</label>
+                <textarea id="orderComment" placeholder="Примечания к заказу..." rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Способ оплаты:</label>
+                <select id="orderPayment">
+                    <option value="cash">Наличные при получении</option>
+                    <option value="card">Картой при получении</option>
+                    <option value="sbp">СБП (перевод)</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Точный адрес:</label>
-                <input type="text" id="address" placeholder="Улица, дом, квартира" />
-            </div>
-            <div class="form-group">
-                <label>Номер телефона:</label>
-                <input type="tel" id="phone" placeholder="+7 (999) 000-00-00" />
-            </div>
+
             <button class="btn-order" onclick="App.makeOrder()">Подтвердить заказ</button>
         </div>
     </div>
