@@ -1213,6 +1213,206 @@ a, button, input, select { font-family: inherit; }
 }
 .p-menu-text { font-size: 15px; font-weight: 500; }
 .p-menu-arrow { color: var(--text-muted); font-size: 18px; }
+.p-menu-item-danger .p-menu-icon { color: #dc2626; }
+.p-menu-item-danger .p-menu-text { color: #dc2626; }
+
+/* ===== ПРОФИЛЬ: СЕКЦИИ ===== */
+.profile-section {
+    margin-bottom: 20px;
+}
+.profile-section-title {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.profile-data-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+}
+.profile-data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.profile-data-row:last-of-type {
+    border-bottom: none;
+}
+.profile-data-label {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.profile-data-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.profile-edit-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    transition: 0.2s;
+    width: 100%;
+    justify-content: center;
+}
+.profile-edit-btn:active {
+    background: var(--border);
+}
+.profile-car-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+.profile-car-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+}
+.profile-car-empty p {
+    font-size: 14px;
+    margin: 0;
+}
+.profile-add-car-btn {
+    background: var(--accent-light);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    transition: 0.2s;
+}
+.profile-add-car-btn:active {
+    background: var(--accent);
+    color: #fff;
+}
+.profile-car-info {
+    text-align: left;
+}
+.profile-car-name {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+.profile-car-details {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.profile-car-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+.profile-car-action-btn {
+    flex: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: 0.2s;
+}
+.profile-car-action-btn:active {
+    background: var(--border);
+}
+.profile-car-action-btn.delete {
+    color: #dc2626;
+}
+
+/* ===== МОДАЛЬНОЕ ОКНО ПРОФИЛЯ ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.open {
+    display: flex;
+}
+.modal-content {
+    background: var(--bg);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 90%;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.modal-title {
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 16px;
+}
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+.modal-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.modal-btn-cancel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+}
+.modal-btn-save {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+}
+.modal-btn:active {
+    opacity: 0.9;
+}
 
 /* ===== НИЖНЕЕ МЕНЮ (ROSTICS) ===== */
 .bottom-nav {

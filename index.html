@@ -308,6 +308,42 @@
                 </div>
             </div>
 
+            <!-- Мои данные -->
+            <div class="profile-section">
+                <h3 class="profile-section-title"><i data-lucide="user" style="width:18px;height:18px;"></i> Мои данные</h3>
+                <div class="profile-data-card">
+                    <div class="profile-data-row">
+                        <span class="profile-data-label">Имя</span>
+                        <span class="profile-data-value" id="profileName">—</span>
+                    </div>
+                    <div class="profile-data-row">
+                        <span class="profile-data-label">Телефон</span>
+                        <span class="profile-data-value" id="profilePhone">—</span>
+                    </div>
+                    <div class="profile-data-row">
+                        <span class="profile-data-label">Адрес</span>
+                        <span class="profile-data-value" id="profileAddress">—</span>
+                    </div>
+                    <button class="profile-edit-btn" onclick="App.editProfile()">
+                        <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Редактировать
+                    </button>
+                </div>
+            </div>
+
+            <!-- Мой автомобиль -->
+            <div class="profile-section">
+                <h3 class="profile-section-title"><i data-lucide="car" style="width:18px;height:18px;"></i> Мой автомобиль</h3>
+                <div class="profile-car-card" id="profileCarCard">
+                    <div class="profile-car-empty">
+                        <i data-lucide="car" style="width:32px;height:32px;color:var(--text-muted);opacity:0.4;"></i>
+                        <p>Автомобиль не добавлен</p>
+                        <button class="profile-add-car-btn" onclick="App.addCar()">
+                            <i data-lucide="plus" style="width:16px;height:16px;"></i> Добавить автомобиль
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="profile-menu">
                 <div class="p-menu-item" onclick="App.openReferral()">
                     <div class="p-menu-left">
@@ -329,6 +365,19 @@
                         <span class="p-menu-text">Связаться с поддержкой</span>
                     </div>
                     <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="window.location.href='privacy.html'">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="shield" class="icon-sm"></i></span>
+                        <span class="p-menu-text">Политика конфиденциальности</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item p-menu-item-danger" onclick="App.logout()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="log-out" class="icon-sm"></i></span>
+                        <span class="p-menu-text">Выйти</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -580,6 +629,56 @@
             }
         });
     </script>
+
+    <!-- Модальное окно: Редактирование профиля -->
+    <div class="modal-overlay" id="modalProfile">
+        <div class="modal-content">
+            <h3 class="modal-title">Мои данные</h3>
+            <div class="form-group">
+                <label>Имя:</label>
+                <input type="text" id="modalProfileName" placeholder="Ваше имя" />
+            </div>
+            <div class="form-group">
+                <label>Телефон:</label>
+                <input type="tel" id="modalProfilePhone" placeholder="+7 (999) 000-00-00" />
+            </div>
+            <div class="form-group">
+                <label>Адрес доставки:</label>
+                <input type="text" id="modalProfileAddress" placeholder="Город, улица, дом, квартира" />
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="App.closeModal('modalProfile')">Отмена</button>
+                <button class="modal-btn modal-btn-save" onclick="App.saveProfile()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Добавление автомобиля -->
+    <div class="modal-overlay" id="modalCar">
+        <div class="modal-content">
+            <h3 class="modal-title">Мой автомобиль</h3>
+            <div class="form-group">
+                <label>Марка:</label>
+                <input type="text" id="modalCarBrand" placeholder="Toyota, BMW, Kia..." />
+            </div>
+            <div class="form-group">
+                <label>Модель:</label>
+                <input type="text" id="modalCarModel" placeholder="Camry, X5, Sportage..." />
+            </div>
+            <div class="form-group">
+                <label>Год выпуска:</label>
+                <input type="number" id="modalCarYear" placeholder="2020" min="1990" max="2026" />
+            </div>
+            <div class="form-group">
+                <label>Двигатель:</label>
+                <input type="text" id="modalCarEngine" placeholder="2.5 бензин, 2.0 дизель..." />
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="App.closeModal('modalCar')">Отмена</button>
+                <button class="modal-btn modal-btn-save" onclick="App.saveCar()">Сохранить</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

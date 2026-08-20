@@ -628,6 +628,74 @@ const App = {
 
     contactSupport() {
         alert('Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
+    },
+
+    // Профиль: редактирование данных
+    editProfile() {
+        const profile = Profile.getProfileData();
+        document.getElementById('modalProfileName').value = profile.name || '';
+        document.getElementById('modalProfilePhone').value = profile.phone || '';
+        document.getElementById('modalProfileAddress').value = profile.address || '';
+        document.getElementById('modalProfile').classList.add('open');
+    },
+
+    saveProfile() {
+        const name = document.getElementById('modalProfileName').value.trim();
+        const phone = document.getElementById('modalProfilePhone').value.trim();
+        const address = document.getElementById('modalProfileAddress').value.trim();
+
+        Profile.saveProfileData({ name, phone, address });
+        Profile.updateProfileUI();
+        this.closeModal('modalProfile');
+    },
+
+    // Профиль: автомобиль
+    addCar() {
+        const car = Profile.getCarData();
+        document.getElementById('modalCarBrand').value = car.brand || '';
+        document.getElementById('modalCarModel').value = car.model || '';
+        document.getElementById('modalCarYear').value = car.year || '';
+        document.getElementById('modalCarEngine').value = car.engine || '';
+        document.getElementById('modalCar').classList.add('open');
+    },
+
+    saveCar() {
+        const brand = document.getElementById('modalCarBrand').value.trim();
+        const model = document.getElementById('modalCarModel').value.trim();
+        const year = document.getElementById('modalCarYear').value.trim();
+        const engine = document.getElementById('modalCarEngine').value.trim();
+
+        if (!brand || !model) {
+            alert('Укажите марку и модель автомобиля!');
+            return;
+        }
+
+        Profile.saveCarData({ brand, model, year, engine });
+        Profile.updateCarUI();
+        this.closeModal('modalCar');
+    },
+
+    removeCar() {
+        if (confirm('Удалить автомобиль из профиля?')) {
+            Profile.saveCarData(null);
+            Profile.updateCarUI();
+        }
+    },
+
+    // Модальные окна
+    closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('open');
+    },
+
+    // Выход
+    logout() {
+        if (confirm('Выйти из аккаунта? Данные корзины и избранного будут сохранены.')) {
+            localStorage.removeItem('gulf_profile');
+            localStorage.removeItem('gulf_car');
+            Profile.updateProfileUI();
+            Profile.updateCarUI();
+            alert('Вы вышли из аккаунта.');
+        }
     }
 };
 

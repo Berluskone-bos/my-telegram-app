@@ -160,6 +160,89 @@ const Profile = {
         const next = this.getNextLevelAmount();
         document.getElementById('loyaltyNext').textContent = next > 0 ? next.toLocaleString() + ' руб.' : 'MAX';
         document.getElementById('loyaltyProgress').style.width = Math.min(this.getProgress(), 100) + '%';
+
+        // Обновляем данные профиля и автомобиля
+        this.updateProfileUI();
+        this.updateCarUI();
+    },
+
+    // Данные профиля
+    getProfileData() {
+        try {
+            const saved = localStorage.getItem('gulf_profile');
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
+    },
+
+    saveProfileData(data) {
+        localStorage.setItem('gulf_profile', JSON.stringify(data));
+    },
+
+    updateProfileUI() {
+        const profile = this.getProfileData();
+        const nameEl = document.getElementById('profileName');
+        const phoneEl = document.getElementById('profilePhone');
+        const addressEl = document.getElementById('profileAddress');
+
+        if (nameEl) nameEl.textContent = profile.name || '—';
+        if (phoneEl) phoneEl.textContent = profile.phone || '—';
+        if (addressEl) addressEl.textContent = profile.address || '—';
+    },
+
+    // Данные автомобиля
+    getCarData() {
+        try {
+            const saved = localStorage.getItem('gulf_car');
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
+    },
+
+    saveCarData(data) {
+        if (data) {
+            localStorage.setItem('gulf_car', JSON.stringify(data));
+        } else {
+            localStorage.removeItem('gulf_car');
+        }
+    },
+
+    updateCarUI() {
+        const car = this.getCarData();
+        const container = document.getElementById('profileCarCard');
+        if (!container) return;
+
+        if (car && car.brand && car.model) {
+            const yearText = car.year ? `, ${car.year}` : '';
+            const engineText = car.engine ? ` · ${car.engine}` : '';
+            container.innerHTML = `
+                <div class="profile-car-info">
+                    <div class="profile-car-name">${car.brand} ${car.model}</div>
+                    <div class="profile-car-details">${yearText}${engineText}</div>
+                </div>
+                <div class="profile-car-actions">
+                    <button class="profile-car-action-btn" onclick="App.addCar()">
+                        <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Изменить
+                    </button>
+                    <button class="profile-car-action-btn delete" onclick="App.removeCar()">
+                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Удалить
+                    </button>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <div class="profile-car-empty">
+                    <i data-lucide="car" style="width:32px;height:32px;color:var(--text-muted);opacity:0.4;"></i>
+                    <p>Автомобиль не добавлен</p>
+                    <button class="profile-add-car-btn" onclick="App.addCar()">
+                        <i data-lucide="plus" style="width:16px;height:16px;"></i> Добавить автомобиль
+                    </button>
+                </div>
+            `;
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     },
 
     toggleEditMode() {
