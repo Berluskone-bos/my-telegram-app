@@ -466,11 +466,19 @@ a, button, input, select { font-family: inherit; }
     position: relative;
     overflow: hidden;
 }
-.product-image img {
+.product-image img,
+.product-image picture {
     width: 100%;
     height: 100%;
     object-fit: contain;
     padding: 8px;
+}
+.product-detail-image picture {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .product-badges {
     position: absolute;
@@ -1280,7 +1288,43 @@ a, button, input, select { font-family: inherit; }
 .mt-10 { margin-top: 10px; }
 
 /* ===== АДАПТИВ ===== */
-@media (max-width: 420px) {
+
+/* Маленькие смартфоны (320-360px) */
+@media (max-width: 360px) {
+    .header { padding: 6px 6px; }
+    .header-logo-img { height: 40px; }
+    .promo-carousel { margin: 8px; }
+    .carousel-slide { min-height: 40vh; padding: 32px 16px 28px; }
+    .slide-content h2 { font-size: 20px; }
+    .slide-content p { font-size: 13px; }
+    .categories-scroll { padding: 10px 12px 4px; gap: 6px; }
+    .cat-badge { padding: 6px 12px; font-size: 12px; }
+    .products-grid { gap: 6px; padding: 0 6px 16px; }
+    .product-image { height: 110px; }
+    .product-title { font-size: 11px; min-height: 28px; }
+    .product-volume { font-size: 11px; }
+    .product-price { font-size: 13px; }
+    .btn-buy { width: 30px; height: 30px; }
+    .btn-buy i, .btn-buy svg { width: 14px; height: 14px; }
+    .section-title { font-size: 18px; padding: 16px 12px 10px; }
+    .bottom-nav { padding: 6px 0 env(safe-area-inset-bottom); }
+    .nav-icon i, .nav-icon svg { width: 20px; height: 20px; }
+    .nav-label { font-size: 9px; }
+    .cart-container { padding: 12px; }
+    .cart-item { padding: 10px 12px; }
+    .product-detail { padding: 12px; }
+    .product-detail-image { height: 200px; }
+    .product-detail-name { font-size: 16px; }
+    .product-detail-price { font-size: 20px; }
+    .btn-add-cart { padding: 14px; font-size: 15px; }
+    .page-content { padding: 16px 12px 32px; }
+    .page-title { font-size: 20px; }
+    .loyalty-card { padding: 16px; }
+    .order-card { padding: 12px; }
+}
+
+/* Стандартные смартфоны (361-420px) */
+@media (min-width: 361px) and (max-width: 420px) {
     .products-grid { gap: 8px; padding: 0 8px 16px; }
     .product-image { height: 130px; }
     .product-title { font-size: 12px; min-height: 32px; }
@@ -1288,6 +1332,32 @@ a, button, input, select { font-family: inherit; }
     .carousel-slide { min-height: 45vh; padding: 40px 20px 36px; }
     .slide-content h2 { font-size: 24px; }
 }
+
+/* Большие смартфоны (421-480px) */
+@media (min-width: 421px) and (max-width: 480px) {
+    .products-grid { gap: 10px; padding: 0 10px 16px; }
+    .product-image { height: 140px; }
+    .carousel-slide { min-height: 50vh; }
+}
+
+/* Планшеты (600px+) */
 @media (min-width: 600px) {
-    .products-grid { grid-template-columns: repeat(3, 1fr); }
+    .products-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 0 16px 20px; }
+    .product-image { height: 170px; }
+    .product-title { font-size: 14px; }
+    .product-price { font-size: 16px; }
+    .carousel-slide { min-height: 50vh; }
+    .section-title { font-size: 24px; }
+    .cart-container { padding: 20px; max-width: 600px; margin: 0 auto; }
+    .product-detail { padding: 20px; max-width: 600px; margin: 0 auto; }
+    .page-content { max-width: 600px; margin: 0 auto; }
+}
+
+/* Большие планшеты и десктоп (768px+) */
+@media (min-width: 768px) {
+    .products-grid { grid-template-columns: repeat(4, 1fr); }
+    .header { padding: 12px 24px; }
+    .promo-carousel { margin: 16px; }
+    .categories-scroll { padding: 14px 24px 6px; }
+    .bottom-nav { max-width: 500px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }
 }

@@ -10,10 +10,19 @@ const Products = {
             this.data = catalog.products;
             this.categories = catalog.categories;
         } catch (e) {
-            console.error('Ошибка загрузки каталога:', e);
+            console.error('Ошибка загрузка каталога:', e);
             this.data = [];
             this.categories = [];
         }
+    },
+
+    getPictureHtml(imagePath, altText, extraAttrs = '') {
+        const fallback = imagePath.replace('/webp/', '/').replace('.webp', '.png');
+        return `<picture>
+            <source srcset="${imagePath}" type="image/webp">
+            <img src="${fallback}" alt="${altText}" ${extraAttrs}
+                 onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px;opacity:0.3;color:#999\\'>[фото]</span>';">
+        </picture>`;
     },
 
     getAll() {
@@ -108,8 +117,7 @@ const Products = {
         return `
             <div class="product-card" onclick="App.showProduct(${product.id})">
                 <div class="product-image">
-                    <img src="${product.image}" alt="${product.name}"
-                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px;opacity:0.3;color:#999\\'>[фото]</span>';">
+                    ${this.getPictureHtml(product.image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
                         ${product.is_new ? '<span class="badge-new">NEW</span>' : ''}
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
@@ -145,8 +153,7 @@ const Products = {
             <div class="product-detail">
                 <button class="btn-back" onclick="App.goBack()">← Назад</button>
                 <div class="product-detail-image">
-                    <img src="${product.image}" alt="${product.name}"
-                         onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:24px;opacity:0.3;color:#999\\'>[фото товара]</span>';">
+                    ${this.getPictureHtml(product.image, product.name)}
                 </div>
                 <div class="product-detail-name">${product.full_name}</div>
                 <div class="product-detail-volume">${product.volume}${product.viscosity ? ' · ' + product.viscosity : ''}</div>
