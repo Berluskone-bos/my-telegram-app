@@ -730,8 +730,14 @@ function registerCourierRoutes(app) {
                 if (!processed.lat && processed.address && YANDEX_GEO_KEY) {
                     try {
                         const geo = await geocoder.geocode(processed.address);
-                        if (geo) { processed.lat = geo.lat; processed.lon = geo.lon; }
-                    } catch (e) {}
+                        if (geo) {
+                            processed.lat = geo.lat;
+                            processed.lon = geo.lon;
+                            console.log(`Геокодировано: ${processed.address} -> ${geo.lat}, ${geo.lon}`);
+                        }
+                    } catch (e) {
+                        console.log(`Ошибка геокодирования "${processed.address}":`, e.message);
+                    }
                 }
                 if (processed.lat && processed.lon) {
                     processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
