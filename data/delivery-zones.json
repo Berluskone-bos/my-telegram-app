@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "name": "Санкт-Петербург",
+    "zone_code": "spb",
+    "base_cost": 300,
+    "free_threshold": 3000,
+    "is_active": true
+  },
+  {
+    "id": 2,
+    "name": "ЛО — ближняя зона",
+    "zone_code": "lo_near",
+    "base_cost": 500,
+    "free_threshold": 5000,
+    "is_active": true
+  },
+  {
+    "id": 3,
+    "name": "ЛО — средняя зона",
+    "zone_code": "lo_mid",
+    "base_cost": 800,
+    "free_threshold": 8000,
+    "is_active": true
+  },
+  {
+    "id": 4,
+    "name": "ЛО — дальняя зона",
+    "zone_code": "lo_far",
+    "base_cost": 0,
+    "free_threshold": 0,
+    "is_active": true
+  },
+  {
+    "id": 5,
+    "name": "Самовывоз",
+    "zone_code": "pickup",
+    "base_cost": 0,
+    "free_threshold": 0,
+    "is_active": true
+  }
+]

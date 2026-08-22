@@ -5,7 +5,9 @@
   "main": "bot/bot.js",
   "scripts": {
     "start": "node bot/bot.js",
-    "bot": "node bot/bot.js"
+    "bot": "node bot/bot.js",
+    "courier": "node bot/courier-bot.js",
+    "both": "node bot/bot.js & node bot/courier-bot.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
