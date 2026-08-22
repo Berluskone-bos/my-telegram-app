@@ -15,31 +15,22 @@ const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
-const notifier = new Notifier(
-    process.env.BOT_TOKEN || '',
-    COURIER_BOT_TOKEN,
-    ADMIN_CHAT_ID
-);
+const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID);
 
-// Инициализация бота
 const bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
 
-// ====== Утилиты для работы с данными ======
+// ====== Утилиты ======
 
 function readJSON(filename) {
     try {
         const filePath = path.join(DATA_DIR, filename);
         if (!fs.existsSync(filePath)) return [];
         return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    } catch (e) {
-        console.error(`Error reading ${filename}:`, e.message);
-        return [];
-    }
+    } catch (e) { return []; }
 }
 
 function writeJSON(filename, data) {
-    const filePath = path.join(DATA_DIR, filename);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2), 'utf-8');
 }
 
 function generateId(items) {
@@ -50,50 +41,54 @@ function generateId(items) {
 function generateRouteNumber() {
     const routes = readJSON('delivery-routes.json');
     const maxNum = routes.reduce((max, r) => {
-        const num = parseInt(r.route_number.replace('RL-', ''));
+        const num = parseInt((r.route_number || '').replace('RL-', ''));
         return num > max ? num : max;
     }, 0);
     return 'RL-' + String(maxNum + 1).padStart(4, '0');
 }
 
-// ====== Регистрация курьера ======
+function getCourier(user) {
+    const couriers = readJSON('couriers.json');
+    return couriers.find(c => c.telegram_id === user.id);
+}
+
+function getTodayRoutes(courierId) {
+    const routes = readJSON('delivery-routes.json');
+    const today = new Date().toISOString().split('T')[0];
+    return routes.filter(r => r.courier_id === courierId && r.route_date === today);
+}
+
+function getActiveRoute(courierId) {
+    const todayRoutes = getTodayRoutes(courierId);
+    return todayRoutes.find(r => ['assigned', 'in_progress'].includes(r.status));
+}
+
+// ====== /start — Регистрация ======
 
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     const user = msg.from;
+    const courier = getCourier(user);
 
-    const couriers = readJSON('couriers.json');
-    const existing = couriers.find(c => c.telegram_id === user.id);
-
-    if (existing) {
-        if (!existing.is_active) {
+    if (courier) {
+        if (!courier.is_active) {
             bot.sendMessage(chatId, 'Ваш аккаунт деактивирован. Обратитесь к администратору.');
             return;
         }
-        bot.sendMessage(chatId,
-            `С возвращением, ${existing.name}!\n\n` +
-            'Команды:\n' +
-            '/route — текущий маршрут\n' +
-            '/status — статус смены\n' +
-            '/help — помощь',
-            { parse_mode: 'HTML' }
-        );
+        showMainScreen(chatId, courier);
         return;
     }
 
-    // Новый курьер — запрашиваем данные
     bot.sendMessage(chatId,
         'Добро пожаловать в систему доставки АВТОПРОМОЙЛ!\n\n' +
         'Для регистрации отправьте ваши данные в формате:\n\n' +
-        '<b>Имя</b>\n' +
+        '<b>Имя Фамилия</b>\n' +
         '<b>Телефон</b>\n' +
         '<b>Транспорт</b> (легковая/грузовая/пешком)\n\n' +
-        'Пример:\n' +
-        'Иванов Иван\n+79001234567\nлегковая',
+        'Пример:\nИванов Иван\n+79001234567\nлегковая',
         { parse_mode: 'HTML' }
     );
 
-    // Ожидаем следующее сообщение с данными
     bot.once('message', (regMsg) => {
         if (regMsg.chat.id !== chatId) return;
         if (regMsg.text && regMsg.text.startsWith('/')) return;
@@ -104,17 +99,14 @@ bot.onText(/\/start/, (msg) => {
             return;
         }
 
-        const name = lines[0];
-        const phone = lines[1] || '';
-        const vehicle = lines[2] || 'легковая';
-
+        const couriers = readJSON('couriers.json');
         const newCourier = {
             id: generateId(couriers),
-            name: name,
-            phone: phone,
+            name: lines[0],
+            phone: lines[1] || '',
             telegram_id: user.id,
             telegram_user: user.username || '',
-            vehicle_type: vehicle,
+            vehicle_type: lines[2] || 'легковая',
             zones: ['spb'],
             is_active: true,
             max_orders: 10,
@@ -125,74 +117,133 @@ bot.onText(/\/start/, (msg) => {
         writeJSON('couriers.json', couriers);
 
         bot.sendMessage(chatId,
-            `Регистрация завершена!\n\n` +
-            `Имя: ${name}\n` +
-            `Телефон: ${phone}\n` +
-            `Транспорт: ${vehicle}\n\n` +
-            'Ожидайте маршрутный лист от диспетчера.\n' +
-            'Команды: /route /status /help',
+            `Регистрация завершена!\n\nИмя: ${newCourier.name}\nТелефон: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\n\nОжидайте маршрутный лист от диспетчера.`,
             { parse_mode: 'HTML' }
         );
 
-        // Уведомляем админа
         bot.sendMessage(ADMIN_CHAT_ID,
-            `[КУРЬЕР] Зарегистрирован: ${name} (@${user.username || 'нет'})\nТел: ${phone}\nТранспорт: ${vehicle}`
+            `[КУРЬЕР] Зарегистрирован: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}`
         ).catch(() => {});
     });
 });
 
-// ====== Команда /route — текущий маршрут ======
+// ====== Главный экран курьера ======
 
-bot.onText(/\/route/, (msg) => {
+function showMainScreen(chatId, courier) {
+    const todayRoutes = getTodayRoutes(courier.id);
+    const activeRoute = getActiveRoute(courier.id);
+    const stops = activeRoute ? (activeRoute.stops || []) : [];
+    const totalStops = stops.length;
+    const delivered = stops.filter(s => s.status === 'delivered').length;
+    const failed = stops.filter(s => s.status === 'failed').length;
+    const remaining = totalStops - delivered - failed;
+
+    let text = `<b>АВТОПРОМОЙЛ — Курьер</b>\n\n`;
+    text += `Добрый день, ${courier.name}!\n\n`;
+    text += `<b>Сегодня:</b>\n`;
+    text += `Доставок: ${totalStops}\n`;
+    text += `Выполнено: ${delivered}\n`;
+    text += `Осталось: ${remaining}\n`;
+
+    if (activeRoute) {
+        text += `\n<b>Маршрут ${activeRoute.route_number}</b>\n`;
+        text += `Статус: ${activeRoute.status === 'in_progress' ? 'В пути' : 'Назначен'}\n`;
+    }
+
+    const buttons = [];
+    if (activeRoute && stops.length > 0) {
+        buttons.push([{ text: 'Маршрутный лист', callback_data: `showroute_${activeRoute.id}` }]);
+        buttons.push([{ text: 'Построить маршрут', callback_data: `optimizeroute_${activeRoute.id}` }]);
+    }
+    buttons.push([{ text: 'Обновить', callback_data: 'refresh_main' }]);
+
+    bot.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: buttons }
+    });
+}
+
+// ====== /today — Сегодняшние доставки ======
+
+bot.onText(/\/today/, (msg) => {
     const chatId = msg.chat.id;
-    const user = msg.from;
-
-    const couriers = readJSON('couriers.json');
-    const courier = couriers.find(c => c.telegram_id === user.id);
+    const courier = getCourier(msg.from);
 
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
         return;
     }
 
-    const routes = readJSON('delivery-routes.json');
-    const today = new Date().toISOString().split('T')[0];
-    const activeRoute = routes.find(r =>
-        r.courier_id === courier.id &&
-        r.route_date === today &&
-        ['assigned', 'in_progress'].includes(r.status)
-    );
+    const todayRoutes = getTodayRoutes(courier.id);
+    if (todayRoutes.length === 0) {
+        bot.sendMessage(chatId, 'На сегодня доставок нет.');
+        return;
+    }
 
+    let text = `<b>Доставки на сегодня</b>\n\n`;
+
+    todayRoutes.forEach(route => {
+        const stops = route.stops || [];
+        const delivered = stops.filter(s => s.status === 'delivered').length;
+        text += `<b>${route.route_number}</b> — ${stops.length} остановок (${delivered} доставлено)\n`;
+        stops.forEach((stop, idx) => {
+            const icon = stop.status === 'delivered' ? '[OK]' : stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
+            text += `  ${icon} ${stop.order_number || ''} ${stop.address}\n`;
+        });
+        text += '\n';
+    });
+
+    bot.sendMessage(chatId, text, { parse_mode: 'HTML' });
+});
+
+// ====== /route — Маршрутный лист (детальный) ======
+
+bot.onText(/\/route/, (msg) => {
+    const chatId = msg.chat.id;
+    const courier = getCourier(msg.from);
+
+    if (!courier) {
+        bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
+        return;
+    }
+
+    const activeRoute = getActiveRoute(courier.id);
     if (!activeRoute) {
         bot.sendMessage(chatId, 'На сегодня маршрутов нет.');
         return;
     }
 
-    const stops = activeRoute.stops || [];
+    sendRouteDetails(chatId, activeRoute);
+});
+
+function sendRouteDetails(chatId, route) {
+    const stops = route.stops || [];
     const completed = stops.filter(s => s.status === 'delivered').length;
     const failed = stops.filter(s => s.status === 'failed').length;
 
-    let text = `<b>Маршрут ${activeRoute.route_number}</b>\n`;
-    text += `Дата: ${activeRoute.route_date}\n`;
+    let text = `<b>Маршрут ${route.route_number}</b>\n`;
+    text += `Дата: ${route.route_date}\n`;
     text += `Остановок: ${stops.length} | Доставлено: ${completed} | Не доставлено: ${failed}\n\n`;
 
     stops.forEach((stop, idx) => {
         const statusIcon = stop.status === 'delivered' ? '[OK]' :
                           stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
-        text += `${statusIcon} ${stop.address}\n`;
-        if (stop.order_number) text += `   Заказ: ${stop.order_number}\n`;
-        if (stop.amount_to_pay > 0) text += `   Сумма: ${stop.amount_to_pay} руб.\n`;
+        text += `<b>${statusIcon} ${stop.order_number || ''}</b>\n`;
+        text += `Адрес: ${stop.address}\n`;
+        if (stop.items_count) text += `Товаров: ${stop.items_count}\n`;
+        if (stop.amount_to_pay > 0) {
+            text += `Сумма: ${stop.amount_to_pay} руб. [${stop.payment_status === 'paid' ? 'ОПЛАЧЕНО' : 'ОПЛАТА НА МЕСТЕ'}]\n`;
+        }
+        if (stop.phone) text += `Телефон: ${stop.phone}\n`;
+        if (stop.time_window) text += `Окно: ${stop.time_window}\n`;
+        if (stop.comment) text += `Комментарий: ${stop.comment}\n`;
         text += '\n';
     });
 
     const buttons = [];
     stops.forEach((stop, idx) => {
         if (stop.status === 'pending') {
-            buttons.push([
-                { text: `[${idx + 1}] Доставлено`, callback_data: `delivered_${activeRoute.id}_${stop.id}` },
-                { text: `[${idx + 1}] Не доставлено`, callback_data: `failed_${activeRoute.id}_${stop.id}` }
-            ]);
-            // Кнопки навигации через MapLinks
+            // Навигация
             const yandexUrl = stop.lat && stop.lon
                 ? MapLinks.yandex(stop.address, stop.lat, stop.lon)
                 : MapLinks.yandex(stop.address);
@@ -200,115 +251,81 @@ bot.onText(/\/route/, (msg) => {
                 ? MapLinks.gis2(stop.lat, stop.lon)
                 : 'https://2gis.ru';
             buttons.push([
-                { text: `[${idx + 1}] Яндекс`, url: yandexUrl },
+                { text: `[${idx + 1}] Навигация`, url: yandexUrl },
                 { text: `[${idx + 1}] 2GIS`, url: gis2Url }
             ]);
+            // Доставлено / Не доставлено
+            buttons.push([
+                { text: `[${idx + 1}] Доставлено`, callback_data: `delivered_${route.id}_${stop.id}` },
+                { text: `[${idx + 1}] Не доставлено`, callback_data: `failed_${route.id}_${stop.id}` }
+            ]);
+            // Позвонить клиенту
+            if (stop.phone) {
+                buttons.push([
+                    { text: `[${idx + 1}] Позвонить клиенту`, url: `tel:${stop.phone}` }
+                ]);
+            }
         }
     });
+
+    // Кнопка "Построить маршрут"
+    if (stops.filter(s => s.status === 'pending').length >= 2) {
+        buttons.push([{ text: 'Построить маршрут', callback_data: `optimizeroute_${route.id}` }]);
+    }
 
     bot.sendMessage(chatId, text, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: buttons }
     });
-});
-
-// ====== Обработка кнопок доставки ======
-
-bot.on('callback_query', (query) => {
-    const chatId = query.message.chat.id;
-    const data = query.data;
-
-    if (data.startsWith('delivered_')) {
-        const [, routeId, stopId] = data.split('_');
-        handleDeliveryResult(parseInt(routeId), parseInt(stopId), 'delivered', chatId, query.id);
-    } else if (data.startsWith('failed_')) {
-        const [, routeId, stopId] = data.split('_');
-        // Запрашиваем причину
-        bot.sendMessage(chatId, 'Укажите причину не доставки:');
-        bot.once('message', (msg) => {
-            if (msg.chat.id !== chatId) return;
-            const reason = msg.text || 'Не указана';
-            handleDeliveryResult(parseInt(routeId), parseInt(stopId), 'failed', chatId, query.id, reason);
-        });
-        bot.answerCallbackQuery(query.id);
-    }
-});
-
-function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, reason = '') {
-    const routes = readJSON('delivery-routes.json');
-    const route = routes.find(r => r.id === routeId);
-    if (!route) {
-        bot.answerCallbackQuery(callbackQueryId, { text: 'Маршрут не найден' });
-        return;
-    }
-
-    const stop = (route.stops || []).find(s => s.id === stopId);
-    if (!stop) {
-        bot.answerCallbackQuery(callbackQueryId, { text: 'Остановка не найдена' });
-        return;
-    }
-
-    stop.status = status;
-    stop.delivered_at = new Date().toISOString();
-    if (reason) stop.fail_reason = reason;
-
-    // Обновляем счётчики маршрута
-    route.completed = (route.stops || []).filter(s => s.status === 'delivered').length;
-    route.failed = (route.stops || []).filter(s => s.status === 'failed').length;
-
-    // Проверяем, завершён ли маршрут
-    const allDone = (route.stops || []).every(s => s.status !== 'pending');
-    if (allDone) {
-        route.status = 'completed';
-        route.completed_at = new Date().toISOString();
-    } else if (route.status === 'assigned') {
-        route.status = 'in_progress';
-        route.started_at = route.started_at || new Date().toISOString();
-    }
-
-    writeJSON('delivery-routes.json', routes);
-
-    const statusText = status === 'delivered' ? 'Доставлено' : 'Не доставлено';
-    bot.answerCallbackQuery(callbackQueryId, { text: `${statusText}: ${stop.address}` });
-    bot.sendMessage(chatId, `${statusText}: ${stop.address}${reason ? '\nПричина: ' + reason : ''}`);
-
-    // Уведомляем админа
-    bot.sendMessage(ADMIN_CHAT_ID,
-        `[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`
-    ).catch(() => {});
-
-    // Уведомляем клиента через рассыльщик
-    if (stop.client_chat_id) {
-        notifier.notifyClientDelivery(
-            stop.client_chat_id,
-            stop.order_number || route.route_number,
-            status,
-            reason
-        ).catch(() => {});
-    }
 }
 
-// ====== Команда /status — статус смены ======
+// ====== /done — Быстрая отметка доставки ======
 
-bot.onText(/\/status/, (msg) => {
+bot.onText(/\/done/, (msg) => {
     const chatId = msg.chat.id;
-    const user = msg.from;
-
-    const couriers = readJSON('couriers.json');
-    const courier = couriers.find(c => c.telegram_id === user.id);
+    const courier = getCourier(msg.from);
 
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
         return;
     }
 
-    const routes = readJSON('delivery-routes.json');
-    const today = new Date().toISOString().split('T')[0];
-    const todayRoutes = routes.filter(r => r.courier_id === courier.id && r.route_date === today);
+    const activeRoute = getActiveRoute(courier.id);
+    if (!activeRoute) {
+        bot.sendMessage(chatId, 'Нет активного маршрута.');
+        return;
+    }
 
-    let totalDelivered = 0;
-    let totalFailed = 0;
-    let totalCash = 0;
+    const pendingStops = (activeRoute.stops || []).filter(s => s.status === 'pending');
+    if (pendingStops.length === 0) {
+        bot.sendMessage(chatId, 'Все доставки выполнены!');
+        return;
+    }
+
+    const buttons = pendingStops.map((stop, idx) => [{
+        text: `${stop.order_number || '#' + (idx + 1)} — ${stop.address}`,
+        callback_data: `quickdelivered_${activeRoute.id}_${stop.id}`
+    }]);
+
+    bot.sendMessage(chatId, '<b>Выберите доставку для отметки:</b>', {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: buttons }
+    });
+});
+
+// ====== /status — Статистика ======
+
+bot.onText(/\/status/, (msg) => {
+    const chatId = msg.chat.id;
+    const courier = getCourier(msg.from);
+
+    if (!courier) {
+        bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
+        return;
+    }
+
+    const todayRoutes = getTodayRoutes(courier.id);
+    let totalDelivered = 0, totalFailed = 0, totalCash = 0;
 
     todayRoutes.forEach(r => {
         totalDelivered += r.completed || 0;
@@ -327,13 +344,15 @@ bot.onText(/\/status/, (msg) => {
     );
 });
 
-// ====== Команда /help ======
+// ====== /help ======
 
 bot.onText(/\/help/, (msg) => {
     bot.sendMessage(msg.chat.id,
         '<b>Команды курьера</b>\n\n' +
-        '/start — регистрация\n' +
-        '/route — текущий маршрут\n' +
+        '/start — регистрация / главный экран\n' +
+        '/route — текущий маршрутный лист\n' +
+        '/today — сегодняшние доставки\n' +
+        '/done — быстрая отметка доставки\n' +
         '/status — статус смены\n' +
         '/help — эта справка\n\n' +
         'По вопросам: @avtopromol_support',
@@ -341,7 +360,262 @@ bot.onText(/\/help/, (msg) => {
     );
 });
 
-// Экспорт: регистрация API-роутов на существующем Express app
+// ====== Обработка callback-кнопок ======
+
+bot.on('callback_query', (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
+
+    // Показать маршрут
+    if (data.startsWith('showroute_')) {
+        const routeId = parseInt(data.split('_')[1]);
+        const routes = readJSON('delivery-routes.json');
+        const route = routes.find(r => r.id === routeId);
+        if (route) sendRouteDetails(chatId, route);
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
+    // Обновить главный экран
+    if (data === 'refresh_main') {
+        const courier = getCourier(query.from);
+        if (courier) showMainScreen(chatId, courier);
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
+    // Оптимизировать маршрут
+    if (data.startsWith('optimizeroute_')) {
+        const routeId = parseInt(data.split('_')[1]);
+        handleOptimizeRoute(chatId, routeId);
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
+    // Доставлено
+    if (data.startsWith('delivered_')) {
+        const [, routeId, stopId] = data.split('_');
+        handleDeliveryResult(parseInt(routeId), parseInt(stopId), 'delivered', chatId, query.id);
+        return;
+    }
+
+    // Быстрая доставка (из /done)
+    if (data.startsWith('quickdelivered_')) {
+        const [, routeId, stopId] = data.split('_');
+        handleDeliveryResult(parseInt(routeId), parseInt(stopId), 'delivered', chatId, query.id);
+        return;
+    }
+
+    // Не доставлено — показать причины
+    if (data.startsWith('failed_')) {
+        const [, routeId, stopId] = data.split('_');
+        showFailureReasons(chatId, parseInt(routeId), parseInt(stopId));
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
+    // Выбрана причина не доставки
+    if (data.startsWith('failreason_')) {
+        const parts = data.split('_');
+        const routeId = parseInt(parts[1]);
+        const stopId = parseInt(parts[2]);
+        const reason = parts.slice(3).join('_');
+        handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason);
+        return;
+    }
+});
+
+// ====== Причины не доставки ======
+
+function showFailureReasons(chatId, routeId, stopId) {
+    const buttons = [
+        [{ text: 'Клиента нет дома', callback_data: `failreason_${routeId}_${stopId}_Клиента нет дома` }],
+        [{ text: 'Не отвечает на звонки', callback_data: `failreason_${routeId}_${stopId}_Не отвечает на звонки` }],
+        [{ text: 'Неверный адрес', callback_data: `failreason_${routeId}_${stopId}_Неверный адрес` }],
+        [{ text: 'Клиент отказался', callback_data: `failreason_${routeId}_${stopId}_Клиент отказался` }],
+        [{ text: 'Другое (ввести вручную)', callback_data: `failreason_${routeId}_${stopId}_Другое` }]
+    ];
+
+    bot.sendMessage(chatId, '<b>Причина не доставки:</b>', {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: buttons }
+    });
+}
+
+// ====== Обработка результата доставки ======
+
+function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, reason = '') {
+    const routes = readJSON('delivery-routes.json');
+    const route = routes.find(r => r.id === routeId);
+    if (!route) {
+        bot.answerCallbackQuery(callbackQueryId, { text: 'Маршрут не найден' });
+        return;
+    }
+
+    const stop = (route.stops || []).find(s => s.id === stopId);
+    if (!stop) {
+        bot.answerCallbackQuery(callbackQueryId, { text: 'Остановка не найдена' });
+        return;
+    }
+
+    // Если "Другое" — запрашиваем текст
+    if (reason === 'Другое') {
+        bot.answerCallbackQuery(callbackQueryId);
+        bot.sendMessage(chatId, 'Введите причину:');
+        bot.once('message', (msg) => {
+            if (msg.chat.id !== chatId) return;
+            const customReason = msg.text || 'Не указана';
+            handleDeliveryResult(routeId, stopId, 'failed', chatId, null, customReason);
+        });
+        return;
+    }
+
+    stop.status = status;
+    stop.delivered_at = new Date().toISOString();
+    if (reason) stop.fail_reason = reason;
+
+    // Обновляем счётчики
+    route.completed = (route.stops || []).filter(s => s.status === 'delivered').length;
+    route.failed = (route.stops || []).filter(s => s.status === 'failed').length;
+
+    // Проверяем завершение маршрута
+    const allDone = (route.stops || []).every(s => s.status !== 'pending');
+    if (allDone) {
+        route.status = 'completed';
+        route.completed_at = new Date().toISOString();
+    } else if (route.status === 'assigned') {
+        route.status = 'in_progress';
+        route.started_at = route.started_at || new Date().toISOString();
+    }
+
+    writeJSON('delivery-routes.json', routes);
+
+    const statusText = status === 'delivered' ? 'Доставлено' : 'Не доставлено';
+    if (callbackQueryId) {
+        bot.answerCallbackQuery(callbackQueryId, { text: `${statusText}: ${stop.address}` });
+    }
+
+    bot.sendMessage(chatId,
+        `${statusText}: ${stop.order_number || ''}\nАдрес: ${stop.address}${reason ? '\nПричина: ' + reason : ''}`
+    );
+
+    // Уведомляем админа
+    bot.sendMessage(ADMIN_CHAT_ID,
+        `[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`
+    ).catch(() => {});
+
+    // Уведомляем клиента
+    if (stop.client_chat_id) {
+        notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number || route.route_number, status, reason).catch(() => {});
+    }
+}
+
+// ====== Оптимизация маршрута из бота ======
+
+function handleOptimizeRoute(chatId, routeId) {
+    const routes = readJSON('delivery-routes.json');
+    const route = routes.find(r => r.id === routeId);
+    if (!route) {
+        bot.sendMessage(chatId, 'Маршрут не найден.');
+        return;
+    }
+
+    const stops = route.stops || [];
+    const pendingStops = stops.filter(s => s.status === 'pending' && s.lat && s.lon);
+
+    if (pendingStops.length < 2) {
+        bot.sendMessage(chatId, 'Недостаточно остановок с координатами для оптимизации.');
+        return;
+    }
+
+    const optimized = RouteOptimizer.optimizeRoute(pendingStops);
+    const distance = RouteOptimizer.calcDistance(optimized);
+
+    // Обновляем порядок остановок в маршруте
+    let pendingIdx = 0;
+    stops.forEach(stop => {
+        if (stop.status === 'pending') {
+            if (stop.lat && stop.lon) {
+                const opt = optimized[pendingIdx];
+                if (opt) {
+                    stop.stop_number = stops.indexOf(stop) + 1;
+                }
+                pendingIdx++;
+            }
+        }
+    });
+
+    route.total_distance = distance;
+    writeJSON('delivery-routes.json', routes);
+
+    let text = `<b>Маршрут оптимизирован!</b>\n\n`;
+    text += `Оптимальный порядок:\n`;
+    optimized.forEach((stop, idx) => {
+        text += `${idx + 1}. ${stop.order_number || ''} — ${stop.address}\n`;
+    });
+    text += `\nРасстояние: ~${distance} км\n`;
+
+    // Ссылки на навигаторы для всего маршрута
+    const allLinks = MapLinks.allRoute(optimized);
+    const buttons = [
+        [{ text: 'Яндекс Карты', url: allLinks.yandex }],
+        [{ text: 'Google Maps', url: allLinks.google }],
+        [{ text: '2GIS', url: allLinks.gis2 }]
+    ];
+
+    bot.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: buttons }
+    });
+}
+
+// ====== Обработка фото (для подтверждения доставки) ======
+
+bot.on('photo', (msg) => {
+    const chatId = msg.chat.id;
+    const courier = getCourier(msg.from);
+
+    if (!courier) return;
+
+    const activeRoute = getActiveRoute(courier.id);
+    if (!activeRoute) return;
+
+    // Сохраняем фото для последней доставки
+    const pendingStops = (activeRoute.stops || []).filter(s => s.status === 'pending');
+    if (pendingStops.length === 0) return;
+
+    const photo = msg.photo[msg.photo.length - 1]; // Максимальное разрешение
+    const fileId = photo.file_id;
+
+    bot.sendMessage(chatId,
+        'Фото получено. К какому заказу привязать?\n\n' +
+        'Отправьте номер заказа (например: AP-000001) или нажмите /route для выбора.',
+        { parse_mode: 'HTML' }
+    );
+
+    bot.once('message', (orderMsg) => {
+        if (orderMsg.chat.id !== chatId) return;
+        const orderNum = (orderMsg.text || '').trim();
+
+        const stop = pendingStops.find(s => s.order_number === orderNum);
+        if (stop) {
+            stop.photo_file_id = fileId;
+            const routes = readJSON('delivery-routes.json');
+            const route = routes.find(r => r.id === activeRoute.id);
+            if (route) {
+                const routeStop = (route.stops || []).find(s => s.id === stop.id);
+                if (routeStop) routeStop.photo_file_id = fileId;
+                writeJSON('delivery-routes.json', routes);
+            }
+            bot.sendMessage(chatId, `Фото привязано к заказу ${orderNum}`);
+        } else {
+            bot.sendMessage(chatId, 'Заказ не найден. Фото сохранено, привяжите позже через /route.');
+        }
+    });
+});
+
+// ====== API для диспетчера (экспорт) ======
+
 function registerCourierRoutes(app) {
     app.use(express.json());
 
@@ -349,9 +623,7 @@ function registerCourierRoutes(app) {
         res.json({ status: 'ok', bots: ['AutoPromoilBot', 'APCourier_Bot'], timestamp: new Date().toISOString() });
     });
 
-    app.get('/api/couriers', (req, res) => {
-        res.json(readJSON('couriers.json'));
-    });
+    app.get('/api/couriers', (req, res) => res.json(readJSON('couriers.json')));
 
     app.post('/api/routes', async (req, res) => {
         const { courier_id, route_date, stops } = req.body;
