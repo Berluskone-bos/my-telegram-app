@@ -2,13 +2,17 @@ const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const Geocoder = require('./services/geocoder');
+const MapLinks = require('./services/map-links');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN || '8495118590:AAEM_9w9zxHI6D6YIHEe6w0wLp1c0US01hM';
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '695826264';
 const PORT = process.env.COURIER_PORT || 3001;
+const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
+const geocoder = new Geocoder(YANDEX_GEO_KEY);
 
 // Инициализация бота
 const bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
@@ -183,10 +187,16 @@ bot.onText(/\/route/, (msg) => {
                 { text: `[${idx + 1}] Доставлено`, callback_data: `delivered_${activeRoute.id}_${stop.id}` },
                 { text: `[${idx + 1}] Не доставлено`, callback_data: `failed_${activeRoute.id}_${stop.id}` }
             ]);
-            // Кнопки навигации
+            // Кнопки навигации через MapLinks
+            const yandexUrl = stop.lat && stop.lon
+                ? MapLinks.yandex(stop.address, stop.lat, stop.lon)
+                : MapLinks.yandex(stop.address);
+            const gis2Url = stop.lat && stop.lon
+                ? MapLinks.gis2(stop.lat, stop.lon)
+                : 'https://2gis.ru';
             buttons.push([
-                { text: `[${idx + 1}] Яндекс.Карты`, url: stop.yandex_url || 'https://yandex.ru/maps' },
-                { text: `[${idx + 1}] 2GIS`, url: stop.gis2_url || 'https://2gis.ru' }
+                { text: `[${idx + 1}] Яндекс`, url: yandexUrl },
+                { text: `[${idx + 1}] 2GIS`, url: gis2Url }
             ]);
         }
     });
@@ -327,9 +337,40 @@ app.get('/api/couriers', (req, res) => {
     res.json(readJSON('couriers.json'));
 });
 
-// Создать маршрут
-app.post('/api/routes', (req, res) => {
+// Создать маршрут (с автоматическим геокодированием)
+app.post('/api/routes', async (req, res) => {
     const { courier_id, route_date, stops } = req.body;
+
+    // Геокодируем адреса остановок
+    const processedStops = [];
+    if (stops && stops.length > 0) {
+        for (let i = 0; i < stops.length; i++) {
+            const stop = stops[i];
+            const processed = { ...stop, id: i + 1, stop_number: i + 1, status: 'pending' };
+
+            // Геокодируем если нет координат
+            if (!processed.lat && processed.address && YANDEX_GEO_KEY) {
+                try {
+                    const geo = await geocoder.geocode(processed.address);
+                    if (geo) {
+                        processed.lat = geo.lat;
+                        processed.lon = geo.lon;
+                    }
+                } catch (e) {
+                    console.log(`Геокодирование не удалось для "${processed.address}":`, e.message);
+                }
+            }
+
+            // Добавляем ссылки на навигаторы
+            if (processed.lat && processed.lon) {
+                processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
+                processed.google_url = MapLinks.google(processed.lat, processed.lon);
+                processed.gis2_url = MapLinks.gis2(processed.lat, processed.lon);
+            }
+
+            processedStops.push(processed);
+        }
+    }
 
     const routes = readJSON('delivery-routes.json');
     const newRoute = {
@@ -338,12 +379,12 @@ app.post('/api/routes', (req, res) => {
         route_date: route_date || new Date().toISOString().split('T')[0],
         courier_id: courier_id,
         status: 'draft',
-        total_orders: stops ? stops.length : 0,
+        total_orders: processedStops.length,
         completed: 0,
         failed: 0,
         cash_to_collect: 0,
         cash_collected: 0,
-        stops: stops || [],
+        stops: processedStops,
         started_at: null,
         completed_at: null,
         created_at: new Date().toISOString()
@@ -394,6 +435,41 @@ app.get('/api/routes', (req, res) => {
 // Получить зоны доставки
 app.get('/api/zones', (req, res) => {
     res.json(readJSON('delivery-zones.json'));
+});
+
+// Геокодирование адреса
+app.get('/api/geocode', async (req, res) => {
+    const address = req.query.address;
+    if (!address) return res.status(400).json({ error: 'address parameter required' });
+
+    try {
+        const result = await geocoder.geocode(address);
+        if (!result) return res.json({ found: false });
+        res.json({ found: true, ...result });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Ссылки на навигаторы
+app.get('/api/map-links', (req, res) => {
+    const { address, lat, lon } = req.query;
+    if (!address && (!lat || !lon)) {
+        return res.status(400).json({ error: 'address or lat/lon required' });
+    }
+
+    const links = MapLinks.all(address || '', parseFloat(lat), parseFloat(lon));
+    res.json(links);
+});
+
+// Маршрутные ссылки на навигаторы
+app.post('/api/map-links/route', (req, res) => {
+    const { stops } = req.body;
+    if (!stops || !Array.isArray(stops) || stops.length < 2) {
+        return res.status(400).json({ error: 'stops array with 2+ points required' });
+    }
+    const links = MapLinks.allRoute(stops);
+    res.json(links);
 });
 
 // Запуск
