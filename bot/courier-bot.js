@@ -9,8 +9,8 @@ const Notifier = require('./services/notifier');
 const Dispatcher = require('./services/dispatcher');
 
 // Конфигурация
-const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN || '8495118590:AAEM_9w9zxHI6D6YIHEe6w0wLp1c0US01hM';
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '695826264';
+const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
