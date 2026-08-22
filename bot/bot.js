@@ -194,22 +194,26 @@ bot.onText(/\/orders/, (msg) => {
 // ═══════════════════════════════════════════
 
 bot.on('message', async (msg) => {
+    console.log('[СООБЩЕНИЕ] от:', msg.from?.first_name, 'web_app_data:', !!msg.web_app_data);
     if (msg.web_app_data) {
         const chatId = msg.chat.id;
+        console.log('[MINI APP] Получены данные от Mini App, длина:', msg.web_app_data.data.length);
         let orderData;
 
         try {
             orderData = JSON.parse(msg.web_app_data.data);
+            console.log('[MINI APP] Тип данных:', orderData.type);
         } catch (e) {
             console.error('[ОШИБКА] Парсинг данных от Mini App:', e.message);
             bot.sendMessage(chatId, 'Произошла ошибка при обработке заказа. Попробуйте еще раз.');
             return;
         }
 
-        console.log('Получены данные от Mini App:', JSON.stringify(orderData, null, 2));
-
         if (orderData.type === 'order') {
+            console.log('[MINI APP] Обрабатываем заказ...');
             await handleNewOrder(chatId, orderData);
+        } else {
+            console.log('[MINI APP] Неизвестный тип данных:', orderData.type);
         }
     }
 });
