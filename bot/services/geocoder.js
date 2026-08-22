@@ -32,8 +32,20 @@ class Geocoder {
                 res.on('end', () => {
                     try {
                         const json = JSON.parse(data);
-                        const members = json.response.GeoObjectCollection.featureMember;
 
+                        // Проверяем структуру ответа
+                        if (!json.response) {
+                            reject(new Error('Неверный ответ API: ' + JSON.stringify(json).substring(0, 200)));
+                            return;
+                        }
+
+                        const collection = json.response.GeoObjectCollection;
+                        if (!collection) {
+                            reject(new Error('GeoObjectCollection не найден'));
+                            return;
+                        }
+
+                        const members = collection.featureMember;
                         if (!members || members.length === 0) {
                             resolve(null);
                             return;
