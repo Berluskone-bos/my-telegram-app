@@ -642,32 +642,33 @@ const App = {
         // Сохраняем заказ локально
         Profile.addOrder(order);
 
-        // Отправляем данные в Telegram бот
+        // ВСЕГДА отправляем заказ через API для сохранения в БД
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:3000'
+            : 'https://gulf-bot-production.up.railway.app';
+
+        fetch(`${API_BASE}/api/order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(order)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Заказ сохранён в БД:', data);
+            const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
+            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+        })
+        .catch(err => {
+            console.error('Ошибка сохранения заказа:', err);
+            alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nМы свяжемся с вами для подтверждения.`);
+        });
+
+        // Также отправляем через Telegram WebApp (для уведомления в бот)
         try {
             const orderJson = JSON.stringify(order);
             tg.sendData(orderJson);
-            console.log('Заказ отправлен через Telegram WebApp:', order);
-
-            const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
-            alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
         } catch (e) {
-            console.log('Telegram sendData не доступен, пробуем API:', e);
-
-            fetch('/api/order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(order)
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Заказ отправлен через API:', data);
-                const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
-                alert(`Заказ оформлен!\n\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
-            })
-            .catch(err => {
-                console.error('Ошибка отправки через API:', err);
-                alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nМы свяжемся с вами для подтверждения.`);
-            });
+            console.log('Telegram sendData не доступен:', e);
         }
 
         Cart.clear();
