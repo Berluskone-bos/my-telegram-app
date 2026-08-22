@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const Geocoder = require('./services/geocoder');
 const MapLinks = require('./services/map-links');
+const RouteOptimizer = require('./services/route-optimizer');
+const Notifier = require('./services/notifier');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN || '8495118590:AAEM_9w9zxHI6D6YIHEe6w0wLp1c0US01hM';
@@ -13,6 +15,11 @@ const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
+const notifier = new Notifier(
+    process.env.BOT_TOKEN || '',
+    COURIER_BOT_TOKEN,
+    ADMIN_CHAT_ID
+);
 
 // Инициализация бота
 const bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
@@ -271,6 +278,16 @@ function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, 
     bot.sendMessage(ADMIN_CHAT_ID,
         `[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`
     ).catch(() => {});
+
+    // Уведомляем клиента через рассыльщик
+    if (stop.client_chat_id) {
+        notifier.notifyClientDelivery(
+            stop.client_chat_id,
+            stop.order_number || route.route_number,
+            status,
+            reason
+        ).catch(() => {});
+    }
 }
 
 // ====== Команда /status — статус смены ======
@@ -470,6 +487,32 @@ app.post('/api/map-links/route', (req, res) => {
     }
     const links = MapLinks.allRoute(stops);
     res.json(links);
+});
+
+// Оптимизировать порядок остановок
+app.post('/api/routes/:id/optimize', (req, res) => {
+    const routeId = parseInt(req.params.id);
+    const { start_lat, start_lon } = req.body;
+
+    const routes = readJSON('delivery-routes.json');
+    const route = routes.find(r => r.id === routeId);
+    if (!route) return res.status(404).json({ error: 'Route not found' });
+
+    const stops = route.stops || [];
+    if (stops.length < 2) return res.json({ message: 'Nothing to optimize', stops });
+
+    const optimized = RouteOptimizer.optimizeRoute(
+        stops,
+        start_lat || 59.9343,
+        start_lon || 30.3351
+    );
+
+    route.stops = optimized;
+    const distance = RouteOptimizer.calcDistance(optimized, start_lat || 59.9343, start_lon || 30.3351);
+    route.total_distance = distance;
+
+    writeJSON('delivery-routes.json', routes);
+    res.json({ route_number: route.route_number, stops: optimized, total_distance_km: distance });
 });
 
 // Запуск
