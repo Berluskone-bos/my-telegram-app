@@ -396,10 +396,6 @@ bot.on('callback_query', (query) => {
         bot.answerCallbackQuery(query.id, { text: 'Маршрут начат!' });
         return;
     }
-        if (courier) showMainScreen(chatId, courier);
-        bot.answerCallbackQuery(query.id);
-        return;
-    }
 
     // Оптимизировать маршрут
     if (data.startsWith('optimizeroute_')) {
