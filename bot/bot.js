@@ -220,7 +220,8 @@ bot.on('message', async (msg) => {
 
 async function saveOrderToFile(orderId, order) {
     try {
-        await db.createOrder({
+        console.log(`[БД] Сохраняем заказ AP-${orderId}...`);
+        const result = await db.createOrder({
             order_number: 'AP-' + orderId,
             user_id: order.userId || null,
             user_name: order.userName || '',
@@ -241,8 +242,10 @@ async function saveOrderToFile(orderId, order) {
             status: 'NEW',
             payment_status: 'PENDING'
         });
+        console.log(`[БД] Заказ AP-${orderId} сохранён:`, result ? result.id : 'нет ID');
     } catch (e) {
         console.error('[ОШИБКА] Сохранение заказа в БД:', e.message);
+        console.error('[ОШИБКА] Стек:', e.stack);
     }
 }
 
