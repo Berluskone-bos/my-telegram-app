@@ -45,6 +45,10 @@ const App = {
             if (!e.target.closest('#sortDropdown')) {
                 document.getElementById('sortMenu').classList.remove('open');
             }
+            if (!e.target.closest('#zoneSelect')) {
+                const zoneMenu = document.getElementById('zoneMenu');
+                if (zoneMenu) zoneMenu.classList.remove('open');
+            }
         });
 
         // Поиск
@@ -387,36 +391,35 @@ const App = {
         const profile = Profile.getProfileData();
         if (!profile) return;
 
-        // Заполняем имя
         const nameInput = document.getElementById('orderName');
         if (nameInput && profile.name && !nameInput.value) {
             nameInput.value = profile.name;
         }
 
-        // Заполняем телефон
         const phoneInput = document.getElementById('orderPhone');
         if (phoneInput && profile.phone && !phoneInput.value) {
             phoneInput.value = profile.phone;
         }
 
-        // Заполняем адрес (если есть)
-        if (profile.address) {
-            const addressParts = profile.address.split(',').map(s => s.trim());
-            const cityInput = document.getElementById('orderCity');
-            const streetInput = document.getElementById('orderStreet');
-            const houseInput = document.getElementById('orderHouse');
-
-            if (cityInput && addressParts[0] && !cityInput.value) {
-                cityInput.value = addressParts[0];
-            }
-            if (streetInput && addressParts[1] && !streetInput.value) {
-                // Убираем "ул." если есть
-                streetInput.value = addressParts[1].replace(/^ул\.\s*/i, '');
-            }
-            if (houseInput && addressParts[2] && !houseInput.value) {
-                // Убираем "д." если есть
-                houseInput.value = addressParts[2].replace(/^д\.\s*/i, '');
-            }
+        const cityInput = document.getElementById('orderCity');
+        if (cityInput && profile.city && !cityInput.value) {
+            cityInput.value = profile.city;
+        }
+        const streetInput = document.getElementById('orderStreet');
+        if (streetInput && profile.street && !streetInput.value) {
+            streetInput.value = profile.street;
+        }
+        const houseInput = document.getElementById('orderHouse');
+        if (houseInput && profile.house && !houseInput.value) {
+            houseInput.value = profile.house;
+        }
+        const entranceInput = document.getElementById('orderEntrance');
+        if (entranceInput && profile.entrance && !entranceInput.value) {
+            entranceInput.value = profile.entrance;
+        }
+        const apartmentInput = document.getElementById('orderApartment');
+        if (apartmentInput && profile.apartment && !apartmentInput.value) {
+            apartmentInput.value = profile.apartment;
         }
     },
 
@@ -520,11 +523,32 @@ const App = {
         }
     },
 
+    toggleZoneDropdown() {
+        document.getElementById('zoneMenu').classList.toggle('open');
+    },
+
+    selectZone(value, label) {
+        document.getElementById('orderZone').value = value;
+        document.getElementById('zoneSelectLabel').textContent = label;
+        document.querySelectorAll('#zoneMenu .custom-select-option').forEach(opt => {
+            opt.classList.toggle('active', opt.dataset.value === value);
+        });
+        document.getElementById('zoneMenu').classList.remove('open');
+    },
+
     toggleDeliveryType() {
-        const isDelivery = document.querySelector('input[name="deliveryType"]:checked').value === 'delivery';
-        document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
-        document.getElementById('labelDelivery').classList.toggle('active', isDelivery);
-        document.getElementById('labelPickup').classList.toggle('active', !isDelivery);
+        const value = document.querySelector('input[name="deliveryType"]:checked').value;
+        if (value === 'pickup') {
+            alert('Самовывоз пока недоступен. Мы откроем пункт выдачи в ближайшее время! А пока воспользуйтесь доставкой.');
+            document.querySelector('input[name="deliveryType"][value="delivery"]').checked = true;
+            document.getElementById('labelDelivery').classList.add('active');
+            document.getElementById('labelPickup').classList.remove('active');
+            document.getElementById('deliveryFields').style.display = 'block';
+            return;
+        }
+        document.getElementById('deliveryFields').style.display = 'block';
+        document.getElementById('labelDelivery').classList.add('active');
+        document.getElementById('labelPickup').classList.remove('active');
     },
 
     makeOrder() {
@@ -654,7 +678,20 @@ const App = {
 
     openReferral() {
         const code = Profile.getReferralCode();
-        alert(`Ваш промокод: ${code}\n\nДайте его друзьям. За каждый заказ по вашему промокоду вы получите бонус 100 руб. на счёт!`);
+        const active = Profile.isReferralActive();
+        const daysLeft = Profile.getReferralDaysLeft();
+
+        let msg = `Ваш промокод: ${code}\n\nДайте его друзьям. За каждый заказ по вашему промокоду вы получите бонус 100 руб. на счёт!`;
+
+        if (active) {
+            msg += `\n\nДействует ещё ${daysLeft} дн.`;
+        } else if (Profile.getReferralExpiry()) {
+            msg += '\n\nСрок действия промокода истёк.';
+        } else {
+            msg += '\n\nПромокод активируется после первой покупки и действует 30 дней.';
+        }
+
+        alert(msg);
     },
 
     showOrderHistory() {
@@ -678,16 +715,24 @@ const App = {
         const profile = Profile.getProfileData();
         document.getElementById('modalProfileName').value = profile.name || '';
         document.getElementById('modalProfilePhone').value = profile.phone || '';
-        document.getElementById('modalProfileAddress').value = profile.address || '';
+        document.getElementById('modalProfileCity').value = profile.city || '';
+        document.getElementById('modalProfileStreet').value = profile.street || '';
+        document.getElementById('modalProfileHouse').value = profile.house || '';
+        document.getElementById('modalProfileEntrance').value = profile.entrance || '';
+        document.getElementById('modalProfileApartment').value = profile.apartment || '';
         document.getElementById('modalProfile').classList.add('open');
     },
 
     saveProfile() {
         const name = document.getElementById('modalProfileName').value.trim();
         const phone = document.getElementById('modalProfilePhone').value.trim();
-        const address = document.getElementById('modalProfileAddress').value.trim();
+        const city = document.getElementById('modalProfileCity').value.trim();
+        const street = document.getElementById('modalProfileStreet').value.trim();
+        const house = document.getElementById('modalProfileHouse').value.trim();
+        const entrance = document.getElementById('modalProfileEntrance').value.trim();
+        const apartment = document.getElementById('modalProfileApartment').value.trim();
 
-        Profile.saveProfileData({ name, phone, address });
+        Profile.saveProfileData({ name, phone, city, street, house, entrance, apartment });
         Profile.updateProfileUI();
         this.closeModal('modalProfile');
     },

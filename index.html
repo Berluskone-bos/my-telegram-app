@@ -236,10 +236,17 @@
             <div id="deliveryFields">
                 <div class="form-group">
                     <label>Регион:</label>
-                    <select id="orderZone">
-                        <option value="spb">Санкт-Петербург (в пределах КАД)</option>
-                        <option value="lo">Ленинградская область</option>
-                    </select>
+                    <div class="custom-select" id="zoneSelect">
+                        <button class="custom-select-btn" type="button" onclick="App.toggleZoneDropdown()">
+                            <span id="zoneSelectLabel">Санкт-Петербург (в пределах КАД)</span>
+                            <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                        </button>
+                        <div class="custom-select-menu" id="zoneMenu">
+                            <div class="custom-select-option active" data-value="spb" onclick="App.selectZone('spb', 'Санкт-Петербург (в пределах КАД)')">Санкт-Петербург (в пределах КАД)</div>
+                            <div class="custom-select-option" data-value="lo" onclick="App.selectZone('lo', 'Ленинградская область')">Ленинградская область</div>
+                        </div>
+                        <input type="hidden" id="orderZone" value="spb" />
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Город:</label>
@@ -324,6 +331,10 @@
                         <span class="profile-data-label">Адрес</span>
                         <span class="profile-data-value" id="profileAddress">—</span>
                     </div>
+                    <div class="profile-data-row" id="profileAddressDetails" style="display:none;">
+                        <span class="profile-data-label"></span>
+                        <span class="profile-data-value" id="profileAddressDetailsValue"></span>
+                    </div>
                     <button class="profile-edit-btn" onclick="App.editProfile()">
                         <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Редактировать
                     </button>
@@ -363,13 +374,6 @@
                     <div class="p-menu-left">
                         <span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span>
                         <span class="p-menu-text">Связаться с поддержкой</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-                <div class="p-menu-item" onclick="window.location.href='privacy.html'">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon"><i data-lucide="shield" class="icon-sm"></i></span>
-                        <span class="p-menu-text">Политика конфиденциальности</span>
                     </div>
                     <span class="p-menu-arrow">›</span>
                 </div>
@@ -643,8 +647,26 @@
                 <input type="tel" id="modalProfilePhone" placeholder="+7 (999) 000-00-00" />
             </div>
             <div class="form-group">
-                <label>Адрес доставки:</label>
-                <input type="text" id="modalProfileAddress" placeholder="Город, улица, дом, квартира" />
+                <label>Город:</label>
+                <input type="text" id="modalProfileCity" placeholder="Санкт-Петербург" />
+            </div>
+            <div class="form-group">
+                <label>Улица:</label>
+                <input type="text" id="modalProfileStreet" placeholder="Улица" />
+            </div>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>Дом:</label>
+                    <input type="text" id="modalProfileHouse" placeholder="Дом" />
+                </div>
+                <div class="form-group">
+                    <label>Подъезд:</label>
+                    <input type="text" id="modalProfileEntrance" placeholder="Под." />
+                </div>
+                <div class="form-group">
+                    <label>Квартира:</label>
+                    <input type="text" id="modalProfileApartment" placeholder="Кв." />
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="modal-btn modal-btn-cancel" onclick="App.closeModal('modalProfile')">Отмена</button>

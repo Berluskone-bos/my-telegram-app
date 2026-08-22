@@ -51,6 +51,7 @@ const Profile = {
     addOrder(order) {
         this.orderHistory.unshift(order);
         this.totalSpent += order.total;
+        this.setReferralExpiry();
         this.save();
     },
 
@@ -93,7 +94,14 @@ const Profile = {
     getCardNumber() {
         let num = localStorage.getItem('gulf_card');
         if (!num) {
-            const digits = String(Math.floor(100000 + Math.random() * 900000));
+            const tg = window.Telegram.WebApp;
+            const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+            let digits;
+            if (user && user.id) {
+                digits = String(user.id).padStart(6, '0').slice(-6);
+            } else {
+                digits = String(Math.floor(100000 + Math.random() * 900000));
+            }
             num = 'AR-' + digits;
             localStorage.setItem('gulf_card', num);
         }
@@ -142,10 +150,43 @@ const Profile = {
     getReferralCode() {
         let code = localStorage.getItem('gulf_referral');
         if (!code) {
-            code = 'GULF-' + Math.floor(1000 + Math.random() * 9000);
+            const tg = window.Telegram.WebApp;
+            const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+            let suffix;
+            if (user && user.id) {
+                suffix = String(user.id).slice(-4);
+            } else {
+                suffix = String(Math.floor(1000 + Math.random() * 9000));
+            }
+            code = 'AP-' + suffix;
             localStorage.setItem('gulf_referral', code);
         }
         return code;
+    },
+
+    getReferralExpiry() {
+        const expiry = localStorage.getItem('gulf_referral_expiry');
+        return expiry ? parseInt(expiry) : null;
+    },
+
+    setReferralExpiry() {
+        if (!localStorage.getItem('gulf_referral_expiry')) {
+            const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+            localStorage.setItem('gulf_referral_expiry', String(expiry));
+        }
+    },
+
+    isReferralActive() {
+        const expiry = this.getReferralExpiry();
+        if (!expiry) return false;
+        return Date.now() < expiry;
+    },
+
+    getReferralDaysLeft() {
+        const expiry = this.getReferralExpiry();
+        if (!expiry) return 0;
+        const left = expiry - Date.now();
+        return left > 0 ? Math.ceil(left / (24 * 60 * 60 * 1000)) : 0;
     },
 
     updateUI() {
@@ -185,10 +226,31 @@ const Profile = {
         const nameEl = document.getElementById('profileName');
         const phoneEl = document.getElementById('profilePhone');
         const addressEl = document.getElementById('profileAddress');
+        const detailsEl = document.getElementById('profileAddressDetails');
+        const detailsValueEl = document.getElementById('profileAddressDetailsValue');
 
         if (nameEl) nameEl.textContent = profile.name || '—';
         if (phoneEl) phoneEl.textContent = profile.phone || '—';
-        if (addressEl) addressEl.textContent = profile.address || '—';
+
+        if (profile.city || profile.street || profile.house) {
+            if (addressEl) addressEl.textContent = profile.city || '—';
+            if (detailsEl && detailsValueEl) {
+                const parts = [];
+                if (profile.street) parts.push('ул. ' + profile.street);
+                if (profile.house) parts.push('д. ' + profile.house);
+                if (profile.entrance) parts.push('под. ' + profile.entrance);
+                if (profile.apartment) parts.push('кв. ' + profile.apartment);
+                if (parts.length > 0) {
+                    detailsValueEl.textContent = parts.join(', ');
+                    detailsEl.style.display = 'flex';
+                } else {
+                    detailsEl.style.display = 'none';
+                }
+            }
+        } else {
+            if (addressEl) addressEl.textContent = '—';
+            if (detailsEl) detailsEl.style.display = 'none';
+        }
     },
 
     // Данные автомобиля
@@ -215,7 +277,7 @@ const Profile = {
         if (!container) return;
 
         if (car && car.brand && car.model) {
-            const yearText = car.year ? `, ${car.year}` : '';
+            const yearText = car.year ? ` ${car.year}` : '';
             const engineText = car.engine ? ` · ${car.engine}` : '';
             container.innerHTML = `
                 <div class="profile-car-info">

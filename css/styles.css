@@ -420,6 +420,67 @@ a, button, input, select { font-family: inherit; }
     font-weight: 700;
     background: var(--accent-light);
 }
+
+/* ===== КАСТОМНЫЙ SELECT (Регион) ===== */
+.custom-select {
+    position: relative;
+}
+.custom-select-btn {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.custom-select-btn:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--bg);
+}
+.custom-select-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--bg);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
+    overflow: hidden;
+    z-index: 200;
+    display: none;
+    animation: dropIn 0.15s ease;
+}
+.custom-select-menu.open {
+    display: block;
+}
+.custom-select-option {
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+}
+.custom-select-option:last-child {
+    border-bottom: none;
+}
+.custom-select-option:active {
+    background: var(--bg-secondary);
+}
+.custom-select-option.active {
+    color: var(--accent);
+    font-weight: 700;
+    background: var(--accent-light);
+}
+
 .products-count {
     font-size: 13px;
     color: var(--text-muted);
