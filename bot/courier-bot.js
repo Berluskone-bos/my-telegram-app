@@ -791,6 +791,21 @@ function registerCourierRoutes(app) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // Тест геокодера
+    app.get('/api/test-geocode', async (req, res) => {
+        const address = req.query.address || 'Санкт-Петербург, Невский проспект, 10';
+        try {
+            console.log('Тест геокодера:', address);
+            console.log('YANDEX_GEO_KEY:', YANDEX_GEO_KEY ? 'задан' : 'НЕ ЗАДАН');
+            const result = await geocoder.geocode(address);
+            console.log('Результат:', result);
+            res.json({ success: true, result, keySet: !!YANDEX_GEO_KEY });
+        } catch (e) {
+            console.log('Ошибка:', e.message);
+            res.json({ success: false, error: e.message, keySet: !!YANDEX_GEO_KEY });
+        }
+    });
+
     app.get('/api/map-links', (req, res) => {
         const { address, lat, lon } = req.query;
         if (!address && (!lat || !lon)) return res.status(400).json({ error: 'address or lat/lon required' });
