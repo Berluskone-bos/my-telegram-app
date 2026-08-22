@@ -445,7 +445,7 @@ bot.on('callback_query', (query) => {
     if (data.startsWith('rate_')) {
         const parts = data.split('_');
         const courierId = parseInt(parts[1]);
-        const rating = parseInt(parts[2]);
+        const rating = parseInt(parts[3]);
 
         const couriers = readJSON('couriers.json');
         const courier = couriers.find(c => c.id === courierId);
