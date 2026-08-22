@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>АВТОПРОМОЙЛ — Диспетчер доставки</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #101B4D;
+            --cyan: #00AFC7;
+            --light-cyan: #66D6E6;
+            --bg: #F5F6F8;
+            --white: #FFFFFF;
+            --border: #e0e4e8;
+            --text: #1a1a2e;
+            --muted: #6b7280;
+            --green: #16a34a;
+            --orange: #ea580c;
+            --red: #dc2626;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+        .header {
+            background: var(--navy);
+            color: var(--white);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 700; }
+        .header-date { font-size: 13px; opacity: 0.7; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+        .stat-card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border);
+        }
+        .stat-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+        .stat-value { font-family: 'Montserrat', sans-serif; font-size: 28px; font-weight: 800; color: var(--navy); }
+        .stat-value.green { color: var(--green); }
+        .stat-value.orange { color: var(--orange); }
+        .stat-value.red { color: var(--red); }
+        .section { background: var(--white); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; }
+        .section-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .section-title { font-family: 'Montserrat', sans-serif; font-size: 15px; font-weight: 700; color: var(--navy); }
+        .section-body { padding: 16px 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg); padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted); }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-green { background: rgba(22,163,74,0.1); color: var(--green); }
+        .badge-orange { background: rgba(234,88,12,0.1); color: var(--orange); }
+        .badge-red { background: rgba(220,38,38,0.1); color: var(--red); }
+        .badge-blue { background: rgba(0,175,199,0.1); color: var(--cyan); }
+        .badge-grey { background: rgba(107,114,128,0.1); color: var(--muted); }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-primary { background: var(--cyan); color: var(--white); }
+        .btn-primary:hover { background: var(--light-cyan); }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .empty { text-align: center; padding: 40px; color: var(--muted); }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Диспетчер доставки</h1>
+        <div class="header-date" id="currentDate"></div>
+    </div>
+
+    <div class="container">
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-label">Маршрутов</div>
+                <div class="stat-value" id="statRoutes">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Доставлено</div>
+                <div class="stat-value green" id="statDelivered">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">В пути</div>
+                <div class="stat-value orange" id="statPending">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Не доставлено</div>
+                <div class="stat-value red" id="statFailed">0</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Заказы без маршрута</div>
+                <button class="btn btn-primary btn-sm" onclick="loadData()">Обновить</button>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Заказ</th>
+                            <th>Клиент</th>
+                            <th>Адрес</th>
+                            <th>Сумма</th>
+                            <th>Дата</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unassignedTable">
+                        <tr><td colspan="5" class="empty">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Маршруты сегодня</div>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Маршрут</th>
+                            <th>Курьер</th>
+                            <th>Остановок</th>
+                            <th>Доставлено</th>
+                            <th>Статус</th>
+                            <th>Наличные</th>
+                        </tr>
+                    </thead>
+                    <tbody id="routesTable">
+                        <tr><td colspan="6" class="empty">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Курьеры</div>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Имя</th>
+                            <th>Телефон</th>
+                            <th>Транспорт</th>
+                            <th>Telegram</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody id="couriersTable">
+                        <tr><td colspan="5" class="empty">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:3001'
+            : window.location.origin;
+
+        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        async function loadData() {
+            try {
+                const [stats, unassigned, routes, couriers] = await Promise.all([
+                    fetch(`${API_BASE}/api/dispatch/stats?date=${new Date().toISOString().split('T')[0]}`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/dispatch/unassigned-orders`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/routes`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/couriers`).then(r => r.json())
+                ]);
+
+                // Статистика
+                document.getElementById('statRoutes').textContent = stats.total_routes || 0;
+                document.getElementById('statDelivered').textContent = stats.delivered || 0;
+                document.getElementById('statPending').textContent = stats.pending || 0;
+                document.getElementById('statFailed').textContent = stats.failed || 0;
+
+                // Заказы без маршрута
+                const unassignedHtml = unassigned.length === 0
+                    ? '<tr><td colspan="5" class="empty">Нет заказов без маршрута</td></tr>'
+                    : unassigned.map(o => `
+                        <tr>
+                            <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
+                            <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
+                            <td>${o.address || '-'}</td>
+                            <td>${(o.total || 0).toLocaleString()} руб.</td>
+                            <td>${o.created_at ? new Date(o.created_at).toLocaleDateString('ru-RU') : '-'}</td>
+                        </tr>
+                    `).join('');
+                document.getElementById('unassignedTable').innerHTML = unassignedHtml;
+
+                // Маршруты
+                const today = new Date().toISOString().split('T')[0];
+                const todayRoutes = routes.filter(r => r.route_date === today);
+                const routesHtml = todayRoutes.length === 0
+                    ? '<tr><td colspan="6" class="empty">Нет маршрутов на сегодня</td></tr>'
+                    : todayRoutes.map(r => {
+                        const courier = couriers.find(c => c.id === r.courier_id);
+                        const statusClass = r.status === 'completed' ? 'badge-green' :
+                                          r.status === 'in_progress' ? 'badge-orange' :
+                                          r.status === 'assigned' ? 'badge-blue' : 'badge-grey';
+                        return `
+                            <tr>
+                                <td><strong>${r.route_number}</strong></td>
+                                <td>${courier ? courier.name : '-'}</td>
+                                <td>${r.total_orders || 0}</td>
+                                <td>${r.completed || 0} / ${r.total_orders || 0}</td>
+                                <td><span class="badge ${statusClass}">${r.status}</span></td>
+                                <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
+                            </tr>
+                        `;
+                    }).join('');
+                document.getElementById('routesTable').innerHTML = routesHtml;
+
+                // Курьеры
+                const couriersHtml = couriers.length === 0
+                    ? '<tr><td colspan="5" class="empty">Нет зарегистрированных курьеров</td></tr>'
+                    : couriers.map(c => `
+                        <tr>
+                            <td><strong>${c.name}</strong></td>
+                            <td>${c.phone || '-'}</td>
+                            <td>${c.vehicle_type || '-'}</td>
+                            <td>@${c.telegram_user || '-'}</td>
+                            <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Активен' : 'Неактивен'}</span></td>
+                        </tr>
+                    `).join('');
+                document.getElementById('couriersTable').innerHTML = couriersHtml;
+
+            } catch (e) {
+                console.error('Ошибка загрузки данных:', e);
+            }
+        }
+
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
