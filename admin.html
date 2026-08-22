@@ -171,13 +171,41 @@
                             <th>Телефон</th>
                             <th>Транспорт</th>
                             <th>Telegram</th>
+                            <th>Рейтинг</th>
                             <th>Статус</th>
                         </tr>
                     </thead>
                     <tbody id="couriersTable">
-                        <tr><td colspan="5" class="empty">Загрузка...</td></tr>
+                        <tr><td colspan="6" class="empty">Загрузка...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Аналитика доставки (7 дней)</div>
+                <button class="btn btn-primary btn-sm" onclick="loadAnalytics()">Обновить</button>
+            </div>
+            <div class="section-body">
+                <div class="stats-grid" id="analyticsGrid">
+                    <div class="stat-card">
+                        <div class="stat-label">Доставок</div>
+                        <div class="stat-value" id="analyticsDelivered">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Успешность</div>
+                        <div class="stat-value green" id="analyticsRate">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Ср. время (мин)</div>
+                        <div class="stat-value orange" id="analyticsTime">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Расстояние (км)</div>
+                        <div class="stat-value" id="analyticsDistance">0</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -245,16 +273,19 @@
 
                 // Курьеры
                 const couriersHtml = couriers.length === 0
-                    ? '<tr><td colspan="5" class="empty">Нет зарегистрированных курьеров</td></tr>'
-                    : couriers.map(c => `
+                    ? '<tr><td colspan="6" class="empty">Нет зарегистрированных курьеров</td></tr>'
+                    : couriers.map(c => {
+                        const rating = c.rating ? `${c.rating}/5 (${c.rating_count || 0})` : '-';
+                        return `
                         <tr>
                             <td><strong>${c.name}</strong></td>
                             <td>${c.phone || '-'}</td>
                             <td>${c.vehicle_type || '-'}</td>
                             <td>@${c.telegram_user || '-'}</td>
+                            <td>${rating}</td>
                             <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Активен' : 'Неактивен'}</span></td>
-                        </tr>
-                    `).join('');
+                        </tr>`;
+                    }).join('');
                 document.getElementById('couriersTable').innerHTML = couriersHtml;
 
             } catch (e) {
@@ -262,7 +293,21 @@
             }
         }
 
+        async function loadAnalytics() {
+            try {
+                const analytics = await fetch(`${API_BASE}/api/analytics`).then(r => r.json());
+                const s = analytics.summary || {};
+                document.getElementById('analyticsDelivered').textContent = s.delivered || 0;
+                document.getElementById('analyticsRate').textContent = (s.success_rate || 0) + '%';
+                document.getElementById('analyticsTime').textContent = s.avg_delivery_time_min || 0;
+                document.getElementById('analyticsDistance').textContent = s.total_distance_km || 0;
+            } catch (e) {
+                console.error('Ошибка загрузки аналитики:', e);
+            }
+        }
+
         loadData();
+        loadAnalytics();
         setInterval(loadData, 30000);
     </script>
 </body>

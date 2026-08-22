@@ -110,6 +110,8 @@ bot.onText(/\/start/, (msg) => {
             zones: ['spb'],
             is_active: true,
             max_orders: 10,
+            rating: 0,
+            rating_count: 0,
             created_at: new Date().toISOString()
         };
 
@@ -152,6 +154,9 @@ function showMainScreen(chatId, courier) {
 
     const buttons = [];
     if (activeRoute && stops.length > 0) {
+        if (activeRoute.status === 'assigned') {
+            buttons.push([{ text: 'Поехал!', callback_data: `startroute_${activeRoute.id}` }]);
+        }
         buttons.push([{ text: 'Маршрутный лист', callback_data: `showroute_${activeRoute.id}` }]);
         buttons.push([{ text: 'Построить маршрут', callback_data: `optimizeroute_${activeRoute.id}` }]);
     }
@@ -384,6 +389,18 @@ bot.on('callback_query', (query) => {
         return;
     }
 
+    // Поехал! — старт маршрута + уведомление клиентам
+    if (data.startsWith('startroute_')) {
+        const routeId = parseInt(data.split('_')[1]);
+        handleStartRoute(chatId, routeId, query.from);
+        bot.answerCallbackQuery(query.id, { text: 'Маршрут начат!' });
+        return;
+    }
+        if (courier) showMainScreen(chatId, courier);
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
     // Оптимизировать маршрут
     if (data.startsWith('optimizeroute_')) {
         const routeId = parseInt(data.split('_')[1]);
@@ -423,9 +440,67 @@ bot.on('callback_query', (query) => {
         handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason);
         return;
     }
+
+    // Оценка доставки клиентом
+    if (data.startsWith('rate_')) {
+        const parts = data.split('_');
+        const courierId = parseInt(parts[1]);
+        const rating = parseInt(parts[2]);
+
+        const couriers = readJSON('couriers.json');
+        const courier = couriers.find(c => c.id === courierId);
+        if (courier) {
+            const totalRating = (courier.rating || 0) * (courier.rating_count || 0) + rating;
+            courier.rating_count = (courier.rating_count || 0) + 1;
+            courier.rating = Math.round((totalRating / courier.rating_count) * 100) / 100;
+            writeJSON('couriers.json', couriers);
+            bot.answerCallbackQuery(query.id, { text: `Спасибо за оценку ${rating}!` });
+            bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+                chat_id: chatId,
+                message_id: query.message.message_id
+            });
+            bot.sendMessage(chatId, `Спасибо за оценку ${rating}/5!`);
+        }
+        return;
+    }
 });
 
 // ====== Причины не доставки ======
+
+// ====== Старт маршрута + уведомления клиентам ======
+
+function handleStartRoute(chatId, routeId, user) {
+    const routes = readJSON('delivery-routes.json');
+    const route = routes.find(r => r.id === routeId);
+    if (!route) return;
+
+    route.status = 'in_progress';
+    route.started_at = new Date().toISOString();
+    writeJSON('delivery-routes.json', routes);
+
+    bot.sendMessage(chatId, 'Маршрут начат! Удачи в доставке!');
+
+    // Уведомляем всех клиентов в маршруте
+    const stops = route.stops || [];
+    stops.forEach(stop => {
+        if (stop.status === 'pending' && stop.client_chat_id) {
+            const timeText = stop.time_window ? `, ожидайте ${stop.time_window}` : '';
+            bot.sendMessage(stop.client_chat_id,
+                `<b>Курьер в пути!</b>\n\n` +
+                `Заказ: ${stop.order_number || ''}\n` +
+                `Адрес доставки: ${stop.address}\n` +
+                `Курьер уже выехал к вам${timeText}.\n\n` +
+                `Ожидайте доставку.`,
+                { parse_mode: 'HTML' }
+            ).catch(() => {});
+        }
+    });
+
+    // Уведомляем админа
+    bot.sendMessage(ADMIN_CHAT_ID,
+        `[МАРШРУТ] ${route.route_number} начат курьером ${user.first_name || ''}`
+    ).catch(() => {});
+}
 
 function showFailureReasons(chatId, routeId, stopId) {
     const buttons = [
@@ -506,7 +581,31 @@ function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, 
 
     // Уведомляем клиента
     if (stop.client_chat_id) {
-        notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number || route.route_number, status, reason).catch(() => {});
+        if (status === 'delivered') {
+            // Уведомление с кнопкой оценки
+            const courierId = route.courier_id;
+            bot.sendMessage(stop.client_chat_id,
+                `<b>Заказ ${stop.order_number || ''} доставлен!</b>\n\n` +
+                `Спасибо за покупку в АВТОПРОМОЙЛ!\n\n` +
+                `Пожалуйста, оцените доставку:`,
+                {
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: '1', callback_data: `rate_${courierId}_${stop.id}_1` },
+                                { text: '2', callback_data: `rate_${courierId}_${stop.id}_2` },
+                                { text: '3', callback_data: `rate_${courierId}_${stop.id}_3` },
+                                { text: '4', callback_data: `rate_${courierId}_${stop.id}_4` },
+                                { text: '5', callback_data: `rate_${courierId}_${stop.id}_5` }
+                            ]
+                        ]
+                    }
+                }
+            ).catch(() => {});
+        } else {
+            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number || route.route_number, status, reason).catch(() => {});
+        }
     }
 }
 
@@ -738,6 +837,74 @@ function registerCourierRoutes(app) {
     app.get('/api/dispatch/delivery-cost', (req, res) => {
         const { zone, total } = req.query;
         res.json({ zone, order_total: parseFloat(total), delivery_cost: Dispatcher.calcDeliveryCost(zone, parseFloat(total)) });
+    });
+
+    // Аналитика доставки
+    app.get('/api/analytics', (req, res) => {
+        const { date_from, date_to } = req.query;
+        const routes = readJSON('delivery-routes.json');
+        const couriers = readJSON('couriers.json');
+
+        const from = date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const to = date_to || new Date().toISOString().split('T')[0];
+
+        const filtered = routes.filter(r => r.route_date >= from && r.route_date <= to);
+
+        const totalRoutes = filtered.length;
+        const completedRoutes = filtered.filter(r => r.status === 'completed').length;
+        const totalStops = filtered.reduce((sum, r) => sum + (r.total_orders || 0), 0);
+        const delivered = filtered.reduce((sum, r) => sum + (r.completed || 0), 0);
+        const failed = filtered.reduce((sum, r) => sum + (r.failed || 0), 0);
+        const totalDistance = filtered.reduce((sum, r) => sum + (r.total_distance || 0), 0);
+        const cashToCollect = filtered.reduce((sum, r) => sum + (r.cash_to_collect || 0), 0);
+        const cashCollected = filtered.reduce((sum, r) => sum + (r.cash_collected || 0), 0);
+
+        // Среднее время доставки (от старта до завершения)
+        const completedRoutesData = filtered.filter(r => r.status === 'completed' && r.started_at && r.completed_at);
+        const avgTime = completedRoutesData.length > 0
+            ? completedRoutesData.reduce((sum, r) => {
+                const start = new Date(r.started_at).getTime();
+                const end = new Date(r.completed_at).getTime();
+                return sum + (end - start);
+            }, 0) / completedRoutesData.length / 60000 // в минутах
+            : 0;
+
+        // Загрузка курьеров
+        const courierStats = couriers.map(c => {
+            const courierRoutes = filtered.filter(r => r.courier_id === c.id);
+            const courierDelivered = courierRoutes.reduce((sum, r) => sum + (r.completed || 0), 0);
+            const courierFailed = courierRoutes.reduce((sum, r) => sum + (r.failed || 0), 0);
+            return {
+                id: c.id,
+                name: c.name,
+                rating: c.rating || 0,
+                rating_count: c.rating_count || 0,
+                routes: courierRoutes.length,
+                delivered: courierDelivered,
+                failed: courierFailed,
+                success_rate: courierDelivered + courierFailed > 0
+                    ? Math.round(courierDelivered / (courierDelivered + courierFailed) * 100)
+                    : 0
+            };
+        });
+
+        res.json({
+            period: { from, to },
+            summary: {
+                total_routes: totalRoutes,
+                completed_routes: completedRoutes,
+                total_stops: totalStops,
+                delivered,
+                failed,
+                pending: totalStops - delivered - failed,
+                success_rate: totalStops > 0 ? Math.round(delivered / totalStops * 100) : 0,
+                total_distance_km: Math.round(totalDistance * 10) / 10,
+                avg_delivery_time_min: Math.round(avgTime),
+                cash_to_collect: cashToCollect,
+                cash_collected: cashCollected
+            },
+            couriers: courierStats
+        });
     });
 }
 
