@@ -6,6 +6,7 @@ const Geocoder = require('./services/geocoder');
 const MapLinks = require('./services/map-links');
 const RouteOptimizer = require('./services/route-optimizer');
 const Notifier = require('./services/notifier');
+const Dispatcher = require('./services/dispatcher');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN || '8495118590:AAEM_9w9zxHI6D6YIHEe6w0wLp1c0US01hM';
@@ -449,6 +450,11 @@ app.get('/api/routes', (req, res) => {
     res.json(readJSON('delivery-routes.json'));
 });
 
+// Получить заказы
+app.get('/api/orders', (req, res) => {
+    res.json(readJSON('orders.json'));
+});
+
 // Получить зоны доставки
 app.get('/api/zones', (req, res) => {
     res.json(readJSON('delivery-zones.json'));
@@ -487,6 +493,45 @@ app.post('/api/map-links/route', (req, res) => {
     }
     const links = MapLinks.allRoute(stops);
     res.json(links);
+});
+
+// Создать маршрут из заказов
+app.post('/api/dispatch/create-route', (req, res) => {
+    const { order_ids, courier_id, route_date } = req.body;
+    if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
+        return res.status(400).json({ error: 'order_ids array required' });
+    }
+
+    const route = Dispatcher.createRouteFromOrders(order_ids, courier_id, route_date);
+    if (!route) return res.status(404).json({ error: 'No orders found' });
+    res.json(route);
+});
+
+// Доступные курьеры на дату
+app.get('/api/dispatch/available-couriers', (req, res) => {
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const couriers = Dispatcher.getAvailableCouriers(date);
+    res.json(couriers);
+});
+
+// Заказы без маршрута
+app.get('/api/dispatch/unassigned-orders', (req, res) => {
+    const orders = Dispatcher.getUnassignedOrders();
+    res.json(orders);
+});
+
+// Статистика за день
+app.get('/api/dispatch/stats', (req, res) => {
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const stats = Dispatcher.getDayStats(date);
+    res.json(stats);
+});
+
+// Рассчитать стоимость доставки
+app.get('/api/dispatch/delivery-cost', (req, res) => {
+    const { zone, total } = req.query;
+    const cost = Dispatcher.calcDeliveryCost(zone, parseFloat(total));
+    res.json({ zone, order_total: parseFloat(total), delivery_cost: cost });
 });
 
 // Оптимизировать порядок остановок
