@@ -321,6 +321,15 @@ async function handleNewOrder(chatId, order) {
 app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json());
 
+// CORS — разрешаем запросы с GitHub Pages и Telegram Mini App
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
 // Подключаем API курьер-бота
 try {
     const { registerCourierRoutes } = require('./courier-bot');
