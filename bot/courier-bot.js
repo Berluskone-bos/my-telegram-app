@@ -931,6 +931,29 @@ function registerCourierRoutes(app) {
     });
 }
 
+// Настройка команд бота
+async function setupCourierBotCommands() {
+    try {
+        await bot.setMyCommands([
+            { command: 'start', description: 'Регистрация / главный экран' },
+            { command: 'route', description: 'Текущий маршрутный лист' },
+            { command: 'today', description: 'Сегодняшние доставки' },
+            { command: 'done', description: 'Отметить доставку выполненной' },
+            { command: 'status', description: 'Статус смены' },
+            { command: 'help', description: 'Справка' }
+        ]);
+        console.log('[OK] Команды курьер-бота установлены');
+
+        await bot.setMyDescription('Бот курьеров АВТОПРОМОЙЛ. Маршрутные листы, навигация, подтверждение доставки.');
+        console.log('[OK] Описание курьер-бота установлено');
+    } catch (e) {
+        console.error('[ОШИБКА] Настройка команд курьер-бота:', e.message);
+    }
+}
+
+// Вызываем настройку при запуске
+setupCourierBotCommands();
+
 module.exports = { registerCourierRoutes };
 
 console.log('APCourier_Bot module loaded');
