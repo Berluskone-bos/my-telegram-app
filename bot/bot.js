@@ -328,15 +328,19 @@ try {
 
 app.post('/api/order', async (req, res) => {
     const order = req.body;
+    const orderId = Date.now().toString().slice(-6);
     console.log('Получен заказ через API:', JSON.stringify(order, null, 2));
 
+    // Сохраняем заказ в БД
+    await saveOrderToFile(orderId, order);
+
     if (ADMIN_CHAT_ID) {
-        const itemsList = order.items
+        const itemsList = (order.items || [])
             .map(i => `- ${i.name} (${i.volume}) x ${i.qty} = ${(i.price * i.qty).toLocaleString()} руб.`)
             .join('\n');
 
         const msg =
-            `<b>НОВЫЙ ЗАКАЗ (API)!</b>\n\n` +
+            `<b>НОВЫЙ ЗАКАЗ #${orderId} (API)!</b>\n\n` +
             `<b>Клиент:</b> ${order.userName || 'Не указано'}\n` +
             `<b>Телефон:</b> ${order.phone}\n` +
             `<b>Адрес:</b> ${order.address}\n\n` +
@@ -350,7 +354,7 @@ app.post('/api/order', async (req, res) => {
         }
     }
 
-    res.json({ success: true, orderId: Date.now() });
+    res.json({ success: true, orderId: orderId });
 });
 
 app.get('/api/health', (req, res) => {
