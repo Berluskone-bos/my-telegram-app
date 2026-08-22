@@ -3,6 +3,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const db = require('./db-adapter');
 
 const app = express();
 const token = process.env.BOT_TOKEN;
@@ -217,47 +218,39 @@ bot.on('message', async (msg) => {
 // ОБРАБОТКА ЗАКАЗОВ
 // ═══════════════════════════════════════════
 
-function saveOrderToFile(orderId, order) {
-    const ordersPath = path.join(__dirname, '..', 'data', 'orders.json');
-    let orders = [];
+async function saveOrderToFile(orderId, order) {
     try {
-        if (fs.existsSync(ordersPath)) {
-            orders = JSON.parse(fs.readFileSync(ordersPath, 'utf-8'));
-        }
-    } catch (e) { orders = []; }
-
-    orders.push({
-        id: orderId,
-        order_number: 'AP-' + orderId,
-        user_id: order.userId || null,
-        user_name: order.userName || '',
-        phone: order.phone || '',
-        address: order.address || '',
-        zone: order.zone || 'spb',
-        city: order.city || '',
-        street: order.street || '',
-        house: order.house || '',
-        entrance: order.entrance || '',
-        apartment: order.apartment || '',
-        items: order.items || [],
-        total: order.total || 0,
-        discount: order.discount || 0,
-        delivery_type: order.deliveryType || 'delivery',
-        payment: order.payment || 'cash',
-        comment: order.comment || '',
-        status: 'NEW',
-        payment_status: 'PENDING',
-        created_at: new Date().toISOString()
-    });
-
-    fs.writeFileSync(ordersPath, JSON.stringify(orders, null, 2), 'utf-8');
+        await db.createOrder({
+            order_number: 'AP-' + orderId,
+            user_id: order.userId || null,
+            user_name: order.userName || '',
+            phone: order.phone || '',
+            address: order.address || '',
+            zone: order.zone || 'spb',
+            city: order.city || '',
+            street: order.street || '',
+            house: order.house || '',
+            entrance: order.entrance || '',
+            apartment: order.apartment || '',
+            items: order.items || [],
+            total: order.total || 0,
+            discount: order.discount || 0,
+            delivery_type: order.deliveryType || 'delivery',
+            payment: order.payment || 'cash',
+            comment: order.comment || '',
+            status: 'NEW',
+            payment_status: 'PENDING'
+        });
+    } catch (e) {
+        console.error('[ОШИБКА] Сохранение заказа в БД:', e.message);
+    }
 }
 
 async function handleNewOrder(chatId, order) {
     const orderId = Date.now().toString().slice(-6);
 
-    // Сохраняем заказ в JSON для курьерской системы
-    saveOrderToFile(orderId, order);
+    // Сохраняем заказ в БД для курьерской системы
+    await saveOrderToFile(orderId, order);
 
     const itemsList = order.items
         .map(i => `- ${i.name} (${i.volume}) x ${i.qty} = ${(i.price * i.qty).toLocaleString()} руб.`)
@@ -361,8 +354,10 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-    console.log(`Веб-сервер запущен: http://localhost:${PORT}`);
+// Инициализация БД и запуск сервера
+db.init().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Веб-сервер запущен: http://localhost:${PORT}`);
     console.log('');
     console.log('═══════════════════════════════════════════');
     console.log('  БОТ ГОТОВ К РАБОТЕ!');
@@ -376,6 +371,10 @@ app.listen(PORT, () => {
     console.log('');
     console.log('Для остановки нажмите Ctrl+C');
     console.log('');
+    });
+}).catch(e => {
+    console.error('[ОШИБКА] Инициализация БД:', e.message);
+    process.exit(1);
 });
 
 bot.on('polling_error', (error) => {
