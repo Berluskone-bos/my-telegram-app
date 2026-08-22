@@ -722,14 +722,18 @@ function registerCourierRoutes(app) {
 
     app.post('/api/routes', async (req, res) => {
         const { courier_id, route_date, stops } = req.body;
+        console.log('POST /api/routes — stops:', stops ? stops.length : 0);
+        console.log('YANDEX_GEO_KEY:', YANDEX_GEO_KEY ? YANDEX_GEO_KEY.substring(0, 8) + '...' : 'НЕ ЗАДАН');
         const processedStops = [];
         if (stops && stops.length > 0) {
             for (let i = 0; i < stops.length; i++) {
                 const stop = stops[i];
                 const processed = { ...stop, id: i + 1, stop_number: i + 1, status: 'pending' };
+                console.log(`Stop ${i}: address="${processed.address}", lat=${processed.lat}, key=${!!YANDEX_GEO_KEY}`);
                 if (!processed.lat && processed.address && YANDEX_GEO_KEY) {
                     try {
                         const geo = await geocoder.geocode(processed.address);
+                        console.log(`Гео-результат:`, JSON.stringify(geo));
                         if (geo) {
                             processed.lat = geo.lat;
                             processed.lon = geo.lon;
@@ -738,6 +742,8 @@ function registerCourierRoutes(app) {
                     } catch (e) {
                         console.log(`Ошибка геокодирования "${processed.address}":`, e.message);
                     }
+                } else {
+                    console.log(`Пропуск геокодирования: lat=${processed.lat}, address=${!!processed.address}, key=${!!YANDEX_GEO_KEY}`);
                 }
                 if (processed.lat && processed.lon) {
                     processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
