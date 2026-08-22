@@ -11,7 +11,6 @@ const Dispatcher = require('./services/dispatcher');
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN || '8495118590:AAEM_9w9zxHI6D6YIHEe6w0wLp1c0US01hM';
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '695826264';
-const PORT = process.env.COURIER_PORT || 3001;
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -24,8 +23,6 @@ const notifier = new Notifier(
 
 // Инициализация бота
 const bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
-const app = express();
-app.use(express.json());
 
 // ====== Утилиты для работы с данными ======
 
@@ -560,9 +557,134 @@ app.post('/api/routes/:id/optimize', (req, res) => {
     res.json({ route_number: route.route_number, stops: optimized, total_distance_km: distance });
 });
 
-// Запуск
-app.listen(PORT, () => {
-    console.log(`Courier bot API running on port ${PORT}`);
-});
+// Экспорт: регистрация API-роутов на существующем Express app
+function registerCourierRoutes(app) {
+    app.use(express.json());
 
-console.log('APCourier_Bot started');
+    app.get('/api/health', (req, res) => {
+        res.json({ status: 'ok', bots: ['AutoPromoilBot', 'APCourier_Bot'], timestamp: new Date().toISOString() });
+    });
+
+    app.get('/api/couriers', (req, res) => {
+        res.json(readJSON('couriers.json'));
+    });
+
+    app.post('/api/routes', async (req, res) => {
+        const { courier_id, route_date, stops } = req.body;
+        const processedStops = [];
+        if (stops && stops.length > 0) {
+            for (let i = 0; i < stops.length; i++) {
+                const stop = stops[i];
+                const processed = { ...stop, id: i + 1, stop_number: i + 1, status: 'pending' };
+                if (!processed.lat && processed.address && YANDEX_GEO_KEY) {
+                    try {
+                        const geo = await geocoder.geocode(processed.address);
+                        if (geo) { processed.lat = geo.lat; processed.lon = geo.lon; }
+                    } catch (e) {}
+                }
+                if (processed.lat && processed.lon) {
+                    processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
+                    processed.google_url = MapLinks.google(processed.lat, processed.lon);
+                    processed.gis2_url = MapLinks.gis2(processed.lat, processed.lon);
+                }
+                processedStops.push(processed);
+            }
+        }
+        const routes = readJSON('delivery-routes.json');
+        const maxId = routes.reduce((max, r) => Math.max(max, r.id || 0), 0);
+        const maxNum = routes.reduce((max, r) => { const n = parseInt((r.route_number||'').replace('RL-','')); return n > max ? n : max; }, 0);
+        const newRoute = {
+            id: maxId + 1, route_number: 'RL-' + String(maxNum + 1).padStart(4, '0'),
+            route_date: route_date || new Date().toISOString().split('T')[0],
+            courier_id, status: 'draft', total_orders: processedStops.length,
+            completed: 0, failed: 0, cash_to_collect: 0, cash_collected: 0,
+            stops: processedStops, started_at: null, completed_at: null, created_at: new Date().toISOString()
+        };
+        routes.push(newRoute);
+        writeJSON('delivery-routes.json', routes);
+        res.json(newRoute);
+    });
+
+    app.post('/api/routes/:id/assign', (req, res) => {
+        const routeId = parseInt(req.params.id);
+        const routes = readJSON('delivery-routes.json');
+        const route = routes.find(r => r.id === routeId);
+        if (!route) return res.status(404).json({ error: 'Route not found' });
+        const couriers = readJSON('couriers.json');
+        const courier = couriers.find(c => c.id === route.courier_id);
+        if (!courier) return res.status(404).json({ error: 'Courier not found' });
+        route.status = 'assigned';
+        writeJSON('delivery-routes.json', routes);
+        bot.sendMessage(courier.telegram_id,
+            `<b>Новый маршрут!</b>\n\nМаршрут: ${route.route_number}\nДата: ${route.route_date}\nОстановок: ${(route.stops||[]).length}\n\nОтправьте /route для просмотра.`,
+            { parse_mode: 'HTML' }
+        ).then(() => res.json({ success: true })).catch(err => res.json({ success: false, error: err.message }));
+    });
+
+    app.get('/api/routes', (req, res) => res.json(readJSON('delivery-routes.json')));
+    app.get('/api/orders', (req, res) => res.json(readJSON('orders.json')));
+    app.get('/api/zones', (req, res) => res.json(readJSON('delivery-zones.json')));
+
+    app.get('/api/geocode', async (req, res) => {
+        const address = req.query.address;
+        if (!address) return res.status(400).json({ error: 'address required' });
+        try {
+            const result = await geocoder.geocode(address);
+            res.json(result ? { found: true, ...result } : { found: false });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/map-links', (req, res) => {
+        const { address, lat, lon } = req.query;
+        if (!address && (!lat || !lon)) return res.status(400).json({ error: 'address or lat/lon required' });
+        res.json(MapLinks.all(address || '', parseFloat(lat), parseFloat(lon)));
+    });
+
+    app.post('/api/map-links/route', (req, res) => {
+        const { stops } = req.body;
+        if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
+        res.json(MapLinks.allRoute(stops));
+    });
+
+    app.post('/api/routes/:id/optimize', (req, res) => {
+        const routeId = parseInt(req.params.id);
+        const { start_lat, start_lon } = req.body;
+        const routes = readJSON('delivery-routes.json');
+        const route = routes.find(r => r.id === routeId);
+        if (!route) return res.status(404).json({ error: 'Route not found' });
+        const stops = route.stops || [];
+        if (stops.length < 2) return res.json({ message: 'Nothing to optimize', stops });
+        const optimized = RouteOptimizer.optimizeRoute(stops, start_lat || 59.9343, start_lon || 30.3351);
+        route.stops = optimized;
+        route.total_distance = RouteOptimizer.calcDistance(optimized, start_lat || 59.9343, start_lon || 30.3351);
+        writeJSON('delivery-routes.json', routes);
+        res.json({ route_number: route.route_number, stops: optimized, total_distance_km: route.total_distance });
+    });
+
+    app.post('/api/dispatch/create-route', (req, res) => {
+        const { order_ids, courier_id, route_date } = req.body;
+        if (!order_ids || !order_ids.length) return res.status(400).json({ error: 'order_ids required' });
+        const route = Dispatcher.createRouteFromOrders(order_ids, courier_id, route_date);
+        if (!route) return res.status(404).json({ error: 'No orders found' });
+        res.json(route);
+    });
+
+    app.get('/api/dispatch/available-couriers', (req, res) => {
+        res.json(Dispatcher.getAvailableCouriers(req.query.date || new Date().toISOString().split('T')[0]));
+    });
+
+    app.get('/api/dispatch/unassigned-orders', (req, res) => res.json(Dispatcher.getUnassignedOrders()));
+
+    app.get('/api/dispatch/stats', (req, res) => {
+        res.json(Dispatcher.getDayStats(req.query.date || new Date().toISOString().split('T')[0]));
+    });
+
+    app.get('/api/dispatch/delivery-cost', (req, res) => {
+        const { zone, total } = req.query;
+        res.json({ zone, order_total: parseFloat(total), delivery_cost: Dispatcher.calcDeliveryCost(zone, parseFloat(total)) });
+    });
+}
+
+module.exports = { registerCourierRoutes };
+
+console.log('APCourier_Bot module loaded');

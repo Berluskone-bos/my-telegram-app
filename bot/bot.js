@@ -321,6 +321,15 @@ async function handleNewOrder(chatId, order) {
 app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json());
 
+// Подключаем API курьер-бота
+try {
+    const { registerCourierRoutes } = require('./courier-bot');
+    registerCourierRoutes(app);
+    console.log('[OK] Курьер-бот API подключён');
+} catch (e) {
+    console.warn('[ВНИМАНИЕ] Курьер-бот не загружен:', e.message);
+}
+
 app.post('/api/order', async (req, res) => {
     const order = req.body;
     console.log('Получен заказ через API:', JSON.stringify(order, null, 2));
