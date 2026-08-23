@@ -756,23 +756,29 @@ function registerCourierRoutes(app) {
             const orderId = parseInt(req.params.id);
             await db.updateOrderStatus(orderId, status);
 
-            // Уведомление клиенту через основной бот (notifier)
+            // Уведомление в админ-бот о смене статуса
             const order = await db.getOrderByNumber(orderId);
-            if (order && order.user_id) {
+            if (order) {
                 const statusLabels = {
-                    'CONFIRMED': 'подтверждён',
-                    'ASSEMBLING': 'собирается',
-                    'SHIPPING': 'передан курьеру',
-                    'DELIVERED': 'доставлен',
-                    'COMPLETED': 'доставлен',
-                    'CANCELLED': 'отменён'
+                    'NEW': 'Новый',
+                    'CONFIRMED': 'Подтверждён',
+                    'ASSEMBLING': 'Сборка',
+                    'SHIPPING': 'В доставке',
+                    'DELIVERED': 'Доставлен',
+                    'COMPLETED': 'Выполнен',
+                    'CANCELLED': 'Отменён'
                 };
                 const label = statusLabels[status];
                 if (label) {
-                    console.log(`[УВЕДОМЛЕНИЕ] Клиенту ${order.user_id}: ${order.order_number} -> ${label}`);
-                    notifier.notifyClient(order.user_id, order.order_number, label)
-                        .then(() => console.log(`[OK] Уведомление отправлено клиенту ${order.user_id}`))
-                        .catch(e => console.error(`[ОШИБКА] Уведомление клиенту: ${e.message}`));
+                    notifyAdmin(
+                        `<b>Смена статуса</b>\n\n` +
+                        `Заказ: <b>${order.order_number}</b>\n` +
+                        `Клиент: ${order.user_name || '-'}\n` +
+                        `Телефон: ${order.phone || '-'}\n` +
+                        `Адрес: ${order.address || '-'}\n` +
+                        `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
+                        `Статус: <b>${label}</b>`
+                    );
                 }
             }
 
@@ -855,8 +861,15 @@ function registerCourierRoutes(app) {
                 ).catch(() => {});
             }
 
-            // Уведомляем клиента через основной бот
-            notifier.notifyClient(order.user_id, order.order_number, 'shipped').catch(() => {});
+            // Уведомление в админ-бот о назначении курьера
+            notifyAdmin(
+                `<b>Курьер назначен</b>\n\n` +
+                `Заказ: <b>${order.order_number}</b>\n` +
+                `Клиент: ${order.user_name || '-'}\n` +
+                `Адрес: ${order.address || '-'}\n` +
+                `Курьер: ${courier.name}\n` +
+                `Маршрут: ${route.route_number}`
+            );
 
             res.json({ success: true, route });
         } catch (e) { res.status(500).json({ error: e.message }); }
