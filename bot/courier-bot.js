@@ -512,6 +512,13 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         } catch (e) { console.error('[DELIVER] edit error:', e.message); }
         bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' }).catch(() => {});
 
+        // Обновляем статус маршрута
+        try {
+            const route = await db.getRouteById(routeId);
+            await db.updateRouteStatus(routeId, 'in_progress', route?.completed || 0, route?.failed || 0);
+            console.log(`[DELIVER] Route ${routeId} -> in_progress`);
+        } catch (e) { console.error('[DELIVER] route update error:', e.message); }
+
         // Уведомляем клиента
         try {
             const route = await db.getRouteById(routeId);
