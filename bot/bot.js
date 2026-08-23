@@ -121,6 +121,10 @@ bot.onText(/\/start/, (msg) => {
                 }]
             ]
         }
+    }).then(() => {
+        console.log(`[OK] /start ответ отправлен ${userName}`);
+    }).catch(e => {
+        console.error(`[ОШИБКА] /start sendMessage: ${e.message}`);
     });
 });
 
