@@ -473,7 +473,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         return;
     }
     console.log(`[DELIVER] Route found: ${route.route_number}, stops: ${(route.stops||[]).length}`);
-    const stop = (route.stops || []).find(s => s.id === stopId);
+    const stop = (route.stops || []).find(s => parseInt(s.id) === parseInt(stopId));
     if (!stop) {
         console.log(`[DELIVER] Stop ${stopId} not found in route ${routeId}. Available stops: ${(route.stops||[]).map(s=>s.id).join(',')}`);
         bot.answerCallbackQuery(query.id, { text: 'Остановка не найдена' });
@@ -488,10 +488,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
 
         const navButtons = buildNavButtons(route, stop, 'enroute');
-        bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
+        await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
             chat_id: chatId, message_id: msgId
         });
-        bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' });
+        await bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' });
 
         // Уведомляем клиента
         if (stop.client_chat_id) {
@@ -505,10 +505,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     else if (action === 'enroute') {
         // Курьер в пути → показываем "У клиента"
         const navButtons = buildNavButtons(route, stop, 'arrived');
-        bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
+        await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
             chat_id: chatId, message_id: msgId
         });
-        bot.answerCallbackQuery(query.id, { text: 'Отметка: прибыли к клиенту' });
+        await bot.answerCallbackQuery(query.id, { text: 'Отметка: прибыли к клиенту' });
 
         // Уведомляем клиента
         if (stop.client_chat_id) {
@@ -522,10 +522,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     else if (action === 'arrived') {
         // Курьер у клиента → показываем "Доставлен"
         const navButtons = buildNavButtons(route, stop, 'done');
-        bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
+        await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
             chat_id: chatId, message_id: msgId
         });
-        bot.answerCallbackQuery(query.id, { text: 'Подтвердите передачу заказа' });
+        await bot.answerCallbackQuery(query.id, { text: 'Подтвердите передачу заказа' });
     }
 
     else if (action === 'done') {
@@ -548,10 +548,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         const finalButtons = [[
             { text: 'Доставлено', callback_data: 'noop' }
         ]];
-        bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, {
+        await bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, {
             chat_id: chatId, message_id: msgId
         });
-        bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' });
+        await bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' });
 
         // Благодарность клиенту + рейтинг
         if (stop.client_chat_id) {
