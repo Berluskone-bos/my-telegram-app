@@ -373,6 +373,7 @@ app.post('/api/order', async (req, res) => {
 // Webhook endpoint for main bot
 const webhookPath = '/webhook/main';
 app.post(webhookPath, (req, res) => {
+    console.log('[WEBHOOK] Received update:', JSON.stringify(req.body).substring(0, 200));
     bot.processUpdate(req.body);
     res.sendStatus(200);
 });

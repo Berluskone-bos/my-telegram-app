@@ -796,6 +796,7 @@ function registerCourierRoutes(app) {
         const webhookUrl = `https://gulf-bot-production.up.railway.app${webhookPath}`;
         
         app.post(webhookPath, (req, res) => {
+            console.log('[COURIER WEBHOOK] Received update:', JSON.stringify(req.body).substring(0, 200));
             bot.processUpdate(req.body);
             res.sendStatus(200);
         });
