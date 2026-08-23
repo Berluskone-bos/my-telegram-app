@@ -386,6 +386,15 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/webhook-info', async (req, res) => {
+    try {
+        const info = await bot.getWebHookInfo();
+        res.json(info);
+    } catch (e) {
+        res.json({ error: e.message });
+    }
+});
+
 // Инициализация БД и запуск сервера
 db.init().then(async () => {
     await db.seedProductsFromCatalog();
