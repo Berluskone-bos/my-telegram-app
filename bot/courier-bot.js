@@ -9,6 +9,7 @@ const db = require('./db-adapter');
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+const ADMIN_BOT_TOKEN = process.env.ADMIN_BOT_TOKEN;
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
@@ -19,7 +20,73 @@ if (COURIER_BOT_TOKEN) {
     bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
 }
 
+// Админ-бот для уведомлений руководства
+let adminBot;
+if (ADMIN_BOT_TOKEN) {
+    adminBot = new TelegramBot(ADMIN_BOT_TOKEN, { polling: false });
+    adminBot.setMyCommands([
+        { command: 'start', description: 'Админ-панель АВТОПРОМОЙЛ' },
+        { command: 'orders', description: 'Последние заказы' },
+        { command: 'stats', description: 'Статистика за сегодня' }
+    ]).catch(() => {});
+
+    adminBot.onText(/\/start/, (msg) => {
+        adminBot.sendMessage(msg.chat.id,
+            '<b>АВТОПРОМОЙЛ — Админ-бот</b>\n\n' +
+            'Уведомления о заказах и доставке.\n\n' +
+            'Команды:\n/orders — последние заказы\n/stats — статистика\n\n' +
+            'Админ-панель: https://gulf-bot-production.up.railway.app/admin.html',
+            { parse_mode: 'HTML' }
+        );
+    });
+
+    adminBot.onText(/\/orders/, async (msg) => {
+        try {
+            const orders = await db.getOrders();
+            const recent = orders.slice(0, 5);
+            if (recent.length === 0) {
+                adminBot.sendMessage(msg.chat.id, 'Заказов нет.');
+                return;
+            }
+            let text = '<b>Последние заказы:</b>\n\n';
+            recent.forEach(o => {
+                text += `<b>${o.order_number}</b> — ${o.user_name || '-'} — ${parseFloat(o.total || 0).toLocaleString()} руб. — ${o.status}\n`;
+            });
+            adminBot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML' });
+        } catch (e) {
+            adminBot.sendMessage(msg.chat.id, 'Ошибка: ' + e.message);
+        }
+    });
+
+    adminBot.onText(/\/stats/, async (msg) => {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const stats = await db.getDayStats(today);
+            adminBot.sendMessage(msg.chat.id,
+                `<b>Статистика за ${today}</b>\n\n` +
+                `Маршрутов: ${stats.total_routes}\n` +
+                `Доставлено: ${stats.delivered}\n` +
+                `Не доставлено: ${stats.failed}\n` +
+                `В пути: ${stats.pending}`,
+                { parse_mode: 'HTML' }
+            );
+        } catch (e) {
+            adminBot.sendMessage(msg.chat.id, 'Ошибка: ' + e.message);
+        }
+    });
+
+    console.log('[OK] Админ-бот @APOilAdminBot запущен');
+}
+
 // ====== Утилиты ======
+
+function notifyAdmin(text, buttons = null) {
+    const target = adminBot || bot;
+    if (!target) return Promise.resolve();
+    const opts = { parse_mode: 'HTML' };
+    if (buttons) opts.reply_markup = { inline_keyboard: buttons };
+    return target.sendMessage(ADMIN_CHAT_ID, text, opts).catch(() => {});
+}
 
 function generateRouteNumber() {
     return 'RL-' + String(Date.now()).slice(-4);
@@ -94,9 +161,7 @@ bot.onText(/\/start/, async (msg) => {
             { parse_mode: 'HTML' }
         );
 
-        bot.sendMessage(ADMIN_CHAT_ID,
-            `[КУРЬЕР] Зарегистрирован: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}`
-        ).catch(() => {});
+        notifyAdmin(`[КУРЬЕР] Зарегистрирован: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}`);
     });
 });
 
@@ -430,7 +495,7 @@ async function handleStartRoute(chatId, routeId, user) {
         }
     }
 
-    bot.sendMessage(ADMIN_CHAT_ID, `[МАРШРУТ] ${route.route_number} начат курьером ${user.first_name || ''}`).catch(() => {});
+    notifyAdmin(`[МАРШРУТ] ${route.route_number} начат курьером ${user.first_name || ''}`);
 }
 
 // ====== Причины не доставки ======
@@ -493,9 +558,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     bot.sendMessage(chatId, `${statusText}: ${stop.order_number || ''}\nАдрес: ${stop.address}${reason ? '\nПричина: ' + reason : ''}`);
 
-    bot.sendMessage(ADMIN_CHAT_ID,
-        `[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`
-    ).catch(() => {});
+    notifyAdmin(`[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`);
 
     if (stop.client_chat_id) {
         if (status === 'delivered') {

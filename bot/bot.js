@@ -8,8 +8,16 @@ const db = require('./db-adapter');
 const app = express();
 const token = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+const ADMIN_BOT_TOKEN = process.env.ADMIN_BOT_TOKEN;
 const PORT = process.env.PORT || 3000;
 const WEB_APP_URL = process.env.WEB_APP_URL;
+
+// Админ-бот для уведомлений руководства
+let adminBot = null;
+if (ADMIN_BOT_TOKEN) {
+    adminBot = new TelegramBot(ADMIN_BOT_TOKEN, { polling: false });
+    console.log('[OK] Админ-бот подключён');
+}
 
 // ═══════════════════════════════════════════
 // ПРОВЕРКА КОНФИГУРАЦИИ
@@ -303,9 +311,10 @@ async function handleNewOrder(chatId, order) {
             `<b>Оплата:</b> При получении\n` +
             `<b>Дата:</b> ${new Date().toLocaleString('ru-RU')}`;
 
+        const targetBot = adminBot || bot;
         try {
-            await bot.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
-            console.log('[OK] Уведомление отправлено администратору');
+            await targetBot.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
+            console.log('[OK] Уведомление отправлено в админ-бот');
         } catch (err) {
             console.error('[ОШИБКА] Отправка уведомления администратору:', err.message);
         }
@@ -360,8 +369,9 @@ app.post('/api/order', async (req, res) => {
             `<b>Товары:</b>\n${itemsList}\n\n` +
             `<b>Сумма:</b> ${order.total.toLocaleString()} руб.`;
 
+        const targetBot = adminBot || bot;
         try {
-            await bot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' });
+            await targetBot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' });
         } catch (err) {
             console.error('[ОШИБКА] Отправка:', err.message);
         }
