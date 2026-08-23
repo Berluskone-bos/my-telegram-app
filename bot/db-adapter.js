@@ -133,7 +133,7 @@ class DBAdapter {
     async updateStopStatus(stopId, status, reason) {
         const res = await pool.query(
             `UPDATE route_stops SET status = $1, fail_reason = $2, delivered_at = CASE WHEN $1 = 'delivered' THEN NOW() ELSE delivered_at END WHERE id = $3 RETURNING *`,
-            [status, reason, stopId]
+            [status, reason, parseInt(stopId)]
         );
         return res.rows[0];
     }

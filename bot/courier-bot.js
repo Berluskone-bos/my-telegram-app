@@ -498,8 +498,9 @@ async function handleStartRoute(chatId, routeId, user) {
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     const msgId = query.message.message_id;
+    stopId = parseInt(stopId); // Гарантируем что stopId — число
+    console.log(`[DELIVER] action=${action}, routeId=${routeId}, stopId=${stopId} (type: ${typeof stopId})`);
 
-    // Простая логика: просто меняем кнопку на следующий шаг
     if (action === 'accept') {
         // Принять → В пути
         const nextButtons = [
@@ -559,6 +560,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
     else if (action === 'done') {
         // Доставлен → финал
+        console.log(`[DELIVER] DONE: starting DB updates for stopId=${stopId}`);
         const finalButtons = [[{ text: 'Доставлено', callback_data: 'noop' }]];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, { chat_id: chatId, message_id: msgId });
@@ -567,20 +569,25 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
         // Обновляем статусы в БД
         try {
-            await db.updateStopStatus(stopId, 'delivered', '');
+            const stopUpdate = await db.updateStopStatus(stopId, 'delivered', '');
+            console.log(`[DELIVER] Stop updated:`, stopUpdate ? `id=${stopUpdate.id}, status=${stopUpdate.status}` : 'NULL');
             const route = await db.getRouteById(routeId);
-            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            const stop = route?.stops?.find(s => parseInt(s.id) === stopId);
+            console.log(`[DELIVER] Route: ${route?.route_number}, stops=${route?.stops?.length}, stop found: ${!!stop}, order_id: ${stop?.order_id}`);
             if (stop?.order_id) {
-                await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
+                await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED');
+                console.log(`[DELIVER] Order ${stop.order_id} -> COMPLETED`);
             }
             // Обновляем маршрут
             if (route) {
                 const stops = route.stops || [];
                 const newCompleted = stops.filter(s => s.status === 'delivered').length;
                 const allDone = stops.every(s => s.id === stopId ? true : s.status !== 'pending');
+                console.log(`[DELIVER] Route update: completed=${newCompleted}, allDone=${allDone}`);
                 await db.updateRouteStatus(routeId, allDone ? 'completed' : route.status, newCompleted, route.failed || 0);
+                console.log(`[DELIVER] Route ${route.route_number} -> ${allDone ? 'completed' : route.status}`);
             }
-        } catch (e) { console.error('[DELIVER] db update error:', e.message); }
+        } catch (e) { console.error('[DELIVER] db update error:', e.message, e.stack); }
 
         // Уведомляем клиента + рейтинг
         try {
