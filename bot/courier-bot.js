@@ -343,6 +343,7 @@ bot.on('callback_query', async (query) => {
  try {
     const chatId = query.message.chat.id;
     const data = query.data;
+    console.log(`[CALLBACK] Received: data=${data}, chatId=${chatId}, from=${query.from?.id}`);
 
     if (data.startsWith('showroute_')) {
         const routeId = parseInt(data.split('_')[1]);
