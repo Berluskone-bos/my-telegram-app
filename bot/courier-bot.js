@@ -22,7 +22,10 @@ if (COURIER_BOT_TOKEN) {
 // ====== Утилиты ======
 
 function notifyAdmin(text) {
-    return notifier._send(notifier.clientBotBase, ADMIN_CHAT_ID, text).catch(() => {});
+    console.log(`[ADMIN] Отправка уведомления: ${text.substring(0, 80)}...`);
+    return notifier._send(notifier.clientBotBase, ADMIN_CHAT_ID, text)
+        .then(() => console.log('[OK] Уведомление отправлено админу'))
+        .catch(e => console.error(`[ОШИБКА] Уведомление админу: ${e.message}`));
 }
 
 function generateRouteNumber() {
@@ -740,6 +743,26 @@ function registerCourierRoutes(app) {
             const orderId = parseInt(req.params.id);
             await db.updateOrderStatus(orderId, status);
 
+            // Обновляем маршрут при доставке/отмене
+            if (status === 'DELIVERED' || status === 'COMPLETED' || status === 'CANCELLED') {
+                const routes = await db.getRoutes();
+                for (const route of routes) {
+                    const stop = (route.stops || []).find(s => String(s.order_id) === String(orderId));
+                    if (stop) {
+                        const stopStatus = (status === 'CANCELLED') ? 'failed' : 'delivered';
+                        await db.updateStopStatus(stop.id, stopStatus, status === 'CANCELLED' ? 'Отменён менеджером' : '');
+                        const stops = route.stops || [];
+                        const newCompleted = stops.filter(s => s.status === 'delivered' || (s.id === stop.id && stopStatus === 'delivered')).length;
+                        const newFailed = stops.filter(s => s.status === 'failed' || (s.id === stop.id && stopStatus === 'failed')).length;
+                        const allDone = stops.every(s => s.id === stop.id ? stopStatus !== 'pending' : s.status !== 'pending');
+                        const newRouteStatus = allDone ? 'completed' : route.status;
+                        await db.updateRouteStatus(route.id, newRouteStatus, newCompleted, newFailed);
+                        console.log(`[МАРШРУТ] ${route.route_number}: стоп ${stop.id} -> ${stopStatus}, маршрут -> ${newRouteStatus}`);
+                        break;
+                    }
+                }
+            }
+
             // Уведомление в админ-бот о смене статуса
             const order = await db.getOrderByNumber(orderId);
             if (order) {
@@ -803,8 +826,18 @@ function registerCourierRoutes(app) {
             if (order.address && YANDEX_GEO_KEY) {
                 try {
                     const geo = await geocoder.geocode(order.address);
-                    if (geo) { lat = geo.lat; lon = geo.lon; }
-                } catch (e) { console.log(`Геокодирование не удалось: ${e.message}`); }
+                    if (geo) {
+                        lat = geo.lat;
+                        lon = geo.lon;
+                        console.log(`[ГЕОКОДЕР] ${order.address} -> ${lat}, ${lon}`);
+                    } else {
+                        console.log(`[ГЕОКОДЕР] Адрес не найден: ${order.address}`);
+                    }
+                } catch (e) {
+                    console.error(`[ГЕОКОДЕР] Ошибка: ${e.message}`);
+                }
+            } else {
+                console.log(`[ГЕОКОДЕР] Пропущен: address=${!!order.address}, key=${!!YANDEX_GEO_KEY}`);
             }
 
             // Создаём маршрут из заказа
@@ -842,25 +875,27 @@ function registerCourierRoutes(app) {
                 if (lat && lon) {
                     const yandexUrl = MapLinks.yandex(order.address, lat, lon);
                     const gis2Url = MapLinks.gis2(lat, lon);
-                    mapLinks = `\nНавигация: ${yandexUrl}\n2GIS: ${gis2Url}\n`;
+                    mapLinks = `\n\nНавигация:\n${yandexUrl}\n2GIS: ${gis2Url}`;
+                    console.log(`[MAP LINKS] ${yandexUrl}`);
                 }
-                bot.sendMessage(courier.telegram_id,
+                const msgText =
                     `<b>Новый заказ!</b>\n\n` +
                     `Заказ: ${order.order_number}\n` +
                     `Адрес: ${order.address}\n` +
                     `Сумма: ${order.total} руб.\n` +
                     (order.comment ? `Комментарий: ${order.comment}\n` : '') +
                     mapLinks +
-                    `\nНажмите "Принять" для начала доставки.`,
-                    {
-                        parse_mode: 'HTML',
-                        reply_markup: {
-                            inline_keyboard: [[
-                                { text: 'Принять заказ', callback_data: `startroute_${route.id}` }
-                            ]]
-                        }
+                    `\n\nНажмите "Принять" для начала доставки.`;
+                console.log(`[КУРЬЕР] Отправка курьеру ${courier.telegram_id}: ${msgText.substring(0, 100)}...`);
+                bot.sendMessage(courier.telegram_id, msgText, {
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                        inline_keyboard: [[
+                            { text: 'Принять заказ', callback_data: `startroute_${route.id}` }
+                        ]]
                     }
-                ).catch(() => {});
+                }).then(() => console.log(`[OK] Уведомление отправлено курьеру ${courier.telegram_id}`))
+                  .catch(e => console.error(`[ОШИБКА] Уведомление курьеру: ${e.message}`));
             }
 
             // Уведомление в админ-бот о назначении курьера
