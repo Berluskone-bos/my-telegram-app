@@ -518,7 +518,8 @@
                         <td>${fmtDate(o.created_at)}</td>
                     </tr>`).join('');
 
-                const todayRoutes = routes.filter(r => r.route_date === today());
+                const todayStr = today();
+                const todayRoutes = routes.filter(r => r.route_date && r.route_date.startsWith(todayStr));
                 document.getElementById('routesTable').innerHTML = todayRoutes.length === 0
                     ? '<tr><td colspan="6" class="empty">Нет маршрутов на сегодня</td></tr>'
                     : todayRoutes.map(r => {
