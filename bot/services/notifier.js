@@ -35,21 +35,31 @@ class Notifier {
                 }
             };
 
+            console.log(`[NOTIFIER] POST ${url.hostname}${url.pathname} -> chat_id=${chatId}`);
             const req = https.request(options, (res) => {
                 let body = '';
                 res.on('data', chunk => body += chunk);
                 res.on('end', () => {
                     try {
                         const json = JSON.parse(body);
-                        if (json.ok) resolve(json.result);
-                        else reject(new Error(json.description || 'Telegram API error'));
+                        if (json.ok) {
+                            console.log(`[NOTIFIER] OK -> chat_id=${chatId}`);
+                            resolve(json.result);
+                        } else {
+                            console.error(`[NOTIFIER] Ошибка Telegram API: ${json.description}`);
+                            reject(new Error(json.description || 'Telegram API error'));
+                        }
                     } catch (e) {
+                        console.error(`[NOTIFIER] Ошибка парсинга ответа: ${body}`);
                         reject(e);
                     }
                 });
             });
 
-            req.on('error', reject);
+            req.on('error', (e) => {
+                console.error(`[NOTIFIER] Ошибка соединения: ${e.message}`);
+                reject(e);
+            });
             req.write(data);
             req.end();
         });
@@ -70,6 +80,7 @@ class Notifier {
         text += `Статус: <b>${statusText}</b>\n`;
         if (details) text += `${details}\n`;
 
+        console.log(`[NOTIFIER] Отправка клиенту ${chatId}: ${orderNumber} -> ${statusText}`);
         return this._send(this.clientBotBase, chatId, text);
     }
 

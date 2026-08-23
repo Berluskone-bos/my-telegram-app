@@ -825,7 +825,10 @@ function registerCourierRoutes(app) {
                 };
                 const label = statusLabels[status];
                 if (label) {
-                    notifier.notifyClient(order.user_id, order.order_number, label).catch(() => {});
+                    console.log(`[УВЕДОМЛЕНИЕ] Клиенту ${order.user_id}: заказ ${order.order_number} -> ${label}`);
+                    notifier.notifyClient(order.user_id, order.order_number, label)
+                        .then(() => console.log(`[OK] Уведомление отправлено клиенту ${order.user_id}`))
+                        .catch(e => console.error(`[ОШИБКА] Уведомление клиенту: ${e.message}`));
                 }
             }
 
