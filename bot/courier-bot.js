@@ -22,6 +22,7 @@ if (COURIER_BOT_TOKEN) {
 // ====== Утилиты ======
 
 function notifyAdmin(text) {
+    if (!ADMIN_CHAT_ID) return Promise.resolve();
     console.log(`[ADMIN] Отправка уведомления: ${text.substring(0, 80)}...`);
     return notifier._send(notifier.clientBotBase, ADMIN_CHAT_ID, text)
         .then(() => console.log('[OK] Уведомление отправлено админу'))
@@ -339,7 +340,9 @@ bot.onText(/\/help/, (msg) => {
 
 // ====== Обработка callback-кнопок ======
 
+if (bot) {
 bot.on('callback_query', async (query) => {
+ try {
     const chatId = query.message.chat.id;
     const data = query.data;
 
@@ -413,7 +416,12 @@ bot.on('callback_query', async (query) => {
         bot.sendMessage(chatId, `Спасибо за оценку ${rating}/5!`);
         return;
     }
+ } catch (e) {
+    console.error('[ОШИБКА] Callback query:', e.message);
+    try { bot.answerCallbackQuery(query.id, { text: 'Ошибка' }); } catch (_) {}
+ }
 });
+} // end if (bot) callback_query
 
 // ====== Старт маршрута ======
 

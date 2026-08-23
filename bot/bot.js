@@ -402,6 +402,14 @@ bot.on('polling_error', (error) => {
     console.error('[ОШИБКА] Polling:', error.code, error.message);
 });
 
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[ОШИБКА] Unhandled rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('[ОШИБКА] Uncaught exception:', err.message);
+});
+
 process.on('SIGINT', () => {
     console.log('');
     console.log('Остановка бота...');
