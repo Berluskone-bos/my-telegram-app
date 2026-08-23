@@ -506,7 +506,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id) {
                 notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Курьер приехал</b>\nОжидайте у подъезда.`
+                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Курьер приехал</b>`
                 ).catch(() => {});
             }
         } catch (e) { console.error('[DELIVER] notify error:', e.message); }
@@ -948,7 +948,7 @@ function registerCourierRoutes(app) {
                 }
             }
 
-            // Уведомление в админ-бот о смене статуса
+            // Уведомление в админ-бот + клиенту о смене статуса
             const order = await db.getOrderByNumber(orderId);
             if (order) {
                 const statusLabels = {
@@ -962,6 +962,7 @@ function registerCourierRoutes(app) {
                 };
                 const label = statusLabels[status];
                 if (label) {
+                    // Уведомление админу
                     notifyAdmin(
                         `<b>Смена статуса</b>\n\n` +
                         `Заказ: <b>${order.order_number}</b>\n` +
@@ -971,6 +972,12 @@ function registerCourierRoutes(app) {
                         `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
                         `Статус: <b>${label}</b>`
                     );
+                    // Уведомление клиенту
+                    if (order.user_id) {
+                        notifier._send(notifier.clientBotBase, order.user_id,
+                            `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>${label}</b>`
+                        ).catch(() => {});
+                    }
                 }
             }
 
@@ -1096,6 +1103,13 @@ function registerCourierRoutes(app) {
                 `Курьер: ${courier.name}\n` +
                 `Маршрут: ${route.route_number}`
             );
+
+            // Уведомление клиенту о назначении курьера
+            if (order.user_id) {
+                notifier._send(notifier.clientBotBase, order.user_id,
+                    `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${courier.name}`
+                ).catch(() => {});
+            }
 
             res.json({ success: true, route });
         } catch (e) { res.status(500).json({ error: e.message }); }

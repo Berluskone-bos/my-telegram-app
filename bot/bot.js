@@ -194,6 +194,31 @@ bot.onText(/\/orders/, (msg) => {
 });
 
 // ═══════════════════════════════════════════
+// ОБРАБОТКА РЕЙТИНГА (кнопки оценки 1-5)
+// ═══════════════════════════════════════════
+
+bot.on('callback_query', async (query) => {
+    const data = query.data;
+    if (data && data.startsWith('rate_')) {
+        const parts = data.split('_');
+        const courierId = parseInt(parts[1]);
+        const rating = parseInt(parts[3]);
+        try {
+            await db.updateCourierRating(courierId, rating);
+            bot.answerCallbackQuery(query.id, { text: `Спасибо за оценку ${rating}!` });
+            bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id
+            });
+            bot.sendMessage(query.message.chat.id, `Спасибо за оценку ${rating}/5!`);
+        } catch (e) {
+            console.error('[ОШИБКА] Рейтинг:', e.message);
+            bot.answerCallbackQuery(query.id, { text: 'Ошибка сохранения оценки' });
+        }
+    }
+});
+
+// ═══════════════════════════════════════════
 // ОБРАБОТКА ДАННЫХ ОТ MINI APP
 // ═══════════════════════════════════════════
 

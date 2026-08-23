@@ -59,7 +59,7 @@ class DBAdapter {
             SELECT dr.*, json_agg(rs.* ORDER BY rs.stop_number) as stops
             FROM delivery_routes dr
             LEFT JOIN route_stops rs ON rs.route_id = dr.id
-            WHERE dr.route_date = $1 AND dr.courier_id = $2
+            WHERE dr.route_date::date = $1::date AND dr.courier_id = $2
             GROUP BY dr.id
             ORDER BY dr.id
         `, [date, courierId]);
@@ -180,7 +180,7 @@ class DBAdapter {
                 COALESCE(SUM(cash_to_collect), 0) as cash_to_collect,
                 COALESCE(SUM(cash_collected), 0) as cash_collected
             FROM delivery_routes
-            WHERE route_date = $1
+            WHERE route_date::date = $1::date
         `, [date]);
         return { date, ...res.rows[0] };
     }
@@ -198,14 +198,14 @@ class DBAdapter {
                 COALESCE(SUM(cash_to_collect), 0) as cash_to_collect,
                 COALESCE(SUM(cash_collected), 0) as cash_collected
             FROM delivery_routes
-            WHERE route_date BETWEEN $1 AND $2
+            WHERE route_date::date BETWEEN $1::date AND $2::date
         `, [dateFrom, dateTo]);
 
         const avgTimeRes = await pool.query(`
             SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - started_at)) / 60), 0) as avg_time
             FROM delivery_routes
             WHERE status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL
-            AND route_date BETWEEN $1 AND $2
+            AND route_date::date BETWEEN $1::date AND $2::date
         `, [dateFrom, dateTo]);
 
         const couriersRes = await pool.query(`
@@ -214,7 +214,7 @@ class DBAdapter {
                 COALESCE(SUM(dr.completed), 0) as delivered,
                 COALESCE(SUM(dr.failed), 0) as failed
             FROM couriers c
-            LEFT JOIN delivery_routes dr ON dr.courier_id = c.id AND dr.route_date BETWEEN $1 AND $2
+            LEFT JOIN delivery_routes dr ON dr.courier_id = c.id AND dr.route_date::date BETWEEN $1::date AND $2::date
             GROUP BY c.id
             ORDER BY c.name
         `, [dateFrom, dateTo]);
