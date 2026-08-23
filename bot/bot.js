@@ -276,9 +276,11 @@ async function saveOrderToFile(orderId, order) {
             payment_status: 'PENDING'
         });
         console.log(`[БД] Заказ AP-${orderId} сохранён:`, result ? result.id : 'нет ID');
+        return result ? result.id : null;
     } catch (e) {
         console.error('[ОШИБКА] Сохранение заказа в БД:', e.message);
         console.error('[ОШИБКА] Стек:', e.stack);
+        return null;
     }
 }
 
@@ -286,7 +288,7 @@ async function handleNewOrder(chatId, order) {
     const orderId = Date.now().toString().slice(-6);
 
     // Сохраняем заказ в БД для курьерской системы
-    await saveOrderToFile(orderId, order);
+    const dbOrderId = await saveOrderToFile(orderId, order);
 
     const itemsList = order.items
         .map(i => `- ${i.name} (${i.volume}) x ${i.qty} = ${(i.price * i.qty).toLocaleString()} руб.`)
@@ -334,7 +336,10 @@ async function handleNewOrder(chatId, order) {
 
         try {
             const https = require('https');
-            const payload = JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: adminMsg, parse_mode: 'HTML' });
+            const payload = JSON.stringify({
+                chat_id: ADMIN_CHAT_ID, text: adminMsg, parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [[{ text: 'Отменить заказ', callback_data: `cancel_${dbOrderId || orderId}` }]] }
+            });
             const url = new URL(`https://api.telegram.org/bot${process.env.ADMIN_BOT_TOKEN}/sendMessage`);
             const options = { hostname: url.hostname, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } };
             await new Promise((resolve, reject) => {
@@ -383,7 +388,7 @@ app.post('/api/order', async (req, res) => {
     console.log('Получен заказ через API:', JSON.stringify(order, null, 2));
 
     // Сохраняем заказ в БД
-    await saveOrderToFile(orderId, order);
+    const dbOrderId = await saveOrderToFile(orderId, order);
 
     if (ADMIN_CHAT_ID && process.env.ADMIN_BOT_TOKEN) {
         const itemsList = (order.items || [])
@@ -400,7 +405,10 @@ app.post('/api/order', async (req, res) => {
 
         try {
             const https = require('https');
-            const payload = JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: msg, parse_mode: 'HTML' });
+            const payload = JSON.stringify({
+                chat_id: ADMIN_CHAT_ID, text: msg, parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [[{ text: 'Отменить заказ', callback_data: `cancel_${dbOrderId || orderId}` }]] }
+            });
             const url = new URL(`https://api.telegram.org/bot${process.env.ADMIN_BOT_TOKEN}/sendMessage`);
             const options = { hostname: url.hostname, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } };
             await new Promise((resolve, reject) => {

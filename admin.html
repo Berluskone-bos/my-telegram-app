@@ -225,6 +225,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('delivery')">Доставка</button>
         <button class="tab-btn" onclick="switchTab('shop')">Магазин</button>
+        <button class="tab-btn" onclick="switchTab('analytics')">Аналитика</button>
     </div>
 
     <!-- ==================== ВКЛАДКА: ДОСТАВКА ==================== -->
@@ -282,6 +283,12 @@
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- ==================== ВКЛАДКА: АНАЛИТИКА ==================== -->
+    <div class="tab-content" id="tab-analytics">
+        <div class="container">
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">Аналитика доставки (7 дней)</div>
@@ -294,6 +301,18 @@
                         <div class="stat-card"><div class="stat-label">Ср. время (мин)</div><div class="stat-value orange" id="analyticsTime">0</div></div>
                         <div class="stat-card"><div class="stat-label">Расстояние (км)</div><div class="stat-value" id="analyticsDistance">0</div></div>
                     </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Статистика по курьерам</div>
+                </div>
+                <div class="section-body">
+                    <table>
+                        <thead><tr><th>Курьер</th><th>Маршрутов</th><th>Доставлено</th><th>Не доставлено</th><th>Рейтинг</th></tr></thead>
+                        <tbody id="analyticsCouriersTable"><tr><td colspan="5" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -559,6 +578,22 @@
                 document.getElementById('analyticsRate').textContent = (s.success_rate || 0) + '%';
                 document.getElementById('analyticsTime').textContent = s.avg_delivery_time_min || 0;
                 document.getElementById('analyticsDistance').textContent = s.total_distance_km || 0;
+
+                // Статистика по курьерам
+                const couriers = a.couriers || [];
+                document.getElementById('analyticsCouriersTable').innerHTML = couriers.length === 0
+                    ? '<tr><td colspan="5" class="empty">Нет данных</td></tr>'
+                    : couriers.map(c => {
+                        const total = (parseInt(c.delivered)||0) + (parseInt(c.failed)||0);
+                        const rate = total > 0 ? Math.round((parseInt(c.delivered)||0) / total * 100) : 0;
+                        return `<tr>
+                            <td><strong>${c.name}</strong></td>
+                            <td>${c.routes || 0}</td>
+                            <td>${c.delivered || 0}</td>
+                            <td>${c.failed || 0}</td>
+                            <td>${c.rating ? c.rating.toFixed(1) + '/5 (' + (c.rating_count||0) + ')' : '-'}</td>
+                        </tr>`;
+                    }).join('');
             } catch (e) { console.error('Analytics error:', e); }
         }
 

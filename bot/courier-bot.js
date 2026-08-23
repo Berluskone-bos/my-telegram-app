@@ -19,11 +19,45 @@ if (COURIER_BOT_TOKEN) {
     bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: false });
 }
 
+// Админ-бот для обработки кнопок
+let adminBot;
+if (process.env.ADMIN_BOT_TOKEN) {
+    adminBot = new TelegramBot(process.env.ADMIN_BOT_TOKEN, { polling: true });
+    adminBot.on('polling_error', (e) => {
+        if (e.code !== 'ETELEGRAM') console.error('[ADMIN BOT] Polling error:', e.message);
+    });
+    adminBot.on('callback_query', async (query) => {
+        const data = query.data;
+        if (data && data.startsWith('cancel_')) {
+            const orderId = parseInt(data.split('_')[1]);
+            try {
+                await db.updateOrderStatus(orderId, 'CANCELLED');
+                const order = await db.getOrderByNumber(orderId);
+                adminBot.answerCallbackQuery(query.id, { text: 'Заказ отменён' });
+                adminBot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+                    chat_id: query.message.chat.id, message_id: query.message.message_id
+                });
+                adminBot.sendMessage(query.message.chat.id, `Заказ ${order?.order_number || orderId} отменён.`);
+                // Уведомляем клиента
+                if (order?.user_id) {
+                    notifier._send(notifier.clientBotBase, order.user_id,
+                        `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>Отменён</b>`
+                    ).catch(() => {});
+                }
+            } catch (e) {
+                console.error('[ADMIN BOT] Cancel error:', e.message);
+                adminBot.answerCallbackQuery(query.id, { text: 'Ошибка отмены' });
+            }
+        }
+    });
+    console.log('[OK] Админ-бот запущен (polling)');
+}
+
 // ====== Утилиты ======
 
-function notifyAdmin(text) {
+function notifyAdmin(text, buttons = null) {
     if (!ADMIN_CHAT_ID) return Promise.resolve();
-    return notifier._send(notifier.adminBotBase, ADMIN_CHAT_ID, text)
+    return notifier._send(notifier.adminBotBase, ADMIN_CHAT_ID, text, buttons)
         .catch(e => console.error(`[ОШИБКА] Уведомление админу: ${e.message}`));
 }
 
@@ -963,6 +997,9 @@ function registerCourierRoutes(app) {
                 const label = statusLabels[status];
                 if (label) {
                     // Уведомление админу
+                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED'
+                        ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
+                        : null;
                     notifyAdmin(
                         `<b>Смена статуса</b>\n\n` +
                         `Заказ: <b>${order.order_number}</b>\n` +
@@ -970,7 +1007,8 @@ function registerCourierRoutes(app) {
                         `Телефон: ${order.phone || '-'}\n` +
                         `Адрес: ${order.address || '-'}\n` +
                         `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
-                        `Статус: <b>${label}</b>`
+                        `Статус: <b>${label}</b>`,
+                        cancelBtn
                     );
                     // Уведомление клиенту
                     if (order.user_id) {
@@ -1101,7 +1139,8 @@ function registerCourierRoutes(app) {
                 `Клиент: ${order.user_name || '-'}\n` +
                 `Адрес: ${order.address || '-'}\n` +
                 `Курьер: ${courier.name}\n` +
-                `Маршрут: ${route.route_number}`
+                `Маршрут: ${route.route_number}`,
+                [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
             );
 
             // Уведомление клиенту о назначении курьера
