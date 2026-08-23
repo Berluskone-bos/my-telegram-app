@@ -20,17 +20,6 @@ if (COURIER_BOT_TOKEN) {
     bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
 }
 
-// Основной бот для отправки сообщений клиентам (без polling)
-let clientBot;
-if (process.env.BOT_TOKEN) {
-    try {
-        clientBot = new TelegramBot(process.env.BOT_TOKEN, { polling: false });
-        console.log('[OK] ClientBot (для уведомлений клиентам) инициализирован');
-    } catch (e) {
-        console.error('[ОШИБКА] ClientBot:', e.message);
-    }
-}
-
 // Админ-бот для уведомлений руководства (без polling)
 let adminBot;
 if (ADMIN_BOT_TOKEN) {
@@ -451,11 +440,10 @@ async function handleStartRoute(chatId, routeId, user) {
 
     const stops = route.stops || [];
     for (const stop of stops) {
-        if (stop.status === 'pending' && stop.client_chat_id && clientBot) {
+        if (stop.status === 'pending' && stop.client_chat_id) {
             const timeText = stop.time_window ? `, ожидайте ${stop.time_window}` : '';
-            clientBot.sendMessage(stop.client_chat_id,
-                `<b>Курьер в пути!</b>\n\nЗаказ: ${stop.order_number || ''}\nАдрес: ${stop.address}\nКурьер уже выехал к вам${timeText}.\n\nОжидайте доставку.`,
-                { parse_mode: 'HTML' }
+            notifier.notifyClient(stop.client_chat_id, stop.order_number, 'shipped',
+                `Курьер уже выехал к вам${timeText}. Ожидайте доставку.`
             ).catch(() => {});
         }
     }
@@ -525,34 +513,19 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     notifyAdmin(`[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`);
 
-    if (stop.client_chat_id && clientBot) {
+    if (stop.client_chat_id) {
         if (status === 'delivered') {
             // Благодарность + рейтинг через основной бот
-            clientBot.sendMessage(stop.client_chat_id,
-                `<b>Заказ ${stop.order_number || ''} доставлен!</b>\n\nСпасибо за покупку в АВТОПРОМОЙЛ!\n\nПожалуйста, оцените доставку:`,
-                {
-                    parse_mode: 'HTML',
-                    reply_markup: {
-                        inline_keyboard: [[
-                            { text: '1', callback_data: `rate_${route.courier_id}_${stop.id}_1` },
-                            { text: '2', callback_data: `rate_${route.courier_id}_${stop.id}_2` },
-                            { text: '3', callback_data: `rate_${route.courier_id}_${stop.id}_3` },
-                            { text: '4', callback_data: `rate_${route.courier_id}_${stop.id}_4` },
-                            { text: '5', callback_data: `rate_${route.courier_id}_${stop.id}_5` }
-                        ]]
-                    }
-                }
-            ).catch(() => {});
+            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'delivered')
+                .catch(() => {});
 
             // Обновляем статус заказа на COMPLETED
             if (stop.order_id) {
                 db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
             }
         } else {
-            clientBot.sendMessage(stop.client_chat_id,
-                `<b>Заказ ${stop.order_number || ''}</b>\nНе удалось доставить. Причина: ${reason || 'Не указана'}`,
-                { parse_mode: 'HTML' }
-            ).catch(() => {});
+            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'failed', reason)
+                .catch(() => {});
         }
     }
 }
@@ -783,7 +756,7 @@ function registerCourierRoutes(app) {
             const orderId = parseInt(req.params.id);
             await db.updateOrderStatus(orderId, status);
 
-            // Уведомление клиенту через основной бот
+            // Уведомление клиенту через основной бот (notifier)
             const order = await db.getOrderByNumber(orderId);
             if (order && order.user_id) {
                 const statusLabels = {
@@ -795,13 +768,11 @@ function registerCourierRoutes(app) {
                     'CANCELLED': 'отменён'
                 };
                 const label = statusLabels[status];
-                if (label && clientBot) {
+                if (label) {
                     console.log(`[УВЕДОМЛЕНИЕ] Клиенту ${order.user_id}: ${order.order_number} -> ${label}`);
-                    clientBot.sendMessage(order.user_id,
-                        `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>${label}</b>`,
-                        { parse_mode: 'HTML' }
-                    ).then(() => console.log(`[OK] Уведомление отправлено клиенту ${order.user_id}`))
-                     .catch(e => console.error(`[ОШИБКА] Уведомление клиенту: ${e.message}`));
+                    notifier.notifyClient(order.user_id, order.order_number, label)
+                        .then(() => console.log(`[OK] Уведомление отправлено клиенту ${order.user_id}`))
+                        .catch(e => console.error(`[ОШИБКА] Уведомление клиенту: ${e.message}`));
                 }
             }
 
@@ -885,12 +856,7 @@ function registerCourierRoutes(app) {
             }
 
             // Уведомляем клиента через основной бот
-            if (clientBot && order.user_id) {
-                clientBot.sendMessage(order.user_id,
-                    `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>передан курьеру</b>\nКурьер уже выезжает к вам!`,
-                    { parse_mode: 'HTML' }
-                ).catch(() => {});
-            }
+            notifier.notifyClient(order.user_id, order.order_number, 'shipped').catch(() => {});
 
             res.json({ success: true, route });
         } catch (e) { res.status(500).json({ error: e.message }); }
