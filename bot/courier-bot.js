@@ -17,6 +17,9 @@ const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, AD
 let bot;
 if (COURIER_BOT_TOKEN) {
     bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
+    bot.on('polling_error', (error) => {
+        console.error('[COURIER ОШИБКА] Polling:', error.code, error.message);
+    });
 }
 
 // ====== Утилиты ======
