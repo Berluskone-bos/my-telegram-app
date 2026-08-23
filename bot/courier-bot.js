@@ -424,9 +424,8 @@ async function handleStartRoute(chatId, routeId, user) {
     for (const stop of stops) {
         if (stop.status === 'pending' && stop.client_chat_id) {
             const timeText = stop.time_window ? `, ожидайте ${stop.time_window}` : '';
-            bot.sendMessage(stop.client_chat_id,
-                `<b>Курьер в пути!</b>\n\nЗаказ: ${stop.order_number || ''}\nАдрес: ${stop.address}\nКурьер уже выехал к вам${timeText}.\n\nОжидайте доставку.`,
-                { parse_mode: 'HTML' }
+            notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                `<b>Курьер в пути!</b>\n\nЗаказ: ${stop.order_number || ''}\nАдрес: ${stop.address}\nКурьер уже выехал к вам${timeText}.\n\nОжидайте доставку.`
             ).catch(() => {});
         }
     }
@@ -500,23 +499,26 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     if (stop.client_chat_id) {
         if (status === 'delivered') {
-            bot.sendMessage(stop.client_chat_id,
+            // Благодарность + рейтинг через основной бот
+            notifier._send(notifier.clientBotBase, stop.client_chat_id,
                 `<b>Заказ ${stop.order_number || ''} доставлен!</b>\n\nСпасибо за покупку в АВТОПРОМОЙЛ!\n\nПожалуйста, оцените доставку:`,
-                {
-                    parse_mode: 'HTML',
-                    reply_markup: {
-                        inline_keyboard: [[
-                            { text: '1', callback_data: `rate_${route.courier_id}_${stop.id}_1` },
-                            { text: '2', callback_data: `rate_${route.courier_id}_${stop.id}_2` },
-                            { text: '3', callback_data: `rate_${route.courier_id}_${stop.id}_3` },
-                            { text: '4', callback_data: `rate_${route.courier_id}_${stop.id}_4` },
-                            { text: '5', callback_data: `rate_${route.courier_id}_${stop.id}_5` }
-                        ]]
-                    }
-                }
+                [[
+                    { text: '1', callback_data: `rate_${route.courier_id}_${stop.id}_1` },
+                    { text: '2', callback_data: `rate_${route.courier_id}_${stop.id}_2` },
+                    { text: '3', callback_data: `rate_${route.courier_id}_${stop.id}_3` },
+                    { text: '4', callback_data: `rate_${route.courier_id}_${stop.id}_4` },
+                    { text: '5', callback_data: `rate_${route.courier_id}_${stop.id}_5` }
+                ]]
             ).catch(() => {});
+
+            // Обновляем статус заказа на COMPLETED
+            if (stop.order_id) {
+                db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
+            }
         } else {
-            bot.sendMessage(stop.client_chat_id, `<b>Заказ ${stop.order_number || ''}</b>\nНе удалось доставить. Причина: ${reason || 'Не указана'}`, { parse_mode: 'HTML' }).catch(() => {});
+            notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                `<b>Заказ ${stop.order_number || ''}</b>\nНе удалось доставить. Причина: ${reason || 'Не указана'}`
+            ).catch(() => {});
         }
     }
 }
@@ -742,27 +744,25 @@ function registerCourierRoutes(app) {
     app.put('/api/orders/:id/status', async (req, res) => {
         try {
             const { status } = req.body;
-            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'CANCELLED'];
+            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
             const orderId = parseInt(req.params.id);
             await db.updateOrderStatus(orderId, status);
 
-            // Уведомление клиенту о смене статуса
+            // Уведомление клиенту через ОСНОВНОЙ бот
             const order = await db.getOrderByNumber(orderId);
             if (order && order.user_id) {
                 const statusLabels = {
-                    'CONFIRMED': 'Подтверждён',
-                    'ASSEMBLING': 'Собирается',
-                    'SHIPPING': 'Передан в доставку',
-                    'DELIVERED': 'Доставлен',
-                    'CANCELLED': 'Отменён'
+                    'CONFIRMED': 'confirmed',
+                    'ASSEMBLING': 'assembling',
+                    'SHIPPING': 'shipped',
+                    'DELIVERED': 'delivered',
+                    'COMPLETED': 'delivered',
+                    'CANCELLED': 'cancelled'
                 };
                 const label = statusLabels[status];
-                if (label && bot) {
-                    bot.sendMessage(order.user_id,
-                        `<b>Заказ ${order.order_number || ''}</b>\n\nСтатус: <b>${label}</b>`,
-                        { parse_mode: 'HTML' }
-                    ).catch(() => {});
+                if (label) {
+                    notifier.notifyClient(order.user_id, order.order_number, label).catch(() => {});
                 }
             }
 
@@ -782,11 +782,18 @@ function registerCourierRoutes(app) {
     app.post('/api/orders/:id/assign', async (req, res) => {
         try {
             const orderId = parseInt(req.params.id);
-            const { courier_id } = req.body;
-            if (!courier_id) return res.status(400).json({ error: 'courier_id required' });
+            let { courier_id } = req.body;
 
             const order = await db.getOrderByNumber(orderId);
             if (!order) return res.status(404).json({ error: 'Order not found' });
+
+            // Автоназначение если курьер один
+            if (!courier_id) {
+                const allCouriers = await db.getCouriers();
+                const active = allCouriers.filter(c => c.is_active);
+                if (active.length === 1) courier_id = active[0].id;
+                else return res.status(400).json({ error: 'courier_id required' });
+            }
 
             const courier = (await db.getCouriers()).find(c => c.id === courier_id);
             if (!courier) return res.status(404).json({ error: 'Courier not found' });
@@ -818,21 +825,28 @@ function registerCourierRoutes(app) {
             // Обновляем статус заказа
             await db.updateOrderStatus(orderId, 'SHIPPING');
 
-            // Уведомляем курьера
+            // Уведомляем курьера через курьерский бот с кнопкой "Принять"
             if (bot && courier.telegram_id) {
                 bot.sendMessage(courier.telegram_id,
-                    `<b>Новый маршрут!</b>\n\nМаршрут: ${route.route_number}\nЗаказ: ${order.order_number}\nАдрес: ${order.address}\n\nОтправьте /route для просмотра.`,
-                    { parse_mode: 'HTML' }
+                    `<b>Новый заказ!</b>\n\n` +
+                    `Заказ: ${order.order_number}\n` +
+                    `Адрес: ${order.address}\n` +
+                    `Сумма: ${order.total} руб.\n` +
+                    (order.comment ? `Комментарий: ${order.comment}\n` : '') +
+                    `\nНажмите "Принять" для начала доставки.`,
+                    {
+                        parse_mode: 'HTML',
+                        reply_markup: {
+                            inline_keyboard: [[
+                                { text: 'Принять заказ', callback_data: `startroute_${route.id}` }
+                            ]]
+                        }
+                    }
                 ).catch(() => {});
             }
 
-            // Уведомляем клиента
-            if (bot && order.user_id) {
-                bot.sendMessage(order.user_id,
-                    `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>Передан в доставку</b>\nКурьер уже выезжает к вам!`,
-                    { parse_mode: 'HTML' }
-                ).catch(() => {});
-            }
+            // Уведомляем клиента через основной бот
+            notifier.notifyClient(order.user_id, order.order_number, 'shipped').catch(() => {});
 
             res.json({ success: true, route });
         } catch (e) { res.status(500).json({ error: e.message }); }
