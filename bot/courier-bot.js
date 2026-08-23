@@ -4,7 +4,6 @@ const Geocoder = require('./services/geocoder');
 const MapLinks = require('./services/map-links');
 const RouteOptimizer = require('./services/route-optimizer');
 const Notifier = require('./services/notifier');
-const Dispatcher = require('./services/dispatcher');
 const db = require('./db-adapter');
 
 // Конфигурация
