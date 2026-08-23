@@ -252,6 +252,94 @@ class DBAdapter {
             }))
         };
     }
+
+    // Заказы — смена статуса
+    async updateOrderStatus(orderId, status) {
+        await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, orderId]);
+    }
+
+    // Товары
+    async getProducts() {
+        const res = await pool.query('SELECT * FROM products WHERE active = true ORDER BY id');
+        return res.rows;
+    }
+
+    async getAllProducts() {
+        const res = await pool.query('SELECT * FROM products ORDER BY id');
+        return res.rows;
+    }
+
+    async createProduct(p) {
+        const res = await pool.query(
+            `INSERT INTO products (brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac, price, old_price, stock, min_stock, image, description, specs, active, is_new, is_popular)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+            [p.brand, p.category, p.name, p.full_name || p.name, p.series, p.sku,
+             p.viscosity, p.oil_type, p.volume, p.api_std || p.api, p.acea, p.ilsac,
+             p.price, p.old_price, p.stock || 0, p.min_stock || 3,
+             p.image || p.main_image, p.description, JSON.stringify(p.specs || {}),
+             p.active !== false, p.is_new || false, p.is_popular || false]
+        );
+        return res.rows[0];
+    }
+
+    async updateProduct(id, p) {
+        const fields = [];
+        const values = [];
+        let idx = 1;
+        for (const [key, val] of Object.entries(p)) {
+            if (key === 'id') continue;
+            fields.push(`${key} = $${idx}`);
+            values.push(typeof val === 'object' ? JSON.stringify(val) : val);
+            idx++;
+        }
+        values.push(id);
+        const res = await pool.query(`UPDATE products SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`, values);
+        return res.rows[0];
+    }
+
+    async seedProductsFromCatalog() {
+        const count = await pool.query('SELECT COUNT(*) FROM products');
+        if (parseInt(count.rows[0].count) > 0) return;
+
+        const fs = require('fs');
+        const path = require('path');
+        const catalogPath = path.join(__dirname, '..', 'data', 'catalog.json');
+        if (!fs.existsSync(catalogPath)) return;
+
+        try {
+            const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf-8'));
+            const products = catalog.products || [];
+            for (const p of products) {
+                await this.createProduct({
+                    brand: (catalog.brands || []).find(b => b.id === p.brand_id)?.name || '',
+                    category: p.category_id,
+                    name: p.name,
+                    full_name: p.full_name,
+                    series: p.series,
+                    sku: p.sku,
+                    viscosity: p.viscosity,
+                    oil_type: p.oil_type,
+                    volume: p.volume,
+                    api_std: p.api,
+                    acea: p.acea,
+                    ilsac: p.ilsac,
+                    price: p.price,
+                    old_price: p.old_price || null,
+                    stock: p.stock || 0,
+                    min_stock: p.min_stock || 3,
+                    image: p.main_image,
+                    description: p.description,
+                    specs: p.specs || {},
+                    active: p.active !== false,
+                    is_new: p.is_new || false,
+                    is_popular: p.is_popular || false
+                });
+            }
+            console.log(`[OK] Засеяно ${products.length} товаров из catalog.json`);
+        } catch (e) {
+            console.error('[ОШИБКА] Сидирование товаров:', e.message);
+        }
+    }
 }
 
 module.exports = new DBAdapter();

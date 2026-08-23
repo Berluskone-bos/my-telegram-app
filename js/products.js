@@ -4,13 +4,44 @@ const Products = {
     categories: [],
 
     async load() {
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:3001'
+            : 'https://gulf-bot-production.up.railway.app';
+
+        try {
+            const response = await fetch(`${API_BASE}/api/products`);
+            if (response.ok) {
+                const products = await response.json();
+                if (products.length > 0) {
+                    this.data = products.map(p => ({
+                        ...p,
+                        category_id: p.category,
+                        main_image: p.image || p.main_image,
+                        api: p.api_std || p.api,
+                        in_stock: p.stock > 0
+                    }));
+                    this.categories = [
+                        { id: 'motor', name: 'Моторные масла', icon: 'droplets' },
+                        { id: 'transmission', name: 'Трансмиссионные масла', icon: 'cog' },
+                        { id: 'filter', name: 'Фильтры', icon: 'filter' },
+                        { id: 'fluid', name: 'Технические жидкости', icon: 'flask-conical' },
+                        { id: 'additive', name: 'Присадки', icon: 'beaker' },
+                        { id: 'special', name: 'Масла для спецтехники', icon: 'truck' }
+                    ];
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('API недоступен, загружаем из catalog.json:', e.message);
+        }
+
         try {
             const response = await fetch('data/catalog.json');
             const catalog = await response.json();
             this.data = catalog.products;
             this.categories = catalog.categories;
         } catch (e) {
-            console.error('Ошибка загрузка каталога:', e);
+            console.error('Ошибка загрузки каталога:', e);
             this.data = [];
             this.categories = [];
         }

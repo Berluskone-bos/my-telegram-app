@@ -375,7 +375,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // Инициализация БД и запуск сервера
-db.init().then(() => {
+db.init().then(async () => {
+    await db.seedProductsFromCatalog();
     app.listen(PORT, () => {
         console.log(`Веб-сервер запущен: http://localhost:${PORT}`);
     console.log('');

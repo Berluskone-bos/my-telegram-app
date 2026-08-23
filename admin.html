@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АВТОПРОМОЙЛ — Диспетчер доставки</title>
+    <title>АВТОПРОМОЙЛ — Админ-панель</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -21,6 +21,8 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+        /* Header */
         .header {
             background: var(--navy);
             color: var(--white);
@@ -31,6 +33,37 @@
         }
         .header h1 { font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 700; }
         .header-date { font-size: 13px; opacity: 0.7; }
+
+        /* Tabs */
+        .tabs {
+            background: var(--white);
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            gap: 0;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .tab-btn {
+            padding: 14px 28px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--muted);
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tab-btn:hover { color: var(--navy); }
+        .tab-btn.active {
+            color: var(--cyan);
+            border-bottom-color: var(--cyan);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Layout */
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
         .stat-card {
@@ -44,6 +77,8 @@
         .stat-value.green { color: var(--green); }
         .stat-value.orange { color: var(--orange); }
         .stat-value.red { color: var(--red); }
+
+        /* Sections */
         .section { background: var(--white); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; }
         .section-header {
             padding: 14px 20px;
@@ -54,9 +89,14 @@
         }
         .section-title { font-family: 'Montserrat', sans-serif; font-size: 15px; font-weight: 700; color: var(--navy); }
         .section-body { padding: 16px 20px; }
+
+        /* Tables */
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th { background: var(--bg); padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted); }
         td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: rgba(0,175,199,0.03); }
+
+        /* Badges */
         .badge {
             display: inline-block;
             padding: 2px 8px;
@@ -69,6 +109,8 @@
         .badge-red { background: rgba(220,38,38,0.1); color: var(--red); }
         .badge-blue { background: rgba(0,175,199,0.1); color: var(--cyan); }
         .badge-grey { background: rgba(107,114,128,0.1); color: var(--muted); }
+
+        /* Buttons */
         .btn {
             padding: 8px 16px;
             border-radius: 8px;
@@ -81,131 +123,351 @@
         .btn-primary { background: var(--cyan); color: var(--white); }
         .btn-primary:hover { background: var(--light-cyan); }
         .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-danger { background: var(--red); color: var(--white); }
+        .btn-danger:hover { opacity: 0.85; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
+
+        /* Status select */
+        .status-select {
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            background: var(--white);
+        }
+
+        /* Empty state */
         .empty { text-align: center; padding: 40px; color: var(--muted); }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .modal-header h3 { font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700; color: var(--navy); }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--muted);
+            padding: 4px;
+        }
+        .modal-body { padding: 20px 24px; }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        /* Form */
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+        }
+        .form-textarea { resize: vertical; min-height: 80px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Responsive */
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .tab-btn { padding: 12px 16px; font-size: 13px; }
+            .form-row { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Диспетчер доставки</h1>
+        <h1>АВТОПРОМОЙЛ — Админ-панель</h1>
         <div class="header-date" id="currentDate"></div>
     </div>
 
-    <div class="container">
-        <div class="stats-grid" id="statsGrid">
-            <div class="stat-card">
-                <div class="stat-label">Маршрутов</div>
-                <div class="stat-value" id="statRoutes">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Доставлено</div>
-                <div class="stat-value green" id="statDelivered">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">В пути</div>
-                <div class="stat-value orange" id="statPending">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Не доставлено</div>
-                <div class="stat-value red" id="statFailed">0</div>
-            </div>
-        </div>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('delivery')">Доставка</button>
+        <button class="tab-btn" onclick="switchTab('shop')">Магазин</button>
+    </div>
 
-        <div class="section">
-            <div class="section-header">
-                <div class="section-title">Заказы без маршрута</div>
-                <button class="btn btn-primary btn-sm" onclick="loadData()">Обновить</button>
+    <!-- ==================== ВКЛАДКА: ДОСТАВКА ==================== -->
+    <div class="tab-content active" id="tab-delivery">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Маршрутов</div>
+                    <div class="stat-value" id="statRoutes">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Доставлено</div>
+                    <div class="stat-value green" id="statDelivered">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">В пути</div>
+                    <div class="stat-value orange" id="statPending">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Не доставлено</div>
+                    <div class="stat-value red" id="statFailed">0</div>
+                </div>
             </div>
-            <div class="section-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Заказ</th>
-                            <th>Клиент</th>
-                            <th>Адрес</th>
-                            <th>Сумма</th>
-                            <th>Дата</th>
-                        </tr>
-                    </thead>
-                    <tbody id="unassignedTable">
-                        <tr><td colspan="5" class="empty">Загрузка...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <div class="section">
-            <div class="section-header">
-                <div class="section-title">Маршруты сегодня</div>
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Заказы без маршрута</div>
+                    <button class="btn btn-primary btn-sm" onclick="loadDeliveryData()">Обновить</button>
+                </div>
+                <div class="section-body">
+                    <table>
+                        <thead><tr><th>Заказ</th><th>Клиент</th><th>Адрес</th><th>Сумма</th><th>Дата</th></tr></thead>
+                        <tbody id="unassignedTable"><tr><td colspan="5" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="section-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Маршрут</th>
-                            <th>Курьер</th>
-                            <th>Остановок</th>
-                            <th>Доставлено</th>
-                            <th>Статус</th>
-                            <th>Наличные</th>
-                        </tr>
-                    </thead>
-                    <tbody id="routesTable">
-                        <tr><td colspan="6" class="empty">Загрузка...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <div class="section">
-            <div class="section-header">
-                <div class="section-title">Курьеры</div>
+            <div class="section">
+                <div class="section-header"><div class="section-title">Маршруты сегодня</div></div>
+                <div class="section-body">
+                    <table>
+                        <thead><tr><th>Маршрут</th><th>Курьер</th><th>Остановок</th><th>Доставлено</th><th>Статус</th><th>Наличные</th></tr></thead>
+                        <tbody id="routesTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="section-body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Имя</th>
-                            <th>Телефон</th>
-                            <th>Транспорт</th>
-                            <th>Telegram</th>
-                            <th>Рейтинг</th>
-                            <th>Статус</th>
-                        </tr>
-                    </thead>
-                    <tbody id="couriersTable">
-                        <tr><td colspan="6" class="empty">Загрузка...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <div class="section">
-            <div class="section-header">
-                <div class="section-title">Аналитика доставки (7 дней)</div>
-                <button class="btn btn-primary btn-sm" onclick="loadAnalytics()">Обновить</button>
+            <div class="section">
+                <div class="section-header"><div class="section-title">Курьеры</div></div>
+                <div class="section-body">
+                    <table>
+                        <thead><tr><th>Имя</th><th>Телефон</th><th>Транспорт</th><th>Telegram</th><th>Рейтинг</th><th>Статус</th></tr></thead>
+                        <tbody id="couriersTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="section-body">
-                <div class="stats-grid" id="analyticsGrid">
-                    <div class="stat-card">
-                        <div class="stat-label">Доставок</div>
-                        <div class="stat-value" id="analyticsDelivered">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Успешность</div>
-                        <div class="stat-value green" id="analyticsRate">0%</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Ср. время (мин)</div>
-                        <div class="stat-value orange" id="analyticsTime">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Расстояние (км)</div>
-                        <div class="stat-value" id="analyticsDistance">0</div>
+
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Аналитика доставки (7 дней)</div>
+                    <button class="btn btn-primary btn-sm" onclick="loadAnalytics()">Обновить</button>
+                </div>
+                <div class="section-body">
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-label">Доставок</div><div class="stat-value" id="analyticsDelivered">0</div></div>
+                        <div class="stat-card"><div class="stat-label">Успешность</div><div class="stat-value green" id="analyticsRate">0%</div></div>
+                        <div class="stat-card"><div class="stat-label">Ср. время (мин)</div><div class="stat-value orange" id="analyticsTime">0</div></div>
+                        <div class="stat-card"><div class="stat-label">Расстояние (км)</div><div class="stat-value" id="analyticsDistance">0</div></div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ВКЛАДКА: МАГАЗИН ==================== -->
+    <div class="tab-content" id="tab-shop">
+        <div class="container">
+            <div class="stats-grid" id="shopStatsGrid">
+                <div class="stat-card"><div class="stat-label">Заказов сегодня</div><div class="stat-value" id="shopOrdersToday">0</div></div>
+                <div class="stat-card"><div class="stat-label">Выручка сегодня</div><div class="stat-value green" id="shopRevenueToday">0</div></div>
+                <div class="stat-card"><div class="stat-label">Товаров в каталоге</div><div class="stat-value" id="shopProductsCount">0</div></div>
+                <div class="stat-card"><div class="stat-label">Клиентов</div><div class="stat-value" id="shopCustomersCount">0</div></div>
+            </div>
+
+            <!-- Заказы магазина -->
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Заказы</div>
+                    <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
+                </div>
+                <div class="section-body">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Номер</th>
+                                <th>Клиент</th>
+                                <th>Телефон</th>
+                                <th>Адрес</th>
+                                <th>Сумма</th>
+                                <th>Статус</th>
+                                <th>Дата</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shopOrdersTable"><tr><td colspan="7" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Товары -->
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Товары</div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="openProductModal()">Добавить товар</button>
+                        <button class="btn btn-outline btn-sm" onclick="loadShopProducts()">Обновить</button>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Название</th>
+                                <th>Категория</th>
+                                <th>Цена</th>
+                                <th>Остаток</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shopProductsTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Клиенты -->
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Клиенты</div>
+                    <button class="btn btn-outline btn-sm" onclick="loadShopCustomers()">Обновить</button>
+                </div>
+                <div class="section-body">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Имя</th>
+                                <th>Телефон</th>
+                                <th>Telegram</th>
+                                <th>Заказов</th>
+                                <th>Сумма</th>
+                                <th>Последний заказ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shopCustomersTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: детали заказа -->
+    <div class="modal-overlay" id="orderModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="orderModalTitle">Заказ</h3>
+                <button class="modal-close" onclick="closeModal('orderModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="orderModalBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('orderModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: добавление товара -->
+    <div class="modal-overlay" id="productModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Добавить товар</h3>
+                <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="productForm" onsubmit="saveProduct(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Бренд</label>
+                            <input class="form-input" name="brand" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Категория</label>
+                            <select class="form-select" name="category" required>
+                                <option value="motor">Моторные масла</option>
+                                <option value="transmission">Трансмиссионные масла</option>
+                                <option value="filter">Фильтры</option>
+                                <option value="additive">Присадки и жидкости</option>
+                                <option value="coolant">Антифризы</option>
+                                <option value="brake">Тормозные жидкости</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Название</label>
+                        <input class="form-input" name="name" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Артикул</label>
+                            <input class="form-input" name="sku">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Объём</label>
+                            <input class="form-input" name="volume" placeholder="4 л">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Цена (руб.)</label>
+                            <input class="form-input" type="number" name="price" required min="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Старая цена</label>
+                            <input class="form-input" type="number" name="old_price" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Остаток</label>
+                            <input class="form-input" type="number" name="stock" value="0" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Мин. остаток</label>
+                            <input class="form-input" type="number" name="min_stock" value="3" min="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Краткое описание</label>
+                        <textarea class="form-textarea" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">URL изображения</label>
+                        <input class="form-input" name="image" placeholder="img/oils/...">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('productModal')">Отмена</button>
+                <button class="btn btn-primary" onclick="document.getElementById('productForm').requestSubmit()">Сохранить</button>
             </div>
         </div>
     </div>
@@ -215,100 +477,257 @@
             ? 'http://localhost:3001'
             : window.location.origin;
 
-        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        });
+        // ====== Табы ======
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            event.target.classList.add('active');
 
-        async function loadData() {
+            if (name === 'shop') loadShopData();
+        }
+
+        // ====== Модальные окна ======
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+        // ====== ДОСТАВКА ======
+        async function loadDeliveryData() {
             try {
                 const [stats, unassigned, routes, couriers] = await Promise.all([
-                    fetch(`${API_BASE}/api/dispatch/stats?date=${new Date().toISOString().split('T')[0]}`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/dispatch/stats?date=${today()}`).then(r => r.json()),
                     fetch(`${API_BASE}/api/dispatch/unassigned-orders`).then(r => r.json()),
                     fetch(`${API_BASE}/api/routes`).then(r => r.json()),
                     fetch(`${API_BASE}/api/couriers`).then(r => r.json())
                 ]);
 
-                // Статистика
                 document.getElementById('statRoutes').textContent = stats.total_routes || 0;
                 document.getElementById('statDelivered').textContent = stats.delivered || 0;
                 document.getElementById('statPending').textContent = stats.pending || 0;
                 document.getElementById('statFailed').textContent = stats.failed || 0;
 
-                // Заказы без маршрута
-                const unassignedHtml = unassigned.length === 0
+                document.getElementById('unassignedTable').innerHTML = unassigned.length === 0
                     ? '<tr><td colspan="5" class="empty">Нет заказов без маршрута</td></tr>'
-                    : unassigned.map(o => `
-                        <tr>
-                            <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
-                            <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
-                            <td>${o.address || '-'}</td>
-                            <td>${(o.total || 0).toLocaleString()} руб.</td>
-                            <td>${o.created_at ? new Date(o.created_at).toLocaleDateString('ru-RU') : '-'}</td>
-                        </tr>
-                    `).join('');
-                document.getElementById('unassignedTable').innerHTML = unassignedHtml;
+                    : unassigned.map(o => `<tr>
+                        <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
+                        <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
+                        <td>${o.address || '-'}</td>
+                        <td>${(o.total || 0).toLocaleString()} руб.</td>
+                        <td>${fmtDate(o.created_at)}</td>
+                    </tr>`).join('');
 
-                // Маршруты
-                const today = new Date().toISOString().split('T')[0];
-                const todayRoutes = routes.filter(r => r.route_date === today);
-                const routesHtml = todayRoutes.length === 0
+                const todayRoutes = routes.filter(r => r.route_date === today());
+                document.getElementById('routesTable').innerHTML = todayRoutes.length === 0
                     ? '<tr><td colspan="6" class="empty">Нет маршрутов на сегодня</td></tr>'
                     : todayRoutes.map(r => {
-                        const courier = couriers.find(c => c.id === r.courier_id);
-                        const statusClass = r.status === 'completed' ? 'badge-green' :
-                                          r.status === 'in_progress' ? 'badge-orange' :
-                                          r.status === 'assigned' ? 'badge-blue' : 'badge-grey';
-                        return `
-                            <tr>
-                                <td><strong>${r.route_number}</strong></td>
-                                <td>${courier ? courier.name : '-'}</td>
-                                <td>${r.total_orders || 0}</td>
-                                <td>${r.completed || 0} / ${r.total_orders || 0}</td>
-                                <td><span class="badge ${statusClass}">${r.status}</span></td>
-                                <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
-                            </tr>
-                        `;
-                    }).join('');
-                document.getElementById('routesTable').innerHTML = routesHtml;
-
-                // Курьеры
-                const couriersHtml = couriers.length === 0
-                    ? '<tr><td colspan="6" class="empty">Нет зарегистрированных курьеров</td></tr>'
-                    : couriers.map(c => {
-                        const rating = c.rating ? `${c.rating}/5 (${c.rating_count || 0})` : '-';
-                        return `
-                        <tr>
-                            <td><strong>${c.name}</strong></td>
-                            <td>${c.phone || '-'}</td>
-                            <td>${c.vehicle_type || '-'}</td>
-                            <td>@${c.telegram_user || '-'}</td>
-                            <td>${rating}</td>
-                            <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Активен' : 'Неактивен'}</span></td>
+                        const c = couriers.find(x => x.id === r.courier_id);
+                        const sc = r.status === 'completed' ? 'badge-green' : r.status === 'in_progress' ? 'badge-orange' : r.status === 'assigned' ? 'badge-blue' : 'badge-grey';
+                        return `<tr>
+                            <td><strong>${r.route_number}</strong></td>
+                            <td>${c ? c.name : '-'}</td>
+                            <td>${r.total_orders || 0}</td>
+                            <td>${r.completed || 0} / ${r.total_orders || 0}</td>
+                            <td><span class="badge ${sc}">${r.status}</span></td>
+                            <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
                         </tr>`;
                     }).join('');
-                document.getElementById('couriersTable').innerHTML = couriersHtml;
 
-            } catch (e) {
-                console.error('Ошибка загрузки данных:', e);
-            }
+                document.getElementById('couriersTable').innerHTML = couriers.length === 0
+                    ? '<tr><td colspan="6" class="empty">Нет курьеров</td></tr>'
+                    : couriers.map(c => `<tr>
+                        <td><strong>${c.name}</strong></td>
+                        <td>${c.phone || '-'}</td>
+                        <td>${c.vehicle_type || '-'}</td>
+                        <td>@${c.telegram_user || '-'}</td>
+                        <td>${c.rating ? c.rating + '/5 (' + (c.rating_count||0) + ')' : '-'}</td>
+                        <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Активен' : 'Неактивен'}</span></td>
+                    </tr>`).join('');
+            } catch (e) { console.error('Delivery load error:', e); }
         }
 
         async function loadAnalytics() {
             try {
-                const analytics = await fetch(`${API_BASE}/api/analytics`).then(r => r.json());
-                const s = analytics.summary || {};
+                const a = await fetch(`${API_BASE}/api/analytics`).then(r => r.json());
+                const s = a.summary || {};
                 document.getElementById('analyticsDelivered').textContent = s.delivered || 0;
                 document.getElementById('analyticsRate').textContent = (s.success_rate || 0) + '%';
                 document.getElementById('analyticsTime').textContent = s.avg_delivery_time_min || 0;
                 document.getElementById('analyticsDistance').textContent = s.total_distance_km || 0;
-            } catch (e) {
-                console.error('Ошибка загрузки аналитики:', e);
-            }
+            } catch (e) { console.error('Analytics error:', e); }
         }
 
-        loadData();
+        // ====== МАГАЗИН ======
+        async function loadShopData() {
+            await Promise.all([loadShopOrders(), loadShopProducts(), loadShopCustomers()]);
+        }
+
+        async function loadShopOrders() {
+            try {
+                const orders = await fetch(`${API_BASE}/api/orders`).then(r => r.json());
+                const todayOrders = orders.filter(o => o.created_at && o.created_at.startsWith(today()));
+                document.getElementById('shopOrdersToday').textContent = todayOrders.length;
+                document.getElementById('shopRevenueToday').textContent = todayOrders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0).toLocaleString() + ' руб.';
+
+                document.getElementById('shopOrdersTable').innerHTML = orders.length === 0
+                    ? '<tr><td colspan="7" class="empty">Нет заказов</td></tr>'
+                    : orders.slice(0, 50).map(o => {
+                        const statusMap = {
+                            'NEW': 'badge-blue', 'CONFIRMED': 'badge-orange',
+                            'ASSEMBLING': 'badge-orange', 'SHIPPING': 'badge-orange',
+                            'DELIVERED': 'badge-green', 'CANCELLED': 'badge-red'
+                        };
+                        const statusLabels = {
+                            'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
+                            'SHIPPING': 'Доставка', 'DELIVERED': 'Доставлен', 'CANCELLED': 'Отменён'
+                        };
+                        return `<tr style="cursor:pointer" onclick="showOrderDetail(${o.id})">
+                            <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
+                            <td>${o.user_name || '-'}</td>
+                            <td>${o.phone || '-'}</td>
+                            <td>${(o.address || '-').substring(0, 30)}</td>
+                            <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
+                            <td>
+                                <select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
+                                    ${Object.entries(statusLabels).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
+                                </select>
+                            </td>
+                            <td>${fmtDate(o.created_at)}</td>
+                        </tr>`;
+                    }).join('');
+            } catch (e) { console.error('Shop orders error:', e); }
+        }
+
+        async function showOrderDetail(id) {
+            try {
+                const orders = await fetch(`${API_BASE}/api/orders`).then(r => r.json());
+                const o = orders.find(x => x.id === id);
+                if (!o) return;
+                const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
+                document.getElementById('orderModalTitle').textContent = 'Заказ ' + (o.order_number || 'AP-' + o.id);
+                document.getElementById('orderModalBody').innerHTML = `
+                    <p><strong>Клиент:</strong> ${o.user_name || '-'}</p>
+                    <p><strong>Телефон:</strong> ${o.phone || '-'}</p>
+                    <p><strong>Адрес:</strong> ${o.address || '-'}</p>
+                    <p><strong>Доставка:</strong> ${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Курьер'}</p>
+                    <p><strong>Оплата:</strong> ${o.payment === 'cash' ? 'Наличные' : o.payment}</p>
+                    <p><strong>Комментарий:</strong> ${o.comment || '-'}</p>
+                    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+                    <p><strong>Товары:</strong></p>
+                    ${items.length === 0 ? '<p style="color:var(--muted)">Нет данных</p>' : items.map(i => `<p>- ${i.name || ''} (${i.volume || ''}) x ${i.qty || 1} = ${((i.price||0)*(i.qty||1)).toLocaleString()} руб.</p>`).join('')}
+                    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+                    <p><strong>Итого:</strong> ${(parseFloat(o.total)||0).toLocaleString()} руб.</p>
+                    <p><strong>Дата:</strong> ${fmtDate(o.created_at)}</p>
+                `;
+                document.getElementById('orderModal').classList.add('open');
+            } catch (e) { console.error('Order detail error:', e); }
+        }
+
+        async function updateOrderStatus(id, status) {
+            try {
+                await fetch(`${API_BASE}/api/orders/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+            } catch (e) { console.error('Status update error:', e); }
+        }
+
+        async function loadShopProducts() {
+            try {
+                const products = await fetch(`${API_BASE}/api/products`).then(r => r.json());
+                document.getElementById('shopProductsCount').textContent = products.length;
+
+                document.getElementById('shopProductsTable').innerHTML = products.length === 0
+                    ? '<tr><td colspan="6" class="empty">Каталог пуст</td></tr>'
+                    : products.slice(0, 100).map(p => {
+                        const stock = p.stock != null ? p.stock : '-';
+                        const stockClass = p.stock === 0 ? 'badge-red' : (p.stock > 0 && p.stock <= 3) ? 'badge-orange' : 'badge-green';
+                        const stockLabel = p.stock === 0 ? 'Нет' : (p.stock > 0 && p.stock <= 3) ? 'Мало' : 'В наличии';
+                        return `<tr>
+                            <td>${p.id || '-'}</td>
+                            <td><strong>${p.name || '-'}</strong><br><small>${p.brand || ''} ${p.volume || ''}</small></td>
+                            <td>${p.category || '-'}</td>
+                            <td>${(parseFloat(p.price)||0).toLocaleString()} руб.</td>
+                            <td>${stock}</td>
+                            <td><span class="badge ${stockClass}">${stockLabel}</span></td>
+                        </tr>`;
+                    }).join('');
+            } catch (e) { console.error('Products error:', e); }
+        }
+
+        async function loadShopCustomers() {
+            try {
+                const orders = await fetch(`${API_BASE}/api/orders`).then(r => r.json());
+                const customerMap = {};
+                orders.forEach(o => {
+                    const key = o.phone || o.user_name || o.user_id;
+                    if (!key) return;
+                    if (!customerMap[key]) {
+                        customerMap[key] = { name: o.user_name, phone: o.phone, user_id: o.user_id, orders: 0, total: 0, lastDate: o.created_at };
+                    }
+                    customerMap[key].orders++;
+                    customerMap[key].total += parseFloat(o.total) || 0;
+                    if (o.created_at > customerMap[key].lastDate) customerMap[key].lastDate = o.created_at;
+                });
+                const customers = Object.values(customerMap).sort((a, b) => b.lastDate - a.lastDate);
+                document.getElementById('shopCustomersCount').textContent = customers.length;
+
+                document.getElementById('shopCustomersTable').innerHTML = customers.length === 0
+                    ? '<tr><td colspan="6" class="empty">Нет клиентов</td></tr>'
+                    : customers.map(c => `<tr>
+                        <td><strong>${c.name || '-'}</strong></td>
+                        <td>${c.phone || '-'}</td>
+                        <td>${c.user_id ? 'ID: ' + c.user_id : '-'}</td>
+                        <td>${c.orders}</td>
+                        <td>${c.total.toLocaleString()} руб.</td>
+                        <td>${fmtDate(c.lastDate)}</td>
+                    </tr>`).join('');
+            } catch (e) { console.error('Customers error:', e); }
+        }
+
+        function openProductModal() { document.getElementById('productModal').classList.add('open'); }
+
+        async function saveProduct(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                brand: form.brand.value,
+                category: form.category.value,
+                name: form.name.value,
+                sku: form.sku.value,
+                volume: form.volume.value,
+                price: parseFloat(form.price.value),
+                old_price: form.old_price.value ? parseFloat(form.old_price.value) : null,
+                stock: parseInt(form.stock.value) || 0,
+                min_stock: parseInt(form.min_stock.value) || 3,
+                description: form.description.value,
+                image: form.image.value
+            };
+            try {
+                const res = await fetch(`${API_BASE}/api/products`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) {
+                    closeModal('productModal');
+                    form.reset();
+                    loadShopProducts();
+                }
+            } catch (e) { console.error('Save product error:', e); }
+        }
+
+        // ====== Утилиты ======
+        function today() { return new Date().toISOString().split('T')[0]; }
+        function fmtDate(d) { return d ? new Date(d).toLocaleDateString('ru-RU') : '-'; }
+
+        // ====== Инициализация ======
+        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        loadDeliveryData();
         loadAnalytics();
-        setInterval(loadData, 30000);
+        setInterval(loadDeliveryData, 30000);
     </script>
 </body>
 </html>

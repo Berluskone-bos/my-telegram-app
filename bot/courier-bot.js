@@ -737,6 +737,32 @@ function registerCourierRoutes(app) {
             res.json(await db.getAnalytics(from, to));
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
+
+    // ====== Admin: управление заказами ======
+    app.put('/api/orders/:id/status', async (req, res) => {
+        try {
+            const { status } = req.body;
+            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'CANCELLED'];
+            if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+            await db.updateOrderStatus(parseInt(req.params.id), status);
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ====== Admin: управление товарами ======
+    app.get('/api/products', async (req, res) => {
+        try {
+            const catalog = await db.getProducts();
+            res.json(catalog);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/products', async (req, res) => {
+        try {
+            const product = await db.createProduct(req.body);
+            res.json(product);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
 }
 
 module.exports = { registerCourierRoutes };

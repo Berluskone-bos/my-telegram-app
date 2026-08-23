@@ -101,6 +101,36 @@ async function initDB() {
                 payment_status VARCHAR(32) DEFAULT 'PENDING',
                 created_at TIMESTAMP DEFAULT NOW()
             );
+
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                brand VARCHAR(128),
+                category VARCHAR(64),
+                name VARCHAR(256) NOT NULL,
+                full_name VARCHAR(512),
+                series VARCHAR(128),
+                sku VARCHAR(64),
+                viscosity VARCHAR(32),
+                oil_type VARCHAR(64),
+                volume VARCHAR(32),
+                api_std VARCHAR(16),
+                acea VARCHAR(16),
+                ilsac VARCHAR(16),
+                price DECIMAL(10,2) NOT NULL DEFAULT 0,
+                old_price DECIMAL(10,2),
+                stock INT DEFAULT 0,
+                min_stock INT DEFAULT 3,
+                image TEXT,
+                gallery JSONB DEFAULT '[]',
+                description TEXT,
+                specs JSONB DEFAULT '{}',
+                active BOOLEAN DEFAULT TRUE,
+                is_new BOOLEAN DEFAULT FALSE,
+                is_popular BOOLEAN DEFAULT FALSE,
+                rating DECIMAL(3,2) DEFAULT 0,
+                reviews_count INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
         `);
 
         // Зоны доставки по умолчанию
