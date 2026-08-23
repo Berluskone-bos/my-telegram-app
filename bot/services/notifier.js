@@ -4,9 +4,10 @@
 const https = require('https');
 
 class Notifier {
-    constructor(clientBotToken, courierBotToken, managerChatId) {
+    constructor(clientBotToken, courierBotToken, managerChatId, adminBotToken) {
         this.clientBotBase = `https://api.telegram.org/bot${clientBotToken}`;
         this.courierBotBase = `https://api.telegram.org/bot${courierBotToken}`;
+        this.adminBotBase = adminBotToken ? `https://api.telegram.org/bot${adminBotToken}` : this.clientBotBase;
         this.managerChatId = managerChatId;
     }
 
@@ -99,7 +100,7 @@ class Notifier {
         text += `<b>Сумма:</b> ${orderData.total || 0} руб.\n\n`;
         if (itemsList) text += `<b>Товары:</b>\n${itemsList}\n`;
 
-        return this._send(this.clientBotBase, this.managerChatId, text);
+        return this._send(this.adminBotBase, this.managerChatId, text);
     }
 
     // Уведомление курьеру о новом маршруте
@@ -125,7 +126,7 @@ class Notifier {
         if (stopData.order_number) text += `Заказ: ${stopData.order_number}\n`;
         if (reason) text += `Причина: ${reason}\n`;
 
-        return this._send(this.courierBotBase, this.managerChatId, text);
+        return this._send(this.adminBotBase, this.managerChatId, text);
     }
 
     // Уведомление клиенту о доставке

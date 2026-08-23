@@ -12,7 +12,7 @@ const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
-const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID);
+const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID, process.env.ADMIN_BOT_TOKEN || '');
 
 let bot;
 if (COURIER_BOT_TOKEN) {
@@ -23,9 +23,7 @@ if (COURIER_BOT_TOKEN) {
 
 function notifyAdmin(text) {
     if (!ADMIN_CHAT_ID) return Promise.resolve();
-    console.log(`[ADMIN] Отправка уведомления: ${text.substring(0, 80)}...`);
-    return notifier._send(notifier.clientBotBase, ADMIN_CHAT_ID, text)
-        .then(() => console.log('[OK] Уведомление отправлено админу'))
+    return notifier._send(notifier.adminBotBase, ADMIN_CHAT_ID, text)
         .catch(e => console.error(`[ОШИБКА] Уведомление админу: ${e.message}`));
 }
 
@@ -374,7 +372,6 @@ bot.on('callback_query', async (query) => {
         const routeId = parseInt(parts[1]);
         const stopId = parseInt(parts[2]);
         const action = parts[3];
-        console.log(`[DELIVER] Flow: routeId=${routeId}, stopId=${stopId}, action=${action}, data=${data}`);
         await handleDeliveryFlow(chatId, routeId, stopId, action, query);
         return;
     }
@@ -433,8 +430,8 @@ bot.on('callback_query', async (query) => {
         return;
     }
  } catch (e) {
-    console.error('[ОШИБКА] Callback query:', e.message, e.stack);
-    try { bot.answerCallbackQuery(query.id, { text: `Ошибка: ${e.message}` }); } catch (_) {}
+    console.error('[ОШИБКА] Callback query:', e.message);
+    try { bot.answerCallbackQuery(query.id, { text: 'Произошла ошибка. Попробуйте ещё раз.' }); } catch (_) {}
  }
 });
 } // end if (bot) callback_query
@@ -465,21 +462,16 @@ async function handleStartRoute(chatId, routeId, user) {
 // ====== Flow доставки: accept → enroute → arrived → done ======
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
-    console.log(`[DELIVER] handleDeliveryFlow: routeId=${routeId}, stopId=${stopId}, action=${action}`);
     const route = await db.getRouteById(routeId);
     if (!route) {
-        console.log(`[DELIVER] Route ${routeId} not found`);
         bot.answerCallbackQuery(query.id, { text: 'Маршрут не найден' });
         return;
     }
-    console.log(`[DELIVER] Route found: ${route.route_number}, stops: ${(route.stops||[]).length}`);
     const stop = (route.stops || []).find(s => parseInt(s.id) === parseInt(stopId));
     if (!stop) {
-        console.log(`[DELIVER] Stop ${stopId} not found in route ${routeId}. Available stops: ${(route.stops||[]).map(s=>s.id).join(',')}`);
         bot.answerCallbackQuery(query.id, { text: 'Остановка не найдена' });
         return;
     }
-    console.log(`[DELIVER] Stop found: ${stop.order_number}, proceeding with action: ${action}`);
 
     const msgId = query.message.message_id;
 
