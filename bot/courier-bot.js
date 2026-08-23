@@ -463,125 +463,114 @@ async function handleStartRoute(chatId, routeId, user) {
 // ====== Flow доставки: accept → enroute → arrived → done ======
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
-    console.log(`[DELIVER] START: routeId=${routeId}, stopId=${stopId}, action=${action}`);
-    const route = await db.getRouteById(routeId);
-    if (!route) {
-        console.log(`[DELIVER] Route ${routeId} NOT FOUND`);
-        bot.answerCallbackQuery(query.id, { text: 'Маршрут не найден' });
-        return;
-    }
-    console.log(`[DELIVER] Route OK: ${route.route_number}, stops=${(route.stops||[]).length}`);
-    const stop = (route.stops || []).find(s => parseInt(s.id) === parseInt(stopId));
-    if (!stop) {
-        console.log(`[DELIVER] Stop ${stopId} NOT FOUND. Available: ${(route.stops||[]).map(s=>s.id).join(',')}`);
-        bot.answerCallbackQuery(query.id, { text: 'Остановка не найдена' });
-        return;
-    }
-    console.log(`[DELIVER] Stop OK: ${stop.order_number}`);
-
     const msgId = query.message.message_id;
 
+    // Простая логика: просто меняем кнопку на следующий шаг
     if (action === 'accept') {
-        // Курьер принял заказ → показываем "В пути"
-        console.log(`[DELIVER] accept: updating route status...`);
-        await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
-        console.log(`[DELIVER] accept: route status updated`);
-
-        const navButtons = buildNavButtons(route, stop, 'enroute');
-        console.log(`[DELIVER] accept: editing message, chatId=${chatId}, msgId=${msgId}`);
-        await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
-            chat_id: chatId, message_id: msgId
-        });
-        console.log(`[DELIVER] accept: message edited, answering callback...`);
-        await bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' });
-        console.log(`[DELIVER] accept: DONE`);
+        // Принять → В пути
+        const nextButtons = [
+            ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
+            [{ text: 'В пути', callback_data: `deliver_${routeId}_${stopId}_enroute` }]
+        ];
+        try {
+            await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
+        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' }).catch(() => {});
 
         // Уведомляем клиента
-        if (stop.client_chat_id) {
-            notifier.notifyClient(stop.client_chat_id, stop.order_number, 'shipped',
-                'Курьер в пути, везём заказ.'
-            ).catch(() => {});
-        }
-        notifyAdmin(`[ДОСТАВКА] ${route.route_number} | Курьер принял заказ ${stop.order_number}`);
+        try {
+            const route = await db.getRouteById(routeId);
+            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            if (stop?.client_chat_id) {
+                notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`
+                ).catch(() => {});
+            }
+        } catch (e) { console.error('[DELIVER] notify error:', e.message); }
     }
 
     else if (action === 'enroute') {
-        // Курьер в пути → показываем "У клиента"
-        const navButtons = buildNavButtons(route, stop, 'arrived');
-        await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
-            chat_id: chatId, message_id: msgId
-        });
-        await bot.answerCallbackQuery(query.id, { text: 'Отметка: прибыли к клиенту' });
+        // В пути → У клиента
+        const nextButtons = [
+            ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
+            [{ text: 'У клиента', callback_data: `deliver_${routeId}_${stopId}_arrived` }]
+        ];
+        try {
+            await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
+        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        bot.answerCallbackQuery(query.id, { text: 'Прибыли к клиенту' }).catch(() => {});
 
         // Уведомляем клиента
-        if (stop.client_chat_id) {
-            notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                `<b>Заказ ${stop.order_number}</b>\n\nКурьер приехал! Ожидайте у подъезда.`
-            ).catch(() => {});
-        }
-        notifyAdmin(`[ДОСТАВКА] ${route.route_number} | Курьер у клиента (${stop.order_number})`);
+        try {
+            const route = await db.getRouteById(routeId);
+            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            if (stop?.client_chat_id) {
+                notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Курьер приехал</b>\nОжидайте у подъезда.`
+                ).catch(() => {});
+            }
+        } catch (e) { console.error('[DELIVER] notify error:', e.message); }
     }
 
     else if (action === 'arrived') {
-        // Курьер у клиента → показываем "Доставлен"
-        const navButtons = buildNavButtons(route, stop, 'done');
-        await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
-            chat_id: chatId, message_id: msgId
-        });
-        await bot.answerCallbackQuery(query.id, { text: 'Подтвердите передачу заказа' });
+        // У клиента → Доставлен
+        const nextButtons = [
+            [{ text: 'Доставлен', callback_data: `deliver_${routeId}_${stopId}_done` }]
+        ];
+        try {
+            await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
+        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        bot.answerCallbackQuery(query.id, { text: 'Подтвердите передачу заказа' }).catch(() => {});
     }
 
     else if (action === 'done') {
-        // Заказ доставлен → финальное состояние
-        await db.updateStopStatus(stopId, 'delivered', '');
+        // Доставлен → финал
+        const finalButtons = [[{ text: 'Доставлено', callback_data: 'noop' }]];
+        try {
+            await bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, { chat_id: chatId, message_id: msgId });
+        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' }).catch(() => {});
 
-        // Обновляем маршрут
-        const stops = route.stops || [];
-        const newCompleted = stops.filter(s => s.status === 'delivered' || s.id === stopId).length;
-        const allDone = stops.every(s => s.id === stopId ? true : s.status !== 'pending');
-        const newRouteStatus = allDone ? 'completed' : route.status;
-        await db.updateRouteStatus(routeId, newRouteStatus, newCompleted, route.failed || 0);
-
-        // Обновляем статус заказа на COMPLETED
-        if (stop.order_id) {
-            await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
-        }
-
-        // Финальное состояние кнопок
-        const finalButtons = [[
-            { text: 'Доставлено', callback_data: 'noop' }
-        ]];
-        await bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, {
-            chat_id: chatId, message_id: msgId
-        });
-        await bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' });
-
-        // Благодарность клиенту + рейтинг
-        if (stop.client_chat_id) {
-            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'delivered')
-                .catch(() => {});
-
-            // Предлагаем оценить
-            const courier = (await db.getCouriers()).find(c => c.id === route.courier_id);
-            if (courier) {
-                setTimeout(() => {
-                    const rateButtons = [[1,2,3,4,5].map(n => ({
-                        text: String(n),
-                        callback_data: `rate_${courier.id}_o_${n}`
-                    }))];
-                    notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                        'Пожалуйста, оцените доставку:', rateButtons
-                    ).catch(() => {});
-                }, 5000);
+        // Обновляем статусы в БД
+        try {
+            await db.updateStopStatus(stopId, 'delivered', '');
+            const route = await db.getRouteById(routeId);
+            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            if (stop?.order_id) {
+                await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
             }
-        }
+            // Обновляем маршрут
+            if (route) {
+                const stops = route.stops || [];
+                const newCompleted = stops.filter(s => s.status === 'delivered').length;
+                const allDone = stops.every(s => s.id === stopId ? true : s.status !== 'pending');
+                await db.updateRouteStatus(routeId, allDone ? 'completed' : route.status, newCompleted, route.failed || 0);
+            }
+        } catch (e) { console.error('[DELIVER] db update error:', e.message); }
 
-        notifyAdmin(
-            `<b>Заказ доставлен</b>\n\n` +
-            `Заказ: <b>${stop.order_number}</b>\n` +
-            `Адрес: ${stop.address}\n` +
-            `Курьер: ${(await db.getCouriers()).find(c => c.id === route.courier_id)?.name || '-'}`
-        );
+        // Уведомляем клиента + рейтинг
+        try {
+            const route = await db.getRouteById(routeId);
+            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            if (stop?.client_chat_id) {
+                notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!`
+                ).catch(() => {});
+                // Рейтинг
+                const courier = (await db.getCouriers()).find(c => c.id === route?.courier_id);
+                if (courier) {
+                    setTimeout(() => {
+                        const rateButtons = [[1,2,3,4,5].map(n => ({
+                            text: String(n),
+                            callback_data: `rate_${courier.id}_o_${n}`
+                        }))];
+                        notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                            'Пожалуйста, оцените доставку:', rateButtons
+                        ).catch(() => {});
+                    }, 3000);
+                }
+            }
+        } catch (e) { console.error('[DELIVER] client notify error:', e.message); }
     }
 }
 

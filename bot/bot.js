@@ -295,7 +295,7 @@ async function handleNewOrder(chatId, order) {
         console.error('[ОШИБКА] Отправка подтверждения:', err.message);
     }
 
-    if (ADMIN_CHAT_ID) {
+    if (ADMIN_CHAT_ID && process.env.ADMIN_BOT_TOKEN) {
         const adminMsg =
             `<b>НОВЫЙ ЗАКАЗ #${orderId}!</b>\n\n` +
             `<b>Клиент:</b> ${order.userName || 'Не указано'}\n` +
@@ -308,13 +308,22 @@ async function handleNewOrder(chatId, order) {
             `<b>Дата:</b> ${new Date().toLocaleString('ru-RU')}`;
 
         try {
-            await bot.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
-            console.log('[OK] Уведомление отправлено администратору');
+            const https = require('https');
+            const payload = JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: adminMsg, parse_mode: 'HTML' });
+            const url = new URL(`https://api.telegram.org/bot${process.env.ADMIN_BOT_TOKEN}/sendMessage`);
+            const options = { hostname: url.hostname, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } };
+            await new Promise((resolve, reject) => {
+                const req = https.request(options, (res) => { let body = ''; res.on('data', c => body += c); res.on('end', () => resolve(body)); });
+                req.on('error', reject);
+                req.write(payload);
+                req.end();
+            });
+            console.log('[OK] Уведомление отправлено в админ-бот');
         } catch (err) {
-            console.error('[ОШИБКА] Отправка уведомления администратору:', err.message);
+            console.error('[ОШИБКА] Отправка в админ-бот:', err.message);
         }
     } else {
-        console.log('[ВНИМАНИЕ] ADMIN_CHAT_ID не задан — уведомление не отправлено');
+        console.log('[ВНИМАНИЕ] ADMIN_BOT_TOKEN не задан — уведомление не отправлено');
     }
 }
 
@@ -351,7 +360,7 @@ app.post('/api/order', async (req, res) => {
     // Сохраняем заказ в БД
     await saveOrderToFile(orderId, order);
 
-    if (ADMIN_CHAT_ID) {
+    if (ADMIN_CHAT_ID && process.env.ADMIN_BOT_TOKEN) {
         const itemsList = (order.items || [])
             .map(i => `- ${i.name} (${i.volume}) x ${i.qty} = ${(i.price * i.qty).toLocaleString()} руб.`)
             .join('\n');
@@ -365,9 +374,18 @@ app.post('/api/order', async (req, res) => {
             `<b>Сумма:</b> ${order.total.toLocaleString()} руб.`;
 
         try {
-            await bot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' });
+            const https = require('https');
+            const payload = JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: msg, parse_mode: 'HTML' });
+            const url = new URL(`https://api.telegram.org/bot${process.env.ADMIN_BOT_TOKEN}/sendMessage`);
+            const options = { hostname: url.hostname, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } };
+            await new Promise((resolve, reject) => {
+                const req = https.request(options, (res) => { let body = ''; res.on('data', c => body += c); res.on('end', () => resolve(body)); });
+                req.on('error', reject);
+                req.write(payload);
+                req.end();
+            });
         } catch (err) {
-            console.error('[ОШИБКА] Отправка:', err.message);
+            console.error('[ОШИБКА] Отправка в админ-бот:', err.message);
         }
     }
 
