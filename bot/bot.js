@@ -46,8 +46,8 @@ console.log('');
 // ИНИЦИАЛИЗАЦИЯ БОТА
 // ═══════════════════════════════════════════
 
-const bot = new TelegramBot(token, { polling: true });
-console.log('Бот запущен и ожидает сообщения...');
+const bot = new TelegramBot(token, { polling: false });
+console.log('Бот запущен (webhook mode)...');
 console.log('');
 
 // ═══════════════════════════════════════════
@@ -370,6 +370,13 @@ app.post('/api/order', async (req, res) => {
     res.json({ success: true, orderId: orderId });
 });
 
+// Webhook endpoint for main bot
+const webhookPath = '/webhook/main';
+app.post(webhookPath, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+});
+
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -377,8 +384,17 @@ app.get('/api/health', (req, res) => {
 // Инициализация БД и запуск сервера
 db.init().then(async () => {
     await db.seedProductsFromCatalog();
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
         console.log(`Веб-сервер запущен: http://localhost:${PORT}`);
+        
+        // Set webhook for main bot
+        const webhookUrl = `https://gulf-bot-production.up.railway.app${webhookPath}`;
+        try {
+            await bot.setWebHook(webhookUrl);
+            console.log(`[OK] Main webhook set: ${webhookUrl}`);
+        } catch (e) {
+            console.error('[ОШИБКА] Main webhook:', e.message);
+        }
     console.log('');
     console.log('═══════════════════════════════════════════');
     console.log('  БОТ ГОТОВ К РАБОТЕ!');
@@ -398,9 +414,7 @@ db.init().then(async () => {
     process.exit(1);
 });
 
-bot.on('polling_error', (error) => {
-    console.error('[ОШИБКА] Polling:', error.code, error.message);
-});
+
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[ОШИБКА] Unhandled rejection:', reason);

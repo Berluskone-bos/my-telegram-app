@@ -16,10 +16,7 @@ const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, AD
 
 let bot;
 if (COURIER_BOT_TOKEN) {
-    bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
-    bot.on('polling_error', (error) => {
-        console.error('[COURIER ОШИБКА] Polling:', error.code, error.message);
-    });
+    bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: false });
 }
 
 // ====== Утилиты ======
@@ -792,6 +789,24 @@ setupCourierBotCommands();
 
 function registerCourierRoutes(app) {
     app.use(express.json());
+
+    // Webhook endpoint for courier bot
+    if (bot && COURIER_BOT_TOKEN) {
+        const webhookPath = '/webhook/courier';
+        const webhookUrl = `https://gulf-bot-production.up.railway.app${webhookPath}`;
+        
+        app.post(webhookPath, (req, res) => {
+            bot.processUpdate(req.body);
+            res.sendStatus(200);
+        });
+
+        // Set webhook on startup
+        bot.setWebHook(webhookUrl).then(() => {
+            console.log(`[OK] Courier webhook set: ${webhookUrl}`);
+        }).catch(e => {
+            console.error('[ОШИБКА] Courier webhook:', e.message);
+        });
+    }
 
     app.get('/api/health', (req, res) => {
         res.json({ status: 'ok', bots: ['AutoPromoilBot', 'APCourier_Bot'], timestamp: new Date().toISOString() });
