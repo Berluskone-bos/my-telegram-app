@@ -567,9 +567,10 @@
 
         async function loadShopOrders() {
             try {
-                const [orders, couriers] = await Promise.all([
+                const [orders, couriers, routes] = await Promise.all([
                     fetch(`${API_BASE}/api/orders`).then(r => r.json()),
-                    fetch(`${API_BASE}/api/couriers`).then(r => r.json())
+                    fetch(`${API_BASE}/api/couriers`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/routes`).then(r => r.json())
                 ]);
                 allCouriers = couriers;
 
@@ -582,6 +583,18 @@
                     'SHIPPING': 'В доставке', 'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
                 };
 
+                // Находим курьера для каждого заказа через маршруты
+                function getCourierForOrder(orderId) {
+                    for (const r of routes) {
+                        const stops = r.stops || [];
+                        if (stops.some(s => String(s.order_id) === String(orderId))) {
+                            const c = couriers.find(x => x.id === r.courier_id);
+                            return c ? c.name : null;
+                        }
+                    }
+                    return null;
+                }
+
                 document.getElementById('shopOrdersTable').innerHTML = orders.length === 0
                     ? '<tr><td colspan="7" class="empty">Нет заказов</td></tr>'
                     : orders.slice(0, 50).map(o => {
@@ -590,6 +603,7 @@
                         ).join('');
                         const showAssign = ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
                         const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
+                        const courierName = getCourierForOrder(o.id);
                         return `<tr>
                             <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
                             <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
@@ -605,7 +619,7 @@
                                     <option value="">-- курьер --</option>
                                     ${courierOptions}
                                     ${autoAssign ? `<option value="${couriers.filter(c=>c.is_active)[0].id}" selected>Назначить</option>` : ''}
-                                </select>` : (o.status === 'SHIPPING' ? '<span class="badge badge-orange">В доставке</span>' : (o.status === 'DELIVERED' ? '<span class="badge badge-green">Доставлен</span>' : (o.status === 'COMPLETED' ? '<span class="badge badge-green">Выполнен</span>' : '-')))}
+                                </select>` : (courierName ? `<strong>${courierName}</strong>` : '-')}
                             </td>
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;

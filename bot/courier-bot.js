@@ -9,7 +9,6 @@ const db = require('./db-adapter');
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
-const ADMIN_BOT_TOKEN = process.env.ADMIN_BOT_TOKEN;
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
@@ -20,25 +19,10 @@ if (COURIER_BOT_TOKEN) {
     bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: true });
 }
 
-// Админ-бот для уведомлений руководства (без polling)
-let adminBot;
-if (ADMIN_BOT_TOKEN) {
-    try {
-        adminBot = new TelegramBot(ADMIN_BOT_TOKEN, { polling: false });
-        console.log('[OK] Админ-бот инициализирован');
-    } catch (e) {
-        console.error('[ОШИБКА] Админ-бот:', e.message);
-    }
-}
-
 // ====== Утилиты ======
 
-function notifyAdmin(text, buttons = null) {
-    const target = adminBot || bot;
-    if (!target) return Promise.resolve();
-    const opts = { parse_mode: 'HTML' };
-    if (buttons) opts.reply_markup = { inline_keyboard: buttons };
-    return target.sendMessage(ADMIN_CHAT_ID, text, opts).catch(() => {});
+function notifyAdmin(text) {
+    return notifier._send(notifier.clientBotBase, ADMIN_CHAT_ID, text).catch(() => {});
 }
 
 function generateRouteNumber() {
@@ -814,6 +798,15 @@ function registerCourierRoutes(app) {
             const courier = (await db.getCouriers()).find(c => c.id === courier_id);
             if (!courier) return res.status(404).json({ error: 'Courier not found' });
 
+            // Геокодируем адрес
+            let lat = null, lon = null;
+            if (order.address && YANDEX_GEO_KEY) {
+                try {
+                    const geo = await geocoder.geocode(order.address);
+                    if (geo) { lat = geo.lat; lon = geo.lon; }
+                } catch (e) { console.log(`Геокодирование не удалось: ${e.message}`); }
+            }
+
             // Создаём маршрут из заказа
             const route = await db.createRoute({
                 route_number: 'RL-' + String(Date.now()).slice(-4),
@@ -828,6 +821,8 @@ function registerCourierRoutes(app) {
                     city: order.city || '',
                     street: order.street || '',
                     house: order.house || '',
+                    lat: lat,
+                    lon: lon,
                     phone: order.phone || '',
                     client_name: order.user_name || '',
                     client_chat_id: order.user_id || null,
@@ -843,12 +838,19 @@ function registerCourierRoutes(app) {
 
             // Уведомляем курьера через курьерский бот с кнопкой "Принять"
             if (bot && courier.telegram_id) {
+                let mapLinks = '';
+                if (lat && lon) {
+                    const yandexUrl = MapLinks.yandex(order.address, lat, lon);
+                    const gis2Url = MapLinks.gis2(lat, lon);
+                    mapLinks = `\nНавигация: ${yandexUrl}\n2GIS: ${gis2Url}\n`;
+                }
                 bot.sendMessage(courier.telegram_id,
                     `<b>Новый заказ!</b>\n\n` +
                     `Заказ: ${order.order_number}\n` +
                     `Адрес: ${order.address}\n` +
                     `Сумма: ${order.total} руб.\n` +
                     (order.comment ? `Комментарий: ${order.comment}\n` : '') +
+                    mapLinks +
                     `\nНажмите "Принять" для начала доставки.`,
                     {
                         parse_mode: 'HTML',
