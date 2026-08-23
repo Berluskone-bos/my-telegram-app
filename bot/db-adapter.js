@@ -258,6 +258,17 @@ class DBAdapter {
         await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, orderId]);
     }
 
+    async getOrderByNumber(orderId) {
+        const res = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+        return res.rows[0] || null;
+    }
+
+    async deleteAllOrders() {
+        await pool.query('DELETE FROM route_stops');
+        await pool.query('DELETE FROM delivery_routes');
+        await pool.query('DELETE FROM orders');
+    }
+
     // Товары
     async getProducts() {
         const res = await pool.query('SELECT * FROM products WHERE active = true ORDER BY id');

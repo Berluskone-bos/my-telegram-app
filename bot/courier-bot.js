@@ -744,8 +744,97 @@ function registerCourierRoutes(app) {
             const { status } = req.body;
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
-            await db.updateOrderStatus(parseInt(req.params.id), status);
+            const orderId = parseInt(req.params.id);
+            await db.updateOrderStatus(orderId, status);
+
+            // Уведомление клиенту о смене статуса
+            const order = await db.getOrderByNumber(orderId);
+            if (order && order.user_id) {
+                const statusLabels = {
+                    'CONFIRMED': 'Подтверждён',
+                    'ASSEMBLING': 'Собирается',
+                    'SHIPPING': 'Передан в доставку',
+                    'DELIVERED': 'Доставлен',
+                    'CANCELLED': 'Отменён'
+                };
+                const label = statusLabels[status];
+                if (label && bot) {
+                    bot.sendMessage(order.user_id,
+                        `<b>Заказ ${order.order_number || ''}</b>\n\nСтатус: <b>${label}</b>`,
+                        { parse_mode: 'HTML' }
+                    ).catch(() => {});
+                }
+            }
+
             res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Удалить все заказы
+    app.delete('/api/orders', async (req, res) => {
+        try {
+            await db.deleteAllOrders();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Назначить курьера на заказ
+    app.post('/api/orders/:id/assign', async (req, res) => {
+        try {
+            const orderId = parseInt(req.params.id);
+            const { courier_id } = req.body;
+            if (!courier_id) return res.status(400).json({ error: 'courier_id required' });
+
+            const order = await db.getOrderByNumber(orderId);
+            if (!order) return res.status(404).json({ error: 'Order not found' });
+
+            const courier = (await db.getCouriers()).find(c => c.id === courier_id);
+            if (!courier) return res.status(404).json({ error: 'Courier not found' });
+
+            // Создаём маршрут из заказа
+            const route = await db.createRoute({
+                route_number: 'RL-' + String(Date.now()).slice(-4),
+                route_date: new Date().toISOString().split('T')[0],
+                courier_id: courier_id,
+                status: 'assigned',
+                total_orders: 1,
+                stops: [{
+                    order_id: String(order.id),
+                    order_number: order.order_number,
+                    address: order.address || '',
+                    city: order.city || '',
+                    street: order.street || '',
+                    house: order.house || '',
+                    phone: order.phone || '',
+                    client_name: order.user_name || '',
+                    client_chat_id: order.user_id || null,
+                    amount_to_pay: order.payment === 'cash' ? order.total : 0,
+                    payment_status: order.payment === 'cash' ? 'pending' : 'paid',
+                    status: 'pending',
+                    comment: order.comment || ''
+                }]
+            });
+
+            // Обновляем статус заказа
+            await db.updateOrderStatus(orderId, 'SHIPPING');
+
+            // Уведомляем курьера
+            if (bot && courier.telegram_id) {
+                bot.sendMessage(courier.telegram_id,
+                    `<b>Новый маршрут!</b>\n\nМаршрут: ${route.route_number}\nЗаказ: ${order.order_number}\nАдрес: ${order.address}\n\nОтправьте /route для просмотра.`,
+                    { parse_mode: 'HTML' }
+                ).catch(() => {});
+            }
+
+            // Уведомляем клиента
+            if (bot && order.user_id) {
+                bot.sendMessage(order.user_id,
+                    `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>Передан в доставку</b>\nКурьер уже выезжает к вам!`,
+                    { parse_mode: 'HTML' }
+                ).catch(() => {});
+            }
+
+            res.json({ success: true, route });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 

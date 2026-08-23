@@ -310,7 +310,10 @@
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">Заказы</div>
-                    <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-danger btn-sm" onclick="deleteAllOrders()">Удалить все</button>
+                        <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
+                    </div>
                 </div>
                 <div class="section-body">
                     <table>
@@ -318,10 +321,10 @@
                             <tr>
                                 <th>Номер</th>
                                 <th>Клиент</th>
-                                <th>Телефон</th>
                                 <th>Адрес</th>
                                 <th>Сумма</th>
                                 <th>Статус</th>
+                                <th>Курьер</th>
                                 <th>Дата</th>
                             </tr>
                         </thead>
@@ -556,33 +559,39 @@
         }
 
         // ====== МАГАЗИН ======
+        let allCouriers = [];
+
         async function loadShopData() {
             await Promise.all([loadShopOrders(), loadShopProducts(), loadShopCustomers()]);
         }
 
         async function loadShopOrders() {
             try {
-                const orders = await fetch(`${API_BASE}/api/orders`).then(r => r.json());
+                const [orders, couriers] = await Promise.all([
+                    fetch(`${API_BASE}/api/orders`).then(r => r.json()),
+                    fetch(`${API_BASE}/api/couriers`).then(r => r.json())
+                ]);
+                allCouriers = couriers;
+
                 const todayOrders = orders.filter(o => o.created_at && o.created_at.startsWith(today()));
                 document.getElementById('shopOrdersToday').textContent = todayOrders.length;
                 document.getElementById('shopRevenueToday').textContent = todayOrders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0).toLocaleString() + ' руб.';
 
+                const statusLabels = {
+                    'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
+                    'SHIPPING': 'Доставка', 'DELIVERED': 'Доставлен', 'CANCELLED': 'Отменён'
+                };
+
                 document.getElementById('shopOrdersTable').innerHTML = orders.length === 0
                     ? '<tr><td colspan="7" class="empty">Нет заказов</td></tr>'
                     : orders.slice(0, 50).map(o => {
-                        const statusMap = {
-                            'NEW': 'badge-blue', 'CONFIRMED': 'badge-orange',
-                            'ASSEMBLING': 'badge-orange', 'SHIPPING': 'badge-orange',
-                            'DELIVERED': 'badge-green', 'CANCELLED': 'badge-red'
-                        };
-                        const statusLabels = {
-                            'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
-                            'SHIPPING': 'Доставка', 'DELIVERED': 'Доставлен', 'CANCELLED': 'Отменён'
-                        };
-                        return `<tr style="cursor:pointer" onclick="showOrderDetail(${o.id})">
+                        const courierOptions = couriers.map(c =>
+                            `<option value="${c.id}">${c.name}</option>`
+                        ).join('');
+                        const showAssign = ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
+                        return `<tr>
                             <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
-                            <td>${o.user_name || '-'}</td>
-                            <td>${o.phone || '-'}</td>
+                            <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
                             <td>${(o.address || '-').substring(0, 30)}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
                             <td>
@@ -590,10 +599,40 @@
                                     ${Object.entries(statusLabels).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
                                 </select>
                             </td>
+                            <td>
+                                ${showAssign ? `<select class="status-select" onclick="event.stopPropagation()" onchange="assignCourier(${o.id}, this.value)">
+                                    <option value="">-- курьер --</option>
+                                    ${courierOptions}
+                                </select>` : (o.status === 'SHIPPING' ? '<span class="badge badge-orange">В доставке</span>' : '-')}
+                            </td>
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;
                     }).join('');
             } catch (e) { console.error('Shop orders error:', e); }
+        }
+
+        async function assignCourier(orderId, courierId) {
+            if (!courierId) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/orders/${orderId}/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courier_id: parseInt(courierId) })
+                });
+                if (res.ok) {
+                    loadShopOrders();
+                    loadDeliveryData();
+                }
+            } catch (e) { console.error('Assign courier error:', e); }
+        }
+
+        async function deleteAllOrders() {
+            if (!confirm('Удалить ВСЕ заказы? Это действие необратимо.')) return;
+            try {
+                await fetch(`${API_BASE}/api/orders`, { method: 'DELETE' });
+                loadShopOrders();
+                loadDeliveryData();
+            } catch (e) { console.error('Delete orders error:', e); }
         }
 
         async function showOrderDetail(id) {
