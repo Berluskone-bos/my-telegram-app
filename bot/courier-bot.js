@@ -368,6 +368,16 @@ bot.on('callback_query', async (query) => {
         return;
     }
 
+    // ====== Новый flow доставки: accept → enroute → arrived → done ======
+    if (data.startsWith('deliver_')) {
+        const parts = data.split('_');
+        const routeId = parseInt(parts[1]);
+        const stopId = parseInt(parts[2]);
+        const action = parts[3];
+        await handleDeliveryFlow(chatId, routeId, stopId, action, query);
+        return;
+    }
+
     if (data.startsWith('optimizeroute_')) {
         const routeId = parseInt(data.split('_')[1]);
         handleOptimizeRoute(chatId, routeId);
@@ -400,6 +410,11 @@ bot.on('callback_query', async (query) => {
         const stopId = parseInt(parts[2]);
         const reason = parts.slice(3).join('_');
         handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason);
+        return;
+    }
+
+    if (data === 'noop') {
+        bot.answerCallbackQuery(query.id, { text: 'Заказ уже доставлен' });
         return;
     }
 
@@ -444,6 +459,151 @@ async function handleStartRoute(chatId, routeId, user) {
     }
 
     notifyAdmin(`[МАРШРУТ] ${route.route_number} начат курьером ${user.first_name || ''}`);
+}
+
+// ====== Flow доставки: accept → enroute → arrived → done ======
+
+async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
+    const route = await db.getRouteById(routeId);
+    if (!route) {
+        bot.answerCallbackQuery(query.id, { text: 'Маршрут не найден' });
+        return;
+    }
+    const stop = (route.stops || []).find(s => s.id === stopId);
+    if (!stop) {
+        bot.answerCallbackQuery(query.id, { text: 'Остановка не найдена' });
+        return;
+    }
+
+    const msgId = query.message.message_id;
+
+    if (action === 'accept') {
+        // Курьер принял заказ → показываем "В пути"
+        await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
+
+        const navButtons = buildNavButtons(route, stop, 'enroute');
+        bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
+            chat_id: chatId, message_id: msgId
+        });
+        bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' });
+
+        // Уведомляем клиента
+        if (stop.client_chat_id) {
+            notifier.notifyClient(stop.client_chat_id, stop.order_number, 'shipped',
+                'Курьер в пути, везём заказ.'
+            ).catch(() => {});
+        }
+        notifyAdmin(`[ДОСТАВКА] ${route.route_number} | Курьер принял заказ ${stop.order_number}`);
+    }
+
+    else if (action === 'enroute') {
+        // Курьер в пути → показываем "У клиента"
+        const navButtons = buildNavButtons(route, stop, 'arrived');
+        bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
+            chat_id: chatId, message_id: msgId
+        });
+        bot.answerCallbackQuery(query.id, { text: 'Отметка: прибыли к клиенту' });
+
+        // Уведомляем клиента
+        if (stop.client_chat_id) {
+            notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                `<b>Заказ ${stop.order_number}</b>\n\nКурьер приехал! Ожидайте у подъезда.`
+            ).catch(() => {});
+        }
+        notifyAdmin(`[ДОСТАВКА] ${route.route_number} | Курьер у клиента (${stop.order_number})`);
+    }
+
+    else if (action === 'arrived') {
+        // Курьер у клиента → показываем "Доставлен"
+        const navButtons = buildNavButtons(route, stop, 'done');
+        bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
+            chat_id: chatId, message_id: msgId
+        });
+        bot.answerCallbackQuery(query.id, { text: 'Подтвердите передачу заказа' });
+    }
+
+    else if (action === 'done') {
+        // Заказ доставлен → финальное состояние
+        await db.updateStopStatus(stopId, 'delivered', '');
+
+        // Обновляем маршрут
+        const stops = route.stops || [];
+        const newCompleted = stops.filter(s => s.status === 'delivered' || s.id === stopId).length;
+        const allDone = stops.every(s => s.id === stopId ? true : s.status !== 'pending');
+        const newRouteStatus = allDone ? 'completed' : route.status;
+        await db.updateRouteStatus(routeId, newRouteStatus, newCompleted, route.failed || 0);
+
+        // Обновляем статус заказа на COMPLETED
+        if (stop.order_id) {
+            await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
+        }
+
+        // Финальное состояние кнопок
+        const finalButtons = [[
+            { text: 'Доставлено', callback_data: 'noop' }
+        ]];
+        bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, {
+            chat_id: chatId, message_id: msgId
+        });
+        bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' });
+
+        // Благодарность клиенту + рейтинг
+        if (stop.client_chat_id) {
+            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'delivered')
+                .catch(() => {});
+
+            // Предлагаем оценить
+            const courier = (await db.getCouriers()).find(c => c.id === route.courier_id);
+            if (courier) {
+                setTimeout(() => {
+                    const rateButtons = [[1,2,3,4,5].map(n => ({
+                        text: String(n),
+                        callback_data: `rate_${courier.id}_o_${n}`
+                    }))];
+                    notifier._send(notifier.clientBotBase, stop.client_chat_id,
+                        'Пожалуйста, оцените доставку:', rateButtons
+                    ).catch(() => {});
+                }, 5000);
+            }
+        }
+
+        notifyAdmin(
+            `<b>Заказ доставлен</b>\n\n` +
+            `Заказ: <b>${stop.order_number}</b>\n` +
+            `Адрес: ${stop.address}\n` +
+            `Курьер: ${(await db.getCouriers()).find(c => c.id === route.courier_id)?.name || '-'}`
+        );
+    }
+}
+
+function buildNavButtons(route, stop, nextState) {
+    const buttons = [];
+
+    // Кнопки навигации (всегда показываем если есть координаты)
+    if (stop.lat && stop.lon) {
+        const yandexUrl = MapLinks.yandex(stop.address, parseFloat(stop.lat), parseFloat(stop.lon));
+        const gis2Url = MapLinks.gis2(parseFloat(stop.lat), parseFloat(stop.lon));
+        buttons.push([
+            { text: 'Яндекс Карты', url: yandexUrl },
+            { text: '2GIS', url: gis2Url }
+        ]);
+    }
+
+    // Кнопка действия в зависимости от состояния
+    if (nextState === 'enroute') {
+        buttons.push([{ text: 'В пути', callback_data: `deliver_${route.id}_${stop.id}_enroute` }]);
+    } else if (nextState === 'arrived') {
+        buttons.push([{ text: 'У клиента', callback_data: `deliver_${route.id}_${stop.id}_arrived` }]);
+    } else if (nextState === 'done') {
+        buttons.push([{ text: 'Доставлен', callback_data: `deliver_${route.id}_${stop.id}_done` }]);
+    }
+
+    // Кнопка "Не доставлено" (кроме финального состояния)
+    if (nextState !== 'done') {
+        buttons.push([{ text: 'Не доставлено', callback_data: `failed_${route.id}_${stop.id}` }]);
+    }
+
+    return buttons;
 }
 
 // ====== Причины не доставки ======
@@ -877,31 +1037,35 @@ function registerCourierRoutes(app) {
             // Обновляем статус заказа
             await db.updateOrderStatus(orderId, 'SHIPPING');
 
-            // Уведомляем курьера через курьерский бот с кнопкой "Принять"
+            // Уведомляем курьера через курьерский бот
             if (bot && courier.telegram_id) {
-                let mapLinks = '';
-                if (lat && lon) {
-                    const yandexUrl = MapLinks.yandex(order.address, lat, lon);
-                    const gis2Url = MapLinks.gis2(lat, lon);
-                    mapLinks = `\n\nНавигация:\n${yandexUrl}\n2GIS: ${gis2Url}`;
-                    console.log(`[MAP LINKS] ${yandexUrl}`);
-                }
+                const stopId = route.stops && route.stops[0] ? route.stops[0].id : 0;
                 const msgText =
                     `<b>Новый заказ!</b>\n\n` +
                     `Заказ: ${order.order_number}\n` +
                     `Адрес: ${order.address}\n` +
-                    `Сумма: ${order.total} руб.\n` +
+                    `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
                     (order.comment ? `Комментарий: ${order.comment}\n` : '') +
-                    mapLinks +
-                    `\n\nНажмите "Принять" для начала доставки.`;
-                console.log(`[КУРЬЕР] Отправка курьеру ${courier.telegram_id}: ${msgText.substring(0, 100)}...`);
+                    `\nНажмите "Принять" для начала доставки.`;
+
+                const navButtons = [];
+                if (lat && lon) {
+                    const yandexUrl = MapLinks.yandex(order.address, lat, lon);
+                    const gis2Url = MapLinks.gis2(lat, lon);
+                    navButtons.push([
+                        { text: 'Яндекс Карты', url: yandexUrl },
+                        { text: '2GIS', url: gis2Url }
+                    ]);
+                    console.log(`[MAP LINKS] Yandex: ${yandexUrl}`);
+                }
+                navButtons.push([
+                    { text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }
+                ]);
+
+                console.log(`[КУРЬЕР] Отправка курьеру ${courier.telegram_id}`);
                 bot.sendMessage(courier.telegram_id, msgText, {
                     parse_mode: 'HTML',
-                    reply_markup: {
-                        inline_keyboard: [[
-                            { text: 'Принять заказ', callback_data: `startroute_${route.id}` }
-                        ]]
-                    }
+                    reply_markup: { inline_keyboard: navButtons }
                 }).then(() => console.log(`[OK] Уведомление отправлено курьеру ${courier.telegram_id}`))
                   .catch(e => console.error(`[ОШИБКА] Уведомление курьеру: ${e.message}`));
             }

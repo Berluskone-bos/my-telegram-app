@@ -146,6 +146,9 @@
         /* Empty state */
         .empty { text-align: center; padding: 40px; color: var(--muted); }
 
+        /* Completed order row */
+        tr:has(svg) td { border-left: 3px solid var(--green); }
+
         /* Modal */
         .modal-overlay {
             display: none;
@@ -605,8 +608,13 @@
                         const showAssign = ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
                         const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
                         const courierName = getCourierForOrder(o.id);
-                        return `<tr>
-                            <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
+                        const isCompleted = o.status === 'COMPLETED';
+                        const checkmark = isCompleted
+                            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M20 6L9 17l-5-5"/></svg>'
+                            : '';
+                        const rowStyle = isCompleted ? ' style="background:rgba(22,163,74,0.04)"' : '';
+                        return `<tr${rowStyle}>
+                            <td>${checkmark}<strong>${o.order_number || 'AP-' + o.id}</strong></td>
                             <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
                             <td>${(o.address || '-').substring(0, 30)}${o.comment ? '<br><small style="color:var(--orange)">' + o.comment.substring(0, 40) + '</small>' : ''}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
