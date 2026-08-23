@@ -430,8 +430,8 @@ bot.on('callback_query', async (query) => {
         return;
     }
  } catch (e) {
-    console.error('[ОШИБКА] Callback query:', e.message);
-    try { bot.answerCallbackQuery(query.id, { text: 'Произошла ошибка. Попробуйте ещё раз.' }); } catch (_) {}
+    console.error('[ОШИБКА] Callback query:', e.message, e.stack);
+    try { bot.answerCallbackQuery(query.id, { text: `Ошибка: ${e.message}` }); } catch (_) {}
  }
 });
 } // end if (bot) callback_query
@@ -462,28 +462,38 @@ async function handleStartRoute(chatId, routeId, user) {
 // ====== Flow доставки: accept → enroute → arrived → done ======
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
+    console.log(`[DELIVER] START: routeId=${routeId}, stopId=${stopId}, action=${action}`);
     const route = await db.getRouteById(routeId);
     if (!route) {
+        console.log(`[DELIVER] Route ${routeId} NOT FOUND`);
         bot.answerCallbackQuery(query.id, { text: 'Маршрут не найден' });
         return;
     }
+    console.log(`[DELIVER] Route OK: ${route.route_number}, stops=${(route.stops||[]).length}`);
     const stop = (route.stops || []).find(s => parseInt(s.id) === parseInt(stopId));
     if (!stop) {
+        console.log(`[DELIVER] Stop ${stopId} NOT FOUND. Available: ${(route.stops||[]).map(s=>s.id).join(',')}`);
         bot.answerCallbackQuery(query.id, { text: 'Остановка не найдена' });
         return;
     }
+    console.log(`[DELIVER] Stop OK: ${stop.order_number}`);
 
     const msgId = query.message.message_id;
 
     if (action === 'accept') {
         // Курьер принял заказ → показываем "В пути"
+        console.log(`[DELIVER] accept: updating route status...`);
         await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
+        console.log(`[DELIVER] accept: route status updated`);
 
         const navButtons = buildNavButtons(route, stop, 'enroute');
+        console.log(`[DELIVER] accept: editing message, chatId=${chatId}, msgId=${msgId}`);
         await bot.editMessageReplyMarkup({ inline_keyboard: navButtons }, {
             chat_id: chatId, message_id: msgId
         });
+        console.log(`[DELIVER] accept: message edited, answering callback...`);
         await bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' });
+        console.log(`[DELIVER] accept: DONE`);
 
         // Уведомляем клиента
         if (stop.client_chat_id) {
