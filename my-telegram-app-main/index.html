@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+    <!-- ===== ШАПКА ===== -->
+    <div class="header">
+        <div class="burger-btn" onclick="App.toggleMenu(true)">
+            <i data-lucide="menu" class="icon-sm"></i>
+        </div>
+        <div class="header-logo" id="headerTitle">
+            <img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">
+        </div>
+        <div class="header-icon" onclick="App.toggleSearch()">
+            <i data-lucide="search" class="icon-sm"></i>
+        </div>
+    </div>
+
+    <!-- ===== ПОИСК ===== -->
+    <div class="search-container" id="searchContainer">
+        <input type="text" class="search-input" id="searchInput" placeholder="Поиск масел, фильтров, присадок..." />
+    </div>
+
+    <!-- ===== БОКОВОЕ МЕНЮ ===== -->
+    <div class="menu-overlay" id="menuOverlay" onclick="App.toggleMenu(false)"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="menu-back" onclick="App.toggleMenu(false)">← Назад</div>
+        <div class="menu-item" onclick="App.menuClick('О нас')">О нас</div>
+        <div class="menu-item" onclick="App.menuClick('Доставка и оплата')">Доставка и оплата</div>
+        <div class="menu-item" onclick="App.menuClick('Контакты')">Контакты</div>
+        <div class="menu-item" onclick="window.location.href='privacy.html'">Политика конфиденциальности</div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 1: ГЛАВНАЯ ================ -->
+    <!-- ================================================== -->
+    <div id="screen-main" class="app-screen active">
+        <!-- ===== БАННЕР-КАРУСЕЛЬ ===== -->
+        <div class="promo-carousel">
+            <div class="carousel-track" id="carouselTrack">
+                <div class="carousel-slide">
+                    <div class="slide-content">
+                        <p>Качественные масла и расходники</p>
+                        <h2>ОРИГИНАЛЬНОЕ МАСЛО</h2>
+                        <span class="slide-badge">ХИТ</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-blue">
+                    <div class="slide-content">
+                        <p>Для новых клиентов</p>
+                        <h2>СКИДКА 15% НА ПЕРВЫЙ ЗАКАЗ</h2>
+                        <span class="slide-badge">АКЦИЯ</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-green">
+                    <div class="slide-content">
+                        <p>Быстрая доставка по городу</p>
+                        <h2>БЕСПЛАТНАЯ ДОСТАВКА ОТ 3000 ₽</h2>
+                        <span class="slide-badge">БОНУС</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-orange">
+                    <div class="slide-content">
+                        <p>Полный ассортимент для ТО</p>
+                        <h2>ФИЛЬТРЫ И ПРИСАДКИ</h2>
+                        <span class="slide-badge">НОВИНКА</span>
+                    </div>
+                </div>
+                <div class="carousel-slide slide-purple">
+                    <div class="slide-content">
+                        <p>Подберём масло для вашего авто</p>
+                        <h2>КОНСУЛЬТАЦИЯ СПЕЦИАЛИСТА</h2>
+                        <span class="slide-badge">УСЛУГА</span>
+                    </div>
+                </div>
+            </div>
+            <div class="carousel-dots" id="carouselDots">
+                <span class="dot active"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
+        </div>
+
+        <div class="select-oil-banner" onclick="alert('Мастер подбора масла скоро будет доступен!')">
+            <i data-lucide="search" style="width:20px;height:20px;"></i>
+            <div>
+                <div class="select-oil-title">Подобрать масло</div>
+                <div class="select-oil-sub">По марке и модели автомобиля</div>
+            </div>
+            <div class="select-oil-right">
+                <i data-lucide="chevron-right" style="width:18px;height:18px;opacity:0.5;"></i>
+                <i data-lucide="car" style="width:20px;height:20px;opacity:0.6;"></i>
+            </div>
+        </div>
+
+        <div class="categories-scroll" id="categoriesScroll">
+            <div class="cat-badge active" data-cat="all" onclick="App.selectCategory('all')">Все товары</div>
+            <div class="cat-badge" data-cat="motor" onclick="App.selectCategory('motor')"><i data-lucide="droplets" style="width:14px;height:14px;"></i> Моторные масла</div>
+            <div class="cat-badge" data-cat="transmission" onclick="App.selectCategory('transmission')"><i data-lucide="cog" style="width:14px;height:14px;"></i> Трансмиссионные</div>
+            <div class="cat-badge" data-cat="filter" onclick="App.selectCategory('filter')"><i data-lucide="filter" style="width:14px;height:14px;"></i> Фильтры</div>
+            <div class="cat-badge" data-cat="fluid" onclick="App.selectCategory('fluid')"><i data-lucide="flask-conical" style="width:14px;height:14px;"></i> Тех. жидкости</div>
+            <div class="cat-badge" data-cat="additive" onclick="App.selectCategory('additive')"><i data-lucide="beaker" style="width:14px;height:14px;"></i> Присадки</div>
+            <div class="cat-badge" data-cat="special" onclick="App.selectCategory('special')"><i data-lucide="truck" style="width:14px;height:14px;"></i> Спецтехника</div>
+        </div>
+
+        <div class="sort-row">
+            <button class="filter-btn" onclick="App.toggleFilter()">
+                <i data-lucide="sliders-horizontal" style="width:16px;height:16px;"></i>
+                <span>Фильтр</span>
+            </button>
+            <div class="sort-dropdown" id="sortDropdown">
+                <button class="sort-btn" onclick="App.toggleSort()">
+                    <span>Сортировка</span>
+                    <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                </button>
+                <div class="sort-menu" id="sortMenu">
+                    <div class="sort-option active" data-value="popular" onclick="App.selectSort('popular')">По популярности</div>
+                    <div class="sort-option" data-value="price_asc" onclick="App.selectSort('price_asc')">Цена: по возрастанию</div>
+                    <div class="sort-option" data-value="price_desc" onclick="App.selectSort('price_desc')">Цена: по убыванию</div>
+                    <div class="sort-option" data-value="rating" onclick="App.selectSort('rating')">По рейтингу</div>
+                    <div class="sort-option" data-value="new" onclick="App.selectSort('new')">Новинки</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Панель фильтров -->
+        <div class="filter-overlay" id="filterOverlay" onclick="App.toggleFilter()"></div>
+        <div class="filter-panel" id="filterPanel">
+            <div class="filter-header">
+                <h3>Фильтры</h3>
+                <button class="filter-close" onclick="App.toggleFilter()">
+                    <i data-lucide="x" style="width:20px;height:20px;"></i>
+                </button>
+            </div>
+            <div class="filter-body">
+                <div class="filter-section">
+                    <h4>Бренд</h4>
+                    <div class="filter-options" id="filterBrand"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Вязкость</h4>
+                    <div class="filter-options" id="filterViscosity"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Объём</h4>
+                    <div class="filter-options" id="filterVolume"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Тип масла</h4>
+                    <div class="filter-options" id="filterType"></div>
+                </div>
+                <div class="filter-section">
+                    <h4>Цена</h4>
+                    <div class="filter-price-row">
+                        <input type="number" id="filterPriceMin" placeholder="От" class="filter-price-input">
+                        <span class="filter-price-sep">—</span>
+                        <input type="number" id="filterPriceMax" placeholder="До" class="filter-price-input">
+                    </div>
+                </div>
+            </div>
+            <div class="filter-footer">
+                <button class="filter-reset" onclick="App.resetFilters()">Сбросить</button>
+                <button class="filter-apply" onclick="App.applyFilters()">Применить</button>
+            </div>
+        </div>
+
+        <div class="products-grid" id="productGrid">
+            <!-- Товары загружаются через JS -->
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ============ ЭКРАН: ДЕТАЛИ ТОВАРА ================= -->
+    <!-- ================================================== -->
+    <div id="screen-detail" class="app-screen">
+        <!-- Заполняется через JS -->
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 2: ИЗБРАННОЕ ============== -->
+    <!-- ================================================== -->
+    <div id="screen-favorites" class="app-screen">
+        <div id="favoritesContainer">
+            <div class="empty-state">
+                <i data-lucide="heart" style="width:48px;height:48px;color:#ccc;"></i>
+                <p>У вас пока нет избранных товаров</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 3: КОРЗИНА ================ -->
+    <!-- ================================================== -->
+    <div id="screen-cart" class="app-screen">
+        <div class="cart-container">
+            <h2>Корзина</h2>
+            <div id="cartList"></div>
+            <div id="cartTotal" class="cart-total">Итого: 0 ₽</div>
+
+            <hr style="border-color: var(--border); margin: 20px 0;" />
+
+            <h3 style="margin-bottom: 15px;">Оформление заказа</h3>
+
+            <div class="form-group">
+                <label>Имя:</label>
+                <input type="text" id="orderName" placeholder="Ваше имя" />
+            </div>
+            <div class="form-group">
+                <label>Телефон:</label>
+                <input type="tel" id="orderPhone" placeholder="+7 (999) 000-00-00" />
+            </div>
+
+            <div class="form-group">
+                <label>Способ получения:</label>
+                <div class="delivery-toggle">
+                    <label class="radio-label active" id="labelDelivery">
+                        <input type="radio" name="deliveryType" value="delivery" checked onchange="App.toggleDeliveryType()">
+                        <span>Доставка</span>
+                    </label>
+                    <label class="radio-label" id="labelPickup">
+                        <input type="radio" name="deliveryType" value="pickup" onchange="App.toggleDeliveryType()">
+                        <span>Самовывоз</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="deliveryFields">
+                <div class="form-group">
+                    <label>Регион:</label>
+                    <div class="custom-select" id="zoneSelect">
+                        <button class="custom-select-btn" type="button" onclick="App.toggleZoneDropdown()">
+                            <span id="zoneSelectLabel">Санкт-Петербург (в пределах КАД)</span>
+                            <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                        </button>
+                        <div class="custom-select-menu" id="zoneMenu">
+                            <div class="custom-select-option active" data-value="spb" onclick="App.selectZone('spb', 'Санкт-Петербург (в пределах КАД)')">Санкт-Петербург (в пределах КАД)</div>
+                            <div class="custom-select-option" data-value="lo" onclick="App.selectZone('lo', 'Ленинградская область')">Ленинградская область</div>
+                        </div>
+                        <input type="hidden" id="orderZone" value="spb" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Город:</label>
+                    <input type="text" id="orderCity" placeholder="Санкт-Петербург" value="Санкт-Петербург" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Улица:</label>
+                        <input type="text" id="orderStreet" placeholder="Улица" />
+                    </div>
+                </div>
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label>Дом:</label>
+                        <input type="text" id="orderHouse" placeholder="Дом" />
+                    </div>
+                    <div class="form-group">
+                        <label>Подъезд:</label>
+                        <input type="text" id="orderEntrance" placeholder="Под." />
+                    </div>
+                    <div class="form-group">
+                        <label>Квартира:</label>
+                        <input type="text" id="orderApartment" placeholder="Кв." />
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Комментарий:</label>
+                <textarea id="orderComment" placeholder="Примечания к заказу..." rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Способ оплаты:</label>
+                <select id="orderPayment">
+                    <option value="cash">Наличные при получении</option>
+                    <option value="card">Картой при получении</option>
+                    <option value="sbp">СБП (перевод)</option>
+                </select>
+            </div>
+
+            <button class="btn-order" onclick="App.makeOrder()">Подтвердить заказ</button>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ================ ЭКРАН 4: ПРОФИЛЬ ================ -->
+    <!-- ================================================== -->
+    <div id="screen-profile" class="app-screen">
+        <div class="profile-container">
+            <div class="profile-avatar" id="userAvatar">U</div>
+            <div class="profile-name" id="userName">Пользователь</div>
+
+            <div class="loyalty-card loyalty-level-1">
+                <div class="card-header">
+                    <span>Дисконтная карта</span>
+                    <span class="card-number" id="cardNumber">AR-000000</span>
+                </div>
+                <div class="card-discount">Скидка: <span id="cardDiscountValue">0%</span></div>
+                <div class="card-footer">
+                    <div>Статус: <span id="loyaltyStatus">Железный</span></div>
+                    <div>До следующего уровня: <span id="loyaltyNext">40 000 руб.</span></div>
+                </div>
+                <div class="card-progress">
+                    <div class="card-progress-bar" id="loyaltyProgress" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Мои данные -->
+            <div class="profile-section">
+                <h3 class="profile-section-title"><i data-lucide="user" style="width:18px;height:18px;"></i> Мои данные</h3>
+                <div class="profile-data-card">
+                    <div class="profile-data-row">
+                        <span class="profile-data-label">Имя</span>
+                        <span class="profile-data-value" id="profileName">—</span>
+                    </div>
+                    <div class="profile-data-row">
+                        <span class="profile-data-label">Телефон</span>
+                        <span class="profile-data-value" id="profilePhone">—</span>
+                    </div>
+                    <div class="profile-data-row">
+                        <span class="profile-data-label">Адрес</span>
+                        <span class="profile-data-value" id="profileAddress">—</span>
+                    </div>
+                    <div class="profile-data-row" id="profileAddressDetails" style="display:none;">
+                        <span class="profile-data-label"></span>
+                        <span class="profile-data-value" id="profileAddressDetailsValue"></span>
+                    </div>
+                    <button class="profile-edit-btn" onclick="App.editProfile()">
+                        <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Редактировать
+                    </button>
+                </div>
+            </div>
+
+            <!-- Мой автомобиль -->
+            <div class="profile-section">
+                <h3 class="profile-section-title"><i data-lucide="car" style="width:18px;height:18px;"></i> Мой автомобиль</h3>
+                <div class="profile-car-card" id="profileCarCard">
+                    <div class="profile-car-empty">
+                        <i data-lucide="car" style="width:32px;height:32px;color:var(--text-muted);opacity:0.4;"></i>
+                        <p>Автомобиль не добавлен</p>
+                        <button class="profile-add-car-btn" onclick="App.addCar()">
+                            <i data-lucide="plus" style="width:16px;height:16px;"></i> Добавить автомобиль
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <div class="p-menu-item" onclick="App.openReferral()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="gift" class="icon-sm"></i></span>
+                        <span class="p-menu-text">Промокод за рекомендацию</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="App.showOrderHistory()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="package" class="icon-sm"></i></span>
+                        <span class="p-menu-text">История заказов</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item" onclick="App.contactSupport()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span>
+                        <span class="p-menu-text">Связаться с поддержкой</span>
+                    </div>
+                    <span class="p-menu-arrow">›</span>
+                </div>
+                <div class="p-menu-item p-menu-item-danger" onclick="App.logout()">
+                    <div class="p-menu-left">
+                        <span class="p-menu-icon"><i data-lucide="log-out" class="icon-sm"></i></span>
+                        <span class="p-menu-text">Выйти</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ============ ЭКРАН: О НАС ======================== -->
+    <!-- ================================================== -->
+    <div id="screen-about" class="app-screen">
+        <div class="page-content">
+            <button class="btn-back" onclick="App.goBack()"><i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Назад</button>
+            <div class="page-icon"><i data-lucide="building-2" style="width:40px;height:40px;color:var(--accent);"></i></div>
+            <h2 class="page-title">О компании</h2>
+            <div class="page-block">
+                <p><strong>АВТОПРОМОЙЛ</strong> — мультибрендовый магазин автомобильных масел, фильтров, технических жидкостей и присадок.</p>
+                <p>Мы предлагаем профессиональную защиту двигателя с доставкой по Санкт-Петербургу и Ленинградской области.</p>
+            </div>
+            <div class="page-block">
+                <h3>Почему мы</h3>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <i data-lucide="shield-check" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Только оригинальная продукция</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="truck" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Доставка по СПб и ЛО</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="headphones" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Профессиональная консультация</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="award" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Гарантия качества</span>
+                    </div>
+                </div>
+            </div>
+            <div class="page-block">
+                <h3>Наш ассортимент</h3>
+                <ul class="info-list">
+                    <li>Моторные масла (синтетика, полусинтетика, минеральное)</li>
+                    <li>Трансмиссионные масла (ATF, MTF)</li>
+                    <li>Фильтры (масляные, воздушные, салонные, топливные)</li>
+                    <li>Присадки и технические жидкости</li>
+                    <li>Антифризы</li>
+                    <li>Тормозные жидкости</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ============ ЭКРАН: ДОСТАВКА И ОПЛАТА ============ -->
+    <!-- ================================================== -->
+    <div id="screen-delivery" class="app-screen">
+        <div class="page-content">
+            <button class="btn-back" onclick="App.goBack()"><i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Назад</button>
+            <div class="page-icon"><i data-lucide="truck" style="width:40px;height:40px;color:var(--accent);"></i></div>
+            <h2 class="page-title">Доставка и оплата</h2>
+            <div class="page-block">
+                <h3>Доставка</h3>
+                <div class="delivery-zone">
+                    <div class="zone-item">
+                        <div class="zone-header">
+                            <i data-lucide="map-pin" style="width:18px;height:18px;color:var(--accent);"></i>
+                            <strong>Санкт-Петербург</strong>
+                        </div>
+                        <p>Курьерская доставка в пределах КАД</p>
+                        <p class="zone-price">Бесплатно от 5 000 руб.</p>
+                    </div>
+                    <div class="zone-item">
+                        <div class="zone-header">
+                            <i data-lucide="map" style="width:18px;height:18px;color:var(--accent);"></i>
+                            <strong>Ленинградская область</strong>
+                        </div>
+                        <p>Доставка транспортной компанией</p>
+                        <p class="zone-price">Рассчитывается индивидуально</p>
+                    </div>
+                </div>
+            </div>
+            <div class="page-block">
+                <h3>Оплата</h3>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:18px;">&#8381;</span>
+                        <span>Наличные при получении</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="credit-card" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Перевод на карту</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="smartphone" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>СБП (Система быстрых платежей)</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="globe" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Онлайн-оплата (скоро)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ============ ЭКРАН: КОНТАКТЫ ===================== -->
+    <!-- ================================================== -->
+    <div id="screen-contacts" class="app-screen">
+        <div class="page-content">
+            <button class="btn-back" onclick="App.goBack()"><i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Назад</button>
+            <div class="page-icon"><i data-lucide="phone" style="width:40px;height:40px;color:var(--accent);"></i></div>
+            <h2 class="page-title">Контакты</h2>
+            <div class="page-block">
+                <div class="contact-list">
+                    <div class="contact-item">
+                        <i data-lucide="phone" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <div>
+                            <strong>Телефон</strong>
+                            <p>8-800-555-35-35 (бесплатно)</p>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <i data-lucide="message-circle" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <div>
+                            <strong>Telegram</strong>
+                            <p>@avtopromol_support</p>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <i data-lucide="mail" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <div>
+                            <strong>Email</strong>
+                            <p>info@avtopromol.ru</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="page-block">
+                <h3>Режим работы</h3>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <i data-lucide="clock" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Пн-Пт: 9:00 - 19:00</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="clock" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Сб: 10:00 - 16:00</span>
+                    </div>
+                    <div class="feature-item">
+                        <i data-lucide="clock" style="width:20px;height:20px;color:var(--accent);"></i>
+                        <span>Вс: выходной</span>
+                    </div>
+                </div>
+            </div>
+            <div class="page-block">
+                <h3>Юридическое лицо</h3>
+                <p>ИП Гаврилов И. В.</p>
+                <p>ИНН: 410115724550</p>
+                <p>ОГРНИП: 322410000008623</p>
+                <p>г. Санкт-Петербург и Ленинградская область</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- ============ ЭКРАН: МОИ ЗАКАЗЫ =================== -->
+    <!-- ================================================== -->
+    <div id="screen-orders" class="app-screen">
+        <div class="page-content">
+            <button class="btn-back" onclick="App.goBack()"><i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Назад</button>
+            <h2 class="page-title">Мои заказы</h2>
+            <div class="orders-actions" id="ordersActions" style="display:none;">
+                <button class="orders-action-btn" onclick="Profile.selectAllOrders()">
+                    <i data-lucide="check-square" style="width:16px;height:16px;"></i> Выбрать все
+                </button>
+                <button class="orders-action-btn orders-action-delete" onclick="Profile.deleteSelectedOrders()">
+                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i> Удалить
+                </button>
+            </div>
+            <div id="orderHistoryList"></div>
+        </div>
+    </div>
+
+    <!-- ===== НИЖНЕЕ МЕНЮ ===== -->
+    <div class="bottom-nav">
+        <div class="nav-item active" id="btn-nav-main" onclick="App.switchScreen('main')">
+            <div class="nav-icon"><i data-lucide="home"></i></div>
+            <div class="nav-label">Главная</div>
+        </div>
+        <div class="nav-item" id="btn-nav-favorites" onclick="App.switchScreen('favorites')">
+            <div class="nav-icon"><i data-lucide="heart"></i></div>
+            <div class="nav-label">Избранное</div>
+        </div>
+        <div class="nav-item" id="btn-nav-cart" onclick="App.switchScreen('cart')">
+            <div class="nav-icon"><i data-lucide="shopping-cart"></i></div>
+            <div class="nav-label">Корзина</div>
+            <span class="badge" id="cartBadge">0</span>
+        </div>
+        <div class="nav-item" id="btn-nav-profile" onclick="App.switchScreen('profile')">
+            <div class="nav-icon"><i data-lucide="user"></i></div>
+            <div class="nav-label">Профиль</div>
+        </div>
+    </div>
+
+    <!-- ===== СКРИПТЫ ===== -->
+    <script src="js/telegram.js"></script>
+    <script src="js/products.js"></script>
+    <script src="js/cart.js"></script>
+    <script src="js/favorites.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        // Инициализация Lucide иконок
+        lucide.createIcons();
+
+        // Автоматическая карусель
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.carousel-slide');
+        const dots = document.querySelectorAll('.dot');
+        const track = document.getElementById('carouselTrack');
+
+        function goToSlide(index) {
+            currentSlide = index;
+            track.style.transform = `translateX(-${index * 100}%)`;
+            dots.forEach((dot, i) => dot.classList.toggle('active', i === index));
+        }
+
+        // Автопрокрутка каждые 4 секунды
+        setInterval(() => {
+            currentSlide = (currentSlide + 1) % slides.length;
+            goToSlide(currentSlide);
+        }, 4000);
+
+        // Клик по точкам
+        dots.forEach((dot, i) => {
+            dot.addEventListener('click', () => goToSlide(i));
+        });
+
+        // Свайп для карусели
+        let touchStartX = 0;
+        const carousel = document.querySelector('.promo-carousel');
+        carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+        carousel.addEventListener('touchend', (e) => {
+            const diff = touchStartX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 50) {
+                if (diff > 0 && currentSlide < slides.length - 1) goToSlide(currentSlide + 1);
+                else if (diff < 0 && currentSlide > 0) goToSlide(currentSlide - 1);
+            }
+        });
+    </script>
+
+    <!-- Модальное окно: Редактирование профиля -->
+    <div class="modal-overlay" id="modalProfile">
+        <div class="modal-content">
+            <h3 class="modal-title">Мои данные</h3>
+            <div class="form-group">
+                <label>Имя:</label>
+                <input type="text" id="modalProfileName" placeholder="Ваше имя" />
+            </div>
+            <div class="form-group">
+                <label>Телефон:</label>
+                <input type="tel" id="modalProfilePhone" placeholder="+7 (999) 000-00-00" />
+            </div>
+            <div class="form-group">
+                <label>Город:</label>
+                <input type="text" id="modalProfileCity" placeholder="Санкт-Петербург" />
+            </div>
+            <div class="form-group">
+                <label>Улица:</label>
+                <input type="text" id="modalProfileStreet" placeholder="Улица" />
+            </div>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>Дом:</label>
+                    <input type="text" id="modalProfileHouse" placeholder="Дом" />
+                </div>
+                <div class="form-group">
+                    <label>Подъезд:</label>
+                    <input type="text" id="modalProfileEntrance" placeholder="Под." />
+                </div>
+                <div class="form-group">
+                    <label>Квартира:</label>
+                    <input type="text" id="modalProfileApartment" placeholder="Кв." />
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="App.closeModal('modalProfile')">Отмена</button>
+                <button class="modal-btn modal-btn-save" onclick="App.saveProfile()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Добавление автомобиля -->
+    <div class="modal-overlay" id="modalCar">
+        <div class="modal-content">
+            <h3 class="modal-title">Мой автомобиль</h3>
+            <div class="form-group">
+                <label>Марка:</label>
+                <input type="text" id="modalCarBrand" placeholder="Toyota, BMW, Kia..." />
+            </div>
+            <div class="form-group">
+                <label>Модель:</label>
+                <input type="text" id="modalCarModel" placeholder="Camry, X5, Sportage..." />
+            </div>
+            <div class="form-group">
+                <label>Год выпуска:</label>
+                <input type="number" id="modalCarYear" placeholder="2020" min="1990" max="2026" />
+            </div>
+            <div class="form-group">
+                <label>Двигатель:</label>
+                <input type="text" id="modalCarEngine" placeholder="2.5 бензин, 2.0 дизель..." />
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="App.closeModal('modalCar')">Отмена</button>
+                <button class="modal-btn modal-btn-save" onclick="App.saveCar()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
