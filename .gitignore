@@ -21,3 +21,5 @@ npm-debug.log*
 *.tmp
 *.temp
 bot/bot-log.txt
+.env
+bot/.env
