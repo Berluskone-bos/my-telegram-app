@@ -19,13 +19,25 @@ cd bot
 npm install
 ```
 
-Создайте файл `bot/.env`:
+Создайте файл `.env` в корне проекта (и `bot/.env` для бота):
 ```env
 BOT_TOKEN=ваш_токен_от_botfather
 ADMIN_CHAT_ID=ваш_chat_id
 WEB_APP_URL=https://your-domain.com
+WEBHOOK_URL=https://your-domain.com/webhook
+WEBHOOK_SECRET=случайная_строка_32_символа
+ADMIN_API_KEY=случайная_строка_32_символа
+COURIER_BOT_TOKEN=ваш_токен_курьер_бота
+ADMIN_BOT_TOKEN=ваш_токен_админ_бота
+DATABASE_URL=postgresql://user:pass@neon.tech/neondb?sslmode=require
 PORT=3000
 ```
+
+**Безопасность (проверено):**
+- `admin.html`: удалён хардкод пароля (`autopromoil2024`)
+- `courier-bot.js`: добавлена проверка `x-webhook-secret` и `x-admin-key` (`verifyWebhookSecret` / `verifyAdmin`)
+- `.env.example`: добавлены `WEBHOOK_URL`, `WEBHOOK_SECRET`, `ADMIN_API_KEY`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`
+- `TRUST_CLIENT_PRICES` по умолчанию `false` (цены из БД, не клиента)
 
 Чтобы узнать свой Chat ID:
 1. Откройте [@userinfobot](https://t.me/userinfobot)
@@ -57,6 +69,8 @@ python -m http.server 3000
 ```
 
 Откройте http://localhost:3000
+
+**База данных:** подключение к Neon (`DATABASE_URL` с `sslmode=require`); `db.js` поддерживает SSL для `railway` и `neon`. При локальном запуске без БД запустится, но команды с БД (`/orders`, `/routes`) не сработают — нужна работающая `DATABASE_URL`.
 
 ### 4. Настройте Mini App в Telegram
 

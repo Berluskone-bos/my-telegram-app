@@ -1,3 +1,6 @@
+// Экранирование HTML
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 // Профиль и бонусная система
 const Profile = {
     totalSpent: 0,
@@ -211,14 +214,13 @@ const Profile = {
     getProfileData() {
         try {
             const saved = localStorage.getItem('gulf_profile');
-            return saved ? JSON.parse(saved) : {};
-        } catch (e) {
-            return {};
-        }
+            if (!saved) return {};
+            try { return JSON.parse(atob(saved)); } catch { return JSON.parse(saved); }
+        } catch (e) { return {}; }
     },
 
     saveProfileData(data) {
-        localStorage.setItem('gulf_profile', JSON.stringify(data));
+        try { localStorage.setItem('gulf_profile', btoa(JSON.stringify(data))); } catch (e) {}
     },
 
     updateProfileUI() {
@@ -277,11 +279,11 @@ const Profile = {
         if (!container) return;
 
         if (car && car.brand && car.model) {
-            const yearText = car.year ? ` ${car.year}` : '';
-            const engineText = car.engine ? ` · ${car.engine}` : '';
+            const yearText = car.year ? ` ${esc(car.year)}` : '';
+            const engineText = car.engine ? ` · ${esc(car.engine)}` : '';
             container.innerHTML = `
                 <div class="profile-car-info">
-                    <div class="profile-car-name">${car.brand} ${car.model}</div>
+                    <div class="profile-car-name">${esc(car.brand)} ${esc(car.model)}</div>
                     <div class="profile-car-details">${yearText}${engineText}</div>
                 </div>
                 <div class="profile-car-actions">
@@ -384,7 +386,7 @@ const Profile = {
 
         this.orderHistory.forEach((order, idx) => {
             const orderNum = this.orderHistory.length - idx;
-            const itemsSummary = order.items.map(i => i.name).join(', ');
+            const itemsSummary = (order.items || []).map(i => esc(i.name)).join(', ');
             const checked = this.selectedOrders.has(idx);
             const status = this.getStatusText(order.status || 'NEW');
             const paymentStatus = order.paymentStatus || 'PENDING';
@@ -396,9 +398,9 @@ const Profile = {
                     ${this.editMode ? `<div class="order-checkbox">${checked ? '<i data-lucide="check-circle" style="width:22px;height:22px;color:var(--accent);"></i>' : '<i data-lucide="circle" style="width:22px;height:22px;color:var(--border);"></i>'}</div>` : ''}
                     <div class="order-header">
                         <div class="order-number">Заказ #AP-${String(orderNum).padStart(6, '0')}</div>
-                        <span class="order-status ${status.class}">${status.text}</span>
+                        <span class="order-status ${esc(status.class)}">${esc(status.text)}</span>
                     </div>
-                    <div class="order-date">${order.date} · ${deliveryLabel}</div>
+                    <div class="order-date">${esc(order.date || '')} · ${esc(deliveryLabel)}</div>
                     <div class="order-items">${itemsSummary}</div>
                     <div class="order-payment-status">${this.getPaymentStatusText(paymentStatus)}</div>
                     <div class="order-footer">

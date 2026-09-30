@@ -1,3 +1,10 @@
+// ═══ УТИЛИТЫ БЕЗОПАСНОСТИ ═══
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    })[c]);
+}
+
 // Главный модуль приложения
 const App = {
     currentScreen: 'main',
@@ -133,7 +140,8 @@ const App = {
 
         container.innerHTML = options.map(opt => {
             const isActive = selectedArray.includes(opt);
-            return `<div class="filter-chip ${isActive ? 'active' : ''}" data-value="${opt}" onclick="App.toggleFilterChip(this, '${containerId}')">${opt}</div>`;
+            const optSafe = esc(opt);
+            return `<div class="filter-chip ${isActive ? 'active' : ''}" data-value="${optSafe}" onclick="App.toggleFilterChip(this, '${containerId}')">${optSafe}</div>`;
         }).join('');
     },
 
@@ -333,7 +341,12 @@ const App = {
         // Переключаемся на экран деталей
         document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
         container.classList.add('active');
-        document.getElementById('headerTitle').innerHTML = `<span class="header-logo-text">${product.name}</span>`;
+        const titleEl = document.getElementById('headerTitle');
+        const span = document.createElement('span');
+        span.className = 'header-logo-text';
+        span.textContent = product.name;
+        titleEl.textContent = '';
+        titleEl.appendChild(span);
 
         // Скрываем нижнее меню
         document.querySelector('.bottom-nav').style.display = 'none';
@@ -369,13 +382,22 @@ const App = {
         if (navBtn) navBtn.classList.add('active');
 
         // Меняем заголовок
-        const titles = {
-            main: '<span class="header-logo-text">АВТОПРОМОЙЛ</span>',
-            favorites: '<span class="header-logo-text">ИЗБРАННОЕ</span>',
-            cart: '<span class="header-logo-text">КОРЗИНА</span>',
-            profile: '<span class="header-logo-text">ПРОФИЛЬ</span>'
+        const titleTexts = {
+            main: 'АВТОПРОМОЙЛ',
+            favorites: 'ИЗБРАННОЕ',
+            cart: 'КОРЗИНА',
+            profile: 'ПРОФИЛЬ',
+            about: 'О НАС',
+            delivery: 'ДОСТАВКА И ОПЛАТА',
+            contacts: 'КОНТАКТЫ'
         };
-        document.getElementById('headerTitle').innerHTML = titles[screenName] || '<span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+        const titleText = titleTexts[screenName] || 'АВТОПРОМОЙЛ';
+        const titleEl = document.getElementById('headerTitle');
+        titleEl.textContent = '';
+        const span = document.createElement('span');
+        span.className = 'header-logo-text';
+        span.textContent = titleText;
+        titleEl.appendChild(span);
 
         // Рендерим содержимое
         if (screenName === 'cart') {
@@ -518,7 +540,18 @@ const App = {
                 delivery: '<span class="header-logo-text">ДОСТАВКА И ОПЛАТА</span>',
                 contacts: '<span class="header-logo-text">КОНТАКТЫ</span>'
             };
-            document.getElementById('headerTitle').innerHTML = titles[screen] || '<span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+            const menuTitles = {
+                about: 'О НАС',
+                delivery: 'ДОСТАВКА И ОПЛАТА',
+                contacts: 'КОНТАКТЫ'
+            };
+            const titleText = menuTitles[screen] || 'АВТОПРОМОЙЛ';
+            const titleEl = document.getElementById('headerTitle');
+            titleEl.textContent = '';
+            const span = document.createElement('span');
+            span.className = 'header-logo-text';
+            span.textContent = titleText;
+            titleEl.appendChild(span);
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     },
@@ -642,6 +675,31 @@ const App = {
         // Сохраняем заказ локально
         Profile.addOrder(order);
 
+        // Отправляем на сервер ТОЛЬКО список товаров (без цены/итога — сервер рассчитает сам)
+        const orderPayload = {
+            items: Cart.items.map(item => ({
+                productId: item.id,
+                qty: item.quantity
+            })),
+            deliveryType: deliveryType,
+            address: address,
+            zone: zone,
+            city: city,
+            street: street,
+            house: house,
+            entrance: entrance,
+            apartment: apartment,
+            comment: comment,
+            phone: phone,
+            payment: payment,
+            userName: userName,
+            userId: user ? user.id : null,
+            status: 'NEW',
+            paymentStatus: 'PENDING',
+            date: new Date().toLocaleDateString('ru-RU'),
+            timestamp: Date.now()
+        };
+
         // ВСЕГДА отправляем заказ через API для сохранения в БД
         const API_BASE = window.location.hostname === 'localhost'
             ? 'http://localhost:3000'
@@ -650,13 +708,15 @@ const App = {
         fetch(`${API_BASE}/api/order`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(order)
+            body: JSON.stringify(orderPayload)
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(async response => {
+            if (!response.ok) throw new Error('Сервер вернул ошибку: ' + response.status);
+            const data = await response.json();
             console.log('Заказ сохранён в БД:', data);
+            const serverTotal = data.total || discountedTotal;
             const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
-            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${discountedTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
         })
         .catch(err => {
             console.error('Ошибка сохранения заказа:', err);

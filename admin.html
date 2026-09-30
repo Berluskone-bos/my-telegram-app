@@ -217,6 +217,13 @@
     </style>
 </head>
 <body>
+<div id="adminAuth" style="position:fixed;inset:0;z-index:9999;background:#101B4D;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+    <h2 style="color:#fff;font-family:Montserrat,sans-serif;font-size:24px;margin-bottom:24px;">АВТОПРОМОЙЛ — Админ</h2>
+    <input id="adminPass" type="password" placeholder="Пароль входа" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
+    <button onclick="if(document.getElementById('adminPass').value==='autopromoil2024'){sessionStorage.setItem('admin_auth','1');document.getElementById('adminAuth').style.display='none';}else{alert('Неверный пароль');}" style="padding:12px 24px;font-size:16px;background:#00AFC7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Войти</button>
+    <p style="color:#88A0B8;font-size:12px;margin-top:16px;">Пароль изменён — обратитесь к администратору системы.</p>
+</div>
+<script>if(sessionStorage.getItem('admin_auth')==='1'){document.getElementById('adminAuth').style.display='none';}</script>
     <div class="header">
         <h1>АВТОПРОМОЙЛ — Админ-панель</h1>
         <div class="header-date" id="currentDate"></div>
@@ -512,6 +519,9 @@
             if (name === 'shop') loadShopData();
         }
 
+        // Экранирование для безопасности
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
         // ====== Модальные окна ======
         function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
@@ -533,9 +543,9 @@
                 document.getElementById('unassignedTable').innerHTML = unassigned.length === 0
                     ? '<tr><td colspan="5" class="empty">Нет заказов без маршрута</td></tr>'
                     : unassigned.map(o => `<tr>
-                        <td><strong>${o.order_number || 'AP-' + o.id}</strong></td>
-                        <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
-                        <td>${o.address || '-'}</td>
+                        <td><strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
+                        <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
+                        <td>${esc(o.address || '-')}</td>
                         <td>${(o.total || 0).toLocaleString()} руб.</td>
                         <td>${fmtDate(o.created_at)}</td>
                     </tr>`).join('');
@@ -548,8 +558,8 @@
                         const c = couriers.find(x => x.id === r.courier_id);
                         const sc = r.status === 'completed' ? 'badge-green' : r.status === 'in_progress' ? 'badge-orange' : r.status === 'assigned' ? 'badge-blue' : 'badge-grey';
                         return `<tr>
-                            <td><strong>${r.route_number}</strong></td>
-                            <td>${c ? c.name : '-'}</td>
+                            <td><strong>${esc(r.route_number)}</strong></td>
+                            <td>${esc(c ? c.name : '-')}</td>
                             <td>${r.total_orders || 0}</td>
                             <td>${r.completed || 0} / ${r.total_orders || 0}</td>
                             <td><span class="badge ${sc}">${r.status}</span></td>
@@ -587,7 +597,7 @@
                         const total = (parseInt(c.delivered)||0) + (parseInt(c.failed)||0);
                         const rate = total > 0 ? Math.round((parseInt(c.delivered)||0) / total * 100) : 0;
                         return `<tr>
-                            <td><strong>${c.name}</strong></td>
+                            <td><strong>${esc(c.name)}</strong></td>
                             <td>${c.routes || 0}</td>
                             <td>${c.delivered || 0}</td>
                             <td>${c.failed || 0}</td>
@@ -638,7 +648,7 @@
                     ? '<tr><td colspan="7" class="empty">Нет заказов</td></tr>'
                     : orders.slice(0, 50).map(o => {
                         const courierOptions = couriers.map(c =>
-                            `<option value="${c.id}">${c.name}</option>`
+                            `<option value="${esc(c.id)}">${esc(c.name)}</option>`
                         ).join('');
                         const showAssign = ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
                         const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
@@ -649,9 +659,9 @@
                             : '';
                         const rowStyle = isCompleted ? ' style="background:rgba(22,163,74,0.04)"' : '';
                         return `<tr${rowStyle}>
-                            <td>${checkmark}<strong>${o.order_number || 'AP-' + o.id}</strong></td>
-                            <td>${o.user_name || '-'}<br><small>${o.phone || ''}</small></td>
-                            <td>${(o.address || '-').substring(0, 30)}${o.comment ? '<br><small style="color:var(--orange)">' + o.comment.substring(0, 40) + '</small>' : ''}</td>
+                            <td>${checkmark}<strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
+                            <td>${esc(o.user_name || '-')}${o.phone ? '<br><small>' + esc(o.phone || '') + '</small>' : ''}</td>
+                            <td>${esc((o.address || '-').substring(0, 30))}${o.comment ? '<br><small style="color:var(--orange)">' + esc(o.comment.substring(0, 40)) + '</small>' : ''}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
                             <td>
                                 <select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
@@ -742,9 +752,9 @@
                         const stockClass = p.stock === 0 ? 'badge-red' : (p.stock > 0 && p.stock <= 3) ? 'badge-orange' : 'badge-green';
                         const stockLabel = p.stock === 0 ? 'Нет' : (p.stock > 0 && p.stock <= 3) ? 'Мало' : 'В наличии';
                         return `<tr>
-                            <td>${p.id || '-'}</td>
-                            <td><strong>${p.name || '-'}</strong><br><small>${p.brand || ''} ${p.volume || ''}</small></td>
-                            <td>${p.category || '-'}</td>
+                            <td>${esc(p.id || '-')}</td>
+                            <td><strong>${esc(p.name || '-')}</strong><br><small>${esc(p.brand || '')} ${esc(p.volume || '')}</small></td>
+                            <td>${esc(p.category || '-')}</td>
                             <td>${(parseFloat(p.price)||0).toLocaleString()} руб.</td>
                             <td>${stock}</td>
                             <td><span class="badge ${stockClass}">${stockLabel}</span></td>
@@ -773,9 +783,9 @@
                 document.getElementById('shopCustomersTable').innerHTML = customers.length === 0
                     ? '<tr><td colspan="6" class="empty">Нет клиентов</td></tr>'
                     : customers.map(c => `<tr>
-                        <td><strong>${c.name || '-'}</strong></td>
-                        <td>${c.phone || '-'}</td>
-                        <td>${c.user_id ? 'ID: ' + c.user_id : '-'}</td>
+                        <td><strong>${esc(c.name || '-')}</strong></td>
+                        <td>${esc(c.phone || '-')}</td>
+                        <td>${c.user_id ? 'ID: ' + esc(c.user_id) : '-'}</td>
                         <td>${c.orders}</td>
                         <td>${c.total.toLocaleString()} руб.</td>
                         <td>${fmtDate(c.lastDate)}</td>

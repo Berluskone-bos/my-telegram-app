@@ -1,4 +1,6 @@
 // Каталог товаров
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 const Products = {
     data: [],
     categories: [],
@@ -48,11 +50,12 @@ const Products = {
     },
 
     getPictureHtml(imagePath, altText, extraAttrs = '') {
-        const fallback = imagePath.replace('/webp/', '/').replace('.webp', '.png');
+        const safePath = esc(imagePath);
+        const safeAlt = esc(altText);
+        const fallback = safePath.replace('/webp/', '/').replace('.webp', '.png');
         return `<picture>
-            <source srcset="${imagePath}" type="image/webp">
-            <img src="${fallback}" alt="${altText}" ${extraAttrs}
-                 onerror="this.style.display='none'; this.parentElement.innerHTML+='<span style=\\'font-size:48px;opacity:0.3;color:#999\\'>[фото]</span>';">
+            <source srcset="${safePath}" type="image/webp">
+            <img src="${fallback}" alt="${safeAlt}" ${extraAttrs}>
         </picture>`;
     },
 
@@ -163,8 +166,8 @@ const Products = {
                     </button>
                 </div>
                 <div class="product-info">
-                    <div class="product-title">${product.name}</div>
-                    <div class="product-volume">${product.volume || '&nbsp;'}</div>
+                    <div class="product-title">${esc(product.name)}</div>
+                    <div class="product-volume">${esc(product.volume || '\u00a0')}</div>
                     <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
                         <i data-lucide="shopping-bag"></i>
                     </button>
@@ -180,7 +183,7 @@ const Products = {
     renderDetail(product) {
         const specsHtml = product.specs
             ? Object.entries(product.specs).map(([key, val]) =>
-                `<div class="spec-row"><span class="spec-label">${key}</span><span class="spec-value">${val}</span></div>`
+                `<div class="spec-row"><span class="spec-label">${esc(key)}</span><span class="spec-value">${esc(val)}</span></div>`
               ).join('')
             : '';
         const image = product.main_image || product.image;
@@ -203,13 +206,13 @@ const Products = {
                 <div class="product-detail-image">
                     ${this.getPictureHtml(image, product.name)}
                 </div>
-                <div class="product-detail-name">${product.full_name}</div>
-                <div class="product-detail-volume">${product.volume}${product.viscosity ? ' · ' + product.viscosity : ''}</div>
+                <div class="product-detail-name">${esc(product.full_name || product.name)}</div>
+                <div class="product-detail-volume">${esc(product.volume)}${product.viscosity ? ' · ' + esc(product.viscosity) : ''}</div>
                 <div class="product-detail-price-row">
                     <div class="product-detail-price">${product.price.toLocaleString()} ₽</div>
                     ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString()} ₽</div>` : ''}
                 </div>
-                <div class="product-detail-description">${product.description}</div>
+                <div class="product-detail-description">${esc(product.description)}</div>
                 ${techSpecsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${techSpecsHtml}</div>` : ''}
                 ${specsHtml ? `<div class="product-detail-specs"><h3>Дополнительно</h3>${specsHtml}</div>` : ''}
                 <button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>

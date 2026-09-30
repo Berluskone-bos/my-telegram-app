@@ -1,3 +1,6 @@
+// Экранирование HTML
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 // Корзина
 const Cart = {
     items: [],
@@ -5,7 +8,17 @@ const Cart = {
     load() {
         try {
             const saved = localStorage.getItem('gulf_cart');
-            if (saved) this.items = JSON.parse(saved);
+            if (saved) {
+                try { 
+                    const parsed = JSON.parse(atob(saved)); 
+                    this.items = Array.isArray(parsed) ? parsed.filter(i => Number.isInteger(i.id) && Number.isInteger(i.quantity) && i.quantity >= 1 && i.quantity <= 99) : []; 
+                } catch { 
+                    try { 
+                        const parsed = JSON.parse(saved); 
+                        this.items = Array.isArray(parsed) ? parsed.filter(i => Number.isInteger(i.id) && Number.isInteger(i.quantity) && i.quantity >= 1 && i.quantity <= 99) : []; 
+                    } catch { this.items = []; } 
+                }
+            }
         } catch (e) {
             this.items = [];
         }
@@ -18,7 +31,7 @@ const Cart = {
     },
 
     save() {
-        localStorage.setItem('gulf_cart', JSON.stringify(this.items));
+        try { localStorage.setItem('gulf_cart', btoa(JSON.stringify(this.items))); } catch (e) {}
     },
 
     add(productId) {
@@ -81,8 +94,8 @@ const Cart = {
             html += `
                 <div class="cart-item">
                     <div class="cart-item-info">
-                        <div class="cart-item-title">${prod.name}</div>
-                        <div class="cart-item-volume">${prod.volume}</div>
+                        <div class="cart-item-title">${esc(prod.name)}</div>
+                        <div class="cart-item-volume">${esc(prod.volume)}</div>
                         <div class="cart-item-price">${(prod.price * item.quantity).toLocaleString()} ₽</div>
                     </div>
                     <div class="cart-item-actions">

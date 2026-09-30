@@ -2,13 +2,25 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false
+    ssl: process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('railway') || process.env.DATABASE_URL.includes('neon'))
+        ? { rejectUnauthorized: false }
+        : false,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000
 });
 
-// Инициализация таблиц
+// Критично: без этого падение idle-клиента эмитит 'error' на пуле,
+// событие никто не ловит, EventEmitter кидает — Node падает.
+pool.on('error', (err) => {
+    console.error('[pg] idle client error:', err.message);
+});
+
+// Инициализация таблиц и миграции
 async function initDB() {
     const client = await pool.connect();
     try {
+        // ─── Базовые таблицы (как было) ───
         await client.query(`
             CREATE TABLE IF NOT EXISTS couriers (
                 id SERIAL PRIMARY KEY,
@@ -133,7 +145,62 @@ async function initDB() {
             );
         `);
 
-        // Зоны доставки по умолчанию
+        // ─── Миграции: добавляем то, что появилось в новых версиях ───
+        // CREATE TABLE IF NOT EXISTS НЕ добавляет колонки к существующим таблицам.
+        await client.query(`
+            ALTER TABLE orders
+                ADD COLUMN IF NOT EXISTS subtotal      NUMERIC(12,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS discount_code TEXT,
+                ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMPTZ DEFAULT NOW();
+        `);
+
+        // ─── Промокоды ───
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                code        TEXT PRIMARY KEY,
+                percent     NUMERIC(5,2) NOT NULL CHECK (percent BETWEEN 1 AND 100),
+                max_uses    INTEGER,
+                uses_count  INTEGER NOT NULL DEFAULT 0,
+                valid_from  TIMESTAMPTZ,
+                valid_until TIMESTAMPTZ,
+                active      BOOLEAN NOT NULL DEFAULT TRUE
+            );
+        `);
+
+        // ─── UNIQUE на orders.order_number ───
+        // Логически нужен для cancelOrderByNumber. Если в базе уже есть
+        // дубликаты (по историческим причинам) — сообщаем и НЕ падаем.
+        await client.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_indexes WHERE indexname = 'orders_order_number_key'
+                ) THEN
+                    IF EXISTS (
+                        SELECT 1 FROM orders
+                         WHERE order_number IS NOT NULL
+                         GROUP BY order_number
+                        HAVING COUNT(*) > 1
+                    ) THEN
+                        RAISE WARNING 'orders.order_number содержит дубликаты — UNIQUE-индекс не создан. Устраните дубликаты и перезапустите.';
+                    ELSE
+                        CREATE UNIQUE INDEX orders_order_number_key ON orders(order_number);
+                    END IF;
+                END IF;
+            END $$;
+        `);
+
+        // ─── Индексы для типовых запросов ───
+        await client.query(`
+            CREATE INDEX IF NOT EXISTS route_stops_order_number_idx ON route_stops(order_number);
+            CREATE INDEX IF NOT EXISTS route_stops_route_id_idx     ON route_stops(route_id);
+            CREATE INDEX IF NOT EXISTS route_stops_status_idx       ON route_stops(status);
+            CREATE INDEX IF NOT EXISTS orders_status_idx            ON orders(status);
+            CREATE INDEX IF NOT EXISTS orders_created_at_idx        ON orders(created_at DESC);
+            CREATE INDEX IF NOT EXISTS orders_user_id_idx           ON orders(user_id);
+        `);
+
+        // ─── Зоны доставки по умолчанию ───
         await client.query(`
             INSERT INTO delivery_zones (name, zone_code, base_cost, free_threshold)
             VALUES
@@ -148,6 +215,9 @@ async function initDB() {
         console.log('[OK] База данных инициализирована');
     } catch (e) {
         console.error('[ОШИБКА] Инициализация БД:', e.message);
+        // Критично: без rethrow db.init() в bot.js резолвится «успешно»,
+        // и дальнейшая работа идёт по битой схеме.
+        throw e;
     } finally {
         client.release();
     }

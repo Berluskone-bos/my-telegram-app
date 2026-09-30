@@ -8,7 +8,7 @@ const TelegramApp = {
     },
 
     getUser(tg) {
-        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
             return tg.initDataUnsafe.user;
         }
         return null;

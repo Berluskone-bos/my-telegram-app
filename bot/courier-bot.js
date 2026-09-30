@@ -14,6 +14,34 @@ const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
 const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID, process.env.ADMIN_BOT_TOKEN || '');
 
+// ===== Безопасность =====
+function requireEnv(name) {
+    if (!process.env[name]) {
+        console.error(`[КРИТИЧЕСКАЯ ОШИБКА] Переменная окружения ${name} не установлена`);
+        process.exit(1);
+    }
+    return process.env[name];
+}
+const ADMIN_API_KEY = requireEnv('ADMIN_API_KEY');
+const WEBHOOK_SECRET = requireEnv('WEBHOOK_SECRET');
+
+function verifyAdmin(req, res, next) {
+    const key = req.headers['x-admin-key'];
+    if (!key || key !== ADMIN_API_KEY) {
+        console.log(`[SECURITY] Неверный или отсутствующий admin key: ${key ? '***' : 'missing'}`);
+        return res.status(403).json({ error: 'Forbidden: invalid admin key' });
+    }
+    next();
+}
+function verifyWebhookSecret(req, res, next) {
+    const secret = req.headers['x-webhook-secret'];
+    if (!secret || secret !== WEBHOOK_SECRET) {
+        console.log(`[SECURITY] Неверный или отсутствующий webhook secret: ${secret ? '***' : 'missing'}`);
+        return res.status(403).json({ error: 'Forbidden: invalid webhook secret' });
+    }
+    next();
+}
+
 let bot;
 if (COURIER_BOT_TOKEN) {
     bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: false });
@@ -78,6 +106,36 @@ async function getActiveRoute(courierId) {
     const routes = await getTodayRoutes(courierId);
     return routes.find(r => ['assigned', 'in_progress'].includes(r.status));
 }
+
+// ====== /car — Изменить авто и регномер ======
+if (bot) {
+bot.onText(/\/car/, async (msg) => {
+    const chatId = msg.chat.id;
+    const courier = await getCourier(msg.from);
+    if (!courier) {
+        bot.sendMessage(chatId, 'Вы не зарегистрированы. Сначала /start');
+        return;
+    }
+    bot.sendMessage(chatId,
+        `Текущий транспорт: <b>${courier.vehicle_type || '—'}</b>\nРег.номер: <b>${courier.license_plate || '—'}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
+        { parse_mode: 'HTML' }
+    );
+    bot.once('message', async (updMsg) => {
+        if (updMsg.chat.id !== chatId || (updMsg.text || '').startsWith('/')) return;
+        const lines = (updMsg.text || '').split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length < 1) {
+            bot.sendMessage(chatId, 'Нужно указать хотя бы тип транспорта. Попробуйте /car заново.');
+            return;
+        }
+        const updates = { vehicle_type: lines[0] || courier.vehicle_type };
+        if (lines[1]) updates.license_plate = lines[1];
+        const updated = await db.updateCourier(courier.id, updates);
+        bot.sendMessage(chatId,
+            `Обновлено!\nТранспорт: ${updated?.vehicle_type || updates.vehicle_type}\nРег.номер: ${updated?.license_plate || updates.license_plate || '—'}`,
+            { parse_mode: 'HTML' }
+        );
+    });
+});
 
 // ====== /start — Регистрация ======
 
@@ -830,9 +888,9 @@ function registerCourierRoutes(app) {
     // Webhook endpoint for courier bot
     if (bot && COURIER_BOT_TOKEN) {
         const webhookPath = '/webhook/courier';
-        const webhookUrl = `https://gulf-bot-production.up.railway.app${webhookPath}`;
+        const webhookUrl = (process.env.WEBHOOK_URL || `https://gulf-bot-production.up.railway.app${webhookPath}`);
         
-        app.post(webhookPath, (req, res) => {
+        app.post(webhookPath, verifyWebhookSecret, (req, res) => {
             console.log('[COURIER WEBHOOK] Received update:', JSON.stringify(req.body).substring(0, 200));
             bot.processUpdate(req.body);
             res.sendStatus(200);
@@ -850,11 +908,11 @@ function registerCourierRoutes(app) {
         res.json({ status: 'ok', bots: ['AutoPromoilBot', 'APCourier_Bot'], timestamp: new Date().toISOString() });
     });
 
-    app.get('/api/couriers', async (req, res) => {
+    app.get('/api/couriers', verifyAdmin, async (req, res) => {
         try { res.json(await db.getCouriers()); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.post('/api/routes', async (req, res) => {
+    app.post('/api/routes', verifyAdmin, async (req, res) => {
         try {
             const { courier_id, route_date, stops } = req.body;
             const processedStops = [];
@@ -887,7 +945,7 @@ function registerCourierRoutes(app) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.post('/api/routes/:id/assign', async (req, res) => {
+    app.post('/api/routes/:id/assign', verifyAdmin, async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -902,15 +960,15 @@ function registerCourierRoutes(app) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/routes', async (req, res) => {
+    app.get('/api/routes', verifyAdmin, async (req, res) => {
         try { res.json(await db.getRoutes()); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/orders', async (req, res) => {
+    app.get('/api/orders', verifyAdmin, async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/zones', async (req, res) => {
+    app.get('/api/zones', verifyAdmin, async (req, res) => {
         try { res.json(await db.getZones()); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
@@ -935,7 +993,7 @@ function registerCourierRoutes(app) {
         res.json(MapLinks.allRoute(stops));
     });
 
-    app.post('/api/routes/:id/optimize', async (req, res) => {
+    app.post('/api/routes/:id/optimize', verifyAdmin, async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -948,18 +1006,18 @@ function registerCourierRoutes(app) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/dispatch/stats', async (req, res) => {
+    app.get('/api/dispatch/stats', verifyAdmin, async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
             res.json(await db.getDayStats(date));
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/dispatch/unassigned-orders', async (req, res) => {
+    app.get('/api/dispatch/unassigned-orders', verifyAdmin, async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/analytics', async (req, res) => {
+    app.get('/api/analytics', verifyAdmin, async (req, res) => {
         try {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
@@ -968,7 +1026,7 @@ function registerCourierRoutes(app) {
     });
 
     // ====== Admin: управление заказами ======
-    app.put('/api/orders/:id/status', async (req, res) => {
+    app.put('/api/orders/:id/status', verifyAdmin, async (req, res) => {
         try {
             const { status } = req.body;
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
@@ -1038,7 +1096,7 @@ function registerCourierRoutes(app) {
     });
 
     // Удалить все заказы
-    app.delete('/api/orders', async (req, res) => {
+    app.delete('/api/orders', verifyAdmin, async (req, res) => {
         try {
             await db.deleteAllOrders();
             res.json({ success: true });
@@ -1046,7 +1104,7 @@ function registerCourierRoutes(app) {
     });
 
     // Назначить курьера на заказ
-    app.post('/api/orders/:id/assign', async (req, res) => {
+    app.post('/api/orders/:id/assign', verifyAdmin, async (req, res) => {
         try {
             const orderId = parseInt(req.params.id);
             let { courier_id } = req.body;
@@ -1169,19 +1227,41 @@ function registerCourierRoutes(app) {
     });
 
     // ====== Admin: управление товарами ======
-    app.get('/api/products', async (req, res) => {
+    app.get('/api/products', verifyAdmin, async (req, res) => {
         try {
-            const catalog = await db.getProducts();
+            let catalog = await db.getProducts();
+            // Если БД пуста — подгружаем из catalog.json (например, при локальном запуске без БД)
+            if (!catalog || catalog.length === 0) {
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    const filePath = path.join(__dirname, '..', 'data', 'catalog.json');
+                    if (fs.existsSync(filePath)) {
+                        const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                        const fallbackProducts = raw.products || raw.catalog || raw.items || [];
+                        catalog = fallbackProducts.map(p => ({
+                            ...p,
+                            price: parseFloat(p.price) || 0,
+                            old_price: parseFloat(p.old_price) || 0,
+                            volume: p.volume || '',
+                            image: p.image || p.main_image || ''
+                        }));
+                    }
+                } catch (e) {
+                    console.warn('[ПРЕДУПРЕЖДЕНИЕ] Не удалось загрузить catalog.json:', e.message);
+                }
+            }
             res.json(catalog);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.post('/api/products', async (req, res) => {
+    app.post('/api/products', verifyAdmin, async (req, res) => {
         try {
             const product = await db.createProduct(req.body);
             res.json(product);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
+}
 }
 
 module.exports = { registerCourierRoutes };
