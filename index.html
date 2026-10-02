@@ -595,6 +595,8 @@
     <script src="js/profile.js"></script>
     <script src="js/app.js"></script>
     <script>
+        // Инициализация приложения
+        (async () => { try { await App.init(); } catch(e) { console.error('App.init failed:', e); } })();
         // Инициализация Lucide иконок
         lucide.createIcons();
 
