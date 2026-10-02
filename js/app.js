@@ -66,6 +66,53 @@ const App = {
                 this.renderProducts();
             });
         }
+
+        // Делегирование: категории, товары, фильтры, нижняя навигация
+        document.addEventListener('click', (e) => {
+            // Категория
+            const cat = e.target.closest('.cat-badge');
+            if (cat) {
+                e.preventDefault();
+                this.selectCategory(cat.dataset.cat);
+                return;
+            }
+            // Товар (карточка)
+            const card = e.target.closest('.product-card');
+            if (card) {
+                e.preventDefault();
+                const pid = card.getAttribute('data-product-id');
+                if (pid) this.showProduct(pid);
+                return;
+            }
+            // Фильтр чип
+            const chip = e.target.closest('.filter-chip[data-sub]');
+            if (chip) {
+                e.preventDefault();
+                const container = chip.closest('#subcategoriesRow');
+                if (container) {
+                    container.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                    chip.classList.add('active');
+                    this.currentSubcategory = chip.dataset.sub === 'all' ? null : chip.dataset.sub;
+                    this.renderProducts();
+                }
+                return;
+            }
+            // Кнопка "В корзине" в карточке (делегирование через onclick уже работает, но добавляем резерв)
+            const btnBuy = e.target.closest('.btn-buy');
+            if (btnBuy) {
+                const pid = btnBuy.getAttribute('data-product-id') || btnBuy.getAttribute('onclick')?.match(/addToCart\((\d+)\)/)?.[1];
+                if (pid) { this.addToCart(parseInt(pid)); e.preventDefault(); }
+                return;
+            }
+            // Нижняя навигация
+            const nav = e.target.closest('.nav-item');
+            if (nav) {
+                e.preventDefault();
+                const screen = nav.getAttribute('data-screen');
+                if (screen) this.switchScreen(screen);
+                return;
+            }
+        });
     },
 
     toggleSort() {
