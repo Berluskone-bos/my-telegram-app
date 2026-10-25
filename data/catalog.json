@@ -1,14 +1,45 @@
 {
   "brands": [
-    { "id": 1, "name": "Gulf Western Oil", "country": "Австралия", "logo": "img/logo-gulf.png", "description": "Австралийский производитель высококачественных моторных масел", "active": true }
+    {
+      "id": 1,
+      "name": "Gulf Western Oil",
+      "country": "Австралия",
+      "logo": "img/logo-gulf.png",
+      "description": "Австралийский производитель высококачественных моторных масел",
+      "active": true
+    }
   ],
   "categories": [
-    { "id": "motor", "name": "Моторные масла", "icon": "droplets" },
-    { "id": "transmission", "name": "Трансмиссионные масла", "icon": "cog" },
-    { "id": "filter", "name": "Фильтры", "icon": "filter" },
-    { "id": "fluid", "name": "Технические жидкости", "icon": "flask-conical" },
-    { "id": "additive", "name": "Присадки", "icon": "beaker" },
-    { "id": "special", "name": "Масла для спецтехники", "icon": "truck" }
+    {
+      "id": "motor",
+      "name": "Моторные масла",
+      "icon": "droplets"
+    },
+    {
+      "id": "transmission",
+      "name": "Трансмиссионные масла",
+      "icon": "cog"
+    },
+    {
+      "id": "filter",
+      "name": "Фильтры",
+      "icon": "filter"
+    },
+    {
+      "id": "fluid",
+      "name": "Технические жидкости",
+      "icon": "flask-conical"
+    },
+    {
+      "id": "additive",
+      "name": "Присадки",
+      "icon": "beaker"
+    },
+    {
+      "id": "special",
+      "name": "Масла для спецтехники",
+      "icon": "truck"
+    }
   ],
   "products": [
     {
@@ -18,14 +49,14 @@
       "name": "Syn-Star LV 0W-20",
       "full_name": "Gulf Western Syn-Star LV 0W-20 Синтетическое моторное масло",
       "series": "Syn-Star",
-      "sku": "GWO-SSLV-020-4",
+      "sku": "304134",
       "viscosity": "0W-20",
       "oil_type": "Полностью синтетическое",
       "volume": "4 л",
       "api": "SQ",
       "acea": "",
       "ilsac": "",
-      "price": 5500,
+      "price": 5400,
       "old_price": 0,
       "stock": 10,
       "min_stock": 3,
@@ -43,7 +74,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.9,
-      "reviews_count": 5
+      "reviews_count": 5,
+      "coming_soon": false
     },
     {
       "id": 2,
@@ -52,14 +84,14 @@
       "name": "Syn-Star LV 0W-20",
       "full_name": "Gulf Western Syn-Star LV 0W-20 Синтетическое моторное масло",
       "series": "Syn-Star",
-      "sku": "GWO-SSLV-020-1",
+      "sku": "301134",
       "viscosity": "0W-20",
       "oil_type": "Полностью синтетическое",
       "volume": "1 л",
       "api": "SQ",
       "acea": "",
       "ilsac": "",
-      "price": 1550,
+      "price": 1575,
       "old_price": 0,
       "stock": 15,
       "min_stock": 5,
@@ -77,7 +109,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.9,
-      "reviews_count": 3
+      "reviews_count": 3,
+      "coming_soon": false
     },
     {
       "id": 3,
@@ -86,14 +119,14 @@
       "name": "Hybrid Performance 0W-20",
       "full_name": "Gulf Western Hybrid Performance 0W-20 Масло для гибридных двигателей",
       "series": "Hybrid Performance",
-      "sku": "GWO-HP-020-4",
+      "sku": "304254",
       "viscosity": "0W-20",
       "oil_type": "Полностью синтетическое",
       "volume": "4 л",
       "api": "SP",
       "acea": "",
       "ilsac": "GF-6A",
-      "price": 7200,
+      "price": 6000,
       "old_price": 0,
       "stock": 8,
       "min_stock": 2,
@@ -112,7 +145,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.8,
-      "reviews_count": 4
+      "reviews_count": 4,
+      "coming_soon": false
     },
     {
       "id": 4,
@@ -121,14 +155,14 @@
       "name": "Hybrid Performance 0W-20",
       "full_name": "Gulf Western Hybrid Performance 0W-20 Масло для гибридных двигателей",
       "series": "Hybrid Performance",
-      "sku": "GWO-HP-020-1",
+      "sku": "301254",
       "viscosity": "0W-20",
       "oil_type": "Полностью синтетическое",
       "volume": "1 л",
       "api": "SP",
       "acea": "",
       "ilsac": "GF-6A",
-      "price": 2000,
+      "price": 1830,
       "old_price": 0,
       "stock": 12,
       "min_stock": 4,
@@ -147,7 +181,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.8,
-      "reviews_count": 2
+      "reviews_count": 2,
+      "coming_soon": false
     },
     {
       "id": 5,
@@ -156,14 +191,14 @@
       "name": "Syn-X 6000 5W-50",
       "full_name": "Gulf Western Syn-X 6000 5W-50 Синтетическое моторное масло",
       "series": "Syn-X 6000",
-      "sku": "GWO-SX6000-550-4",
+      "sku": "304353",
       "viscosity": "5W-50",
       "oil_type": "Полностью синтетическое",
       "volume": "4 л",
       "api": "SN",
       "acea": "A3/B4",
       "ilsac": "",
-      "price": 5400,
+      "price": 4875,
       "old_price": 0,
       "stock": 6,
       "min_stock": 2,
@@ -182,7 +217,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.7,
-      "reviews_count": 6
+      "reviews_count": 6,
+      "coming_soon": false
     },
     {
       "id": 6,
@@ -191,14 +227,14 @@
       "name": "Syn-X 6000 5W-50",
       "full_name": "Gulf Western Syn-X 6000 5W-50 Синтетическое моторное масло",
       "series": "Syn-X 6000",
-      "sku": "GWO-SX6000-550-1",
+      "sku": "301353",
       "viscosity": "5W-50",
       "oil_type": "Полностью синтетическое",
       "volume": "1 л",
       "api": "SN",
       "acea": "A3/B4",
       "ilsac": "",
-      "price": 1500,
+      "price": 1402.5,
       "old_price": 0,
       "stock": 10,
       "min_stock": 3,
@@ -217,7 +253,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.7,
-      "reviews_count": 4
+      "reviews_count": 4,
+      "coming_soon": false
     },
     {
       "id": 7,
@@ -226,15 +263,15 @@
       "name": "Syn-X 6000 5W-30",
       "full_name": "Gulf Western Syn-X 6000 5W-30 Синтетическое моторное масло",
       "series": "Syn-X 6000",
-      "sku": "GWO-SX6000-530-4",
+      "sku": "304129S",
       "viscosity": "5W-30",
       "oil_type": "Полностью синтетическое",
       "volume": "4 л",
       "api": "SN/GF-5",
       "acea": "A5/B5",
       "ilsac": "GF-5",
-      "price": 6900,
-      "old_price": 7500,
+      "price": 6000,
+      "old_price": 0,
       "stock": 14,
       "min_stock": 4,
       "main_image": "img/oils/webp/syn-x-6000-5w30-4l.webp",
@@ -253,7 +290,8 @@
       "is_popular": true,
       "in_stock": true,
       "rating": 4.8,
-      "reviews_count": 15
+      "reviews_count": 15,
+      "coming_soon": false
     },
     {
       "id": 8,
@@ -262,14 +300,14 @@
       "name": "Syn-X 6000 5W-30",
       "full_name": "Gulf Western Syn-X 6000 5W-30 Синтетическое моторное масло",
       "series": "Syn-X 6000",
-      "sku": "GWO-SX6000-530-1",
+      "sku": "301129S",
       "viscosity": "5W-30",
       "oil_type": "Полностью синтетическое",
       "volume": "1 л",
       "api": "SN/GF-5",
       "acea": "A5/B5",
       "ilsac": "GF-5",
-      "price": 1950,
+      "price": 1800,
       "old_price": 0,
       "stock": 20,
       "min_stock": 5,
@@ -289,7 +327,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.8,
-      "reviews_count": 8
+      "reviews_count": 8,
+      "coming_soon": false
     },
     {
       "id": 9,
@@ -298,15 +337,15 @@
       "name": "Syn-X 3000 5W-40",
       "full_name": "Gulf Western Syn-X 3000 5W-40 Синтетическое моторное масло",
       "series": "Syn-X 3000",
-      "sku": "GWO-SX3000-540-4",
+      "sku": "304138",
       "viscosity": "5W-40",
       "oil_type": "Полностью синтетическое",
       "volume": "4 л",
       "api": "SN/CF",
       "acea": "A3/B4",
       "ilsac": "",
-      "price": 4800,
-      "old_price": 5200,
+      "price": 4050,
+      "old_price": 0,
       "stock": 18,
       "min_stock": 5,
       "main_image": "img/oils/webp/syn-x-3000-5w40-4l.webp",
@@ -324,7 +363,8 @@
       "is_popular": true,
       "in_stock": true,
       "rating": 4.8,
-      "reviews_count": 28
+      "reviews_count": 28,
+      "coming_soon": false
     },
     {
       "id": 10,
@@ -333,14 +373,14 @@
       "name": "Syn-X 3000 5W-40",
       "full_name": "Gulf Western Syn-X 3000 5W-40 Синтетическое моторное масло",
       "series": "Syn-X 3000",
-      "sku": "GWO-SX3000-540-1",
+      "sku": "301138",
       "viscosity": "5W-40",
       "oil_type": "Полностью синтетическое",
       "volume": "1 л",
       "api": "SN/CF",
       "acea": "A3/B4",
       "ilsac": "",
-      "price": 1400,
+      "price": 1275,
       "old_price": 0,
       "stock": 25,
       "min_stock": 8,
@@ -359,7 +399,8 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.8,
-      "reviews_count": 12
+      "reviews_count": 12,
+      "coming_soon": false
     },
     {
       "id": 11,
@@ -368,14 +409,14 @@
       "name": "Top Dog XDO 10W-40",
       "full_name": "Gulf Western Top Dog XDO 10W-40 Масло для дизельных двигателей",
       "series": "Top Dog XDO",
-      "sku": "GWO-TDXDO-1040-4",
+      "sku": "304354",
       "viscosity": "10W-40",
       "oil_type": "Полусинтетическое",
       "volume": "4 л",
       "api": "CI-4",
       "acea": "E7",
       "ilsac": "",
-      "price": 4200,
+      "price": 4650,
       "old_price": 0,
       "stock": 12,
       "min_stock": 3,
@@ -394,7 +435,8 @@
       "is_popular": true,
       "in_stock": true,
       "rating": 4.7,
-      "reviews_count": 18
+      "reviews_count": 18,
+      "coming_soon": false
     },
     {
       "id": 12,
@@ -403,15 +445,15 @@
       "name": "Top Dog XDO 10W-30",
       "full_name": "Gulf Western Top Dog XDO 10W-30 Масло для дизельных двигателей",
       "series": "Top Dog XDO",
-      "sku": "GWO-TDXDO-1030-18",
+      "sku": "308127",
       "viscosity": "10W-30",
       "oil_type": "Полусинтетическое",
       "volume": "18 л",
       "api": "CI-4",
       "acea": "E7",
       "ilsac": "",
-      "price": 14500,
-      "old_price": 16000,
+      "price": 18450,
+      "old_price": 0,
       "stock": 5,
       "min_stock": 2,
       "main_image": "img/oils/webp/top-dog-xdo-10w30-18l.webp",
@@ -429,7 +471,44 @@
       "is_popular": false,
       "in_stock": true,
       "rating": 4.6,
-      "reviews_count": 8
+      "reviews_count": 8,
+      "coming_soon": false
+    },
+    {
+      "id": 18,
+      "brand_id": 1,
+      "category_id": "motor",
+      "name": "Top Dog XDO 10W-40",
+      "full_name": "Gulf Western Top Dog XDO 10W-40 Масло для дизельных двигателей",
+      "series": "Top Dog XDO",
+      "sku": "300124",
+      "viscosity": "10W-40",
+      "oil_type": "Полусинтетическое",
+      "volume": "18 л",
+      "api": "CI-4",
+      "acea": "E7",
+      "ilsac": "",
+      "price": 18450,
+      "old_price": 0,
+      "stock": 5,
+      "min_stock": 2,
+      "main_image": "img/oils/webp/top-dog-xdo-10w40-4l.webp",
+      "gallery": [],
+      "description": "Высококачественное моторное масло для дизельных двигателей. Большая канистра для коммерческого транспорта и автопарков.",
+      "specs": {
+        "SAE": "10W-30",
+        "API": "CI-4",
+        "ACEA": "E7",
+        "Тип": "Полусинтетическое",
+        "Применение": "Дизельные двигатели, коммерческий транспорт"
+      },
+      "active": true,
+      "is_new": false,
+      "is_popular": false,
+      "in_stock": true,
+      "rating": 4.6,
+      "reviews_count": 8,
+      "coming_soon": false
     },
     {
       "id": 13,
@@ -447,7 +526,7 @@
       "ilsac": "",
       "price": 3200,
       "old_price": 0,
-      "stock": 8,
+      "stock": 0,
       "min_stock": 2,
       "main_image": "img/oils/webp/syn-x-3000-5w40-4l.webp",
       "gallery": [],
@@ -459,9 +538,10 @@
       "active": true,
       "is_new": false,
       "is_popular": false,
-      "in_stock": true,
+      "in_stock": false,
       "rating": 4.5,
-      "reviews_count": 12
+      "reviews_count": 12,
+      "coming_soon": true
     },
     {
       "id": 14,
@@ -479,7 +559,7 @@
       "ilsac": "",
       "price": 800,
       "old_price": 0,
-      "stock": 30,
+      "stock": 0,
       "min_stock": 10,
       "main_image": "img/oils/webp/syn-x-3000-5w40-1l.webp",
       "gallery": [],
@@ -491,9 +571,10 @@
       "active": true,
       "is_new": false,
       "is_popular": true,
-      "in_stock": true,
+      "in_stock": false,
       "rating": 4.7,
-      "reviews_count": 25
+      "reviews_count": 25,
+      "coming_soon": true
     },
     {
       "id": 15,
@@ -511,7 +592,7 @@
       "ilsac": "",
       "price": 1800,
       "old_price": 0,
-      "stock": 15,
+      "stock": 0,
       "min_stock": 5,
       "main_image": "img/oils/webp/syn-x-6000-5w30-4l.webp",
       "gallery": [],
@@ -524,9 +605,10 @@
       "active": true,
       "is_new": false,
       "is_popular": false,
-      "in_stock": true,
+      "in_stock": false,
       "rating": 4.4,
-      "reviews_count": 8
+      "reviews_count": 8,
+      "coming_soon": true
     },
     {
       "id": 16,
@@ -544,7 +626,7 @@
       "ilsac": "",
       "price": 600,
       "old_price": 0,
-      "stock": 20,
+      "stock": 0,
       "min_stock": 5,
       "main_image": "img/oils/webp/syn-x-6000-5w30-1l.webp",
       "gallery": [],
@@ -557,9 +639,10 @@
       "active": true,
       "is_new": true,
       "is_popular": false,
-      "in_stock": true,
+      "in_stock": false,
       "rating": 4.3,
-      "reviews_count": 6
+      "reviews_count": 6,
+      "coming_soon": true
     },
     {
       "id": 17,
@@ -577,7 +660,7 @@
       "ilsac": "",
       "price": 900,
       "old_price": 0,
-      "stock": 10,
+      "stock": 0,
       "min_stock": 3,
       "main_image": "img/oils/webp/syn-star-lv-0w20-1l.webp",
       "gallery": [],
@@ -589,9 +672,10 @@
       "active": true,
       "is_new": false,
       "is_popular": false,
-      "in_stock": true,
+      "in_stock": false,
       "rating": 4.5,
-      "reviews_count": 10
+      "reviews_count": 10,
+      "coming_soon": true
     }
   ]
 }
