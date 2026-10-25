@@ -153,7 +153,7 @@ const Products = {
         const image = product.main_image || product.image;
 
         return `
-            <div class="product-card" onclick="App.showProduct(${product.id})">
+            <div class="product-card ${product.coming_soon ? 'coming-soon' : ''}" onclick="App.showProduct(${product.id})">
                 <div class="product-image">
                     ${this.getPictureHtml(image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
@@ -168,12 +168,14 @@ const Products = {
                 <div class="product-info">
                     <div class="product-title">${esc(product.name)}</div>
                     <div class="product-volume">${esc(product.volume || '\u00a0')}</div>
-                    <button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
+                    ${product.coming_soon ? '' : `<button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
                         <i data-lucide="shopping-bag"></i>
-                    </button>
+                    </button>`}
                     <div class="product-price-row">
-                        <span class="product-price">${product.price.toLocaleString()} ₽</span>
-                        ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : ''}
+                        ${product.coming_soon
+                            ? '<span class="product-soon">Скоро в продаже</span>'
+                            : `<span class="product-price">${product.price.toLocaleString()} ₽</span>
+                        ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : ''}`}
                     </div>
                 </div>
             </div>
@@ -209,13 +211,17 @@ const Products = {
                 <div class="product-detail-name">${esc(product.full_name || product.name)}</div>
                 <div class="product-detail-volume">${esc(product.volume)}${product.viscosity ? ' · ' + esc(product.viscosity) : ''}</div>
                 <div class="product-detail-price-row">
-                    <div class="product-detail-price">${product.price.toLocaleString()} ₽</div>
-                    ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString()} ₽</div>` : ''}
+                    ${product.coming_soon
+                        ? '<div class="product-soon">Скоро в продаже</div>'
+                        : `<div class="product-detail-price">${product.price.toLocaleString()} ₽</div>
+                    ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString()} ₽</div>` : ''}`}
                 </div>
                 <div class="product-detail-description">${esc(product.description)}</div>
                 ${techSpecsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${techSpecsHtml}</div>` : ''}
                 ${specsHtml ? `<div class="product-detail-specs"><h3>Дополнительно</h3>${specsHtml}</div>` : ''}
-                <button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>
+                ${product.coming_soon
+                    ? '<button class="btn-add-cart" disabled>Скоро в продаже</button>'
+                    : `<button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>`}
             </div>
         `;
     }

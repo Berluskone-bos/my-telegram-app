@@ -1,9 +1,4 @@
-// ═══ УТИЛИТЫ БЕЗОПАСНОСТИ ═══
-function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({
-        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    })[c]);
-}
+// esc() объявлена в products.js (грузится первой)
 
 // Главный модуль приложения
 const App = {
@@ -493,6 +488,8 @@ const App = {
     },
 
     addToCart(productId) {
+        const prod = Products.getById(productId);
+        if (prod && prod.coming_soon) return;   // заглушка: товар ещё не в продаже
         Cart.add(productId);
         this.updateCartBadge();
 
