@@ -219,11 +219,39 @@
 <body>
 <div id="adminAuth" style="position:fixed;inset:0;z-index:9999;background:#101B4D;display:flex;align-items:center;justify-content:center;flex-direction:column;">
     <h2 style="color:#fff;font-family:Montserrat,sans-serif;font-size:24px;margin-bottom:24px;">АВТОПРОМОЙЛ — Админ</h2>
-    <input id="adminPass" type="password" placeholder="Пароль входа" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
-    <button onclick="if(document.getElementById('adminPass').value==='autopromoil2024'){sessionStorage.setItem('admin_auth','1');document.getElementById('adminAuth').style.display='none';}else{alert('Неверный пароль');}" style="padding:12px 24px;font-size:16px;background:#00AFC7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Войти</button>
-    <p style="color:#88A0B8;font-size:12px;margin-top:16px;">Пароль изменён — обратитесь к администратору системы.</p>
+    <input id="adminPass" type="password" placeholder="Ключ администратора" autocomplete="off" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
+    <button onclick="adminLogin()" style="padding:12px 28px;font-size:16px;border-radius:8px;border:none;background:#00AFC7;color:#fff;cursor:pointer;">Войти</button>
+    <p style="color:#88A0B8;font-size:12px;margin-top:16px;">Ключ хранится только на сервере (ADMIN_API_KEY). Проверяется сервером, а не страницей.</p>
 </div>
-<script>if(sessionStorage.getItem('admin_auth')==='1'){document.getElementById('adminAuth').style.display='none';}</script>
+<script>
+// Ключ проверяет СЕРВЕР: страница пароля не знает. Ключ живёт в sessionStorage до закрытия вкладки.
+const ADMIN_API = window.location.hostname === 'localhost' ? 'http://localhost:3001'
+    : (window.location.hostname.endsWith('github.io') ? 'https://gulf-bot-production.up.railway.app' : window.location.origin);
+function getAdminKey() { try { return sessionStorage.getItem('admin_key') || ''; } catch (e) { return ''; } }
+const _fetch = window.fetch.bind(window);
+window.fetch = (url, opts = {}) => {      // ко всем запросам к нашему серверу добавляем ключ
+    if (typeof url === 'string' && url.startsWith(ADMIN_API)) {
+        opts = { ...opts, headers: { ...(opts.headers || {}), 'x-admin-key': getAdminKey() } };
+    }
+    return _fetch(url, opts);
+};
+async function adminLogin() {
+    const key = document.getElementById('adminPass').value;
+    try {
+        const r = await _fetch(ADMIN_API + '/api/couriers', { headers: { 'x-admin-key': key } });
+        if (r.ok) { sessionStorage.setItem('admin_key', key); location.reload(); }
+        else alert('Неверный ключ');
+    } catch (e) { alert('Сервер недоступен, попробуйте позже'); }
+}
+(async () => {
+    if (!getAdminKey()) return;
+    try {
+        const r = await _fetch(ADMIN_API + '/api/couriers', { headers: { 'x-admin-key': getAdminKey() } });
+        if (r.ok) document.getElementById('adminAuth').style.display = 'none';
+        else sessionStorage.removeItem('admin_key');
+    } catch (e) {}
+})();
+</script>
     <div class="header">
         <h1>АВТОПРОМОЙЛ — Админ-панель</h1>
         <div class="header-date" id="currentDate"></div>
@@ -505,9 +533,7 @@
     </div>
 
     <script>
-        const API_BASE = window.location.hostname === 'localhost'
-            ? 'http://localhost:3001'
-            : window.location.origin;
+        const API_BASE = ADMIN_API;
 
         // ====== Табы ======
         function switchTab(name) {

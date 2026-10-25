@@ -34,7 +34,7 @@ PORT=3000
 ```
 
 **Безопасность (проверено):**
-- `admin.html`: удалён хардкод пароля (`autopromoil2024`)
+- `admin.html`: хардкод пароля удалён; вход по ключу `ADMIN_API_KEY`, который проверяет сервер
 - `courier-bot.js`: добавлена проверка `x-webhook-secret` и `x-admin-key` (`verifyWebhookSecret` / `verifyAdmin`)
 - `.env.example`: добавлены `WEBHOOK_URL`, `WEBHOOK_SECRET`, `ADMIN_API_KEY`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`
 - `TRUST_CLIENT_PRICES` по умолчанию `false` (цены из БД, не клиента)
