@@ -1907,3 +1907,9 @@ a, button, input, select { font-family: inherit; }
     .categories-scroll { padding: 14px 24px 6px; }
     .bottom-nav { max-width: 500px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }
 }
+
+/* Заглушки: товар ещё не в продаже */
+.product-card.coming-soon { opacity: .72; }
+.product-card.coming-soon .product-image img { filter: grayscale(.6); }
+.product-soon { font-size: 13px; font-weight: 600; color: #6B7390; }
+.btn-add-cart:disabled { background: #E1E5EE; color: #6B7390; cursor: not-allowed; }
