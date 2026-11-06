@@ -1,7 +1,12 @@
 // Настройка команд курьер-бота в BotFather
 const TelegramBot = require('node-telegram-bot-api');
 
-const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN || '8495118590:AAEM_9w9zxHI6D6YIHEe6w0wLp1c0US01hM';
+require('dotenv').config();
+const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
+if (!COURIER_BOT_TOKEN) {
+    console.error('Задайте COURIER_BOT_TOKEN в переменных окружения или в bot/.env');
+    process.exit(1);
+}
 
 const bot = new TelegramBot(COURIER_BOT_TOKEN, { polling: false });
 

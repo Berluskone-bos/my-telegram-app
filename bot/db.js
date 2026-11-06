@@ -3,7 +3,8 @@ const { Pool } = require('pg');
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('railway') || process.env.DATABASE_URL.includes('neon'))
-        ? { rejectUnauthorized: false }
+        // Neon выдаёт сертификаты публичного центра: проверяем. Для Railway/прочих или аварийно: DB_SSL_STRICT=false
+        ? { rejectUnauthorized: process.env.DB_SSL_STRICT === 'false' ? false : process.env.DATABASE_URL.includes('neon') }
         : false,
     max: 10,
     idleTimeoutMillis: 30_000,

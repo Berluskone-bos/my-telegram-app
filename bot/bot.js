@@ -217,6 +217,10 @@ setInterval(() => {
     for (const [k, v] of rateBuckets) if (now > v.resetAt) rateBuckets.delete(k);
 }, 60_000).unref();
 
+// ─── Дедупликация повторных заказов (в памяти процесса; при нескольких экземплярах нужен общий кэш) ───
+const recentOrders = new Map();
+setInterval(() => { const n = Date.now(); for (const [k, v] of recentOrders) if (n - v.at > 120_000) recentOrders.delete(k); }, 60_000).unref();
+
 // ─── Дедупликация update_id ───
 const processedUpdates = new Map();
 const UPDATE_TTL = 10 * 60 * 1000;
@@ -824,6 +828,14 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
             }
         }
 
+        // Идемпотентность: тот же заказ от того же клиента в течение 60 с (двойной тап, повтор после сбоя сети)
+        const dedupKey = require('crypto').createHash('sha256')
+            .update(JSON.stringify([v.data.userId || req.ip, v.data.items, v.data.phone, v.data.address, v.data.deliveryType, v.data.payment, v.data.total])).digest('hex');
+        const prev = recentOrders.get(dedupKey);
+        if (prev && Date.now() - prev.at < 60_000) {
+            return res.json({ success: true, orderId: prev.orderId, duplicate: true, total: prev.total });
+        }
+
         const orderId = generateOrderId();
         const dbOrderId = await saveOrderToDb(orderId, v.data);
         if (dbOrderId === null) {
@@ -833,7 +845,8 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         sendAdminNotification(orderId, v.data).catch(e =>
             console.error('[API /order] admin notify:', sanitizeLog(e.message)));
 
-        return res.json({ success: true, orderId: 'AP-' + orderId });
+        recentOrders.set(dedupKey, { at: Date.now(), orderId: 'AP-' + orderId, total: v.data.total });
+        return res.json({ success: true, orderId: 'AP-' + orderId, total: v.data.total });
     } catch (e) {
         console.error('[API /order] fatal:', sanitizeLog(e.message));
         return res.status(500).json({ success: false, error: 'Internal error' });

@@ -33,9 +33,21 @@ function verifyAdmin(req, res, next) {
     }
     next();
 }
+// Простое ограничение запросов (в памяти процесса): 30 запросов/мин с одного IP
+const _pubBuckets = new Map();
+function publicLimiter(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown', now = Date.now();
+    let b = _pubBuckets.get(ip);
+    if (!b || now > b.resetAt) { b = { count: 0, resetAt: now + 60_000 }; _pubBuckets.set(ip, b); }
+    if (++b.count > 30) return res.status(429).json({ error: 'Too many requests' });
+    next();
+}
+setInterval(() => { const n = Date.now(); for (const [k, v] of _pubBuckets) if (n > v.resetAt) _pubBuckets.delete(k); }, 60_000).unref();
 function verifyWebhookSecret(req, res, next) {
-    const secret = req.headers['x-webhook-secret'];
-    if (!secret || secret !== WEBHOOK_SECRET) {
+    // Telegram сам шлёт этот заголовок, если вебхук зарегистрирован с secret_token
+    const secret = req.headers['x-telegram-bot-api-secret-token'];
+    const a = Buffer.from(String(secret || '')), b = Buffer.from(WEBHOOK_SECRET);
+    if (!secret || a.length !== b.length || !require('crypto').timingSafeEqual(a, b)) {
         console.log(`[SECURITY] Неверный или отсутствующий webhook secret: ${secret ? '***' : 'missing'}`);
         return res.status(403).json({ error: 'Forbidden: invalid webhook secret' });
     }
@@ -56,6 +68,20 @@ if (process.env.ADMIN_BOT_TOKEN) {
     });
     adminBot.on('callback_query', async (query) => {
         const data = query.data;
+        // Только владелец админ-чата может подтверждать курьеров и отменять заказы
+        if (String(query.from?.id) !== String(ADMIN_CHAT_ID) && String(query.message?.chat?.id) !== String(ADMIN_CHAT_ID)) {
+            adminBot.answerCallbackQuery(query.id, { text: 'Нет доступа' }).catch(() => {});
+            return;
+        }
+        if (data && data.startsWith('activate_courier_')) {
+            const cid = parseInt(data.split('_')[2]);
+            try {
+                await db.updateCourier(cid, { is_active: true });
+                adminBot.answerCallbackQuery(query.id, { text: 'Курьер активирован' });
+                adminBot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }).catch(() => {});
+            } catch (e) { adminBot.answerCallbackQuery(query.id, { text: 'Ошибка активации' }); }
+            return;
+        }
         if (data && data.startsWith('cancel_')) {
             const orderId = parseInt(data.split('_')[1]);
             try {
@@ -181,18 +207,25 @@ bot.onText(/\/start/, async (msg) => {
             telegram_user: user.username || '',
             vehicle_type: lines[2] || 'легковая',
             zones: ['spb'],
-            is_active: true,
+            is_active: false,   // активирует администратор после проверки
             max_orders: 10,
             rating: 0,
             rating_count: 0
         });
 
         bot.sendMessage(chatId,
-            `Регистрация завершена!\n\nИмя: ${newCourier.name}\nТелефон: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\n\nОжидайте маршрутный лист от диспетчера.`,
+            `Регистрация завершена!\n\nИмя: ${newCourier.name}\nТелефон: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\n\nАккаунт будет активирован администратором после проверки, затем вы получите маршрутные листы.`,
             { parse_mode: 'HTML' }
         );
 
-        notifyAdmin(`[КУРЬЕР] Зарегистрирован: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}`);
+        const regText = `[КУРЬЕР] Заявка: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
+        if (typeof adminBot !== 'undefined' && adminBot && ADMIN_CHAT_ID) {
+            adminBot.sendMessage(ADMIN_CHAT_ID, regText, {
+                reply_markup: { inline_keyboard: [[{ text: 'Активировать курьера', callback_data: `activate_courier_${newCourier.id}` }]] }
+            }).catch(() => notifyAdmin(regText));
+        } else {
+            notifyAdmin(regText);
+        }
     });
 });
 
@@ -436,6 +469,23 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
     console.log(`[CALLBACK] Received: data=${data}, chatId=${chatId}, from=${query.from?.id}`);
+
+    // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
+    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_'];
+    if (ROUTE_ACTIONS.some(a => data.startsWith(a))) {
+        const parts = data.split('_');
+        const rId = parseInt(parts[1]);
+        const sId = ['deliver_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_'].some(a => data.startsWith(a)) ? parseInt(parts[2]) : null;
+        const me = await db.getCourierByTelegramId(query.from.id);
+        const rt = Number.isInteger(rId) ? await db.getRouteById(rId) : null;
+        const owns = me && me.is_active && rt && String(rt.courier_id) === String(me.id)
+            && (sId === null || (rt.stops || []).some(s => s.id === sId));
+        if (!owns) {
+            console.warn(`[SECURITY] Курьер ${query.from.id} без прав на маршрут ${rId}/остановку ${sId}`);
+            bot.answerCallbackQuery(query.id, { text: 'Нет доступа к этому маршруту' }).catch(() => {});
+            return;
+        }
+    }
 
     if (data.startsWith('showroute_')) {
         const routeId = parseInt(data.split('_')[1]);
@@ -888,7 +938,7 @@ function registerCourierRoutes(app) {
     // Webhook endpoint for courier bot
     if (bot && COURIER_BOT_TOKEN) {
         const webhookPath = '/webhook/courier';
-        const webhookUrl = (process.env.WEBHOOK_URL || `https://gulf-bot-production.up.railway.app${webhookPath}`);
+        const webhookUrl = (process.env.WEBHOOK_URL || 'https://gulf-bot-production.up.railway.app').replace(/\/+$/, '') + webhookPath;  // WEBHOOK_URL — это база без пути
         
         app.post(webhookPath, verifyWebhookSecret, (req, res) => {
             console.log('[COURIER WEBHOOK] Received update:', JSON.stringify(req.body).substring(0, 200));
@@ -897,7 +947,7 @@ function registerCourierRoutes(app) {
         });
 
         // Set webhook on startup
-        bot.setWebHook(webhookUrl).then(() => {
+        bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET }).then(() => {
             console.log(`[OK] Courier webhook set: ${webhookUrl}`);
         }).catch(e => {
             console.error('[ОШИБКА] Courier webhook:', e.message);
@@ -972,7 +1022,7 @@ function registerCourierRoutes(app) {
         try { res.json(await db.getZones()); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/geocode', async (req, res) => {
+    app.get('/api/geocode', publicLimiter, async (req, res) => {
         const address = req.query.address;
         if (!address) return res.status(400).json({ error: 'address required' });
         try {
@@ -981,13 +1031,13 @@ function registerCourierRoutes(app) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get('/api/map-links', (req, res) => {
+    app.get('/api/map-links', publicLimiter, (req, res) => {
         const { address, lat, lon } = req.query;
         if (!address && (!lat || !lon)) return res.status(400).json({ error: 'address or lat/lon required' });
         res.json(MapLinks.all(address || '', parseFloat(lat), parseFloat(lon)));
     });
 
-    app.post('/api/map-links/route', (req, res) => {
+    app.post('/api/map-links/route', publicLimiter, (req, res) => {
         const { stops } = req.body;
         if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
         res.json(MapLinks.allRoute(stops));
