@@ -751,7 +751,10 @@ const App = {
 
         fetch(`${API_BASE}/api/order`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-Init-Data': (tg && tg.initData) || ''
+            },
             body: JSON.stringify(orderPayload)
         })
         .then(async response => {
@@ -767,13 +770,8 @@ const App = {
             alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nМы свяжемся с вами для подтверждения.`);
         });
 
-        // Также отправляем через Telegram WebApp (для уведомления в бот)
-        try {
-            const orderJson = JSON.stringify(order);
-            tg.sendData(orderJson);
-        } catch (e) {
-            console.log('Telegram sendData не доступен:', e);
-        }
+        // Единый механизм оформления: HTTP /api/order с проверкой initData на сервере.
+        // tg.sendData не используем: он не работает при запуске из меню/инлайн-кнопки и дублировал бы заказ.
 
         Cart.clear();
         this.updateCartBadge();

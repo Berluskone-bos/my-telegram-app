@@ -199,7 +199,7 @@ const Products = {
         if (product.ilsac) techSpecs.push({ key: 'ILSAC', val: product.ilsac });
         if (product.oil_type) techSpecs.push({ key: 'Тип масла', val: product.oil_type });
         const techSpecsHtml = techSpecs.length > 0
-            ? techSpecs.map(s => `<div class="spec-row"><span class="spec-label">${s.key}</span><span class="spec-value">${s.val}</span></div>`).join('')
+            ? techSpecs.map(s => `<div class="spec-row"><span class="spec-label">${esc(s.key)}</span><span class="spec-value">${esc(s.val)}</span></div>`).join('')
             : '';
 
         return `
