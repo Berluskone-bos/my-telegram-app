@@ -588,7 +588,7 @@ async function adminLogin() {
                             <td>${esc(c ? c.name : '-')}</td>
                             <td>${r.total_orders || 0}</td>
                             <td>${r.completed || 0} / ${r.total_orders || 0}</td>
-                            <td><span class="badge ${sc}">${r.status}</span></td>
+                            <td><span class="badge ${sc}">${esc(r.status)}</span></td>
                             <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
                         </tr>`;
                     }).join('');
@@ -596,10 +596,10 @@ async function adminLogin() {
                 document.getElementById('couriersTable').innerHTML = couriers.length === 0
                     ? '<tr><td colspan="6" class="empty">Нет курьеров</td></tr>'
                     : couriers.map(c => `<tr>
-                        <td><strong>${c.name}</strong></td>
-                        <td>${c.phone || '-'}</td>
-                        <td>${c.vehicle_type || '-'}</td>
-                        <td>@${c.telegram_user || '-'}</td>
+                        <td><strong>${esc(c.name)}</strong></td>
+                        <td>${esc(c.phone || '-')}</td>
+                        <td>${esc(c.vehicle_type || '-')}</td>
+                        <td>@${esc(c.telegram_user || '-')}</td>
                         <td>${c.rating ? c.rating + '/5 (' + (c.rating_count||0) + ')' : '-'}</td>
                         <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Активен' : 'Неактивен'}</span></td>
                     </tr>`).join('');
@@ -699,7 +699,7 @@ async function adminLogin() {
                                     <option value="">-- курьер --</option>
                                     ${courierOptions}
                                     ${autoAssign ? `<option value="${couriers.filter(c=>c.is_active)[0].id}" selected>Назначить</option>` : ''}
-                                </select>` : (courierName ? `<strong>${courierName}</strong>` : '-')}
+                                </select>` : (courierName ? `<strong>${esc(courierName)}</strong>` : '-')}
                             </td>
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;
@@ -739,15 +739,15 @@ async function adminLogin() {
                 const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
                 document.getElementById('orderModalTitle').textContent = 'Заказ ' + (o.order_number || 'AP-' + o.id);
                 document.getElementById('orderModalBody').innerHTML = `
-                    <p><strong>Клиент:</strong> ${o.user_name || '-'}</p>
-                    <p><strong>Телефон:</strong> ${o.phone || '-'}</p>
-                    <p><strong>Адрес:</strong> ${o.address || '-'}</p>
+                    <p><strong>Клиент:</strong> ${esc(o.user_name || '-')}</p>
+                    <p><strong>Телефон:</strong> ${esc(o.phone || '-')}</p>
+                    <p><strong>Адрес:</strong> ${esc(o.address || '-')}</p>
                     <p><strong>Доставка:</strong> ${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Курьер'}</p>
-                    <p><strong>Оплата:</strong> ${o.payment === 'cash' ? 'Наличные' : o.payment}</p>
-                    <p><strong>Комментарий:</strong> ${o.comment || '-'}</p>
+                    <p><strong>Оплата:</strong> ${o.payment === 'cash' ? 'Наличные' : esc(o.payment)}</p>
+                    <p><strong>Комментарий:</strong> ${esc(o.comment || '-')}</p>
                     <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
                     <p><strong>Товары:</strong></p>
-                    ${items.length === 0 ? '<p style="color:var(--muted)">Нет данных</p>' : items.map(i => `<p>- ${i.name || ''} (${i.volume || ''}) x ${i.qty || 1} = ${((i.price||0)*(i.qty||1)).toLocaleString()} руб.</p>`).join('')}
+                    ${items.length === 0 ? '<p style="color:var(--muted)">Нет данных</p>' : items.map(i => `<p>- ${esc(i.name || '')} (${esc(i.volume || '')}) x ${Number(i.qty) || 1} = ${((i.price||0)*(i.qty||1)).toLocaleString()} руб.</p>`).join('')}
                     <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
                     <p><strong>Итого:</strong> ${(parseFloat(o.total)||0).toLocaleString()} руб.</p>
                     <p><strong>Дата:</strong> ${fmtDate(o.created_at)}</p>
