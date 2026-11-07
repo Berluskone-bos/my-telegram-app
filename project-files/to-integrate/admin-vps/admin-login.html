@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Автопромойл — Вход в админ-панель</title>
+<style>
+  :root {
+    --navy: #16283F;
+    --navy-2: #1F3B57;
+    --cyan: #2FB8C6;
+    --cyan-dim: #1E7E88;
+    --paper: #F4F6F8;
+    --danger: #C0392B;
+    --text-soft: #7C8A9A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--navy);
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(47,184,198,0.10), transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(47,184,198,0.08), transparent 45%);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 20px;
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 400px;
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 40px 32px 32px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.35);
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 28px;
+  }
+  .brand-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--navy-2), var(--cyan-dim));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: #fff;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    margin-bottom: 14px;
+  }
+  .brand-name {
+    font-weight: 800;
+    font-size: 19px;
+    color: var(--navy-2);
+    letter-spacing: -0.2px;
+  }
+  .brand-sub {
+    font-size: 12.5px;
+    color: var(--text-soft);
+    margin-top: 3px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: 18px;
+    color: var(--navy-2);
+    margin: 0 0 6px;
+    font-weight: 700;
+  }
+  .lead {
+    font-size: 13.5px;
+    color: var(--text-soft);
+    margin: 0 0 24px;
+    line-height: 1.5;
+  }
+
+  label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--navy-2);
+    margin-bottom: 7px;
+  }
+
+  .field {
+    position: relative;
+    margin-bottom: 18px;
+  }
+  input {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: 1.5px solid #E1E6EB;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--navy-2);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+    background: var(--paper);
+  }
+  input:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(47,184,198,0.15);
+    background: #fff;
+  }
+  input.code-input {
+    letter-spacing: 8px;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+    font-family: 'Consolas', monospace;
+  }
+  input::placeholder { color: #A9B4BE; letter-spacing: normal; }
+
+  .btn {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--navy-2);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease, transform .1s ease;
+  }
+  .btn:hover:not(:disabled) { background: #142A40; }
+  .btn:active:not(:disabled) { transform: scale(0.99); }
+  .btn:disabled { background: #C6CDD4; cursor: not-allowed; }
+
+  .btn-accent { background: var(--cyan-dim); }
+  .btn-accent:hover:not(:disabled) { background: #176670; }
+
+  .btn-link {
+    background: none;
+    border: none;
+    color: var(--cyan-dim);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 16px;
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+  .btn-link:disabled { color: var(--text-soft); cursor: not-allowed; }
+
+  .error-msg {
+    background: #FBEAE8;
+    color: var(--danger);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  .step { display: none; }
+  .step.active { display: block; }
+
+  .phone-hint {
+    font-size: 12.5px;
+    color: var(--text-soft);
+    text-align: center;
+    margin-top: 6px;
+  }
+  .phone-hint b { color: var(--navy-2); }
+
+  .success-box {
+    text-align: center;
+    padding: 12px 0 4px;
+  }
+  .success-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(47,184,198,0.12);
+    color: var(--cyan-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 26px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .footnote {
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--text-soft);
+    margin-top: 24px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <div class="brand">
+    <div class="brand-mark">АП</div>
+    <div class="brand-name">Автопромойл</div>
+    <div class="brand-sub">Панель администратора</div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- ШАГ 1: ВВОД ТЕЛЕФОНА -->
+  <div class="step active" id="stepPhone">
+    <h1>Вход по номеру телефона</h1>
+    <p class="lead">Введите номер телефона администратора — мы отправим одноразовый код по SMS.</p>
+
+    <div class="field">
+      <label for="phoneInput">Номер телефона</label>
+      <input type="tel" id="phoneInput" placeholder="+7 (___) ___-__-__" autocomplete="tel">
+    </div>
+
+    <button class="btn" id="requestCodeBtn" onclick="requestCode()">Получить код по SMS</button>
+  </div>
+
+  <!-- ШАГ 2: ВВОД КОДА -->
+  <div class="step" id="stepCode">
+    <h1>Введите код из SMS</h1>
+    <p class="lead" id="codeSentText">Код отправлен на номер <b id="phoneDisplay"></b></p>
+
+    <div class="field">
+      <label for="codeInput">Код подтверждения</label>
+      <input type="text" id="codeInput" class="code-input" maxlength="6" inputmode="numeric" placeholder="······" autocomplete="one-time-code">
+    </div>
+
+    <button class="btn btn-accent" id="verifyBtn" onclick="verifyCode()">Войти</button>
+    <button class="btn-link" id="resendBtn" onclick="resendCode()" disabled>Отправить код повторно (60с)</button>
+  </div>
+
+  <!-- ШАГ 3: УСПЕХ -->
+  <div class="step" id="stepSuccess">
+    <div class="success-box">
+      <div class="success-icon">✓</div>
+      <h1>Вход выполнен</h1>
+      <p class="lead">Перенаправляем в панель управления…</p>
+    </div>
+  </div>
+
+  <p class="footnote">Доступ только для авторизованных сотрудников «Автопромойл».<br>Каждая попытка входа фиксируется в журнале безопасности.</p>
+</div>
+
+<script>
+  // ==============================================================
+  // НАСТРОЙКИ — при переносе на боевой сервер поменяйте на ваш домен
+  // ==============================================================
+  const API_BASE = 'http://ВАШ_IP:3000'; // позже замените на https://ваш-домен.ru
+
+  let currentPhone = '';
+  let resendTimer = null;
+  let resendSeconds = 60;
+
+  function showError(text) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = text;
+    el.classList.add('show');
+  }
+  function hideError() {
+    document.getElementById('errorMsg').classList.remove('show');
+  }
+  function goToStep(stepId) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById(stepId).classList.add('active');
+  }
+  function normalizePhone(raw) {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) {
+      return '+7' + digits.slice(1);
+    }
+    if (digits.length === 10) return '+7' + digits;
+    return null;
+  }
+  function setLoading(btn, loading, textWhenIdle) {
+    btn.disabled = loading;
+    btn.innerHTML = loading ? '<span class="spinner"></span>Отправка…' : textWhenIdle;
+  }
+
+  // ---------- ШАГ 1: ЗАПРОС КОДА ----------
+  async function requestCode() {
+    hideError();
+    const raw = document.getElementById('phoneInput').value;
+    const phone = normalizePhone(raw);
+
+    if (!phone) {
+      showError('Введите корректный номер телефона в формате +7XXXXXXXXXX');
+      return;
+    }
+
+    const btn = document.getElementById('requestCodeBtn');
+    setLoading(btn, true, 'Получить код по SMS');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/request-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        showError(data.error || 'Не удалось отправить код. Попробуйте ещё раз.');
+        setLoading(btn, false, 'Получить код по SMS');
+        return;
+      }
+
+      currentPhone = phone;
+      document.getElementById('phoneDisplay').textContent = phone;
+      document.getElementById('codeInput').value = '';
+      goToStep('stepCode');
+      startResendTimer();
+    } catch (err) {
+      showError('Сервер недоступен. Проверьте подключение и попробуйте снова.');
+    } finally {
+      setLoading(btn, false, 'Получить код по SMS');
+    }
+  }
+
+  // ---------- ШАГ 2: ПРОВЕРКА КОДА ----------
+  async function verifyCode() {
+    hideError();
+    const code = document.getElementById('codeInput').value.trim();
+
+    if (code.length !== 6) {
+      showError('Код должен состоять из 6 цифр');
+      return;
+    }
+
+    const btn = document.getElementById('verifyBtn');
+    setLoading(btn, true, 'Войти');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: currentPhone, code }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        showError(data.error || 'Неверный код. Проверьте и попробуйте снова.');
+        setLoading(btn, false, 'Войти');
+        return;
+      }
+
+      // Сохраняем токен сессии администратора
+      localStorage.setItem('admin_token', data.token);
+      localStorage.setItem('admin_phone', currentPhone);
+
+      goToStep('stepSuccess');
+      setTimeout(() => {
+        window.location.href = 'admin-dashboard.html';
+      }, 1200);
+    } catch (err) {
+      showError('Сервер недоступен. Проверьте подключение и попробуйте снова.');
+      setLoading(btn, false, 'Войти');
+    }
+  }
+
+  // ---------- ПОВТОРНАЯ ОТПРАВКА КОДА ----------
+  function startResendTimer() {
+    resendSeconds = 60;
+    const btn = document.getElementById('resendBtn');
+    btn.disabled = true;
+    updateResendLabel();
+    resendTimer = setInterval(() => {
+      resendSeconds--;
+      updateResendLabel();
+      if (resendSeconds <= 0) {
+        clearInterval(resendTimer);
+        btn.disabled = false;
+        btn.textContent = 'Отправить код повторно';
+      }
+    }, 1000);
+  }
+  function updateResendLabel() {
+    document.getElementById('resendBtn').textContent = `Отправить код повторно (${resendSeconds}с)`;
+  }
+  async function resendCode() {
+    hideError();
+    document.getElementById('resendBtn').disabled = true;
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/request-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: currentPhone }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        showError(data.error || 'Не удалось отправить код повторно.');
+      } else {
+        startResendTimer();
+      }
+    } catch (err) {
+      showError('Сервер недоступен. Попробуйте позже.');
+    }
+  }
+
+  // Позволяем вводить код и телефон по нажатию Enter
+  document.getElementById('phoneInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') requestCode();
+  });
+  document.getElementById('codeInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') verifyCode();
+  });
+  document.getElementById('codeInput').addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g, '');
+  });
+</script>
+
+</body>
+</html>

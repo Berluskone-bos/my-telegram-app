@@ -1,1 +1,345 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Автопромойл — Панель администратора</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #101B4D;
+    --cyan: #00AFC7;
+    --cyan-light: #66D6E6;
+    --graphite: #25282B;
+    --white: #FFFFFF;
+    --bg: #F3F5F9;
+    --line: #E1E5EE;
+    --muted: #6B7390;
+    --ok: #1E8E5A;
+    --warn: #C77700;
+    --bad: #C0392B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--graphite);
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5;
+  }
+  h1, h2, h3, .num, .brand b { font-family: 'Montserrat', 'Inter', Arial, sans-serif; }
+  button { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
+  /* ---------- Каркас ---------- */
+  .layout { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--navy); color: #fff; padding: 22px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
+  .brand-mark { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, var(--cyan), var(--cyan-light)); display: grid; place-items: center; color: var(--navy); font-family: 'Montserrat', 'Inter', Arial, sans-serif; font-weight: 800; font-size: 14px; }
+  .brand b { font-size: 15px; letter-spacing: .2px; display: block; }
+  .brand span { font-size: 11px; color: #9FB0E0; }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav button { background: none; border: 0; color: #C7D2F2; text-align: left; padding: 10px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; }
+  .nav button:hover { background: rgba(255,255,255,.07); }
+  .nav button.active { background: rgba(0,175,199,.18); color: #fff; box-shadow: inset 3px 0 0 var(--cyan); }
+  .sidebar-foot { margin-top: auto; padding: 12px 8px 0; font-size: 12px; color: #9FB0E0; border-top: 1px solid rgba(255,255,255,.1); }
+  .sidebar-foot button { margin-top: 8px; width: 100%; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; padding: 8px; font-size: 13px; }
+  .sidebar-foot button:hover { background: rgba(255,255,255,.08); }
+
+  main { padding: 28px 32px 60px; max-width: 1100px; width: 100%; }
+  .view { display: none; }
+  .view.active { display: block; }
+  h1 { font-size: 22px; color: var(--navy); margin: 0 0 4px; font-weight: 800; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+
+  /* ---------- Карточки ---------- */
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; color: var(--navy); font-weight: 700; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+  .stat .num { font-size: 28px; font-weight: 800; color: var(--navy); line-height: 1.1; }
+  .stat .lbl { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .stat .hint { font-size: 12px; margin-top: 6px; color: var(--warn); }
+
+  .meter { margin-bottom: 14px; }
+  .meter-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .meter-bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .meter-bar i { display: block; height: 100%; background: var(--cyan); border-radius: 99px; transition: width .4s; }
+  .meter-bar i.hot { background: var(--warn); }
+  .meter-bar i.full { background: var(--bad); }
+
+  /* ---------- Таблицы и формы ---------- */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: #F7F9FC; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
+  input[type=text] { flex: 1; min-width: 0; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px; font: inherit; background: #fff; }
+  input[type=text]:focus { border-color: var(--cyan); outline: none; box-shadow: 0 0 0 3px rgba(0,175,199,.15); }
+  .btn { background: var(--navy); color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .btn:hover { background: #0B1438; }
+  .btn:disabled { background: #B8BED3; cursor: not-allowed; }
+  .btn.ghost { background: #fff; color: var(--navy); border: 1.5px solid var(--line); }
+  .btn.ghost:hover { background: #F3F5F9; }
+  .btn.small { padding: 6px 12px; font-size: 13px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: #E5F7FA; color: #00707F; border-radius: 99px; padding: 3px 4px 3px 10px; font-size: 12.5px; font-weight: 500; }
+  .chip.plain { padding: 3px 10px; }
+  .chip button { background: none; border: 0; color: #00707F; width: 20px; height: 20px; border-radius: 50%; line-height: 1; font-size: 15px; padding: 0; }
+  .chip button:hover { background: rgba(0,112,127,.15); }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #EEF0F7; color: var(--muted); }
+  .tag.warn { background: #FFF3DC; color: var(--warn); }
+  .tag.ok { background: #E3F5EC; color: var(--ok); }
+  .add-row { display: flex; gap: 8px; }
+  .add-row input { padding: 7px 10px; font-size: 13px; }
+
+  .empty { text-align: center; color: var(--muted); padding: 28px 12px; }
+  .msg { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; display: none; font-size: 13.5px; }
+  .msg.show { display: block; }
+  .msg.err { background: #FBEAE8; color: var(--bad); }
+  .msg.info { background: #E5F7FA; color: #00707F; }
+
+  .detail { margin-top: 16px; }
+  .detail h3 { font-size: 14px; margin: 16px 0 8px; color: var(--navy); }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; font-size: 13.5px; }
+  .kv span:nth-child(even) { color: var(--muted); text-align: right; }
+  .our { border: 1.5px solid var(--cyan); border-radius: 10px; padding: 12px 14px; background: #F2FBFD; margin-bottom: 8px; }
+  .our b { font-family: 'Montserrat', 'Inter', Arial, sans-serif; }
+
+  .mobile-top { display: none; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; flex-direction: row; align-items: center; padding: 10px 12px; gap: 8px; overflow-x: auto; }
+    .brand { padding: 0 8px 0 0; } .brand span, .sidebar-foot .who { display: none; }
+    .nav { flex-direction: row; } .nav button { white-space: nowrap; padding: 8px 12px; }
+    .nav button.active { box-shadow: inset 0 -3px 0 var(--cyan); }
+    .sidebar-foot { margin: 0 0 0 auto; padding: 0; border: 0; } .sidebar-foot button { margin: 0; width: auto; padding: 8px 12px; }
+    main { padding: 20px 16px 48px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .card { overflow-x: auto; }
+    .toolbar { flex-wrap: wrap; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">АП</div>
+      <div><b>Автопромойл</b><span>Панель администратора</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-view="overview" class="active">Обзор</button>
+      <button data-view="vehicles">Машины в базе</button>
+      <button data-view="approvals">Допуски товаров</button>
+      <button data-view="check">Проверка подбора</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="who" id="who"></div>
+      <button id="logoutBtn">Выйти</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="msg err" id="globalErr" role="alert"></div>
+
+    <!-- ===== ОБЗОР ===== -->
+    <section class="view active" id="view-overview">
+      <h1>Обзор</h1>
+      <p class="sub">Расход лимита PartsAPI и состояние базы автомобилей и допусков.</p>
+      <div class="stats" id="stats"></div>
+      <div class="card">
+        <h2>Реальные запросы к PartsAPI сегодня</h2>
+        <div id="meters"><div class="empty">Загрузка…</div></div>
+        <p class="sub" style="margin:10px 0 0;font-size:12.5px">Запросы, которые взяты из кэша, здесь не считаются — они ничего не стоят.</p>
+      </div>
+    </section>
+
+    <!-- ===== МАШИНЫ ===== -->
+    <section class="view" id="view-vehicles">
+      <h1>Машины в базе</h1>
+      <p class="sub">Автомобили, которые уже запрашивали. Повторный запрос по ним не тратит лимит.</p>
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" id="vehQuery" placeholder="Марка, модель, модификация или начало VIN" aria-label="Поиск машины">
+          <button class="btn" id="vehSearchBtn">Найти</button>
+        </div>
+        <div id="vehTable"></div>
+        <div class="detail" id="vehDetail"></div>
+      </div>
+    </section>
+
+    <!-- ===== ДОПУСКИ ===== -->
+    <section class="view" id="view-approvals">
+      <h1>Допуски товаров</h1>
+      <p class="sub">Какие допуски и одобрения заявлены на ваших маслах. По ним приложение подбирает товар под машину клиента.</p>
+      <div class="msg info show" style="margin-bottom:16px">Вносите только допуски, которые указаны производителем на этикетке или в сертификате. Лишний допуск может привести к подбору неподходящего масла.</div>
+      <div class="card" id="approvalsCard"><div class="empty">Загрузка…</div></div>
+    </section>
+
+    <!-- ===== ПРОВЕРКА ===== -->
+    <section class="view" id="view-check">
+      <h1>Проверка подбора</h1>
+      <p class="sub">Введите VIN, и вы увидите ровно то, что получит клиент. Новая машина тратит запросы PartsAPI, уже сохранённая — нет.</p>
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" id="vinInput" maxlength="17" placeholder="VIN, 17 символов (например WAUBH54B11N111054)" aria-label="VIN">
+          <button class="btn" id="vinBtn">Подобрать</button>
+        </div>
+        <div class="msg err" id="checkErr"></div>
+        <div class="detail" id="checkResult"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // ============================================================
+  // Адрес сервера. После подключения домена и HTTPS замените на https://ваш-домен.ru
+  // ============================================================
+  const API_BASE = 'http://ВАШ_IP:3000';
+
+  const token = (() => { try { return localStorage.getItem('admin_token'); } catch (e) { return null; } })();
+  if (!token) location.replace('admin-login.html');
+
+  const $ = id => document.getElementById(id);
+  // Любой текст из базы и API выводим только через esc() - защита от внедрения HTML
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtYear = d => d ? String(d).slice(0, 7) : 'по н.в.';
+
+  async function api(path, opts = {}) {
+    const res = await fetch(API_BASE + path, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(opts.headers || {}) },
+    });
+    if (res.status === 401) { try { localStorage.removeItem('admin_token'); } catch (e) {} location.replace('admin-login.html'); throw new Error('Сессия истекла'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('Ошибка сервера ' + res.status));
+    return data;
+  }
+  function showErr(el, text) { el.textContent = text; el.classList.add('show'); }
+  function hideErr(el) { el.classList.remove('show'); }
+  const run = async (el, fn) => { hideErr(el); try { await fn(); } catch (e) { showErr(el, e.message === 'Failed to fetch' ? 'Сервер недоступен. Проверьте адрес API_BASE и что сервер запущен.' : e.message); } };
+
+  // ---------- Навигация ----------
+  const loaded = {};
+  function openView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+    if (name === 'overview') loadOverview();
+    if (name === 'vehicles' && !loaded.vehicles) { loaded.vehicles = true; loadVehicles(); }
+    if (name === 'approvals') loadApprovals();
+  }
+  $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) openView(b.dataset.view); });
+  $('logoutBtn').addEventListener('click', () => { try { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_phone'); } catch (e) {} location.replace('admin-login.html'); });
+  try { $('who').textContent = localStorage.getItem('admin_phone') || ''; } catch (e) {}
+
+  // ---------- Обзор ----------
+  async function loadOverview() {
+    await run($('globalErr'), async () => {
+      const d = await api('/api/admin/overview');
+      const noApp = d.products_total - d.products_with_approvals;
+      $('stats').innerHTML = `
+        <div class="card stat"><div class="num">${d.vehicles}</div><div class="lbl">машин в базе</div></div>
+        <div class="card stat"><div class="num">${d.cached_responses}</div><div class="lbl">ответов в кэше</div></div>
+        <div class="card stat"><div class="num">${d.products_with_approvals}/${d.products_total}</div><div class="lbl">товаров с допусками</div>
+          ${noApp > 0 ? `<div class="hint">${noApp} без допусков: не будут подбираться клиентам</div>` : ''}</div>
+        <div class="card stat"><div class="num">${d.daily_limit}</div><div class="lbl">защитный лимит в сутки на метод</div></div>`;
+      const methods = ['VINdecode', 'GetFillVolumes', 'toDopusk', 'getMakes', 'getModels', 'getCars'];
+      const used = Object.fromEntries(d.requests_today.map(r => [r.method, r.n]));
+      $('meters').innerHTML = methods.map(m => {
+        const n = used[m] || 0, pct = Math.min(100, Math.round(n / d.daily_limit * 100));
+        return `<div class="meter"><div class="meter-top"><span>${esc(m)}</span><span>${n} из ${d.daily_limit}</span></div>
+          <div class="meter-bar"><i class="${pct >= 100 ? 'full' : pct >= 80 ? 'hot' : ''}" style="width:${pct}%"></i></div></div>`;
+      }).join('');
+    });
+  }
+
+  // ---------- Машины ----------
+  async function loadVehicles() {
+    await run($('globalErr'), async () => {
+      const rows = await api('/api/admin/vehicles?q=' + encodeURIComponent($('vehQuery').value.trim()));
+      $('vehDetail').innerHTML = '';
+      $('vehTable').innerHTML = rows.length ? `<table><thead><tr><th>Автомобиль</th><th>Двигатель</th><th>Годы</th><th>Допуски</th></tr></thead><tbody>` +
+        rows.map(v => `<tr class="clickable" data-id="${esc(v.car_id)}" tabindex="0">
+          <td><b>${esc(v.make_name)} ${esc(v.model_name)}</b><br><span style="color:var(--muted)">${esc(v.modification)}</span></td>
+          <td>${esc(v.capacity || '')} ${v.power_ps ? '· ' + Number(v.power_ps) + ' л.с.' : ''}</td>
+          <td>${fmtYear(v.year_from)} – ${fmtYear(v.year_to)}</td>
+          <td>${v.approvals_count ? `<span class="tag ok">${v.approvals_count}</span>` : '<span class="tag warn">нет данных</span>'}</td></tr>`).join('') + '</tbody></table>'
+        : '<div class="empty">Ничего не найдено. Машины появляются здесь после первого подбора.</div>';
+    });
+  }
+  $('vehSearchBtn').addEventListener('click', loadVehicles);
+  $('vehQuery').addEventListener('keydown', e => { if (e.key === 'Enter') loadVehicles(); });
+  const openRow = async tr => {
+    if (!tr) return;
+    await run($('globalErr'), async () => { $('vehDetail').innerHTML = renderSelection(await api('/api/admin/vehicle/' + encodeURIComponent(tr.dataset.id))); $('vehDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+  };
+  $('vehTable').addEventListener('click', e => openRow(e.target.closest('tr.clickable')));
+  $('vehTable').addEventListener('keydown', e => { if (e.key === 'Enter') openRow(e.target.closest('tr.clickable')); });
+
+  // Общий вид результата подбора (и для вкладки "Машины", и для "Проверки")
+  function renderSelection(s) {
+    const v = s.vehicle;
+    const group = (arr, key) => arr.reduce((m, x) => ((m[x[key]] = m[x[key]] || []).push(x), m), {});
+    const appr = group(s.approvals, 'fluid');
+    return `
+      <h3>${esc(v.make_name)} ${esc(v.model_name)} ${esc(v.modification)}</h3>
+      <h3>Ваши товары, подходящие этой машине</h3>
+      ${s.our_products.length ? s.our_products.map(p => `<div class="our"><b>${esc(p.name)}</b> · ${esc(p.brand)} · ${Number(p.price).toLocaleString('ru-RU')} ₽
+        <div style="margin-top:4px;color:var(--muted);font-size:12.5px">совпали допуски: ${p.matched_approvals.map(esc).join(', ')}</div></div>`).join('')
+        : '<div class="empty" style="padding:12px;text-align:left">Нет подходящих товаров. Либо у ваших масел не заполнены допуски (вкладка «Допуски товаров»), либо они не совпадают с допусками машины.</div>'}
+      <h3>Заправочные объёмы</h3>
+      ${s.fill_volumes.length ? `<div class="kv">${s.fill_volumes.map(f => `<span>${esc(f.title)}${f.info ? ' (' + esc(f.info) + ')' : ''}</span><span>${esc(f.value_text)}${f.unit ? ' ' + esc(f.unit) : ''}</span>`).join('')}</div>` : '<div class="empty" style="padding:8px;text-align:left">Нет данных</div>'}
+      <h3>Допуски производителя автомобиля</h3>
+      ${Object.keys(appr).length ? Object.entries(appr).map(([fluid, list]) => `<div style="margin-bottom:8px"><div style="color:var(--muted);font-size:12.5px;margin-bottom:4px">${esc(fluid)}</div>
+        <div class="chips">${list.map(a => `<span class="chip plain">${esc(a.approval)}</span>`).join('')}</div></div>`).join('') : '<div class="empty" style="padding:8px;text-align:left">Нет данных</div>'}`;
+  }
+
+  // ---------- Допуски товаров ----------
+  async function loadApprovals() {
+    await run($('globalErr'), async () => {
+      const rows = await api('/api/admin/products');
+      $('approvalsCard').innerHTML = rows.length ? `<table><thead><tr><th style="width:34%">Товар</th><th>Допуски</th></tr></thead><tbody>` + rows.map(p => `
+        <tr data-id="${p.id}"><td><b>${esc(p.name)}</b><br><span style="color:var(--muted)">${esc(p.brand)}</span></td>
+        <td><div class="chips">${p.approvals.length ? p.approvals.map(a => `<span class="chip">${esc(a)}<button type="button" data-del="${esc(a)}" aria-label="Удалить допуск ${esc(a)}">×</button></span>`).join('') : '<span class="tag warn">не заполнено</span>'}</div>
+          <form class="add-row"><input type="text" placeholder="Например: VW 504 00" maxlength="100" aria-label="Новый допуск для ${esc(p.name)}"><button class="btn small ghost" type="submit">Добавить</button></form></td></tr>`).join('') + '</tbody></table>'
+        : '<div class="empty">В каталоге нет активных товаров.</div>';
+    });
+  }
+  $('approvalsCard').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.target, tr = form.closest('tr'), input = form.querySelector('input');
+    if (!input.value.trim()) return;
+    await run($('globalErr'), async () => { await api('/api/admin/product-approvals', { method: 'POST', body: JSON.stringify({ product_id: tr.dataset.id, approval: input.value }) }); await loadApprovals(); });
+  });
+  $('approvalsCard').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-del]');
+    if (!b) return;
+    const tr = b.closest('tr');
+    if (!confirm('Удалить допуск «' + b.dataset.del + '» у этого товара?')) return;
+    await run($('globalErr'), async () => { await api('/api/admin/product-approvals', { method: 'DELETE', body: JSON.stringify({ product_id: tr.dataset.id, approval: b.dataset.del }) }); await loadApprovals(); });
+  });
+
+  // ---------- Проверка по VIN ----------
+  async function checkVin() {
+    const vin = $('vinInput').value.trim().toUpperCase();
+    if (vin.length !== 17) { showErr($('checkErr'), 'VIN должен состоять из 17 символов'); return; }
+    $('vinBtn').disabled = true; $('vinBtn').textContent = 'Подбираем…'; $('checkResult').innerHTML = '';
+    await run($('checkErr'), async () => {
+      const res = await fetch(API_BASE + '/api/oil/by-vin?vin=' + encodeURIComponent(vin));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Ошибка сервера ' + res.status);
+      $('checkResult').innerHTML = renderSelection(data);
+    });
+    $('vinBtn').disabled = false; $('vinBtn').textContent = 'Подобрать';
+  }
+  $('vinBtn').addEventListener('click', checkVin);
+  $('vinInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkVin(); });
+
+  if (token) loadOverview();
+</script>
+</body>
+</html>
