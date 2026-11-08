@@ -167,17 +167,17 @@ function verifyInitData(initData, botToken) {
     const hash = params.get('hash');
     if (!hash || !/^[0-9a-f]{64}$/i.test(hash)) return null;
 
-    // Telegram требует исключить оба поля из data-check-string
+    // В data-check-string исключается ТОЛЬКО hash. Поле signature (Ed25519, для сторонней проверки)
+    // остаётся в строке: иначе HMAC не сойдётся и все заказы получают 401.
     params.delete('hash');
-    params.delete('signature');
 
     const dataCheckString = [...params.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([k, v]) => `${k}=${v}`)
         .join('\n');
 
-    // Telegram Web Apps: secret_key = HMAC_SHA256(key=botToken, data='WebAppData')
-    const secretKey = crypto.createHmac('sha256', botToken).update('WebAppData').digest();
+    // По документации Telegram: secret_key = HMAC_SHA256(key="WebAppData", message=botToken)
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
     const computed  = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
     const a = Buffer.from(computed, 'hex');
