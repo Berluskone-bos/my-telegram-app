@@ -210,17 +210,103 @@ const Profile = {
         this.updateCarUI();
     },
 
-    // Данные профиля
+    // Данные профиля. JSON в localStorage хранится в UTF-8 без btoa,
+    // который бросает InvalidCharacterError на кириллице.
     getProfileData() {
         try {
             const saved = localStorage.getItem('gulf_profile');
             if (!saved) return {};
-            try { return JSON.parse(atob(saved)); } catch { return JSON.parse(saved); }
-        } catch (e) { return {}; }
+            try { return JSON.parse(saved); } catch { return JSON.parse(atob(saved)); }
+        } catch (e) {
+            console.warn('[Profile] Не удалось прочитать локальный профиль:', e);
+            return {};
+        }
+    },
+
+    getApiBase() {
+        return window.location.hostname === 'localhost'
+            ? 'http://localhost:3000'
+            : 'https://gulf-bot-production.up.railway.app';
+    },
+
+    getTelegramInitData() {
+        return window.Telegram && window.Telegram.WebApp
+            ? window.Telegram.WebApp.initData || ''
+            : '';
     },
 
     saveProfileData(data) {
-        try { localStorage.setItem('gulf_profile', btoa(JSON.stringify(data))); } catch (e) {}
+        const profile = {
+            name: String(data.name || '').trim(),
+            phone: String(data.phone || '').trim(),
+            city: String(data.city || '').trim(),
+            street: String(data.street || '').trim(),
+            house: String(data.house || '').trim(),
+            entrance: String(data.entrance || '').trim(),
+            apartment: String(data.apartment || '').trim()
+        };
+
+        try {
+            localStorage.setItem('gulf_profile', JSON.stringify(profile));
+        } catch (e) {
+            console.error('[Profile] Локальное сохранение не удалось:', e);
+            return Promise.resolve({ savedLocally: false, synced: false, error: e });
+        }
+
+        const initData = this.getTelegramInitData();
+        if (!initData) return Promise.resolve({ savedLocally: true, synced: false });
+
+        return fetch(this.getApiBase() + '/api/profile', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-Init-Data': initData
+            },
+            body: JSON.stringify(profile)
+        }).then(async response => {
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'HTTP ' + response.status);
+            }
+            if (result.profile) {
+                localStorage.setItem('gulf_profile', JSON.stringify(result.profile));
+            }
+            return { savedLocally: true, synced: true };
+        }).catch(error => {
+            console.error('[Profile] Ошибка синхронизации с сервером:', error);
+            return { savedLocally: true, synced: false, error };
+        });
+    },
+
+    async loadFromServer(tg) {
+        const initData = tg && tg.initData ? tg.initData : '';
+        if (!initData) return false;
+
+        try {
+            const response = await fetch(this.getApiBase() + '/api/profile', {
+                method: 'GET',
+                headers: { 'X-Telegram-Init-Data': initData }
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'HTTP ' + response.status);
+            }
+
+            if (result.profile) {
+                localStorage.setItem('gulf_profile', JSON.stringify(result.profile));
+            } else {
+                const localProfile = this.getProfileData();
+                const hasLocalData = Object.values(localProfile).some(value => String(value || '').trim());
+                if (hasLocalData) {
+                    const sync = await this.saveProfileData(localProfile);
+                    if (!sync.synced) console.warn('[Profile] Локальный профиль пока не синхронизирован с сервером');
+                }
+            }
+            return true;
+        } catch (error) {
+            console.warn('[Profile] Не удалось загрузить профиль с сервера:', error);
+            return false;
+        }
     },
 
     updateProfileUI() {
