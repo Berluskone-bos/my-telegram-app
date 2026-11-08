@@ -9,20 +9,18 @@
 //   pa.getOilSelection(pool, carId)               - готовый подбор для приложения из своей базы
 //   pa.requestsToday(pool)                        - сколько реальных запросов сделано сегодня
 //
-// Переменные .env (боевые ключи; тестовые вшиты для проверки):
+// Переменные .env (ключи PartsAPI; в код и в репозиторий их класть нельзя):
 //   PARTSAPI_KEY_VINDECODE, PARTSAPI_KEY_GETFILLVOLUMES, PARTSAPI_KEY_TODOPUSK,
 //   PARTSAPI_KEY_GETMAKES, PARTSAPI_KEY_GETMODELS, PARTSAPI_KEY_GETCARS
 //   PARTSAPI_DAILY_LIMIT  - защитный лимит реальных запросов в сутки на метод (по умолчанию 45)
 
-const TEST_KEYS = {
-  VINdecode:      '5cdb1bdd38ea05fb81466bafb1d86efb',
-  GetFillVolumes: '082fc8ed3d859321bb7643c0e0cfdab4',
-  toDopusk:       '3e8ae0c9ad0fb3c7575acc79891d5562',
-  getMakes:       '308bd5cc6d03f9d33de161f943050b75',
-  getModels:      'd74b4f69cc26eccd6e4447aa1f4ea5db',
-  getCars:        '7155c2e603d7fb82eb14c85ac2eb028e',
-};
-const keyFor = m => process.env['PARTSAPI_KEY_' + m.toUpperCase()] || TEST_KEYS[m];
+const keyFor = m => process.env['PARTSAPI_KEY_' + m.toUpperCase()];
+// Ключей в коде НЕТ: только переменные окружения. Нет ключа - понятная ошибка вместо запроса с "undefined".
+function requireKey(m) {
+  const k = keyFor(m);
+  if (!k) throw new Error('Не задана переменная PARTSAPI_KEY_' + m.toUpperCase());
+  return k;
+}
 const DAILY_LIMIT = Number(process.env.PARTSAPI_DAILY_LIMIT || 45);
 
 // Сколько дней хранить ответ. Справочники и VIN почти не меняются.
@@ -54,7 +52,7 @@ async function cachedApi(pool, method, params = {}, ttlDays = TTL_DAYS[method] |
     }
     let data;
     try {
-      const url = 'https://api.partsapi.ru?' + new URLSearchParams({ method, key: keyFor(method), ...Object.fromEntries(clean) });
+      const url = 'https://api.partsapi.ru?' + new URLSearchParams({ method, key: requireKey(method), ...Object.fromEntries(clean) });
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       data = await res.json();
