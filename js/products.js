@@ -11,7 +11,7 @@ const Products = {
             : 'https://gulf-bot-production.up.railway.app';
 
         try {
-            const response = await fetch(`${API_BASE}/api/products`);
+            const response = await fetch(`${API_BASE}/api/catalog`);
             if (response.ok) {
                 const products = await response.json();
                 if (products.length > 0) {
@@ -20,7 +20,9 @@ const Products = {
                         category_id: p.category,
                         main_image: p.image || p.main_image,
                         api: p.api_std || p.api,
-                        in_stock: p.stock > 0
+                        price: Number(p.price) || 0,
+                        old_price: Number(p.old_price) || 0,
+                        in_stock: p.in_stock !== false
                     }));
                     this.categories = [
                         { id: 'motor', name: 'Моторные масла', icon: 'droplets' },
@@ -153,7 +155,7 @@ const Products = {
         const image = product.main_image || product.image;
 
         return `
-            <div class="product-card ${product.coming_soon ? 'coming-soon' : ''}" onclick="App.showProduct(${product.id})">
+            <div class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" onclick="App.showProduct(${product.id})">
                 <div class="product-image">
                     ${this.getPictureHtml(image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
@@ -168,13 +170,14 @@ const Products = {
                 <div class="product-info">
                     <div class="product-title">${esc(product.name)}</div>
                     <div class="product-volume">${esc(product.volume || '\u00a0')}</div>
-                    ${product.coming_soon ? '' : `<button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
+                    ${(product.coming_soon || product.in_stock === false) ? '' : `<button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
                         <i data-lucide="shopping-bag"></i>
                     </button>`}
                     <div class="product-price-row">
                         ${product.coming_soon
                             ? '<span class="product-soon">Скоро в продаже</span>'
                             : `<span class="product-price">${product.price.toLocaleString()} ₽</span>
+                        ${product.in_stock === false ? '<span class="product-soon">Нет в наличии</span>' : ''}
                         ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : ''}`}
                     </div>
                 </div>
@@ -221,6 +224,8 @@ const Products = {
                 ${specsHtml ? `<div class="product-detail-specs"><h3>Дополнительно</h3>${specsHtml}</div>` : ''}
                 ${product.coming_soon
                     ? '<button class="btn-add-cart" disabled>Скоро в продаже</button>'
+                    : product.in_stock === false
+                    ? '<button class="btn-add-cart" disabled>Нет в наличии</button>'
                     : `<button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>`}
             </div>
         `;

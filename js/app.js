@@ -764,26 +764,36 @@ const App = {
             body: JSON.stringify(orderPayload)
         })
         .then(async response => {
+            if (response.status === 409) {
+                const e = await response.json().catch(() => ({}));
+                if (e.error === 'out_of_stock') {
+                    alert(`К сожалению, товара${e.product ? ' «' + e.product + '»' : ''} уже нет в наличии. Уберите его из корзины или уменьшите количество и повторите заказ.`);
+                } else {
+                    alert('Не удалось применить промокод: лимит исчерпан. Уберите промокод и оформите заказ ещё раз.');
+                }
+                try { await Products.load(); this.renderProducts(); } catch (_) {}
+                return;
+            }
             if (!response.ok) throw new Error('Сервер вернул ошибку: ' + response.status);
             const data = await response.json();
-            console.log('Заказ сохранён в БД:', data);
             const serverTotal = data.total || discountedTotal;
             window._orderKey = null;
             const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
             alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+            Cart.clear();
+            this.updateCartBadge();
+            Cart.render();
+            this.switchScreen('main');
         })
         .catch(err => {
-            console.error('Ошибка сохранения заказа:', err);
-            alert(`Заказ оформлен локально!\n\nСумма: ${discountedTotal.toLocaleString()} руб.\nМы свяжемся с вами для подтверждения.`);
+            console.error('Ошибка отправки заказа:', err);
+            // Заказ НЕ принят: корзину не очищаем, ключ операции сохраняем, повтор не создаст дубль
+            alert('Не удалось отправить заказ. Проверьте интернет и нажмите «Оформить» ещё раз. Корзина сохранена.');
         });
 
         // Единый механизм оформления: HTTP /api/order с проверкой initData на сервере.
         // tg.sendData не используем: он не работает при запуске из меню/инлайн-кнопки и дублировал бы заказ.
 
-        Cart.clear();
-        this.updateCartBadge();
-        Cart.render();
-        this.switchScreen('main');
     },
 
     openReferral() {
