@@ -176,7 +176,8 @@ function verifyInitData(initData, botToken) {
         .map(([k, v]) => `${k}=${v}`)
         .join('\n');
 
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+    // Telegram Web Apps: secret_key = HMAC_SHA256(key=botToken, data='WebAppData')
+    const secretKey = crypto.createHmac('sha256', botToken).update('WebAppData').digest();
     const computed  = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
     const a = Buffer.from(computed, 'hex');
