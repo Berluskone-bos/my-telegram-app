@@ -210,6 +210,9 @@ async function initDB() {
             END $$;
         `);
 
+        // Каталог: признак «скоро в продаже» и отметка, что остаток по заказу уже списан
+        await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS coming_soon BOOLEAN NOT NULL DEFAULT false`);
+        await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN NOT NULL DEFAULT false`);
         // Идемпотентность: один ключ операции = один заказ (защита на уровне БД)
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_key_idx
                             ON orders(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`);

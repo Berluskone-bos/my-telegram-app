@@ -1292,7 +1292,7 @@ function registerCourierRoutes(app) {
     // ====== Admin: управление товарами ======
     app.get('/api/products', verifyAdmin, async (req, res) => {
         try {
-            let catalog = await db.getProducts();
+            let catalog = await db.getAllProducts();
             // Если БД пуста — подгружаем из catalog.json (например, при локальном запуске без БД)
             if (!catalog || catalog.length === 0) {
                 try {
@@ -1320,7 +1320,18 @@ function registerCourierRoutes(app) {
 
     app.post('/api/products', verifyAdmin, async (req, res) => {
         try {
-            const product = await db.createProduct(req.body);
+            let product = await db.createProduct(req.body);
+            if (req.body.coming_soon) product = await db.updateProduct(product.id, { coming_soon: true });
+            res.json(product);
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+    });
+
+    app.put('/api/products/:id', verifyAdmin, async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+            const product = await db.updateProduct(id, req.body || {});
+            if (!product) return res.status(404).json({ error: 'not found' });
             res.json(product);
         } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });

@@ -595,6 +595,7 @@ async function saveOrderToDb(orderId, order) {
     } catch (e) {
         console.error('[saveOrderToDb]', sanitizeLog(e.message));
         if (e.code === 'PROMO_EXHAUSTED') return 'PROMO_EXHAUSTED';
+        if (e.code === 'OUT_OF_STOCK') return { outOfStock: e.product || '' };
         return null;
     }
 }
@@ -884,6 +885,17 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
 // API /api/order
 // ═══════════════════════════════════════════
 
+// Публичный каталог (без закупочных данных): магазин и админка работают с одной базой
+app.get('/api/catalog', rateLimit(120, 60_000), async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-cache');
+        res.json(await db.getPublicCatalog());
+    } catch (e) {
+        console.error('[API /catalog]', sanitizeLog(e.message));
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
+
 app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
     try {
         const initData = req.header('X-Telegram-Init-Data');
@@ -930,6 +942,9 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         }
         const orderId = generateOrderId();
         const dbOrderId = await saveOrderToDb(orderId, v.data);
+        if (dbOrderId && dbOrderId.outOfStock !== undefined) {
+            return res.status(409).json({ success: false, error: 'out_of_stock', product: dbOrderId.outOfStock });
+        }
         if (dbOrderId === 'PROMO_EXHAUSTED') {
             return res.status(409).json({ success: false, error: 'Promo code limit reached' });
         }

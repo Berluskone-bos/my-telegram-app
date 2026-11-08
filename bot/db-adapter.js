@@ -326,6 +326,22 @@ class DBAdapter {
                 if (up.rowCount === 0) { const err = new Error('PROMO_EXHAUSTED'); err.code = 'PROMO_EXHAUSTED'; throw err; }
             }
 
+            // Списание остатка в той же транзакции, что и заказ (учёт включается, когда в админке введён хотя бы один остаток)
+            const tracking = (await client.query('SELECT EXISTS(SELECT 1 FROM products WHERE active AND stock > 0) AS on')).rows[0].on;
+            if (tracking) {
+                const list = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+                for (const it of list) {
+                    const q = await client.query(
+                        'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id',
+                        [it.qty, it.productId]
+                    );
+                    if (q.rowCount === 0) {
+                        const err = new Error('OUT_OF_STOCK'); err.code = 'OUT_OF_STOCK'; err.product = it.name; throw err;
+                    }
+                }
+                await client.query('UPDATE orders SET stock_deducted = true WHERE id = $1', [res.rows[0].id]);
+            }
+
             await client.query('COMMIT');
             return res.rows[0];
         } catch (e) {
@@ -362,13 +378,22 @@ class DBAdapter {
                     SET status = 'CANCELLED'
                   WHERE order_number = $1
                     AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED')
-                 RETURNING id`,
+                 RETURNING id, items, stock_deducted`,
                 [orderNumber]
             );
 
             if (res.rowCount === 0) {
                 await client.query('ROLLBACK').catch(() => {});
                 return false;
+            }
+
+            // Возвращаем товар на склад, если при заказе остаток списывался
+            if (res.rows[0].stock_deducted) {
+                const raw = res.rows[0].items;
+                const list = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
+                for (const it of list) {
+                    await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [it.qty, it.productId]);
+                }
             }
 
             // Убираем из активных остановок маршрута, чтобы курьер
@@ -586,6 +611,20 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Публичный каталог для магазина: без закупочных и служебных полей
+    async getPublicCatalog() {
+        const res = await pool.query(
+            `SELECT id, brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac,
+                    price, old_price, stock, image, gallery, description, specs, is_new, is_popular, coming_soon, rating, reviews_count
+               FROM products WHERE active = true ORDER BY id`);
+        const tracking = res.rows.some(r => r.stock > 0);
+        return res.rows.map(({ stock, ...r }) => ({
+            ...r,
+            in_stock: tracking ? stock > 0 : true,
+            stock_left: tracking && stock > 0 && stock <= 5 ? stock : null
+        }));
+    }
+
     async getAllProducts() {
         const res = await pool.query('SELECT * FROM products ORDER BY id');
         return res.rows;
@@ -609,7 +648,7 @@ class DBAdapter {
         const allowed = [
             'brand', 'category', 'name', 'full_name', 'series', 'sku', 'viscosity', 'oil_type',
             'volume', 'api_std', 'acea', 'ilsac', 'price', 'old_price', 'stock', 'min_stock',
-            'image', 'description', 'specs', 'active', 'is_new', 'is_popular'
+            'image', 'description', 'specs', 'active', 'is_new', 'is_popular', 'coming_soon'
         ];
         const fields = [];
         const values = [];
