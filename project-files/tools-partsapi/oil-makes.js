@@ -6,8 +6,13 @@
 // Ключ: PARTSAPI_MAKES_KEY (тестовый: до 50 запросов в сутки)
 // Важно: в списке ~735 марок, включая китайские совместные предприятия ("AUDI (FAW)").
 // В приложении список лучше один раз сохранить в базу, а не запрашивать у каждого клиента.
+// Ключи только из переменных окружения (в репозиторий их класть нельзя)
+for (const n of ['PARTSAPI_MAKES_KEY']) {
+  if (!process.env[n]) { console.error('Не задана переменная ' + n + '. См. инструкцию: ключи задаются в окружении, не в коде.'); process.exit(1); }
+}
+
 const fs = require('fs');
-const KEY = process.env.PARTSAPI_MAKES_KEY || '308bd5cc6d03f9d33de161f943050b75';
+const KEY = process.env.PARTSAPI_MAKES_KEY;
 const arg = process.argv[2];
 const POPULAR = ['LADA', 'TOYOTA', 'KIA', 'HYUNDAI', 'VOLKSWAGEN', 'NISSAN', 'MAZDA', 'MITSUBISHI', 'SKODA', 'RENAULT',
                  'FORD', 'CHEVROLET', 'BMW', 'MERCEDES-BENZ', 'AUDI', 'HONDA', 'SUBARU', 'SUZUKI', 'LEXUS', 'OPEL'];

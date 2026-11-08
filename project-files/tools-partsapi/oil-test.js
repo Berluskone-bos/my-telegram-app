@@ -3,9 +3,14 @@
 //   node oil-test.js            -> живой запрос с тестовым ключом, typeId=9318
 //   node oil-test.js 12345      -> другой typeId (идентификатор модификации)
 //   node oil-test.js --sample   -> без интернета, на сохранённом примере sample.json
+// Ключи только из переменных окружения (в репозиторий их класть нельзя)
+for (const n of ['PARTSAPI_KEY']) {
+  if (!process.env[n]) { console.error('Не задана переменная ' + n + '. См. инструкцию: ключи задаются в окружении, не в коде.'); process.exit(1); }
+}
+
 const fs = require('fs');
 
-const KEY = process.env.PARTSAPI_KEY || '3e8ae0c9ad0fb3c7575acc79891d5562'; // тестовый: до 50 запросов/сутки
+const KEY = process.env.PARTSAPI_KEY; // тестовый: до 50 запросов/сутки
 const arg = process.argv[2];
 
 async function load() {

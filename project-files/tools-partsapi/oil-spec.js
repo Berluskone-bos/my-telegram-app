@@ -3,7 +3,12 @@
 //   node oil-spec.js "MB 229.5"
 //   node oil-spec.js "VW 504 00"
 // Ключ: PARTSAPI_SPEC_KEY (тестовый: до 50 запросов в сутки). Спецификация - до 15 символов.
-const KEY = process.env.PARTSAPI_SPEC_KEY || 'a54834b806d668380cb88af191866dae';
+// Ключи только из переменных окружения (в репозиторий их класть нельзя)
+for (const n of ['PARTSAPI_SPEC_KEY']) {
+  if (!process.env[n]) { console.error('Не задана переменная ' + n + '. См. инструкцию: ключи задаются в окружении, не в коде.'); process.exit(1); }
+}
+
+const KEY = process.env.PARTSAPI_SPEC_KEY;
 const query = process.argv[2] || 'MB 229.5';
 
 (async () => {

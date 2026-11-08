@@ -4,12 +4,17 @@
 //   node oil-select.js audi q3 1          -> то же + проверка объёмов и допусков для модификации №1 из списка
 // Ключи (у каждого метода свой, до 50 запросов в сутки):
 //   PARTSAPI_MAKES_KEY, PARTSAPI_MODELS_KEY, PARTSAPI_CARS_KEY, PARTSAPI_FILL_KEY, PARTSAPI_KEY (toDopusk)
+// Ключи только из переменных окружения (в репозиторий их класть нельзя)
+for (const n of ['PARTSAPI_CARS_KEY', 'PARTSAPI_FILL_KEY', 'PARTSAPI_KEY', 'PARTSAPI_MAKES_KEY', 'PARTSAPI_MODELS_KEY']) {
+  if (!process.env[n]) { console.error('Не задана переменная ' + n + '. См. инструкцию: ключи задаются в окружении, не в коде.'); process.exit(1); }
+}
+
 const K = {
-  makes:  process.env.PARTSAPI_MAKES_KEY  || '308bd5cc6d03f9d33de161f943050b75',
-  models: process.env.PARTSAPI_MODELS_KEY || 'd74b4f69cc26eccd6e4447aa1f4ea5db',
-  cars:   process.env.PARTSAPI_CARS_KEY   || '7155c2e603d7fb82eb14c85ac2eb028e',
-  fill:   process.env.PARTSAPI_FILL_KEY   || '082fc8ed3d859321bb7643c0e0cfdab4',
-  oil:    process.env.PARTSAPI_KEY        || '3e8ae0c9ad0fb3c7575acc79891d5562',
+  makes:  process.env.PARTSAPI_MAKES_KEY,
+  models: process.env.PARTSAPI_MODELS_KEY,
+  cars:   process.env.PARTSAPI_CARS_KEY,
+  fill:   process.env.PARTSAPI_FILL_KEY,
+  oil:    process.env.PARTSAPI_KEY,
 };
 const [makeQ, modelQ, pickRaw] = process.argv.slice(2);
 

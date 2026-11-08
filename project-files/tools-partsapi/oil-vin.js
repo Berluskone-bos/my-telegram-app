@@ -6,11 +6,16 @@
 //   PARTSAPI_VIN_KEY  - для VINdecode
 //   PARTSAPI_FILL_KEY - для GetFillVolumes
 //   PARTSAPI_KEY      - для toDopusk
+// Ключи только из переменных окружения (в репозиторий их класть нельзя)
+for (const n of ['PARTSAPI_FILL_KEY', 'PARTSAPI_KEY', 'PARTSAPI_VIN_KEY']) {
+  if (!process.env[n]) { console.error('Не задана переменная ' + n + '. См. инструкцию: ключи задаются в окружении, не в коде.'); process.exit(1); }
+}
+
 const fs = require('fs');
 
-const VIN_KEY = process.env.PARTSAPI_VIN_KEY || '5cdb1bdd38ea05fb81466bafb1d86efb';
-const FILL_KEY = process.env.PARTSAPI_FILL_KEY || '082fc8ed3d859321bb7643c0e0cfdab4';
-const OIL_KEY = process.env.PARTSAPI_KEY || '3e8ae0c9ad0fb3c7575acc79891d5562';
+const VIN_KEY = process.env.PARTSAPI_VIN_KEY;
+const FILL_KEY = process.env.PARTSAPI_FILL_KEY;
+const OIL_KEY = process.env.PARTSAPI_KEY;
 const arg = process.argv[2] || 'WAUBH54B11N111054';
 const SAMPLE = arg === '--sample';
 

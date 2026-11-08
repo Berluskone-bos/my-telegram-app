@@ -6,11 +6,16 @@
 //   node oil-manual.js --sample            -> офлайн: только список модификаций из sample-cars.json
 // Ключи (у каждого метода свой, до 50 запросов в сутки):
 //   PARTSAPI_CARS_KEY, PARTSAPI_FILL_KEY, PARTSAPI_KEY (toDopusk)
+// Ключи только из переменных окружения (в репозиторий их класть нельзя)
+for (const n of ['PARTSAPI_CARS_KEY', 'PARTSAPI_FILL_KEY', 'PARTSAPI_KEY']) {
+  if (!process.env[n]) { console.error('Не задана переменная ' + n + '. См. инструкцию: ключи задаются в окружении, не в коде.'); process.exit(1); }
+}
+
 const fs = require('fs');
 
-const CARS_KEY = process.env.PARTSAPI_CARS_KEY || '7155c2e603d7fb82eb14c85ac2eb028e';
-const FILL_KEY = process.env.PARTSAPI_FILL_KEY || '082fc8ed3d859321bb7643c0e0cfdab4';
-const OIL_KEY = process.env.PARTSAPI_KEY || '3e8ae0c9ad0fb3c7575acc79891d5562';
+const CARS_KEY = process.env.PARTSAPI_CARS_KEY;
+const FILL_KEY = process.env.PARTSAPI_FILL_KEY;
+const OIL_KEY = process.env.PARTSAPI_KEY;
 
 const SAMPLE = process.argv[2] === '--sample';
 const makeId = SAMPLE ? '5' : (process.argv[2] || '5');
