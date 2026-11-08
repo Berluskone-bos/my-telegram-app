@@ -26,9 +26,6 @@ const App = {
 
         // Инициализация Telegram
         const tg = TelegramApp.init();
-        await Profile.loadFromServer(tg);
-        Profile.updateProfileUI();
-
         const user = TelegramApp.getUser(tg);
         const userName = TelegramApp.getUserName(user);
         const userInitial = TelegramApp.getUserInitial(user);
@@ -752,11 +749,14 @@ const App = {
             ? 'http://localhost:3000'
             : 'https://gulf-bot-production.up.railway.app';
 
+        // Один ключ на одну попытку оформления: повтор того же запроса даст тот же заказ
+        window._orderKey = window._orderKey || ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)));
         fetch(`${API_BASE}/api/order`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Telegram-Init-Data': (tg && tg.initData) || ''
+                'X-Telegram-Init-Data': (tg && tg.initData) || '',
+                'Idempotency-Key': window._orderKey
             },
             body: JSON.stringify(orderPayload)
         })
@@ -765,6 +765,7 @@ const App = {
             const data = await response.json();
             console.log('Заказ сохранён в БД:', data);
             const serverTotal = data.total || discountedTotal;
+            window._orderKey = null;
             const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
             alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
         })
@@ -829,7 +830,7 @@ const App = {
         document.getElementById('modalProfile').classList.add('open');
     },
 
-    async saveProfile() {
+    saveProfile() {
         const name = document.getElementById('modalProfileName').value.trim();
         const phone = document.getElementById('modalProfilePhone').value.trim();
         const city = document.getElementById('modalProfileCity').value.trim();
@@ -838,22 +839,9 @@ const App = {
         const entrance = document.getElementById('modalProfileEntrance').value.trim();
         const apartment = document.getElementById('modalProfileApartment').value.trim();
 
-        const result = await Profile.saveProfileData({ name, phone, city, street, house, entrance, apartment });
-        if (!result.savedLocally) {
-            alert('Не удалось сохранить данные профиля на этом устройстве.');
-            return;
-        }
-
+        Profile.saveProfileData({ name, phone, city, street, house, entrance, apartment });
         Profile.updateProfileUI();
         this.closeModal('modalProfile');
-
-        if (result.synced) {
-            alert('Данные профиля сохранены.');
-        } else if (result.error) {
-            alert('Данные сохранены на устройстве, но не синхронизированы с сервером. Проверьте соединение и попробуйте снова.');
-        } else {
-            alert('Данные сохранены на этом устройстве. Для синхронизации откройте магазин через Telegram.');
-        }
     },
 
     // Профиль: автомобиль
