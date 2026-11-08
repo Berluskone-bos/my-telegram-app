@@ -26,6 +26,9 @@ const App = {
 
         // Инициализация Telegram
         const tg = TelegramApp.init();
+        await Profile.loadFromServer(tg);
+        Profile.updateProfileUI();
+
         const user = TelegramApp.getUser(tg);
         const userName = TelegramApp.getUserName(user);
         const userInitial = TelegramApp.getUserInitial(user);
@@ -826,7 +829,7 @@ const App = {
         document.getElementById('modalProfile').classList.add('open');
     },
 
-    saveProfile() {
+    async saveProfile() {
         const name = document.getElementById('modalProfileName').value.trim();
         const phone = document.getElementById('modalProfilePhone').value.trim();
         const city = document.getElementById('modalProfileCity').value.trim();
@@ -835,9 +838,22 @@ const App = {
         const entrance = document.getElementById('modalProfileEntrance').value.trim();
         const apartment = document.getElementById('modalProfileApartment').value.trim();
 
-        Profile.saveProfileData({ name, phone, city, street, house, entrance, apartment });
+        const result = await Profile.saveProfileData({ name, phone, city, street, house, entrance, apartment });
+        if (!result.savedLocally) {
+            alert('Не удалось сохранить данные профиля на этом устройстве.');
+            return;
+        }
+
         Profile.updateProfileUI();
         this.closeModal('modalProfile');
+
+        if (result.synced) {
+            alert('Данные профиля сохранены.');
+        } else if (result.error) {
+            alert('Данные сохранены на устройстве, но не синхронизированы с сервером. Проверьте соединение и попробуйте снова.');
+        } else {
+            alert('Данные сохранены на этом устройстве. Для синхронизации откройте магазин через Telegram.');
+        }
     },
 
     // Профиль: автомобиль
