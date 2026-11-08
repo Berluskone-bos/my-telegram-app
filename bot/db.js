@@ -146,7 +146,24 @@ async function initDB() {
             );
         `);
 
+
+        // ─── Профили покупателей (ключ — проверенный Telegram user ID) ───
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS customer_profiles (
+                user_id BIGINT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL DEFAULT '',
+                phone VARCHAR(30) NOT NULL DEFAULT '',
+                city VARCHAR(100) NOT NULL DEFAULT '',
+                street VARCHAR(200) NOT NULL DEFAULT '',
+                house VARCHAR(20) NOT NULL DEFAULT '',
+                entrance VARCHAR(20) NOT NULL DEFAULT '',
+                apartment VARCHAR(20) NOT NULL DEFAULT '',
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+        `);
+
         // ─── Миграции: добавляем то, что появилось в новых версиях ───
+
         // CREATE TABLE IF NOT EXISTS НЕ добавляет колонки к существующим таблицам.
         await client.query(`
             ALTER TABLE orders
