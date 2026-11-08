@@ -146,29 +146,14 @@ async function initDB() {
             );
         `);
 
-
-        // ─── Профили покупателей (ключ — проверенный Telegram user ID) ───
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS customer_profiles (
-                user_id BIGINT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL DEFAULT '',
-                phone VARCHAR(30) NOT NULL DEFAULT '',
-                city VARCHAR(100) NOT NULL DEFAULT '',
-                street VARCHAR(200) NOT NULL DEFAULT '',
-                house VARCHAR(20) NOT NULL DEFAULT '',
-                entrance VARCHAR(20) NOT NULL DEFAULT '',
-                apartment VARCHAR(20) NOT NULL DEFAULT '',
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        `);
-
         // ─── Миграции: добавляем то, что появилось в новых версиях ───
-
         // CREATE TABLE IF NOT EXISTS НЕ добавляет колонки к существующим таблицам.
         await client.query(`
             ALTER TABLE orders
                 ADD COLUMN IF NOT EXISTS subtotal      NUMERIC(12,2) NOT NULL DEFAULT 0,
                 ADD COLUMN IF NOT EXISTS discount_code TEXT,
+                ADD COLUMN IF NOT EXISTS delivery_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64),
                 ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMPTZ DEFAULT NOW();
         `);
 
@@ -207,6 +192,12 @@ async function initDB() {
                 END IF;
             END $$;
         `);
+
+        // Идемпотентность: один ключ операции = один заказ (защита на уровне БД)
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_key_idx
+                            ON orders(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`);
+        // Тариф СПб по решению владельца: 300 руб., бесплатно от 5000 руб.
+        await client.query(`UPDATE delivery_zones SET base_cost = 300, free_threshold = 5000 WHERE zone_code = 'spb'`);
 
         // ─── Индексы для типовых запросов ───
         await client.query(`

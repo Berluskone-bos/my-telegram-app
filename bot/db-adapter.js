@@ -46,44 +46,6 @@ class DBAdapter {
     }
 
     // ───────────────────────────────────────────
-    // Профили покупателей
-    // ───────────────────────────────────────────
-
-    async getCustomerProfile(userId) {
-        const id = String(userId || '');
-        if (!/^\d{1,20}$/.test(id)) return null;
-        const res = await pool.query(
-            `SELECT name, phone, city, street, house, entrance, apartment
-               FROM customer_profiles WHERE user_id = $1`,
-            [id]
-        );
-        return res.rows[0] || null;
-    }
-
-    async upsertCustomerProfile(userId, profile) {
-        const id = String(userId || '');
-        if (!/^\d{1,20}$/.test(id)) throw new Error('invalid Telegram user ID');
-        const res = await pool.query(
-            `INSERT INTO customer_profiles
-                (user_id, name, phone, city, street, house, entrance, apartment, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-             ON CONFLICT (user_id) DO UPDATE SET
-                name = EXCLUDED.name,
-                phone = EXCLUDED.phone,
-                city = EXCLUDED.city,
-                street = EXCLUDED.street,
-                house = EXCLUDED.house,
-                entrance = EXCLUDED.entrance,
-                apartment = EXCLUDED.apartment,
-                updated_at = NOW()
-             RETURNING name, phone, city, street, house, entrance, apartment`,
-            [id, profile.name, profile.phone, profile.city, profile.street,
-             profile.house, profile.entrance, profile.apartment]
-        );
-        return res.rows[0];
-    }
-
-    // ───────────────────────────────────────────
     // Курьеры
     // ───────────────────────────────────────────
 
@@ -293,9 +255,9 @@ class DBAdapter {
             const res = await client.query(
                 `INSERT INTO orders (order_number, user_id, user_name, phone, address, zone, city, street, house,
                                      entrance, apartment, items, subtotal, total, discount, discount_code,
-                                     delivery_type, payment, comment, status, payment_status)
+                                     delivery_type, payment, comment, status, payment_status, delivery_cost, idempotency_key)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
+                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
                 [order.order_number, order.user_id, order.user_name, order.phone, order.address,
                  order.zone, order.city, order.street, order.house, order.entrance, order.apartment,
                  JSON.stringify(order.items || []),
@@ -307,19 +269,23 @@ class DBAdapter {
                  order.payment || 'cash',
                  order.comment,
                  order.status || 'NEW',
-                 order.payment_status || 'PENDING']
+                 order.payment_status || 'PENDING',
+                 order.delivery_cost || 0,
+                 order.idempotency_key || null]
             );
 
             // Инкремент использований промокода — в той же транзакции,
             // чтобы «списанный» промокод не остался на откатившемся заказе.
             if (order.discount_code && this.promoEnabled === true) {
-                await client.query(
+                const up = await client.query(
                     `UPDATE promo_codes
                         SET uses_count = uses_count + 1
                       WHERE UPPER(TRIM(code)) = UPPER(TRIM($1))
                         AND (max_uses IS NULL OR uses_count < max_uses)`,
                     [String(order.discount_code)]
                 );
+                // Параллельный заказ мог исчерпать лимит: не даём скидку, откатываем заказ
+                if (up.rowCount === 0) { const err = new Error('PROMO_EXHAUSTED'); err.code = 'PROMO_EXHAUSTED'; throw err; }
             }
 
             await client.query('COMMIT');
@@ -462,6 +428,16 @@ class DBAdapter {
     // ───────────────────────────────────────────
     // Зоны
     // ───────────────────────────────────────────
+
+    async getZoneByCode(code) {
+        const res = await pool.query('SELECT * FROM delivery_zones WHERE zone_code = $1 AND is_active = true', [code]);
+        return res.rows[0] || null;
+    }
+
+    async getOrderByIdempotencyKey(userId, key) {
+        const res = await pool.query('SELECT order_number, total FROM orders WHERE user_id = $1 AND idempotency_key = $2', [userId, key]);
+        return res.rows[0] || null;
+    }
 
     async getZones() {
         const res = await pool.query('SELECT * FROM delivery_zones WHERE is_active = true ORDER BY id');

@@ -9,6 +9,13 @@ const db = require('./db-adapter');
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+// Кто может нажимать админские кнопки: ТОЛЬКО перечисленные Telegram user ID (ADMIN_USER_IDS=123,456).
+// ID чата для уведомлений (ADMIN_CHAT_ID) правом доступа не является. Если список не задан и
+// ADMIN_CHAT_ID - личный чат (положительное число = ID пользователя), доступ только у него.
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || (Number(ADMIN_CHAT_ID) > 0 ? String(ADMIN_CHAT_ID) : ''))
+    .split(',').map(s => s.trim()).filter(Boolean);
+function isTrustedAdmin(userId) { return userId != null && ADMIN_USER_IDS.includes(String(userId)); }
+const { escapeHtml } = require('./services/notifier');
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
@@ -69,7 +76,7 @@ if (process.env.ADMIN_BOT_TOKEN) {
     adminBot.on('callback_query', async (query) => {
         const data = query.data;
         // Только владелец админ-чата может подтверждать курьеров и отменять заказы
-        if (String(query.from?.id) !== String(ADMIN_CHAT_ID) && String(query.message?.chat?.id) !== String(ADMIN_CHAT_ID)) {
+        if (!isTrustedAdmin(query.from?.id)) {
             adminBot.answerCallbackQuery(query.id, { text: 'Нет доступа' }).catch(() => {});
             return;
         }
@@ -95,7 +102,7 @@ if (process.env.ADMIN_BOT_TOKEN) {
                 // Уведомляем клиента
                 if (order?.user_id) {
                     notifier._send(notifier.clientBotBase, order.user_id,
-                        `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>Отменён</b>`
+                        `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Отменён</b>`
                     ).catch(() => {});
                 }
             } catch (e) {
@@ -119,6 +126,12 @@ function generateRouteNumber() {
     return 'RL-' + String(Date.now()).slice(-4);
 }
 
+// Данные и действия выдаём только активному курьеру (деактивированный теряет доступ сразу)
+async function getActiveCourier(user) {
+    const c = await db.getCourierByTelegramId(user.id);
+    return c && c.is_active ? c : null;
+}
+
 async function getCourier(user) {
     return await db.getCourierByTelegramId(user.id);
 }
@@ -137,13 +150,13 @@ async function getActiveRoute(courierId) {
 if (bot) {
 bot.onText(/\/car/, async (msg) => {
     const chatId = msg.chat.id;
-    const courier = await getCourier(msg.from);
+    const courier = await getActiveCourier(msg.from);
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Сначала /start');
         return;
     }
     bot.sendMessage(chatId,
-        `Текущий транспорт: <b>${courier.vehicle_type || '—'}</b>\nРег.номер: <b>${courier.license_plate || '—'}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
+        `Текущий транспорт: <b>${escapeHtml(courier.vehicle_type || '—')}</b>\nРег.номер: <b>${escapeHtml(courier.license_plate || '—')}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
         { parse_mode: 'HTML' }
     );
     bot.once('message', async (updMsg) => {
@@ -241,7 +254,7 @@ async function showMainScreen(chatId, courier) {
     const remaining = totalStops - delivered - failed;
 
     let text = `<b>АВТОПРОМОЙЛ — Курьер</b>\n\n`;
-    text += `Добрый день, ${courier.name}!\n\n`;
+    text += `Добрый день, ${escapeHtml(courier.name)}!\n\n`;
     text += `<b>Сегодня:</b>\n`;
     text += `Доставок: ${totalStops}\n`;
     text += `Выполнено: ${delivered}\n`;
@@ -272,7 +285,7 @@ async function showMainScreen(chatId, courier) {
 
 bot.onText(/\/today/, async (msg) => {
     const chatId = msg.chat.id;
-    const courier = await getCourier(msg.from);
+    const courier = await getActiveCourier(msg.from);
 
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
@@ -290,10 +303,10 @@ bot.onText(/\/today/, async (msg) => {
     todayRoutes.forEach(route => {
         const stops = route.stops || [];
         const delivered = stops.filter(s => s.status === 'delivered').length;
-        text += `<b>${route.route_number}</b> — ${stops.length} остановок (${delivered} доставлено)\n`;
+        text += `<b>${escapeHtml(route.route_number)}</b> — ${stops.length} остановок (${delivered} доставлено)\n`;
         stops.forEach((stop, idx) => {
             const icon = stop.status === 'delivered' ? '[OK]' : stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
-            text += `  ${icon} ${stop.order_number || ''} ${stop.address}\n`;
+            text += `  ${icon} ${escapeHtml(stop.order_number || '')} ${escapeHtml(stop.address)}\n`;
         });
         text += '\n';
     });
@@ -305,7 +318,7 @@ bot.onText(/\/today/, async (msg) => {
 
 bot.onText(/\/route/, async (msg) => {
     const chatId = msg.chat.id;
-    const courier = await getCourier(msg.from);
+    const courier = await getActiveCourier(msg.from);
 
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
@@ -326,22 +339,22 @@ async function sendRouteDetails(chatId, route) {
     const completed = stops.filter(s => s.status === 'delivered').length;
     const failed = stops.filter(s => s.status === 'failed').length;
 
-    let text = `<b>Маршрут ${route.route_number}</b>\n`;
-    text += `Дата: ${route.route_date}\n`;
+    let text = `<b>Маршрут ${escapeHtml(route.route_number)}</b>\n`;
+    text += `Дата: ${escapeHtml(route.route_date)}\n`;
     text += `Остановок: ${stops.length} | Доставлено: ${completed} | Не доставлено: ${failed}\n\n`;
 
     stops.forEach((stop, idx) => {
         const statusIcon = stop.status === 'delivered' ? '[OK]' :
                           stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
-        text += `<b>${statusIcon} ${stop.order_number || ''}</b>\n`;
-        text += `Адрес: ${stop.address}\n`;
-        if (stop.items_count) text += `Товаров: ${stop.items_count}\n`;
+        text += `<b>${statusIcon} ${escapeHtml(stop.order_number || '')}</b>\n`;
+        text += `Адрес: ${escapeHtml(stop.address)}\n`;
+        if (stop.items_count) text += `Товаров: ${escapeHtml(stop.items_count)}\n`;
         if (stop.amount_to_pay > 0) {
-            text += `Сумма: ${stop.amount_to_pay} руб. [${stop.payment_status === 'paid' ? 'ОПЛАЧЕНО' : 'ОПЛАТА НА МЕСТЕ'}]\n`;
+            text += `Сумма: ${escapeHtml(stop.amount_to_pay)} руб. [${stop.payment_status === 'paid' ? 'ОПЛАЧЕНО' : 'ОПЛАТА НА МЕСТЕ'}]\n`;
         }
-        if (stop.phone) text += `Телефон: ${stop.phone}\n`;
-        if (stop.time_window) text += `Окно: ${stop.time_window}\n`;
-        if (stop.comment) text += `Комментарий: ${stop.comment}\n`;
+        if (stop.phone) text += `Телефон: ${escapeHtml(stop.phone)}\n`;
+        if (stop.time_window) text += `Окно: ${escapeHtml(stop.time_window)}\n`;
+        if (stop.comment) text += `Комментарий: ${escapeHtml(stop.comment)}\n`;
         text += '\n';
     });
 
@@ -364,7 +377,7 @@ async function sendRouteDetails(chatId, route) {
             ]);
             if (stop.phone) {
                 buttons.push([
-                    { text: `[${idx + 1}] Позвонить клиенту`, url: `tel:${stop.phone}` }
+                    { text: `[${idx + 1}] Позвонить клиенту`, url: `tel:${escapeHtml(stop.phone)}` }
                 ]);
             }
         }
@@ -384,7 +397,7 @@ async function sendRouteDetails(chatId, route) {
 
 bot.onText(/\/done/, async (msg) => {
     const chatId = msg.chat.id;
-    const courier = await getCourier(msg.from);
+    const courier = await getActiveCourier(msg.from);
 
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
@@ -404,7 +417,7 @@ bot.onText(/\/done/, async (msg) => {
     }
 
     const buttons = pendingStops.map((stop, idx) => [{
-        text: `${stop.order_number || '#' + (idx + 1)} — ${stop.address}`,
+        text: `${escapeHtml(stop.order_number || '#' + (idx + 1))} — ${escapeHtml(stop.address)}`,
         callback_data: `quickdelivered_${activeRoute.id}_${stop.id}`
     }]);
 
@@ -418,7 +431,7 @@ bot.onText(/\/done/, async (msg) => {
 
 bot.onText(/\/status/, async (msg) => {
     const chatId = msg.chat.id;
-    const courier = await getCourier(msg.from);
+    const courier = await getActiveCourier(msg.from);
 
     if (!courier) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
@@ -436,7 +449,7 @@ bot.onText(/\/status/, async (msg) => {
 
     bot.sendMessage(chatId,
         `<b>Статус смены</b>\n\n` +
-        `Курьер: ${courier.name}\n` +
+        `Курьер: ${escapeHtml(courier.name)}\n` +
         `Маршрутов сегодня: ${todayRoutes.length}\n` +
         `Доставлено: ${totalDelivered}\n` +
         `Не доставлено: ${totalFailed}\n` +
@@ -592,14 +605,14 @@ async function handleStartRoute(chatId, routeId, user) {
     const stops = route.stops || [];
     for (const stop of stops) {
         if (stop.status === 'pending' && stop.client_chat_id) {
-            const timeText = stop.time_window ? `, ожидайте ${stop.time_window}` : '';
+            const timeText = stop.time_window ? `, ожидайте ${escapeHtml(stop.time_window)}` : '';
             notifier.notifyClient(stop.client_chat_id, stop.order_number, 'shipped',
                 `Курьер уже выехал к вам${timeText}. Ожидайте доставку.`
             ).catch(() => {});
         }
     }
 
-    notifyAdmin(`[МАРШРУТ] ${route.route_number} начат курьером ${user.first_name || ''}`);
+    notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
 }
 
 // ====== Flow доставки: accept → enroute → arrived → done ======
@@ -633,7 +646,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id) {
                 notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`
                 ).catch(() => {});
             }
         } catch (e) { console.error('[DELIVER] notify error:', e.message); }
@@ -656,7 +669,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id) {
                 notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Курьер приехал</b>`
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>`
                 ).catch(() => {});
             }
         } catch (e) { console.error('[DELIVER] notify error:', e.message); }
@@ -700,7 +713,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 const allDone = stops.every(s => s.id === stopId ? true : s.status !== 'pending');
                 console.log(`[DELIVER] Route update: completed=${newCompleted}, allDone=${allDone}`);
                 await db.updateRouteStatus(routeId, allDone ? 'completed' : route.status, newCompleted, route.failed || 0);
-                console.log(`[DELIVER] Route ${route.route_number} -> ${allDone ? 'completed' : route.status}`);
+                console.log(`[DELIVER] Route ${escapeHtml(route.route_number)} -> ${allDone ? 'completed' : route.status}`);
             }
         } catch (e) { console.error('[DELIVER] db update error:', e.message, e.stack); }
 
@@ -710,7 +723,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id) {
                 notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${stop.order_number}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!`
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!`
                 ).catch(() => {});
                 // Рейтинг
                 const courier = (await db.getCouriers()).find(c => c.id === route?.courier_id);
@@ -815,12 +828,12 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     const statusText = status === 'delivered' ? 'Доставлено' : 'Не доставлено';
     if (callbackQueryId) {
-        bot.answerCallbackQuery(callbackQueryId, { text: `${statusText}: ${stop.address}` });
+        bot.answerCallbackQuery(callbackQueryId, { text: `${statusText}: ${escapeHtml(stop.address)}` });
     }
 
-    bot.sendMessage(chatId, `${statusText}: ${stop.order_number || ''}\nАдрес: ${stop.address}${reason ? '\nПричина: ' + reason : ''}`);
+    bot.sendMessage(chatId, `${statusText}: ${escapeHtml(stop.order_number || '')}\nАдрес: ${escapeHtml(stop.address)}${reason ? '\nПричина: ' + reason : ''}`);
 
-    notifyAdmin(`[ДОСТАВКА] ${route.route_number} | ${statusText}\nАдрес: ${stop.address}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`);
+    notifyAdmin(`[ДОСТАВКА] ${escapeHtml(route.route_number)} | ${statusText}\nАдрес: ${escapeHtml(stop.address)}${stop.order_number ? '\nЗаказ: ' + stop.order_number : ''}${reason ? '\nПричина: ' + reason : ''}`);
 
     if (stop.client_chat_id) {
         if (status === 'delivered') {
@@ -861,7 +874,7 @@ async function handleOptimizeRoute(chatId, routeId) {
 
     let text = `<b>Маршрут оптимизирован!</b>\n\nОптимальный порядок:\n`;
     optimized.forEach((stop, idx) => {
-        text += `${idx + 1}. ${stop.order_number || ''} — ${stop.address}\n`;
+        text += `${idx + 1}. ${escapeHtml(stop.order_number || '')} — ${escapeHtml(stop.address)}\n`;
     });
     text += `\nРасстояние: ~${distance} км\n`;
 
@@ -882,7 +895,7 @@ async function handleOptimizeRoute(chatId, routeId) {
 
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
-    const courier = await getCourier(msg.from);
+    const courier = await getActiveCourier(msg.from);
     if (!courier) return;
 
     const activeRoute = await getActiveRoute(courier.id);
@@ -959,7 +972,7 @@ function registerCourierRoutes(app) {
     });
 
     app.get('/api/couriers', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getCouriers()); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.post('/api/routes', verifyAdmin, async (req, res) => {
@@ -992,7 +1005,7 @@ function registerCourierRoutes(app) {
                 stops: processedStops
             });
             res.json(route);
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.post('/api/routes/:id/assign', verifyAdmin, async (req, res) => {
@@ -1004,22 +1017,22 @@ function registerCourierRoutes(app) {
             if (!courier) return res.status(404).json({ error: 'Courier not found' });
             await db.updateRouteStatus(route.id, 'assigned', route.completed || 0, route.failed || 0);
             bot.sendMessage(courier.telegram_id,
-                `<b>Новый маршрут!</b>\n\nМаршрут: ${route.route_number}\nДата: ${route.route_date}\nОстановок: ${(route.stops||[]).length}\n\nОтправьте /route для просмотра.`,
+                `<b>Новый маршрут!</b>\n\nМаршрут: ${escapeHtml(route.route_number)}\nДата: ${escapeHtml(route.route_date)}\nОстановок: ${(route.stops||[]).length}\n\nОтправьте /route для просмотра.`,
                 { parse_mode: 'HTML' }
-            ).then(() => res.json({ success: true })).catch(err => res.json({ success: false, error: err.message }));
-        } catch (e) { res.status(500).json({ error: e.message }); }
+            ).then(() => res.json({ success: true })).catch(err => { console.error('[API]', err.message); res.json({ success: false, error: 'Internal error' }); });
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/routes', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getRoutes()); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/orders', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getOrders()); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/zones', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getZones()); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/geocode', publicLimiter, async (req, res) => {
@@ -1028,7 +1041,7 @@ function registerCourierRoutes(app) {
         try {
             const result = await geocoder.geocode(address);
             res.json(result ? { found: true, ...result } : { found: false });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/map-links', publicLimiter, (req, res) => {
@@ -1053,18 +1066,18 @@ function registerCourierRoutes(app) {
             const optimized = RouteOptimizer.optimizeRoute(stops, start_lat || 59.9343, start_lon || 30.3351);
             const distance = RouteOptimizer.calcDistance(optimized, start_lat || 59.9343, start_lon || 30.3351);
             res.json({ route_number: route.route_number, stops: optimized, total_distance_km: distance });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/dispatch/stats', verifyAdmin, async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
             res.json(await db.getDayStats(date));
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/dispatch/unassigned-orders', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getOrders()); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/analytics', verifyAdmin, async (req, res) => {
@@ -1072,7 +1085,7 @@ function registerCourierRoutes(app) {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
             res.json(await db.getAnalytics(from, to));
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // ====== Admin: управление заказами ======
@@ -1098,7 +1111,7 @@ function registerCourierRoutes(app) {
                         const allDone = stops.every(s => s.id === stop.id ? stopStatus !== 'pending' : s.status !== 'pending');
                         const newRouteStatus = allDone ? 'completed' : route.status;
                         await db.updateRouteStatus(route.id, newRouteStatus, newCompleted, newFailed);
-                        console.log(`[МАРШРУТ] ${route.route_number}: стоп ${stop.id} -> ${stopStatus}, маршрут -> ${newRouteStatus}`);
+                        console.log(`[МАРШРУТ] ${escapeHtml(route.route_number)}: стоп ${stop.id} -> ${stopStatus}, маршрут -> ${newRouteStatus}`);
                         break;
                     }
                 }
@@ -1124,10 +1137,10 @@ function registerCourierRoutes(app) {
                         : null;
                     notifyAdmin(
                         `<b>Смена статуса</b>\n\n` +
-                        `Заказ: <b>${order.order_number}</b>\n` +
-                        `Клиент: ${order.user_name || '-'}\n` +
-                        `Телефон: ${order.phone || '-'}\n` +
-                        `Адрес: ${order.address || '-'}\n` +
+                        `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
+                        `Клиент: ${escapeHtml(order.user_name || '-')}\n` +
+                        `Телефон: ${escapeHtml(order.phone || '-')}\n` +
+                        `Адрес: ${escapeHtml(order.address || '-')}\n` +
                         `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
                         `Статус: <b>${label}</b>`,
                         cancelBtn
@@ -1135,14 +1148,14 @@ function registerCourierRoutes(app) {
                     // Уведомление клиенту
                     if (order.user_id) {
                         notifier._send(notifier.clientBotBase, order.user_id,
-                            `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>${label}</b>`
+                            `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`
                         ).catch(() => {});
                     }
                 }
             }
 
             res.json({ success: true });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // Удалить все заказы
@@ -1150,7 +1163,7 @@ function registerCourierRoutes(app) {
         try {
             await db.deleteAllOrders();
             res.json({ success: true });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // Назначить курьера на заказ
@@ -1181,9 +1194,9 @@ function registerCourierRoutes(app) {
                     if (geo) {
                         lat = geo.lat;
                         lon = geo.lon;
-                        console.log(`[ГЕОКОДЕР] ${order.address} -> ${lat}, ${lon}`);
+                        console.log(`[ГЕОКОДЕР] ${escapeHtml(order.address)} -> ${lat}, ${lon}`);
                     } else {
-                        console.log(`[ГЕОКОДЕР] Адрес не найден: ${order.address}`);
+                        console.log(`[ГЕОКОДЕР] Адрес не найден: ${escapeHtml(order.address)}`);
                     }
                 } catch (e) {
                     console.error(`[ГЕОКОДЕР] Ошибка: ${e.message}`);
@@ -1226,10 +1239,10 @@ function registerCourierRoutes(app) {
                 const stopId = route.stops && route.stops[0] ? route.stops[0].id : 0;
                 const msgText =
                     `<b>Новый заказ!</b>\n\n` +
-                    `Заказ: ${order.order_number}\n` +
-                    `Адрес: ${order.address}\n` +
+                    `Заказ: ${escapeHtml(order.order_number)}\n` +
+                    `Адрес: ${escapeHtml(order.address)}\n` +
                     `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
-                    (order.comment ? `Комментарий: ${order.comment}\n` : '') +
+                    (order.comment ? `Комментарий: ${escapeHtml(order.comment)}\n` : '') +
                     `\nНажмите "Принять" для начала доставки.`;
 
                 const navButtons = [];
@@ -1246,34 +1259,34 @@ function registerCourierRoutes(app) {
                     { text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }
                 ]);
 
-                console.log(`[КУРЬЕР] Отправка курьеру ${courier.telegram_id}`);
+                console.log(`[КУРЬЕР] Отправка курьеру ${escapeHtml(courier.telegram_id)}`);
                 bot.sendMessage(courier.telegram_id, msgText, {
                     parse_mode: 'HTML',
                     reply_markup: { inline_keyboard: navButtons }
-                }).then(() => console.log(`[OK] Уведомление отправлено курьеру ${courier.telegram_id}`))
+                }).then(() => console.log(`[OK] Уведомление отправлено курьеру ${escapeHtml(courier.telegram_id)}`))
                   .catch(e => console.error(`[ОШИБКА] Уведомление курьеру: ${e.message}`));
             }
 
             // Уведомление в админ-бот о назначении курьера
             notifyAdmin(
                 `<b>Курьер назначен</b>\n\n` +
-                `Заказ: <b>${order.order_number}</b>\n` +
-                `Клиент: ${order.user_name || '-'}\n` +
-                `Адрес: ${order.address || '-'}\n` +
-                `Курьер: ${courier.name}\n` +
-                `Маршрут: ${route.route_number}`,
+                `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
+                `Клиент: ${escapeHtml(order.user_name || '-')}\n` +
+                `Адрес: ${escapeHtml(order.address || '-')}\n` +
+                `Курьер: ${escapeHtml(courier.name)}\n` +
+                `Маршрут: ${escapeHtml(route.route_number)}`,
                 [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
             );
 
             // Уведомление клиенту о назначении курьера
             if (order.user_id) {
                 notifier._send(notifier.clientBotBase, order.user_id,
-                    `<b>Заказ ${order.order_number}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${courier.name}`
+                    `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`
                 ).catch(() => {});
             }
 
             res.json({ success: true, route });
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // ====== Admin: управление товарами ======
@@ -1302,14 +1315,14 @@ function registerCourierRoutes(app) {
                 }
             }
             res.json(catalog);
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.post('/api/products', verifyAdmin, async (req, res) => {
         try {
             const product = await db.createProduct(req.body);
             res.json(product);
-        } catch (e) { res.status(500).json({ error: e.message }); }
+        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 }
 }
