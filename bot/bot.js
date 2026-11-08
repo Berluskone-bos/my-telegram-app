@@ -597,6 +597,22 @@ function deliveryLabel(t) {
     return t === 'pickup' ? 'Самовывоз' : 'Доставка';
 }
 
+async function sendCustomerOrderNotification(userId, orderId, order) {
+    if (!userId) return false;
+    const message =
+        `<b>Заказ принят!</b>\\n\\n` +
+        `<b>Номер:</b> #${escapeHtml('AP-' + orderId)}\\n` +
+        `<b>Товары:</b>\\n${buildItemsList(order.items)}\\n\\n` +
+        `<b>Итого:</b> ${Number(order.total).toLocaleString('ru-RU')} руб.\\n` +
+        `<b>Доставка:</b> ${escapeHtml(deliveryLabel(order.deliveryType))}\\n` +
+        `<b>Адрес:</b> ${escapeHtml(order.address)}\\n` +
+        `<b>Телефон:</b> ${escapeHtml(order.phone)}\\n\\n` +
+        `Мы свяжемся с вами для подтверждения заказа.`;
+    await bot.sendMessage(String(userId), message, { parse_mode: 'HTML' });
+    console.log('[OK] Подтверждение заказа отправлено покупателю');
+    return true;
+}
+
 async function sendAdminNotification(orderId, order) {
     if (!ADMIN_CHAT_ID) {
         console.log('[ВНИМАНИЕ] ADMIN_CHAT_ID не задан — уведомление пропущено');
@@ -796,6 +812,58 @@ try {
 }
 
 // ═══════════════════════════════════════════
+// API ПРОФИЛЯ — доступ только по проверенному Telegram initData
+// ═══════════════════════════════════════════
+
+function normalizeProfile(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const pick = (key, max) => typeof raw[key] === 'string' ? raw[key].trim().slice(0, max) : '';
+    const profile = {
+        name: pick('name', 100),
+        phone: pick('phone', 30),
+        city: pick('city', 100),
+        street: pick('street', 200),
+        house: pick('house', 20),
+        entrance: pick('entrance', 20),
+        apartment: pick('apartment', 20)
+    };
+    if (profile.phone && !PHONE_RE.test(profile.phone)) return null;
+    return profile;
+}
+
+function authenticatedTelegramUser(req) {
+    const auth = verifyInitData(req.header('X-Telegram-Init-Data'), token);
+    if (!auth || !auth.user || !auth.user.id) return null;
+    return auth.user;
+}
+
+app.get('/api/profile', rateLimit(60, 60_000), async (req, res) => {
+    try {
+        const user = authenticatedTelegramUser(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const profile = await db.getCustomerProfile(String(user.id));
+        return res.json({ success: true, profile });
+    } catch (e) {
+        console.error('[API /profile GET]:', sanitizeLog(e.message));
+        return res.status(500).json({ success: false, error: 'Internal error' });
+    }
+});
+
+app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
+    try {
+        const user = authenticatedTelegramUser(req);
+        if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const profile = normalizeProfile(req.body);
+        if (!profile) return res.status(400).json({ success: false, error: 'Invalid profile data' });
+        const saved = await db.upsertCustomerProfile(String(user.id), profile);
+        return res.json({ success: true, profile: saved });
+    } catch (e) {
+        console.error('[API /profile PUT]:', sanitizeLog(e.message));
+        return res.status(500).json({ success: false, error: 'Internal error' });
+    }
+});
+
+// ═══════════════════════════════════════════
 // API /api/order
 // ═══════════════════════════════════════════
 
@@ -840,6 +908,13 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         const dbOrderId = await saveOrderToDb(orderId, v.data);
         if (dbOrderId === null) {
             return res.status(500).json({ success: false, error: 'Failed to save order' });
+        }
+
+        if (v.data.userId) {
+            sendCustomerOrderNotification(v.data.userId, orderId, v.data).catch(e =>
+                console.error('[API /order] customer notify:', sanitizeLog(e.message)));
+        } else {
+            console.warn('[API /order] Telegram user ID отсутствует — сообщение покупателю не отправлено');
         }
 
         sendAdminNotification(orderId, v.data).catch(e =>
