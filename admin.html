@@ -409,9 +409,10 @@ async function adminLogin() {
                                 <th>Цена</th>
                                 <th>Остаток</th>
                                 <th>Статус</th>
+                                <th></th>
                             </tr>
                         </thead>
-                        <tbody id="shopProductsTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                        <tbody id="shopProductsTable"><tr><td colspan="7" class="empty">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -459,7 +460,7 @@ async function adminLogin() {
     <div class="modal-overlay" id="productModal">
         <div class="modal">
             <div class="modal-header">
-                <h3>Добавить товар</h3>
+                <h3 id="productModalTitle">Добавить товар</h3>
                 <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -522,6 +523,10 @@ async function adminLogin() {
                     <div class="form-group">
                         <label class="form-label">URL изображения</label>
                         <input class="form-input" name="image" placeholder="img/oils/...">
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" name="active" checked> Показывать в магазине</label><br>
+                        <label><input type="checkbox" name="coming_soon"> «Скоро в продаже» (нельзя купить)</label>
                     </div>
                 </form>
             </div>
@@ -769,14 +774,17 @@ async function adminLogin() {
         async function loadShopProducts() {
             try {
                 const products = await fetch(`${API_BASE}/api/products`).then(r => r.json());
-                document.getElementById('shopProductsCount').textContent = products.length;
+                window._products = products;
+                document.getElementById('shopProductsCount').textContent = products.filter(p => p.active !== false).length;
 
                 document.getElementById('shopProductsTable').innerHTML = products.length === 0
-                    ? '<tr><td colspan="6" class="empty">Каталог пуст</td></tr>'
-                    : products.slice(0, 100).map(p => {
+                    ? '<tr><td colspan="7" class="empty">Каталог пуст</td></tr>'
+                    : products.slice(0, 200).map(p => {
                         const stock = p.stock != null ? p.stock : '-';
-                        const stockClass = p.stock === 0 ? 'badge-red' : (p.stock > 0 && p.stock <= 3) ? 'badge-orange' : 'badge-green';
-                        const stockLabel = p.stock === 0 ? 'Нет' : (p.stock > 0 && p.stock <= 3) ? 'Мало' : 'В наличии';
+                        const min = p.min_stock != null ? p.min_stock : 3;
+                        const hidden = p.active === false;
+                        const stockClass = hidden ? 'badge-red' : p.stock === 0 ? 'badge-red' : (p.stock > 0 && p.stock <= min) ? 'badge-orange' : 'badge-green';
+                        const stockLabel = hidden ? 'Скрыт' : p.coming_soon ? 'Скоро' : p.stock === 0 ? 'Нет в наличии' : (p.stock > 0 && p.stock <= min) ? 'Мало' : 'В наличии';
                         return `<tr>
                             <td>${esc(p.id || '-')}</td>
                             <td><strong>${esc(p.name || '-')}</strong><br><small>${esc(p.brand || '')} ${esc(p.volume || '')}</small></td>
@@ -784,6 +792,7 @@ async function adminLogin() {
                             <td>${(parseFloat(p.price)||0).toLocaleString()} руб.</td>
                             <td>${stock}</td>
                             <td><span class="badge ${stockClass}">${stockLabel}</span></td>
+                            <td><button class="btn btn-outline btn-sm" onclick="editProduct(${Number(p.id)})">Изменить</button></td>
                         </tr>`;
                     }).join('');
             } catch (e) { console.error('Products error:', e); }
@@ -819,7 +828,24 @@ async function adminLogin() {
             } catch (e) { console.error('Customers error:', e); }
         }
 
-        function openProductModal() { document.getElementById('productModal').classList.add('open'); }
+        function openProductModal() {
+            const f = document.getElementById('productForm'); f.reset(); f.dataset.id = '';
+            f.active.checked = true; f.coming_soon.checked = false;
+            document.getElementById('productModalTitle').textContent = 'Добавить товар';
+            document.getElementById('productModal').classList.add('open');
+        }
+
+        function editProduct(id) {
+            const p = (window._products || []).find(x => Number(x.id) === id);
+            if (!p) return;
+            const f = document.getElementById('productForm'); f.reset(); f.dataset.id = String(id);
+            for (const k of ['brand','category','name','sku','volume','price','old_price','stock','min_stock','description','image']) {
+                if (f[k]) f[k].value = p[k] != null ? p[k] : '';
+            }
+            f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon;
+            document.getElementById('productModalTitle').textContent = 'Изменить товар №' + id;
+            document.getElementById('productModal').classList.add('open');
+        }
 
         async function saveProduct(e) {
             e.preventDefault();
@@ -835,11 +861,14 @@ async function adminLogin() {
                 stock: parseInt(form.stock.value) || 0,
                 min_stock: parseInt(form.min_stock.value) || 3,
                 description: form.description.value,
-                image: form.image.value
+                image: form.image.value,
+                active: form.active.checked,
+                coming_soon: form.coming_soon.checked
             };
+            const editId = form.dataset.id;
             try {
-                const res = await fetch(`${API_BASE}/api/products`, {
-                    method: 'POST',
+                const res = await fetch(`${API_BASE}/api/products${editId ? '/' + editId : ''}`, {
+                    method: editId ? 'PUT' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
@@ -847,7 +876,7 @@ async function adminLogin() {
                     closeModal('productModal');
                     form.reset();
                     loadShopProducts();
-                }
+                } else { alert('Не удалось сохранить товар. Проверьте поля и попробуйте ещё раз.'); }
             } catch (e) { console.error('Save product error:', e); }
         }
 
