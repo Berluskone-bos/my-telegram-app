@@ -600,13 +600,13 @@ function deliveryLabel(t) {
 async function sendCustomerOrderNotification(userId, orderId, order) {
     if (!userId) return false;
     const message =
-        `<b>Заказ принят!</b>\\n\\n` +
-        `<b>Номер:</b> #${escapeHtml('AP-' + orderId)}\\n` +
-        `<b>Товары:</b>\\n${buildItemsList(order.items)}\\n\\n` +
-        `<b>Итого:</b> ${Number(order.total).toLocaleString('ru-RU')} руб.\\n` +
-        `<b>Доставка:</b> ${escapeHtml(deliveryLabel(order.deliveryType))}\\n` +
-        `<b>Адрес:</b> ${escapeHtml(order.address)}\\n` +
-        `<b>Телефон:</b> ${escapeHtml(order.phone)}\\n\\n` +
+        `<b>Заказ принят!</b>\n\n` +
+        `<b>Номер:</b> #${escapeHtml('AP-' + orderId)}\n` +
+        `<b>Товары:</b>\n${buildItemsList(order.items)}\n\n` +
+        `<b>Итого:</b> ${Number(order.total).toLocaleString('ru-RU')} руб.\n` +
+        `<b>Доставка:</b> ${escapeHtml(deliveryLabel(order.deliveryType))}\n` +
+        `<b>Адрес:</b> ${escapeHtml(order.address)}\n` +
+        `<b>Телефон:</b> ${escapeHtml(order.phone)}\n\n` +
         `Мы свяжемся с вами для подтверждения заказа.`;
     await bot.sendMessage(String(userId), message, { parse_mode: 'HTML' });
     console.log('[OK] Подтверждение заказа отправлено покупателю');
