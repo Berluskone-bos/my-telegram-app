@@ -3,6 +3,12 @@
 
 const https = require('https');
 
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 class Notifier {
     constructor(clientBotToken, courierBotToken, managerChatId, adminBotToken) {
         this.clientBotBase = `https://api.telegram.org/bot${clientBotToken}`;
@@ -77,11 +83,11 @@ class Notifier {
         };
 
         const statusText = statusTexts[status] || status;
-        let text = `<b>Заказ ${orderNumber}</b>\n\n`;
+        let text = `<b>Заказ ${escapeHtml(orderNumber)}</b>\n\n`;
         text += `Статус: <b>${statusText}</b>\n`;
-        if (details) text += `${details}\n`;
+        if (details) text += `${escapeHtml(details)}\n`;
 
-        console.log(`[NOTIFIER] Отправка клиенту ${chatId}: ${orderNumber} -> ${statusText}`);
+        console.log(`[NOTIFIER] Отправка клиенту ${chatId}: ${escapeHtml(orderNumber)} -> ${statusText}`);
         return this._send(this.clientBotBase, chatId, text);
     }
 
@@ -90,14 +96,14 @@ class Notifier {
         if (!this.managerChatId) return;
 
         const itemsList = (orderData.items || [])
-            .map(i => `- ${i.name} x${i.qty}`)
+            .map(i => `- ${escapeHtml(i.name)} x${i.qty}`)
             .join('\n');
 
-        let text = `<b>НОВЫЙ ЗАКАЗ ${orderData.order_number || ''}</b>\n\n`;
-        text += `<b>Клиент:</b> ${orderData.user_name || 'Не указано'}\n`;
-        text += `<b>Телефон:</b> ${orderData.phone || 'Не указан'}\n`;
-        text += `<b>Адрес:</b> ${orderData.address || 'Не указан'}\n`;
-        text += `<b>Сумма:</b> ${orderData.total || 0} руб.\n\n`;
+        let text = `<b>НОВЫЙ ЗАКАЗ ${escapeHtml(orderData.order_number || '')}</b>\n\n`;
+        text += `<b>Клиент:</b> ${escapeHtml(orderData.user_name || 'Не указано')}\n`;
+        text += `<b>Телефон:</b> ${escapeHtml(orderData.phone || 'Не указан')}\n`;
+        text += `<b>Адрес:</b> ${escapeHtml(orderData.address || 'Не указан')}\n`;
+        text += `<b>Сумма:</b> ${escapeHtml(orderData.total || 0)} руб.\n\n`;
         if (itemsList) text += `<b>Товары:</b>\n${itemsList}\n`;
 
         return this._send(this.adminBotBase, this.managerChatId, text);
@@ -108,8 +114,8 @@ class Notifier {
         const stopsCount = (routeData.stops || []).length;
 
         let text = `<b>Новый маршрут!</b>\n\n`;
-        text += `Маршрут: ${routeData.route_number}\n`;
-        text += `Дата: ${routeData.route_date}\n`;
+        text += `Маршрут: ${escapeHtml(routeData.route_number)}\n`;
+        text += `Дата: ${escapeHtml(routeData.route_date)}\n`;
         text += `Остановок: ${stopsCount}\n\n`;
         text += 'Отправьте /route для просмотра деталей.';
 
@@ -121,10 +127,10 @@ class Notifier {
         if (!this.managerChatId) return;
 
         const statusText = status === 'delivered' ? 'Доставлено' : 'Не доставлено';
-        let text = `[ДОСТАВКА] ${routeNumber} | ${statusText}\n`;
-        text += `Адрес: ${stopData.address}\n`;
-        if (stopData.order_number) text += `Заказ: ${stopData.order_number}\n`;
-        if (reason) text += `Причина: ${reason}\n`;
+        let text = `[ДОСТАВКА] ${escapeHtml(routeNumber)} | ${statusText}\n`;
+        text += `Адрес: ${escapeHtml(stopData.address)}\n`;
+        if (stopData.order_number) text += `Заказ: ${escapeHtml(stopData.order_number)}\n`;
+        if (reason) text += `Причина: ${escapeHtml(reason)}\n`;
 
         return this._send(this.adminBotBase, this.managerChatId, text);
     }
@@ -132,9 +138,9 @@ class Notifier {
     // Уведомление клиенту о доставке
     async notifyClientDelivery(clientChatId, orderNumber, status, reason = '') {
         const statusText = status === 'delivered' ? 'доставлен' : 'не доставлен';
-        let text = `<b>Заказ ${orderNumber}</b>\n\n`;
+        let text = `<b>Заказ ${escapeHtml(orderNumber)}</b>\n\n`;
         text += `Ваш заказ <b>${statusText}</b>.\n`;
-        if (reason) text += `Причина: ${reason}\n`;
+        if (reason) text += `Причина: ${escapeHtml(reason)}\n`;
         text += '\nСпасибо за покупку!';
 
         return this._send(this.clientBotBase, clientChatId, text);
@@ -142,3 +148,4 @@ class Notifier {
 }
 
 module.exports = Notifier;
+module.exports.escapeHtml = escapeHtml;
