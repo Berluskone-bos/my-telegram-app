@@ -51,7 +51,7 @@ class DBAdapter {
 
     async getCustomerProfile(userId) {
         const id = String(userId || '');
-        if (!/^\\d{1,20}$/.test(id)) return null;
+        if (!/^\d{1,20}$/.test(id)) return null;
         const res = await pool.query(
             `SELECT name, phone, city, street, house, entrance, apartment
                FROM customer_profiles WHERE user_id = $1`,
@@ -62,7 +62,7 @@ class DBAdapter {
 
     async upsertCustomerProfile(userId, profile) {
         const id = String(userId || '');
-        if (!/^\\d{1,20}$/.test(id)) throw new Error('invalid Telegram user ID');
+        if (!/^\d{1,20}$/.test(id)) throw new Error('invalid Telegram user ID');
         const res = await pool.query(
             `INSERT INTO customer_profiles
                 (user_id, name, phone, city, street, house, entrance, apartment, updated_at)
