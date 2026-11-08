@@ -292,14 +292,14 @@ async function validateOrder(raw) {
     const rawCode = String(raw.discountCode || raw.promoCode || '').trim().slice(0, 50);
     if (rawCode && hasGetDiscount) {
         const promo = await db.getDiscountByCode(rawCode);
-        if (promo && typeof promo.percent === 'number'
-            && promo.percent >= 0 && promo.percent <= 100) {
-            discount = promo.percent;
+        const pct = promo ? Number(promo.percent) : NaN;   // NUMERIC из pg приходит строкой
+        if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+            discount = pct;
             discountCode = rawCode;
         }
     }
 
-    const total = Math.round(subtotal * (1 - discount / 100) * 100) / 100;
+    const goodsTotal = Math.round(subtotal * (1 - discount / 100) * 100) / 100;
 
     // Телефон — сначала полная проверка, потом усечение
     const phoneRaw = String(raw.phone || '').trim();
@@ -311,6 +311,17 @@ async function validateOrder(raw) {
 
     const zone         = raw.zone === 'lo' ? 'lo' : 'spb';
     const deliveryType = raw.deliveryType === 'pickup' ? 'pickup' : 'delivery';
+    // Доставка считается ТОЛЬКО на сервере по таблице delivery_zones (клиент шлёт лишь выбранную зону)
+    let deliveryCost = 0, deliveryNote = null;
+    if (deliveryType === 'delivery') {
+        if (zone === 'spb') {
+            const z = await db.getZoneByCode('spb');
+            if (z) deliveryCost = goodsTotal >= Number(z.free_threshold) ? 0 : Number(z.base_cost);
+        } else {
+            deliveryNote = 'Стоимость доставки по ЛО рассчитает менеджер';   // тарифы ЛО не утверждены
+        }
+    }
+    const total = Math.round((goodsTotal + deliveryCost) * 100) / 100;
     const payment      = ['cash', 'card', 'online'].includes(raw.payment) ? raw.payment : 'cash';
 
     return {
@@ -330,6 +341,8 @@ async function validateOrder(raw) {
             subtotal,
             discount,
             discountCode,
+            deliveryCost,
+            deliveryNote,
             deliveryType,
             payment,
             comment:      String(raw.comment   || '').slice(0, 500),
@@ -569,6 +582,8 @@ async function saveOrderToDb(orderId, order) {
             total:        order.total || 0,
             subtotal:     order.subtotal || 0,
             discount:     order.discount || 0,
+            delivery_cost: order.deliveryCost || 0,
+            idempotency_key: order.idempotencyKey || null,
             discount_code: order.discountCode || null,   // №2
             delivery_type: order.deliveryType || 'delivery',
             payment:      order.payment || 'cash',
@@ -579,6 +594,7 @@ async function saveOrderToDb(orderId, order) {
         return result ? result.id : null;
     } catch (e) {
         console.error('[saveOrderToDb]', sanitizeLog(e.message));
+        if (e.code === 'PROMO_EXHAUSTED') return 'PROMO_EXHAUSTED';
         return null;
     }
 }
@@ -782,7 +798,7 @@ app.use((req, res, next) => {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Vary', 'Origin');
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data, X-Admin-Key');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data, X-Admin-Key, Idempotency-Key');
         res.header('Access-Control-Max-Age', '600');
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -905,8 +921,18 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
             return res.json({ success: true, orderId: prev.orderId, duplicate: true, total: prev.total });
         }
 
+        // Идемпотентность на уровне БД: тот же ключ операции = тот же заказ
+        const idemKey = String(req.header('Idempotency-Key') || '').replace(/[^\w-]/g, '').slice(0, 64) || null;
+        if (idemKey && v.data.userId) {
+            const same = await db.getOrderByIdempotencyKey(v.data.userId, idemKey).catch(() => null);
+            if (same) return res.json({ success: true, orderId: same.order_number, duplicate: true, total: Number(same.total) });
+            v.data.idempotencyKey = idemKey;
+        }
         const orderId = generateOrderId();
         const dbOrderId = await saveOrderToDb(orderId, v.data);
+        if (dbOrderId === 'PROMO_EXHAUSTED') {
+            return res.status(409).json({ success: false, error: 'Promo code limit reached' });
+        }
         if (dbOrderId === null) {
             return res.status(500).json({ success: false, error: 'Failed to save order' });
         }
