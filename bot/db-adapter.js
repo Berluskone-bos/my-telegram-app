@@ -46,6 +46,44 @@ class DBAdapter {
     }
 
     // ───────────────────────────────────────────
+    // Профили покупателей
+    // ───────────────────────────────────────────
+
+    async getCustomerProfile(userId) {
+        const id = String(userId || '');
+        if (!/^\\d{1,20}$/.test(id)) return null;
+        const res = await pool.query(
+            `SELECT name, phone, city, street, house, entrance, apartment
+               FROM customer_profiles WHERE user_id = $1`,
+            [id]
+        );
+        return res.rows[0] || null;
+    }
+
+    async upsertCustomerProfile(userId, profile) {
+        const id = String(userId || '');
+        if (!/^\\d{1,20}$/.test(id)) throw new Error('invalid Telegram user ID');
+        const res = await pool.query(
+            `INSERT INTO customer_profiles
+                (user_id, name, phone, city, street, house, entrance, apartment, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+             ON CONFLICT (user_id) DO UPDATE SET
+                name = EXCLUDED.name,
+                phone = EXCLUDED.phone,
+                city = EXCLUDED.city,
+                street = EXCLUDED.street,
+                house = EXCLUDED.house,
+                entrance = EXCLUDED.entrance,
+                apartment = EXCLUDED.apartment,
+                updated_at = NOW()
+             RETURNING name, phone, city, street, house, entrance, apartment`,
+            [id, profile.name, profile.phone, profile.city, profile.street,
+             profile.house, profile.entrance, profile.apartment]
+        );
+        return res.rows[0];
+    }
+
+    // ───────────────────────────────────────────
     // Курьеры
     // ───────────────────────────────────────────
 
