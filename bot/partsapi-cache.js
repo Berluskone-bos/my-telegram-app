@@ -17,6 +17,8 @@
 // Ошибки, текст которых можно показать клиенту. Остальные ошибки наружу не отдаём.
 const userError = (msg, status = 400) => Object.assign(new Error(msg), { user: true, status });
 
+const { buildSystems } = require('./oil-systems');
+
 const keyFor = m => process.env['PARTSAPI_KEY_' + m.toUpperCase()];
 // Ключей в коде НЕТ: только переменные окружения. Нет ключа - понятная ошибка вместо запроса с "undefined".
 function requireKey(m) {
@@ -104,6 +106,7 @@ async function decodeVin(pool, vin) {
 
   const { data, fromCache } = await cachedApi(pool, 'VINdecode', { vin, lang: 'ru' });
   const car = data && data.result && data.result['0'];
+  if (!car) console.warn(`[PartsAPI] VINdecode: пустой ответ, WMI=${vin.slice(0, 3)}`);
   if (!car) throw userError('По этому VIN автомобиль не найден. Выберите машину по марке и модели.', 404);
   const carId = car.carId || car.typeNumber;
   await pool.query(
@@ -191,28 +194,15 @@ async function getOilSelection(pool, carId) {
   const appr = await pool.query('SELECT fluid, approval_type, approval FROM vehicle_approvals WHERE car_id = $1 ORDER BY fluid, approval', [id]);
   const oems = await pool.query(
     'SELECT fluid, spec_group, article, brand, pack_liters, priority FROM vehicle_oil_items WHERE car_id = $1 ORDER BY fluid, priority', [id]);
-  // Ваши товары, у которых заявлен подходящий допуск (сравнение без учёта пробелов, точек и регистра: "VW 504.00" = "VW 50400")
-  const ours = await pool.query(
-    `SELECT p.id, p.name, p.brand, p.volume, p.viscosity, p.price, p.image, array_agg(DISTINCT pa.approval) AS matched_approvals
-       FROM products p
-       JOIN product_approvals pa ON pa.product_id = p.id
+  // Все активные товары магазина с их допусками: распределение по системам делает oil-systems.js
+  const prods = await pool.query(
+    `SELECT p.id, p.name, p.category, p.volume, p.viscosity, p.price,
+            COALESCE(array_agg(pa.approval) FILTER (WHERE pa.approval IS NOT NULL), '{}') AS approvals
+       FROM products p LEFT JOIN product_approvals pa ON pa.product_id = p.id
       WHERE p.active = true AND p.coming_soon = false
-        AND regexp_replace(upper(pa.approval), '[^A-Z0-9]', '', 'g') IN (
-              SELECT regexp_replace(upper(approval), '[^A-Z0-9]', '', 'g') FROM vehicle_approvals WHERE car_id = $1)
-      GROUP BY p.id ORDER BY p.name`, [id]);
-  // Безопасность подбора: если у машины известна допустимая вязкость, показываем только масла с такой вязкостью
-  const viscRe = /\b(\d{1,2})W-?(\d{2})\b/gi;
-  const norm = m => m.replace(/-/g, '').toUpperCase();
-  const allowed = new Set();
-  for (const text of [...fill.rows.map(f => f.info), ...oems.rows.map(o => o.spec_group)]) {
-    for (const m of String(text || '').match(viscRe) || []) allowed.add(norm(m));
-  }
-  const viscOf = p => { const m = String(p.viscosity || p.name || '').match(viscRe); return m ? norm(m[0]) : null; };
-  const ourProducts = ours.rows
-    .filter(p => allowed.size === 0 || (viscOf(p) && allowed.has(viscOf(p))))
-    .sort((a, b) => b.matched_approvals.length - a.matched_approvals.length);
-  return { vehicle: v.rows[0], fill_volumes: fill.rows, approvals: appr.rows, manufacturer_items: oems.rows,
-           allowed_viscosity: [...allowed], our_products: ourProducts };
+      GROUP BY p.id ORDER BY p.name`);
+  const systems = buildSystems({ fill: fill.rows, approvals: appr.rows, items: oems.rows, products: prods.rows });
+  return { vehicle: v.rows[0], systems, fill_volumes: fill.rows, approvals: appr.rows, manufacturer_items: oems.rows };
 }
 
 async function requestsToday(pool) {
