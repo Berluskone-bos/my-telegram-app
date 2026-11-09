@@ -1338,6 +1338,6 @@ function registerCourierRoutes(app) {
 }
 }
 
-module.exports = { registerCourierRoutes };
+module.exports = { registerCourierRoutes, verifyAdmin };
 
 console.log('APCourier_Bot module loaded');

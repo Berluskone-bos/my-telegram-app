@@ -822,6 +822,15 @@ app.use((err, req, res, next) => {
 // ═══════════════════════════════════════════
 
 try {
+    const { registerOilRoutes } = require('./oil-routes');
+    const { pool: dbPool } = require('./db');
+    registerOilRoutes(app, { pool: dbPool, rateLimit, verifyAdmin: require('./courier-bot').verifyAdmin });
+    console.log('[OK] Подбор масла подключён');
+} catch (e) {
+    console.warn('[ВНИМАНИЕ] Подбор масла не загружен:', sanitizeLog(e.message));
+}
+
+try {
     const { registerCourierRoutes } = require('./courier-bot');
     registerCourierRoutes(app);
     console.log('[OK] Курьер-бот API подключён');
