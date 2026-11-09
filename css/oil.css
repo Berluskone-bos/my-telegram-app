@@ -1,0 +1,30 @@
+/* ===== Подбор масла ===== */
+.oil-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(16,27,77,.45); display: none; align-items: flex-end; }
+.oil-overlay.open { display: flex; }
+.oil-sheet { width: 100%; max-height: 92vh; overflow-y: auto; background: #fff; border-radius: 24px 24px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); }
+.oil-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.oil-title { font-family: var(--font-heading); font-weight: 800; font-size: 20px; color: #101B4D; }
+.oil-close { width: 36px; height: 36px; border: 0; border-radius: 50%; background: #F4F7FA; font-size: 22px; color: #101B4D; cursor: pointer; }
+.oil-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.oil-tab { flex: 1; height: 42px; border-radius: 12px; border: 1.5px solid #E1E7EF; background: #fff; font-weight: 700; color: #66708A; cursor: pointer; }
+.oil-tab.active { border-color: #101B4D; background: #101B4D; color: #fff; }
+.oil-label { display: block; font-size: 12px; font-weight: 600; color: #66708A; margin: 10px 0 5px; }
+.oil-input { width: 100%; height: 48px; border: 1.5px solid #E1E7EF; border-radius: 12px; padding: 0 14px; font-size: 16px; background: #fff; color: #25282B; }
+#oilVin { font-family: var(--font-heading); letter-spacing: 1.5px; text-transform: uppercase; }
+.oil-hint, .oil-note, .oil-disclaimer { font-size: 12.5px; line-height: 1.5; color: #66708A; margin: 8px 0; }
+.oil-error { font-size: 13.5px; color: #B3261E; background: #FDECEA; border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; }
+.oil-btn { width: 100%; height: 52px; margin-top: 14px; border: 0; border-radius: 14px; background: #101B4D; color: #fff; font-family: var(--font-heading); font-weight: 700; font-size: 15px; cursor: pointer; }
+.oil-result { margin-top: 12px; }
+.oil-car { border-left: 4px solid #00AFC7; padding: 2px 0 2px 12px; margin: 6px 0 12px; }
+.oil-car-name { font-family: var(--font-heading); font-weight: 800; font-size: 18px; color: #101B4D; }
+.oil-car-sub { font-size: 13px; color: #66708A; margin-top: 2px; }
+.oil-facts { display: grid; gap: 8px; margin-bottom: 14px; }
+.oil-fact { display: flex; justify-content: space-between; gap: 12px; background: #F4F7FA; border-radius: 12px; padding: 11px 14px; font-size: 13px; color: #66708A; }
+.oil-fact b { color: #101B4D; text-align: right; }
+.oil-sub { font-family: var(--font-heading); font-weight: 800; color: #101B4D; margin: 6px 0 8px; }
+.oil-prod { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #E1E7EF; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
+.oil-prod-name { font-weight: 700; color: #101B4D; font-size: 14px; }
+.oil-prod-meta { font-size: 12px; color: #66708A; margin-top: 3px; }
+.oil-prod-buy { text-align: right; flex: none; }
+.oil-prod-buy b { display: block; font-family: var(--font-heading); color: #101B4D; margin-bottom: 6px; }
+.oil-add { height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: #00AFC7; color: #fff; font-weight: 700; cursor: pointer; }
