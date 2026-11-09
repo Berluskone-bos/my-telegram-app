@@ -7,6 +7,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.min.js"></script>
     <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/oil.css" />
 </head>
 <body>
 
@@ -90,7 +91,7 @@
             </div>
         </div>
 
-        <div class="select-oil-banner" onclick="alert('Мастер подбора масла скоро будет доступен!')">
+        <div class="select-oil-banner" onclick="Oil.open()">
             <i data-lucide="search" style="width:20px;height:20px;"></i>
             <div>
                 <div class="select-oil-title">Подобрать масло</div>
@@ -593,6 +594,7 @@
     <script src="js/cart.js"></script>
     <script src="js/favorites.js"></script>
     <script src="js/profile.js"></script>
+    <script src="js/oil.js"></script>
     <script src="js/app.js"></script>
     <script>
         // Инициализация приложения

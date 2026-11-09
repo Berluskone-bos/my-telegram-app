@@ -525,6 +525,11 @@ async function adminLogin() {
                         <input class="form-input" name="image" placeholder="img/oils/...">
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Допуски и одобрения (через запятую)</label>
+                        <textarea class="form-textarea" name="approvals" rows="2" placeholder="VW 504 00, VW 502 00, MB 229.51, ACEA C3, API SP"></textarea>
+                        <small>Только то, что напечатано на этикетке или в сертификате. По ним магазин подбирает масло под машину.</small>
+                    </div>
+                    <div class="form-group">
                         <label><input type="checkbox" name="active" checked> Показывать в магазине</label><br>
                         <label><input type="checkbox" name="coming_soon"> «Скоро в продаже» (нельзя купить)</label>
                     </div>
@@ -830,7 +835,7 @@ async function adminLogin() {
 
         function openProductModal() {
             const f = document.getElementById('productForm'); f.reset(); f.dataset.id = '';
-            f.active.checked = true; f.coming_soon.checked = false;
+            f.active.checked = true; f.coming_soon.checked = false; f.approvals.value = '';
             document.getElementById('productModalTitle').textContent = 'Добавить товар';
             document.getElementById('productModal').classList.add('open');
         }
@@ -843,6 +848,8 @@ async function adminLogin() {
                 if (f[k]) f[k].value = p[k] != null ? p[k] : '';
             }
             f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon;
+            f.approvals.value = '';
+            fetch(`${API_BASE}/api/products/${id}/approvals`).then(r => r.ok ? r.json() : []).then(l => { if (f.dataset.id === String(id)) f.approvals.value = l.join(', '); }).catch(() => {});
             document.getElementById('productModalTitle').textContent = 'Изменить товар №' + id;
             document.getElementById('productModal').classList.add('open');
         }
@@ -873,6 +880,12 @@ async function adminLogin() {
                     body: JSON.stringify(data)
                 });
                 if (res.ok) {
+                    const saved = await res.json().catch(() => ({}));
+                    const pid = editId || saved.id;
+                    if (pid) {
+                        const list = form.approvals.value.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+                        await fetch(`${API_BASE}/api/products/${pid}/approvals`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approvals: list }) });
+                    }
                     closeModal('productModal');
                     form.reset();
                     loadShopProducts();
