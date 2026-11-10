@@ -85,7 +85,7 @@ const Oil = {
         try {
             this.busy('Загружаем модели…');
             const list = await this.api(`/api/oil/models?make_id=${encodeURIComponent(make)}`);
-            this.fill(mSel, list.map(m => ({ modelId: m.modelId, label: m.modelName || m.shortModelName || m.modelname || '' })).filter(m => m.modelId && m.label).sort((a, b) => a.label.localeCompare(b.label)),
+            this.fill(mSel, list.map(m => ({ modelId: m.modelId, label: m.modelName || '' })).filter(m => m.modelId && m.label).sort((a, b) => a.label.localeCompare(b.label)),
                       'modelId', 'label', 'Выберите модель');
             document.getElementById('oilResult').innerHTML = '';
         } catch (e) { this.fail(e); }
@@ -96,11 +96,8 @@ const Oil = {
         if (!model.value) { cSel.innerHTML = '<option value="">Сначала модель</option>'; cSel.disabled = true; return; }
         try {
             this.busy('Загружаем модификации…');
-            const q = `make_id=${encodeURIComponent(make.value)}&model_id=${encodeURIComponent(model.value)}` +
-                      `&make_name=${encodeURIComponent(make.selectedOptions[0].text)}&model_name=${encodeURIComponent(model.selectedOptions[0].text)}`;
-            const list = await this.api(`/api/oil/cars?${q}`);
-            const yr = s => { const d = s ? new Date(s) : null; return d && d.getUTCFullYear() > 1970 ? d.getUTCFullYear() : ''; };
-            const rows = list.map(c => ({ id: c.CAR_ID, label: `${c.CAR_NAME}${c.CAPACITY ? ', ' + c.CAPACITY : ''}${c.POWER_PS ? ', ' + Math.round(c.POWER_PS) + ' л.с.' : ''}${yr(c.YEAR_START) ? ' (' + yr(c.YEAR_START) + '–' + (yr(c.YEAR_END) || 'н.в.') + ')' : ''}` }));
+            const list = await this.api(`/api/oil/cars?model_id=${encodeURIComponent(model.value)}`);
+            const rows = list.map(c => ({ id: c.CAR_ID, label: c.CAR_NAME }));
             this.fill(cSel, rows, 'id', 'label', rows.length ? 'Выберите модификацию' : 'Модификации не найдены');
             document.getElementById('oilResult').innerHTML = '';
         } catch (e) { this.fail(e); }
@@ -110,7 +107,7 @@ const Oil = {
         const vin = document.getElementById('oilVin').value.trim().toUpperCase();
         document.getElementById('oilVin').value = vin;
         if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return this.fail(new Error('VIN должен состоять из 17 символов: латиница и цифры, без букв I, O, Q.'));
-        try { this.busy('Подбираем масло…'); this.show(await this.api(`/api/oil/by-vin?vin=${encodeURIComponent(vin)}`)); }
+        try { this.busy('Определяем марку…'); const r = await this.api(`/api/oil/by-vin?vin=${encodeURIComponent(vin)}`); r.needs_pick ? this.vinPick(r) : this.show(r); }
         catch (e) { e.notFound ? this.vinNotFound(vin, e.message) : this.fail(e); }
     },
 
@@ -179,12 +176,18 @@ const Oil = {
             <button class="oil-btn oil-btn-light" onclick="Oil.toManual('${esc(make || '')}')">Выбрать по марке и модели${make ? ' (' + esc(make) + ')' : ''}</button>`;
     },
 
+    // VIN распознан: марка и модель известны, точную модификацию выбираем из каталога
+    async vinPick(r) {
+        document.getElementById('oilResult').innerHTML = `<div class="oil-nodata"><b>${esc(r.make_name)} ${esc(r.model_name)}${r.year ? ', ' + esc(r.year) + ' г.' : ''}</b><br>Теперь выберите модель и модификацию из списка — так подбор будет точным.</div>
+            <button class="oil-btn oil-btn-light" onclick="Oil.toManual('${esc(r.make_name)}')">Выбрать модель и модификацию</button>`;
+    },
+
     async toManual(make) {
         this.setTab('car');
         if (this._makes) await this._makes;
         if (make) {
             const sel = document.getElementById('oilMake');
-            const opt = [...sel.options].find(o => o.text.toUpperCase() === make);
+            const opt = [...sel.options].find(o => o.text.toUpperCase() === String(make).toUpperCase());
             if (opt) { sel.value = opt.value; await this.loadModels(); }
         }
     }

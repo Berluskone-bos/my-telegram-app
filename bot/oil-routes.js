@@ -1,5 +1,6 @@
 // Подбор масла по VIN и по марке/модели. Все запросы к PartsAPI идут через кэш в БД.
 const pa = require('./partsapi-cache');
+const oc = require('./oil-catalog');
 
 function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     const limit = rateLimit(30, 60_000);
@@ -13,30 +14,12 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     };
     const id = v => { const n = Number(v); if (!Number.isInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true }); return n; };
 
-    app.get('/api/oil/by-vin', limit, wrap(async (req, res) => {
-        const { carId } = await pa.decodeVin(pool, req.query.vin);
-        await pa.loadCarData(pool, carId);
-        res.json(await pa.getOilSelection(pool, carId));
-    }));
-    app.get('/api/oil/makes', limit, wrap(async (req, res) => {
-        res.json((await pa.cachedApi(pool, 'getMakes', { carType: 'PC' })).data);
-    }));
-    app.get('/api/oil/models', limit, wrap(async (req, res) => {
-        res.json((await pa.cachedApi(pool, 'getModels', { carType: 'PC', makeId: id(req.query.make_id), lang: '16' })).data);
-    }));
-    app.get('/api/oil/cars', limit, wrap(async (req, res) => {
-        const { data } = await pa.cachedApi(pool, 'getCars', { carType: 'PC', makeId: id(req.query.make_id), modelId: id(req.query.model_id) });
-        const list = Array.isArray(data) ? data : [];
-        const extra = { make_name: String(req.query.make_name || '').slice(0, 100), model_name: String(req.query.model_name || '').slice(0, 200) };
-        for (const c of list) await pa.saveVehicleFromCarsRow(pool, c, extra);
-        res.json(list.map(c => ({ CAR_ID: c.CAR_ID, CAR_NAME: c.CAR_NAME, ENGINE_TYPE: c.ENGINE_TYPE, CAPACITY: c.CAPACITY,
-                                  POWER_PS: c.POWER_PS, YEAR_START: c.YEAR_START, YEAR_END: c.YEAR_END })));
-    }));
-    app.get('/api/oil/by-car', limit, wrap(async (req, res) => {
-        const carId = id(req.query.car_id);
-        await pa.loadCarData(pool, carId);
-        res.json(await pa.getOilSelection(pool, carId));
-    }));
+    // Основной путь — каталог ТО PartsAPI: марка -> модель -> модификация (typeId) -> объёмы и допуски
+    app.get('/api/oil/by-vin', limit, wrap(async (req, res) => { res.json(await oc.vinHint(pool, req.query.vin)); }));
+    app.get('/api/oil/makes', limit, wrap(async (req, res) => { res.json(await oc.listMakes(pool)); }));
+    app.get('/api/oil/models', limit, wrap(async (req, res) => { res.json(await oc.listModels(pool, id(req.query.make_id))); }));
+    app.get('/api/oil/cars', limit, wrap(async (req, res) => { res.json(await oc.listTypes(pool, id(req.query.model_id))); }));
+    app.get('/api/oil/by-car', limit, wrap(async (req, res) => { res.json(await oc.selectionByType(pool, id(req.query.car_id))); }));
     app.get('/api/oil/usage', verifyAdmin, wrap(async (req, res) => { res.json(await pa.requestsToday(pool)); }));
 
     // Допуски товара (админка): список и замена

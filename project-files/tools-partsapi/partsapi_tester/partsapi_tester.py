@@ -20,7 +20,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 BASE = os.environ.get('PARTSAPI_BASE', 'https://api.partsapi.ru')   # переменная нужна только для автотестов
-METHODS = ['VINdecode', 'getMakes', 'getModels', 'getCars', 'GetFillVolumes', 'toDopusk']
+METHODS = ['VINdecode', 'toMakes', 'toModels', 'toTypes', 'toDopusk', 'toOils', 'toParts']
 KEYS = {}            # метод -> ключ (только в памяти)
 TOKEN = secrets.token_urlsafe(16)
 REPORT = []          # строки отчёта (ключи замаскированы)
@@ -132,10 +132,10 @@ def summarize_dop(d):
     d = d if isinstance(d, dict) else {}
     specs = []
     for s in d.get('specifications') or []:
-        vals = []
+        props = []
         for p in s.get('properties') or []:
-            vals += [str(v) for v in p.get('values') or []]
-        specs.append({'name': s.get('name'), 'values': vals})
+            props.append(f"{p.get('catalogItemType')}: {', '.join(str(v) for v in p.get('values') or [])}")
+        specs.append({'name': s.get('name'), 'comment': s.get('comment') or '', 'volume': s.get('volume'), 'props': '; '.join(props)})
     oils = []
     for g in d.get('oils') or []:
         oils.append({'group': g.get('group'), 'items': [
@@ -144,22 +144,20 @@ def summarize_dop(d):
     return {'specifications': specs, 'oils': oils}
 
 
-def check_id(car_id):
-    """Главная проверка: объёмы заправки и допуски для одного номера машины."""
-    f = call('GetFillVolumes', {'carId': car_id})
-    d = call('toDopusk', {'typeId': car_id})
+def check_id(type_id):
+    """Главная проверка: объёмы заправки, вязкость и допуски по typeId каталога ТО (метод toDopusk)."""
+    d = call('toDopusk', {'typeId': type_id})
     keep = ('ok', 'status', 'ms', 'url', 'shape', 'error', 'text', 'tries', 'via')
-    out = {'car_id': car_id, 'fill_call': {k: f.get(k) for k in keep}, 'dop_call': {k: d.get(k) for k in keep}}
-    out['fill'] = summarize_fill(f.get('data')) if f.get('ok') else []
+    out = {'car_id': type_id, 'dop_call': {k: d.get(k) for k in keep}}
     out['dopusk'] = summarize_dop(d.get('data')) if d.get('ok') else {'specifications': [], 'oils': []}
-    n_f, n_s, n_o = len(out['fill']), len(out['dopusk']['specifications']), len(out['dopusk']['oils'])
-    if not f.get('ok') or not d.get('ok'):
-        out['verdict'] = 'ОШИБКА ЗАПРОСА: смотрите коды и сообщения ниже (возможно, неверный ключ, исчерпан лимит 50 в сутки или нет связи).'
-    elif n_f == 0 and n_s == 0 and n_o == 0:
-        out['verdict'] = 'PartsAPI ответил, но данных по этому номеру нет (пустой ответ на оба метода).'
+    n_s, n_o = len(out['dopusk']['specifications']), len(out['dopusk']['oils'])
+    if not d.get('ok'):
+        out['verdict'] = 'ОШИБКА ЗАПРОСА: смотрите код и сообщение ниже (возможно, неверный ключ, исчерпан лимит 50 в сутки или нет связи).'
+    elif n_s == 0 and n_o == 0:
+        out['verdict'] = 'PartsAPI ответил, но данных по этому typeId нет.'
     else:
-        out['verdict'] = f'Данные есть: объёмов {n_f}, групп допусков {n_s}, групп масел {n_o}.'
-    log(f'ПРОВЕРКА ID {car_id}: {out["verdict"]}')
+        out['verdict'] = f'Данные есть: жидкостей {n_s}, групп рекомендованных масел {n_o}.'
+    log(f'ПРОВЕРКА typeId {type_id}: {out["verdict"]}')
     return out
 
 
@@ -212,7 +210,7 @@ h3{margin:18px 0 4px;color:var(--navy)}
 <div id="keyf"></div><button class="go" onclick="saveKeys()">Сохранить ключи</button><div id="keymsg"></div></section>
 
 <section id="t-vin"><label>VIN (17 символов)</label><input id="vin" maxlength="17" placeholder="Z94PF814DNR028869" style="text-transform:uppercase">
-<button class="go" onclick="byVin()">Найти машину по VIN</button><div id="vinout"></div></section>
+<button class="go" onclick="byVin()">Определить марку и модель по VIN</button><div id="vinout"></div></section>
 
 <section id="t-car"><p class="note">Выберите по порядку: марка → модель → модификация. В каждом списке можно набрать часть названия, чтобы найти нужное.</p>
 <button class="go" onclick="loadMakes()">Загрузить марки</button><div id="carmsg"></div>
@@ -225,19 +223,19 @@ h3{margin:18px 0 4px;color:var(--navy)}
 <button class="go alt" onclick="checkSel()">Проверить объёмы и допуски</button>
 <div id="carout"></div></section>
 
-<section id="t-id"><label>Номер машины (CAR_ID из каталога / carId из VIN)</label><input id="cid" placeholder="например, 145603">
+<section id="t-id"><label>typeId из каталога ТО (метод toTypes)</label><input id="cid" placeholder="например, 1021020">
 <button class="go" onclick="checkId(val('cid'),'idout')">Проверить объёмы и допуски</button>
-<p class="note">Запросит GetFillVolumes (carId) и toDopusk (typeId) — 2 запроса.</p><div id="idout"></div></section>
+<p class="note">Запросит toDopusk (typeId) — 1 запрос.</p><div id="idout"></div></section>
 
 <section id="t-code"><p class="note">Вставьте сюда пример кода или ссылку с сайта PartsAPI (curl, JavaScript, PHP, Python — что угодно, где есть адрес api.partsapi.ru). Программа достанет метод и параметры, а ключ возьмёт из вставленного кода или со вкладки «Ключи».</p>
-<textarea id="code" placeholder="curl 'https://api.partsapi.ru/?method=GetFillVolumes&key=...&carId=145603'"></textarea>
+<textarea id="code" placeholder="curl 'https://api.partsapi.ru/?method=toOils&key=...&typeId=1021020'"></textarea>
 <button class="go" onclick="parseCode()">Разобрать</button><div id="codeparsed"></div><div id="codeout"></div></section>
 
 <section id="t-rep"><p class="note">Ход всех запросов (ключи скрыты). Скопируйте и пришлите мне в чат.</p>
 <button class="go" onclick="loadReport()">Обновить</button> <button class="go alt" onclick="copyReport()">Скопировать</button><pre id="rep"></pre></section>
 </main>
 <script>
-const TOKEN="__TOKEN__", M=["VINdecode","getMakes","getModels","getCars","GetFillVolumes","toDopusk"];
+const TOKEN="__TOKEN__", M=["VINdecode","toMakes","toModels","toTypes","toDopusk","toOils","toParts"];
 const TABS=[["keys","1. Ключи"],["vin","2. По VIN"],["car","3. По марке и модели"],["id","4. По номеру машины"],["code","5. Код с сайта PartsAPI"],["rep","Отчёт"]];
 const $=id=>document.getElementById(id), val=id=>$(id).value.trim();
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -250,19 +248,19 @@ async function saveKeys(){const k={};M.forEach(m=>{const v=val("k_"+m);if(v)k[m]
  const j=await api("/api/keys",{keys:k});$("keymsg").innerHTML=`<div class="ok">Сохранено ключей: ${j.saved.length} (${esc(j.saved.map(x=>x[0]+": "+x[1]).join(", "))})</div>`}
 function showCall(c){const cls=c.ok?"ok":"bad";const extra=(c.tries>1?` · попыток: ${c.tries}`:"")+(c.via==="curl"?" · через curl":"");return `<div class="${cls}">${c.ok?"Ответ получен":"Проблема"}: ${esc(c.error||("HTTP "+c.status+", "+c.ms+" мс, "+c.shape))}${esc(extra)}</div>`}
 function table(rows,cols){if(!rows.length)return'<p class="note">пусто</p>';return"<table><tr>"+cols.map(c=>`<th>${c[1]}</th>`).join("")+"</tr>"+rows.map(r=>"<tr>"+cols.map(c=>`<td>${esc(r[c[0]])}</td>`).join("")+"</tr>").join("")+"</table>"}
-function renderCheck(o){let h=`<div class="${/Данные есть/.test(o.verdict)?"ok":/пустой/.test(o.verdict)?"warn":"bad"}"><b>${esc(o.verdict)}</b></div>`;
- h+=`<h3>GetFillVolumes (carId=${esc(o.car_id)})</h3>`+showCall(o.fill_call)+table(o.fill,[["title","Что"],["info","Уточнение"],["value","Объём"],["unit","Ед."]]);
+function renderCheck(o){let h=`<div class="${/Данные есть/.test(o.verdict)?"ok":/нет/.test(o.verdict)?"warn":"bad"}"><b>${esc(o.verdict)}</b></div>`;
  h+=`<h3>toDopusk (typeId=${esc(o.car_id)})</h3>`+showCall(o.dop_call);
- h+=table(o.dopusk.specifications.map(s=>({name:s.name,values:s.values.join(", ")})),[["name","Жидкость"],["values","Допуски"]]);
- if(o.dopusk.oils.length)h+="<h3>Рекомендованные масла и артикулы</h3>"+o.dopusk.oils.map(g=>`<p><b>${esc(g.group)}</b></p>`+table(g.items,[["brand","Бренд"],["article","Артикул"],["name","Название"],["volume","Фасовка"]])).join("");
+ h+=table(o.dopusk.specifications.map(s=>({what:s.name+(s.comment?" ("+s.comment+")":""),vol:s.volume?s.volume+" л":"",p:s.props})),[["what","Жидкость"],["vol","Заправка"],["p","Вязкость и допуски"]]);
+ if(o.dopusk.oils.length)h+="<h3>Рекомендованные масла и артикулы</h3>"+o.dopusk.oils.map(g=>`<p><b>${esc(g.group)}</b></p>`+table(g.items,[["brand","Бренд"],["article","Артикул"],["name","Название"],["volume","Фасовка, л"]])).join("");
  return h}
 async function checkId(id,out){if(!/^\d+$/.test(id)){$(out).innerHTML='<div class="bad">Нужен номер из цифр.</div>';return}
  $(out).innerHTML='<p class="note">Запрашиваю…</p>';const j=await api("/api/check",{id});$(out).innerHTML=renderCheck(j)}
 async function byVin(){const v=val("vin").toUpperCase();if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(v)){$("vinout").innerHTML='<div class="bad">VIN: 17 символов, латиница и цифры, без I, O, Q.</div>';return}
  $("vinout").innerHTML='<p class="note">Запрашиваю…</p>';const j=await api("/api/call",{method:"VINdecode",params:{vin:v,lang:"ru"}});let h=showCall(j);
  const r=j.data&&j.data.result&&j.data.result["0"];
- if(r){h+=`<div class="ok"><b>${esc(r.manuName)} ${esc(r.modelName)} ${esc(r.typeName)}</b><br>carId: ${esc(r.carId)}, typeNumber: ${esc(r.typeNumber)}, годы: ${esc(r.yearOfConstrFrom)}–${esc(r.yearOfConstrTo)}</div><div id="vinchk"></div>`;$("vinout").innerHTML=h;await checkId(String(r.carId||r.typeNumber),"vinchk")}
- else{h+=`<div class="warn">PartsAPI не знает этот VIN${/^Z94|^XTA|^X7|^XW|^XU/.test(v)?" (российская сборка — это ожидаемо)":""}. Выберите машину на вкладке «По марке и модели».</div><details><summary>Сырой ответ</summary><pre>${esc(JSON.stringify(j.data,null,2)||j.text)}</pre></details>`;$("vinout").innerHTML=h}}
+ if(r)h+=`<div class="ok"><b>${esc(r.manuName)} ${esc(r.modelName)} ${esc(r.typeName)}</b> (${esc(r.yearOfConstrFrom)}–${esc(r.yearOfConstrTo)})<br>Номер машины для допусков берётся из каталога ТО: откройте вкладку «3. По марке и модели».</div>`;
+ else h+=`<div class="warn">PartsAPI не знает этот VIN${/^Z94|^XTA|^X7|^XW|^XU/.test(v)?" (российская сборка — это ожидаемо)":""}. Выберите машину на вкладке «3. По марке и модели».</div><details><summary>Сырой ответ</summary><pre>${esc(JSON.stringify(j.data,null,2)||j.text)}</pre></details>`;
+ $("vinout").innerHTML=h}
 const LISTS={};
 function fill(sel,items,v,l){LISTS[sel]=items.map(i=>({v:String(i[v]),l:String(i[l]??"")}));$(sel+"f").value="";draw(sel)}
 function draw(sel){const q=val(sel+"f").toLowerCase();const rows=(LISTS[sel]||[]).filter(r=>!q||r.l.toLowerCase().includes(q));
@@ -270,10 +268,10 @@ function draw(sel){const q=val(sel+"f").toLowerCase();const rows=(LISTS[sel]||[]
 function filt(sel){draw(sel)}
 function clearList(sel){LISTS[sel]=[];$(sel+"f").value="";$(sel).innerHTML=""}
 function pickedText(){const t=s=>$(s).selectedOptions.length?$(s).selectedOptions[0].text:"…";$("picked").textContent="Выбрано: "+t("mk")+" → "+t("md")+" → "+t("cr")}
-async function loadMakes(){clearList("mk");clearList("md");clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю марки…</p>';const j=await api("/api/call",{method:"getMakes",params:{carType:"PC"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("mk",j.data,"makeId","makeName")}
-async function loadModels(){pickedText();if(!val("mk"))return;clearList("md");clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю модели (до минуты — сервер PartsAPI бывает медленным)…</p>';const j=await api("/api/call",{method:"getModels",params:{carType:"PC",makeId:val("mk"),lang:"16"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("md",j.data.map(m=>({id:m.modelId,n:m.modelName||m.shortModelName||m.modelname})),"id","n")}
-async function loadCars(){pickedText();if(!val("md"))return;clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю модификации…</p>';const j=await api("/api/call",{method:"getCars",params:{carType:"PC",makeId:val("mk"),modelId:val("md")}});$("carmsg").innerHTML=showCall(j);
- if(Array.isArray(j.data))fill("cr",j.data.map(c=>({id:c.CAR_ID,n:`${c.CAR_NAME}, ${c.CAPACITY||""}, ${Math.round(c.POWER_PS||0)} л.с. [CAR_ID ${c.CAR_ID}]`})),"id","n")}
+async function loadMakes(){clearList("mk");clearList("md");clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю марки…</p>';const j=await api("/api/call",{method:"toMakes",params:{}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("mk",j.data,"id","name")}
+async function loadModels(){pickedText();if(!val("mk"))return;clearList("md");clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю модели (до минуты — сервер PartsAPI бывает медленным)…</p>';const j=await api("/api/call",{method:"toModels",params:{brandId:val("mk")}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("md",j.data.map(m=>({id:m.id,n:m.name+(m.yearFrom?` (${m.yearFrom}–${m.yearTo||"н.в."})`:"")})),"id","n")}
+async function loadCars(){pickedText();if(!val("md"))return;clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю модификации…</p>';const j=await api("/api/call",{method:"toTypes",params:{modelId:val("md")}});$("carmsg").innerHTML=showCall(j);
+ const m=j.data&&j.data.modifications;if(Array.isArray(m))fill("cr",m.map(c=>({id:c.id,n:`${c.fullName||c.name}, ${c.engineCode||""} [typeId ${c.id}]`})),"id","n")}
 function checkSel(){pickedText();if(!val("cr")){$("carout").innerHTML='<div class="bad">Выберите марку, модель и модификацию.</div>';return}$("carout").innerHTML='<div id="carchk"></div>';checkId(val("cr"),"carchk")}
 async function parseCode(){const j=await api("/api/parse",{text:$("code").value});
  if(!j.items.length){$("codeparsed").innerHTML='<div class="bad">Не нашёл адрес api.partsapi.ru с параметром method. Вставьте ссылку или код целиком.</div>';return}

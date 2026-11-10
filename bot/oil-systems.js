@@ -72,6 +72,7 @@ function buildSystems({ fill, approvals, items, products }) {
   }
   for (const a of approvals || []) {
     const g = touch(systemOf(a.fluid), a.fluid);
+    if (a.kind === 'viscosity') { viscIn(a.approval).forEach(v => g.viscosities.add(v)); g.seen = true; continue; }
     if (!g.approvals.includes(a.approval)) g.approvals.push(a.approval);
     viscIn(a.approval).forEach(v => g.viscosities.add(v));
   }
@@ -83,18 +84,19 @@ function buildSystems({ fill, approvals, items, products }) {
 
   const out = [];
   for (const g of map.values()) {
-    if (!g.volumes.length && !g.specs.length && !g.approvals.length && !g.items.length) continue;
+    if (!g.volumes.length && !g.specs.length && !g.approvals.length && !g.items.length && !g.seen) continue;
     const tokens = [...g.approvals, ...g.items.map(i => i.spec_group)].map(normSpec).filter(Boolean);
     const sysVisc = g.viscosities;
     const mine = (products || []).filter(p => productFitsSystem(p, g.key, g.kinds));
     const exact = [], byVisc = [], byType = [];
     for (const p of mine) {
       const pv = viscIn(p.viscosity || p.name)[0] || null;
-      const matched = (p.approvals || []).filter(a => { const n = normSpec(a); return n.length >= 4 && tokens.some(t => t === n || t.includes(n)); });
+      const matched = (p.approvals || []).filter(a => { const n = normSpec(a); return n.length >= 2 && tokens.some(t => t === n || (n.length >= 3 && t.includes(n))); });
       const viscOk = sysVisc.size === 0 || (pv && sysVisc.has(pv));
       const row = { id: p.id, name: p.name, volume: p.volume, viscosity: p.viscosity || null, price: Number(p.price), matched_approvals: matched };
       if (matched.length && viscOk) exact.push(row);
       else if (sysVisc.size && pv && sysVisc.has(pv)) byVisc.push(row);
+      else if (matched.length && g.key !== 'engine') byType.push(row);   // допуск совпал, вязкость чуть другая (для трансмиссий допустимо) — только с пометкой «сверьте»
       else if (sysVisc.size === 0 && g.key !== 'engine') byType.push(row);
     }
     const rank = (a, b) => b.matched_approvals.length - a.matched_approvals.length || a.price - b.price;

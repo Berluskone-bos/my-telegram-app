@@ -234,6 +234,21 @@ CREATE TABLE IF NOT EXISTS api_request_log (
 CREATE INDEX IF NOT EXISTS idx_api_log_created ON api_request_log (created_at);
 
 
+CREATE TABLE IF NOT EXISTS to_vehicles (
+  type_id         BIGINT PRIMARY KEY,       -- typeId из toTypes (каталог ТО PartsAPI)
+  brand_id        INTEGER,
+  brand_name      VARCHAR(100) NOT NULL DEFAULT '',
+  model_id        INTEGER,
+  model_name      VARCHAR(200) NOT NULL DEFAULT '',
+  full_name       VARCHAR(250),
+  engine_code     VARCHAR(50),
+  engine_capacity NUMERIC(4,1),
+  horse_power     INTEGER,
+  fuel            VARCHAR(50),
+  start_date      DATE,
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS vehicles (
   car_id        BIGINT PRIMARY KEY,       -- CAR_ID из getCars / carId из VINdecode
   make_id       INTEGER,
