@@ -44,13 +44,13 @@ const Oil = {
         document.getElementById('oilPaneVin').hidden = t !== 'vin';
         document.getElementById('oilPaneCar').hidden = t !== 'car';
         document.getElementById('oilResult').innerHTML = '';
-        if (t === 'car' && document.getElementById('oilMake').options.length < 2) this.loadMakes();
+        if (t === 'car' && document.getElementById('oilMake').options.length < 2) this._makes = this.loadMakes();
     },
 
     async api(path) {
         const r = await fetch(`${OIL_API}${path}`);
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error || 'Сервис подбора временно недоступен. Попробуйте позже.');
+        if (!r.ok) { const err = new Error(j.error || 'Сервис подбора временно недоступен. Попробуйте позже.'); err.notFound = r.status === 404; throw err; }
         return j;
     },
 
@@ -110,7 +110,8 @@ const Oil = {
         const vin = document.getElementById('oilVin').value.trim().toUpperCase();
         document.getElementById('oilVin').value = vin;
         if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return this.fail(new Error('VIN должен состоять из 17 символов: латиница и цифры, без букв I, O, Q.'));
-        try { this.busy('Подбираем масло…'); this.show(await this.api(`/api/oil/by-vin?vin=${encodeURIComponent(vin)}`)); } catch (e) { this.fail(e); }
+        try { this.busy('Подбираем масло…'); this.show(await this.api(`/api/oil/by-vin?vin=${encodeURIComponent(vin)}`)); }
+        catch (e) { e.notFound ? this.vinNotFound(vin, e.message) : this.fail(e); }
     },
 
     async byCar() {
@@ -119,26 +120,62 @@ const Oil = {
         try { this.busy('Подбираем масло…'); this.show(await this.api(`/api/oil/by-car?car_id=${encodeURIComponent(id)}`)); } catch (e) { this.fail(e); }
     },
 
+    prod(p, note) {
+        return `<div class="oil-prod"><div class="oil-prod-info"><div class="oil-prod-name">${esc(p.name)}</div>
+              <div class="oil-prod-meta">${esc(p.volume || '')}${p.matched_approvals && p.matched_approvals.length ? ' · допуски: ' + esc(p.matched_approvals.slice(0, 3).join(', ')) : ''}</div></div>
+              <div class="oil-prod-buy"><b>${Number(p.price).toLocaleString('ru-RU')} ₽</b>
+              <button class="oil-add" onclick="App.addToCart(${Number(p.id)}); this.textContent='В корзине'">В корзину</button></div></div>`;
+    },
+
+    system(s) {
+        const p = s.products || {};
+        const kinds = (s.kinds || []).length ? ` · ${esc(s.kinds.join(', '))}` : '';
+        const group = (list, title) => list && list.length ? `<div class="oil-group">${esc(title)}</div>${list.map(x => this.prod(x)).join('')}` : '';
+        const any = (p.exact || []).length + (p.by_viscosity || []).length + (p.by_type || []).length;
+        return `<section class="oil-sys">
+            <div class="oil-sys-title">${esc(s.title)}<span>${kinds}</span></div>
+            ${(s.volumes || []).length ? `<div class="oil-chips">${s.volumes.map(v => `<span class="oil-chip"><i>${esc(v.label)}</i> <b>${esc(v.value)} ${esc(v.unit)}</b></span>`).join('')}</div>` : ''}
+            ${(s.viscosities || []).length ? `<div class="oil-line"><span>Вязкость</span><b>${s.viscosities.map(esc).join(', ')}</b></div>` : ''}
+            ${(s.specs || []).length ? `<div class="oil-line"><span>Спецификация</span><b>${s.specs.map(esc).join(', ')}</b></div>` : ''}
+            ${(s.approvals || []).length ? `<div class="oil-line"><span>Допуски</span><b>${s.approvals.map(esc).join(', ')}</b></div>` : ''}
+            ${(s.items || []).length ? `<div class="oil-line"><span>Рекомендует производитель</span><b>${s.items.map(i => esc(i.spec_group)).join('; ')}</b></div>` : ''}
+            ${group(p.exact, 'Подходит по допуску')}
+            ${group(p.by_viscosity, 'Подходит по вязкости — сверьте допуск с руководством')}
+            ${group(p.by_type, 'Подходит по типу — сверьте допуск с руководством')}
+            ${any ? '' : '<p class="oil-note">В каталоге такой жидкости пока нет. Напишите нам, и мы подберём вручную.</p>'}
+        </section>`;
+    },
+
     show(r) {
         const v = r.vehicle, el = document.getElementById('oilResult');
-        const engineFill = (r.fill_volumes || []).filter(f => /моторн/i.test(f.title) && f.unit === 'л');
+        const name = String(v.model_name || '').toUpperCase().startsWith(String(v.make_name || '').toUpperCase()) ? v.model_name : `${v.make_name} ${v.model_name}`;
         const years = [v.year_from, v.year_to].filter(Boolean).map(s => s.slice(0, 4)).join('–') + (v.year_from && !v.year_to ? '–н.в.' : '');
-        const visc = (r.allowed_viscosity || []).map(s => s.replace(/W(\d)/, 'W-$1'));
-        const ours = r.our_products || [];
         el.innerHTML = `
-          <div class="oil-car"><div class="oil-car-name">${esc(v.make_name)} ${esc(v.model_name)}</div>
+          <div class="oil-car"><div class="oil-car-name">${esc(name)}</div>
             <div class="oil-car-sub">${esc(v.modification || '')}${years ? ' · ' + esc(years) : ''}</div></div>
-          <div class="oil-facts">
-            ${engineFill.length ? `<div class="oil-fact"><span>Объём масла в двигателе</span><b>${engineFill.map(f => esc(f.value_text) + ' л' + (f.title.includes('без') ? ' (без фильтра)' : ' (с фильтром)')).join(', ')}</b></div>` : ''}
-            ${visc.length ? `<div class="oil-fact"><span>Допустимая вязкость</span><b>${visc.map(esc).join(', ')}</b></div>` : ''}
-          </div>
-          ${ours.length ? `<div class="oil-sub">Подходит из нашего каталога</div>` + ours.map(p => `
-            <div class="oil-prod"><div class="oil-prod-info"><div class="oil-prod-name">${esc(p.name)}</div>
-              <div class="oil-prod-meta">${esc(p.volume || '')} · допуски: ${esc((p.matched_approvals || []).slice(0, 3).join(', '))}</div></div>
-              <div class="oil-prod-buy"><b>${Number(p.price).toLocaleString('ru-RU')} ₽</b>
-              <button class="oil-add" onclick="App.addToCart(${Number(p.id)}); this.textContent='В корзине'">В корзину</button></div></div>`).join('')
-          : `<p class="oil-note">Подходящих масел из каталога для этой машины пока нет. Напишите нам, и мы подберём вручную.</p>`}
-          <p class="oil-disclaimer">Подбор справочный. Перед покупкой сверьтесь с руководством по эксплуатации автомобиля.</p>`;
+          ${(r.systems || []).length ? r.systems.map(s => this.system(s)).join('') : '<p class="oil-note">Для этой модификации данных о жидкостях нет. Напишите нам, и мы подберём вручную.</p>'}
+          <p class="oil-disclaimer">Подбор справочный: спецификации могут меняться. Перед покупкой сверьтесь с руководством по эксплуатации автомобиля.</p>`;
+    },
+
+    // Если VIN не найден: определяем марку по коду производителя и переходим к ручному выбору
+    WMI: { Z94: 'HYUNDAI', KMH: 'HYUNDAI', XWE: 'KIA', KNA: 'KIA', KND: 'KIA', Z8N: 'NISSAN', JN1: 'NISSAN', XTA: 'LADA', X7L: 'RENAULT', VF1: 'RENAULT',
+           XW8: 'VOLKSWAGEN', WVW: 'VOLKSWAGEN', TMB: 'SKODA', WAU: 'AUDI', WBA: 'BMW', WBS: 'BMW', WDB: 'MERCEDES-BENZ', WDD: 'MERCEDES-BENZ', Z6F: 'FORD',
+           JTD: 'TOYOTA', JTM: 'TOYOTA', JTN: 'TOYOTA', JHM: 'HONDA', JMZ: 'MAZDA' },
+
+    async vinNotFound(vin, message) {
+        const make = this.WMI[vin.slice(0, 3)];
+        document.getElementById('oilResult').innerHTML = `<p class="oil-error">${esc(message)}</p>
+            <button class="oil-btn oil-btn-light" onclick="Oil.toManual('${esc(make || '')}')">Выбрать по марке и модели${make ? ' (' + esc(make) + ')' : ''}</button>`;
+    },
+
+    async toManual(make) {
+        this.setTab('car');
+        if (this._makes) await this._makes;
+        if (make) {
+            const sel = document.getElementById('oilMake');
+            const opt = [...sel.options].find(o => o.text.toUpperCase() === make);
+            if (opt) { sel.value = opt.value; await this.loadModels(); }
+        }
     }
 };
 
