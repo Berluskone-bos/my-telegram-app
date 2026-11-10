@@ -131,7 +131,7 @@ const Oil = {
         const p = s.products || {};
         const kinds = (s.kinds || []).length ? ` · ${esc(s.kinds.join(', '))}` : '';
         const group = (list, title) => list && list.length ? `<div class="oil-group">${esc(title)}</div>${list.map(x => this.prod(x)).join('')}` : '';
-        const any = (p.exact || []).length + (p.by_viscosity || []).length + (p.by_type || []).length;
+        const any = (p.exact || []).length + (p.by_viscosity || []).length + (p.by_type || []).length + (p.catalog || []).length;
         return `<section class="oil-sys">
             <div class="oil-sys-title">${esc(s.title)}<span>${kinds}</span></div>
             ${(s.volumes || []).length ? `<div class="oil-chips">${s.volumes.map(v => `<span class="oil-chip"><i>${esc(v.label)}</i> <b>${esc(v.value)} ${esc(v.unit)}</b></span>`).join('')}</div>` : ''}
@@ -139,6 +139,7 @@ const Oil = {
             ${(s.specs || []).length ? `<div class="oil-line"><span>Спецификация</span><b>${s.specs.map(esc).join(', ')}</b></div>` : ''}
             ${(s.approvals || []).length ? `<div class="oil-line"><span>Допуски</span><b>${s.approvals.map(esc).join(', ')}</b></div>` : ''}
             ${(s.items || []).length ? `<div class="oil-line"><span>Рекомендует производитель</span><b>${s.items.map(i => esc(i.spec_group)).join('; ')}</b></div>` : ''}
+            ${group(p.catalog, 'Есть в магазине — допуск и вязкость сверьте с руководством')}
             ${group(p.exact, 'Подходит по допуску')}
             ${group(p.by_viscosity, 'Подходит по вязкости — сверьте допуск с руководством')}
             ${group(p.by_type, 'Подходит по типу — сверьте допуск с руководством')}
@@ -148,13 +149,23 @@ const Oil = {
 
     show(r) {
         const v = r.vehicle, el = document.getElementById('oilResult');
-        const name = String(v.model_name || '').toUpperCase().startsWith(String(v.make_name || '').toUpperCase()) ? v.model_name : `${v.make_name} ${v.model_name}`;
+        let model = String(v.model_name || '');
+        const mod = String(v.modification || '');
+        if (mod && model.endsWith(mod)) model = model.slice(0, -mod.length).trim();   // модификация уже в названии
+        const name = model.toUpperCase().startsWith(String(v.make_name || '').toUpperCase()) ? model : `${v.make_name} ${model}`;
         const years = [v.year_from, v.year_to].filter(Boolean).map(s => s.slice(0, 4)).join('–') + (v.year_from && !v.year_to ? '–н.в.' : '');
         el.innerHTML = `
           <div class="oil-car"><div class="oil-car-name">${esc(name)}</div>
             <div class="oil-car-sub">${esc(v.modification || '')}${years ? ' · ' + esc(years) : ''}</div></div>
+          ${r.no_data ? `<div class="oil-nodata"><b>Для этой модификации в базе нет объёмов и допусков.</b><br>Сколько и что заливать, уточните в руководстве по эксплуатации или напишите нам — подберём вручную. Ниже — что есть в магазине.</div>` : ''}
           ${(r.systems || []).length ? r.systems.map(s => this.system(s)).join('') : '<p class="oil-note">Для этой модификации данных о жидкостях нет. Напишите нам, и мы подберём вручную.</p>'}
+          ${r.no_data && r.diagnostics ? this.diag(r.diagnostics) : ''}
           <p class="oil-disclaimer">Подбор справочный: спецификации могут меняться. Перед покупкой сверьтесь с руководством по эксплуатации автомобиля.</p>`;
+    },
+
+    diag(d) {
+        const row = x => `${esc(x.method)}: ${esc(x.state)}${x.shape ? ' (' + esc(x.shape) + ')' : ''}`;
+        return `<p class="oil-diag">Справка для поддержки: машина № ${esc(d.car_id)}. ${row(d.fill)}; ${row(d.dopusk)}.</p>`;
     },
 
     // Если VIN не найден: определяем марку по коду производителя и переходим к ручному выбору
