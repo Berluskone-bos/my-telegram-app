@@ -13,7 +13,7 @@
  - сервер слушает только 127.0.0.1 и требует случайный токен запуска;
  - используется только стандартная библиотека Python, ничего устанавливать не нужно.
 """
-import json, os, re, secrets, sys, threading, time, webbrowser
+import json, os, re, secrets, shutil, subprocess, sys, threading, time, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlparse
@@ -48,6 +48,39 @@ def log(line):
         REPORT.append(mask(line))
 
 
+def fetch_text(url, method):
+    """GET с повторами: PartsAPI иногда обрывает соединение (SSL EOF). 3 попытки, затем запасной способ через curl."""
+    last, tries = None, 0
+    for i in range(3):
+        tries += 1
+        with LOCK:
+            COUNTS[method] = COUNTS.get(method, 0) + 1
+        try:
+            with urlopen(Request(url, headers={'User-Agent': 'partsapi-tester/1.0', 'Connection': 'close'}), timeout=40) as r:
+                return r.status, r.read().decode('utf-8', 'replace'), tries, 'python', None
+        except HTTPError as e:
+            return e.code, e.read().decode('utf-8', 'replace'), tries, 'python', None
+        except (URLError, TimeoutError, OSError) as e:
+            last = e
+            log(f'{method}: попытка {tries} из 3 не удалась: {e}')
+            time.sleep(1 + i)
+    exe = shutil.which('curl') or shutil.which('curl.exe')
+    if exe:
+        tries += 1
+        with LOCK:
+            COUNTS[method] = COUNTS.get(method, 0) + 1
+        try:
+            p = subprocess.run([exe, '-sS', '--max-time', '40', '-w', '\n%{http_code}', url], capture_output=True, timeout=60)
+            out = p.stdout.decode('utf-8', 'replace')
+            body, _, code = out.rpartition('\n')
+            if code.strip().isdigit() and int(code) > 0:
+                return int(code), body, tries, 'curl', None
+            last = p.stderr.decode('utf-8', 'replace').strip() or last
+        except (OSError, subprocess.SubprocessError) as e:
+            last = e
+    return None, '', tries, None, last
+
+
 def call(method, params, key=None):
     """Один запрос к PartsAPI. Возвращает словарь с кодом, временем и ответом."""
     key = key or KEYS.get(method)
@@ -56,26 +89,21 @@ def call(method, params, key=None):
     q = {'method': method, 'key': key, **{k: v for k, v in params.items() if k not in ('method', 'key') and v not in (None, '')}}
     url = BASE + '?' + urlencode(q)
     t0 = time.time()
-    with LOCK:
-        COUNTS[method] = COUNTS.get(method, 0) + 1
-    try:
-        with urlopen(Request(url, headers={'User-Agent': 'partsapi-tester/1.0'}), timeout=30) as r:
-            body = r.read().decode('utf-8', 'replace')
-            status = r.status
-    except HTTPError as e:
-        body, status = e.read().decode('utf-8', 'replace'), e.code
-    except (URLError, TimeoutError, OSError) as e:
-        res = {'ok': False, 'url': mask(url), 'error': f'Нет связи с PartsAPI: {e}'}
-        log(f'{method} {mask(url)} -> ОШИБКА СЕТИ {e}')
+    status, body, tries, via, err = fetch_text(url, method)
+    if status is None:
+        hint = ('Сервер PartsAPI несколько раз оборвал соединение (SSL EOF). Это сбой на их стороне или в вашей сети: '
+                'попробуйте через минуту, с другого интернета (например, мобильного) или при отключённом антивирусе/VPN.')
+        res = {'ok': False, 'url': mask(url), 'tries': tries, 'error': mask(f'Нет связи с PartsAPI после {tries} попыток: {err}. {hint}')}
+        log(f'{method} {mask(url)} -> ОШИБКА СЕТИ после {tries} попыток: {mask(err)}')
         return res
     ms = int((time.time() - t0) * 1000)
     try:
         data = json.loads(body)
     except ValueError:
         data = None
-    res = {'ok': status == 200 and data is not None, 'status': status, 'ms': ms, 'url': mask(url), 'data': data,
+    res = {'ok': status == 200 and data is not None, 'status': status, 'ms': ms, 'url': mask(url), 'data': data, 'tries': tries, 'via': via,
            'text': None if data is not None else mask(body[:2000]), 'shape': shape(data)}
-    log(f'{method} {mask(url)} -> HTTP {status}, {ms} мс, {res["shape"]}')
+    log(f'{method} {mask(url)} -> HTTP {status}, {ms} мс, {res["shape"]}' + (f', попыток: {tries}' if tries > 1 else '') + (', через curl' if via == 'curl' else ''))
     return res
 
 
@@ -120,8 +148,8 @@ def check_id(car_id):
     """Главная проверка: объёмы заправки и допуски для одного номера машины."""
     f = call('GetFillVolumes', {'carId': car_id})
     d = call('toDopusk', {'typeId': car_id})
-    out = {'car_id': car_id, 'fill_call': {k: f.get(k) for k in ('ok', 'status', 'ms', 'url', 'shape', 'error', 'text')},
-           'dop_call': {k: d.get(k) for k in ('ok', 'status', 'ms', 'url', 'shape', 'error', 'text')}}
+    keep = ('ok', 'status', 'ms', 'url', 'shape', 'error', 'text', 'tries', 'via')
+    out = {'car_id': car_id, 'fill_call': {k: f.get(k) for k in keep}, 'dop_call': {k: d.get(k) for k in keep}}
     out['fill'] = summarize_fill(f.get('data')) if f.get('ok') else []
     out['dopusk'] = summarize_dop(d.get('data')) if d.get('ok') else {'specifications': [], 'oils': []}
     n_f, n_s, n_o = len(out['fill']), len(out['dopusk']['specifications']), len(out['dopusk']['oils'])
@@ -187,7 +215,7 @@ h3{margin:18px 0 4px;color:var(--navy)}details{margin-top:10px}
 
 <section id="t-car"><div class="row"><div><label>Марка</label><select id="mk" onchange="loadModels()"></select></div>
 <div><label>Модель</label><select id="md" onchange="loadCars()"></select></div></div>
-<label>Модификация</label><select id="cr"></select>
+<div id="carmsg"></div><label>Модификация</label><select id="cr"></select>
 <button class="go" onclick="loadMakes()">Загрузить марки</button> <button class="go alt" onclick="checkSel()">Проверить объёмы и допуски</button>
 <div id="carout"></div></section>
 
@@ -214,7 +242,7 @@ $("keyf").innerHTML=M.map(m=>`<label>${m}</label><input type="password" id="k_${
 $("one").onchange=()=>{ if($("one").checked){const f=M.map(m=>val("k_"+m)).find(Boolean)||"";M.forEach(m=>$("k_"+m).value=f)} };
 async function saveKeys(){const k={};M.forEach(m=>{const v=val("k_"+m);if(v)k[m]=v});if($("one").checked){const f=Object.values(k)[0];if(f)M.forEach(m=>k[m]=f)}
  const j=await api("/api/keys",{keys:k});$("keymsg").innerHTML=`<div class="ok">Сохранено ключей: ${j.saved.length} (${esc(j.saved.map(x=>x[0]+": "+x[1]).join(", "))})</div>`}
-function showCall(c){const cls=c.ok?"ok":"bad";return `<div class="${cls}">${c.ok?"Ответ получен":"Проблема"}: ${esc(c.error||("HTTP "+c.status+", "+c.ms+" мс, "+c.shape))}</div>`}
+function showCall(c){const cls=c.ok?"ok":"bad";const extra=(c.tries>1?` · попыток: ${c.tries}`:"")+(c.via==="curl"?" · через curl":"");return `<div class="${cls}">${c.ok?"Ответ получен":"Проблема"}: ${esc(c.error||("HTTP "+c.status+", "+c.ms+" мс, "+c.shape))}${esc(extra)}</div>`}
 function table(rows,cols){if(!rows.length)return'<p class="note">пусто</p>';return"<table><tr>"+cols.map(c=>`<th>${c[1]}</th>`).join("")+"</tr>"+rows.map(r=>"<tr>"+cols.map(c=>`<td>${esc(r[c[0]])}</td>`).join("")+"</tr>").join("")+"</table>"}
 function renderCheck(o){let h=`<div class="${/Данные есть/.test(o.verdict)?"ok":/пустой/.test(o.verdict)?"warn":"bad"}"><b>${esc(o.verdict)}</b></div>`;
  h+=`<h3>GetFillVolumes (carId=${esc(o.car_id)})</h3>`+showCall(o.fill_call)+table(o.fill,[["title","Что"],["info","Уточнение"],["value","Объём"],["unit","Ед."]]);
@@ -230,9 +258,9 @@ async function byVin(){const v=val("vin").toUpperCase();if(!/^[A-HJ-NPR-Z0-9]{17
  if(r){h+=`<div class="ok"><b>${esc(r.manuName)} ${esc(r.modelName)} ${esc(r.typeName)}</b><br>carId: ${esc(r.carId)}, typeNumber: ${esc(r.typeNumber)}, годы: ${esc(r.yearOfConstrFrom)}–${esc(r.yearOfConstrTo)}</div><div id="vinchk"></div>`;$("vinout").innerHTML=h;await checkId(String(r.carId||r.typeNumber),"vinchk")}
  else{h+=`<div class="warn">PartsAPI не знает этот VIN${/^Z94|^XTA|^X7|^XW|^XU/.test(v)?" (российская сборка — это ожидаемо)":""}. Выберите машину на вкладке «По марке и модели».</div><details><summary>Сырой ответ</summary><pre>${esc(JSON.stringify(j.data,null,2)||j.text)}</pre></details>`;$("vinout").innerHTML=h}}
 function fill(sel,items,v,l,ph){$(sel).innerHTML=`<option value="">${ph}</option>`+items.map(i=>`<option value="${esc(i[v])}">${esc(i[l])}</option>`).join("")}
-async function loadMakes(){const j=await api("/api/call",{method:"getMakes",params:{carType:"PC"}});$("carout").innerHTML=showCall(j);if(Array.isArray(j.data))fill("mk",j.data,"makeId","makeName","Выберите марку")}
-async function loadModels(){if(!val("mk"))return;const j=await api("/api/call",{method:"getModels",params:{carType:"PC",makeId:val("mk"),lang:"16"}});$("carout").innerHTML=showCall(j);if(Array.isArray(j.data))fill("md",j.data.map(m=>({id:m.modelId,n:m.modelName||m.shortModelName||m.modelname})),"id","n","Выберите модель")}
-async function loadCars(){if(!val("md"))return;const j=await api("/api/call",{method:"getCars",params:{carType:"PC",makeId:val("mk"),modelId:val("md")}});$("carout").innerHTML=showCall(j);
+async function loadMakes(){$("carmsg").innerHTML='<p class="note">Загружаю марки…</p>';const j=await api("/api/call",{method:"getMakes",params:{carType:"PC"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("mk",j.data,"makeId","makeName","Выберите марку")}
+async function loadModels(){if(!val("mk"))return;$("carmsg").innerHTML='<p class="note">Загружаю модели (до 40 секунд)…</p>';const j=await api("/api/call",{method:"getModels",params:{carType:"PC",makeId:val("mk"),lang:"16"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("md",j.data.map(m=>({id:m.modelId,n:m.modelName||m.shortModelName||m.modelname})),"id","n","Выберите модель")}
+async function loadCars(){if(!val("md"))return;$("carmsg").innerHTML='<p class="note">Загружаю модификации…</p>';const j=await api("/api/call",{method:"getCars",params:{carType:"PC",makeId:val("mk"),modelId:val("md")}});$("carmsg").innerHTML=showCall(j);
  if(Array.isArray(j.data))fill("cr",j.data.map(c=>({id:c.CAR_ID,n:`${c.CAR_NAME}, ${c.CAPACITY||""}, ${Math.round(c.POWER_PS||0)} л.с. [CAR_ID ${c.CAR_ID}]`})),"id","n","Выберите модификацию")}
 function checkSel(){if(!val("cr")){$("carout").innerHTML='<div class="bad">Выберите марку, модель и модификацию.</div>';return}$("carout").innerHTML='<div id="carchk"></div>';checkId(val("cr"),"carchk")}
 async function parseCode(){const j=await api("/api/parse",{text:$("code").value});

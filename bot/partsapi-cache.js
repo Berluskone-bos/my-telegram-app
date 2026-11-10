@@ -59,7 +59,17 @@ async function cachedApi(pool, method, params = {}, ttlDays = TTL_DAYS[method] |
     let data;
     try {
       const url = 'https://api.partsapi.ru?' + new URLSearchParams({ method, key: requireKey(method), ...Object.fromEntries(clean) });
-      const res = await fetch(url);
+      // PartsAPI иногда обрывает соединение (SSL EOF) или отвечает 5xx: до 3 попыток с паузой
+      let res, lastErr;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          res = await fetch(url, { signal: AbortSignal.timeout(25000) });
+          if (res.status < 500) break;
+          lastErr = new Error(`HTTP ${res.status}`);
+        } catch (e) { lastErr = e; res = null; }
+        if (attempt < 3) await new Promise(r => setTimeout(r, 700 * attempt));
+      }
+      if (!res) throw lastErr;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       data = await res.json();
       await pool.query('INSERT INTO api_request_log (method, ok) VALUES ($1, true)', [method]);
