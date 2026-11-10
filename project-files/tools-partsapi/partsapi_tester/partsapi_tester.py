@@ -200,7 +200,8 @@ button.go{margin-top:12px;background:var(--navy);color:#fff;border:0;border-radi
 table{border-collapse:collapse;width:100%;margin-top:8px;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600}
 pre{background:#101B4D;color:#d8e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:340px;font-size:12.5px}
 .chip{display:inline-block;background:#E5F7FA;color:#00707F;border-radius:99px;padding:2px 10px;margin:2px 4px 2px 0;font-size:13px}
-h3{margin:18px 0 4px;color:var(--navy)}details{margin-top:10px}
+h3{margin:18px 0 4px;color:var(--navy)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}.cols select{height:260px;padding:4px;font-size:14px}.cols select option{padding:5px 6px;white-space:normal}.flt{margin-bottom:6px}details{margin-top:10px}
 </style></head><body>
 <header><b>Проверка PartsAPI</b><span>запросов в этом запуске: <i id="cnt">0</i> (лимит сайта — 50 в сутки на метод)</span></header>
 <main>
@@ -213,10 +214,15 @@ h3{margin:18px 0 4px;color:var(--navy)}details{margin-top:10px}
 <section id="t-vin"><label>VIN (17 символов)</label><input id="vin" maxlength="17" placeholder="Z94PF814DNR028869" style="text-transform:uppercase">
 <button class="go" onclick="byVin()">Найти машину по VIN</button><div id="vinout"></div></section>
 
-<section id="t-car"><div class="row"><div><label>Марка</label><select id="mk" onchange="loadModels()"></select></div>
-<div><label>Модель</label><select id="md" onchange="loadCars()"></select></div></div>
-<div id="carmsg"></div><label>Модификация</label><select id="cr"></select>
-<button class="go" onclick="loadMakes()">Загрузить марки</button> <button class="go alt" onclick="checkSel()">Проверить объёмы и допуски</button>
+<section id="t-car"><p class="note">Выберите по порядку: марка → модель → модификация. В каждом списке можно набрать часть названия, чтобы найти нужное.</p>
+<button class="go" onclick="loadMakes()">Загрузить марки</button><div id="carmsg"></div>
+<div class="cols">
+<div><label>1. Марка</label><input class="flt" id="mkf" placeholder="поиск, например HYUNDAI" oninput="filt('mk')"><select id="mk" size="9" onchange="loadModels()"></select></div>
+<div><label>2. Модель</label><input class="flt" id="mdf" placeholder="поиск, например CRETA" oninput="filt('md')"><select id="md" size="9" onchange="loadCars()"></select></div>
+<div><label>3. Модификация</label><input class="flt" id="crf" placeholder="поиск, например 1.6" oninput="filt('cr')"><select id="cr" size="9" onchange="pickedText()"></select></div>
+</div>
+<p class="note" id="picked"></p>
+<button class="go alt" onclick="checkSel()">Проверить объёмы и допуски</button>
 <div id="carout"></div></section>
 
 <section id="t-id"><label>Номер машины (CAR_ID из каталога / carId из VIN)</label><input id="cid" placeholder="например, 145603">
@@ -257,12 +263,18 @@ async function byVin(){const v=val("vin").toUpperCase();if(!/^[A-HJ-NPR-Z0-9]{17
  const r=j.data&&j.data.result&&j.data.result["0"];
  if(r){h+=`<div class="ok"><b>${esc(r.manuName)} ${esc(r.modelName)} ${esc(r.typeName)}</b><br>carId: ${esc(r.carId)}, typeNumber: ${esc(r.typeNumber)}, годы: ${esc(r.yearOfConstrFrom)}–${esc(r.yearOfConstrTo)}</div><div id="vinchk"></div>`;$("vinout").innerHTML=h;await checkId(String(r.carId||r.typeNumber),"vinchk")}
  else{h+=`<div class="warn">PartsAPI не знает этот VIN${/^Z94|^XTA|^X7|^XW|^XU/.test(v)?" (российская сборка — это ожидаемо)":""}. Выберите машину на вкладке «По марке и модели».</div><details><summary>Сырой ответ</summary><pre>${esc(JSON.stringify(j.data,null,2)||j.text)}</pre></details>`;$("vinout").innerHTML=h}}
-function fill(sel,items,v,l,ph){$(sel).innerHTML=`<option value="">${ph}</option>`+items.map(i=>`<option value="${esc(i[v])}">${esc(i[l])}</option>`).join("")}
-async function loadMakes(){$("carmsg").innerHTML='<p class="note">Загружаю марки…</p>';const j=await api("/api/call",{method:"getMakes",params:{carType:"PC"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("mk",j.data,"makeId","makeName","Выберите марку")}
-async function loadModels(){if(!val("mk"))return;$("carmsg").innerHTML='<p class="note">Загружаю модели (до 40 секунд)…</p>';const j=await api("/api/call",{method:"getModels",params:{carType:"PC",makeId:val("mk"),lang:"16"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("md",j.data.map(m=>({id:m.modelId,n:m.modelName||m.shortModelName||m.modelname})),"id","n","Выберите модель")}
-async function loadCars(){if(!val("md"))return;$("carmsg").innerHTML='<p class="note">Загружаю модификации…</p>';const j=await api("/api/call",{method:"getCars",params:{carType:"PC",makeId:val("mk"),modelId:val("md")}});$("carmsg").innerHTML=showCall(j);
- if(Array.isArray(j.data))fill("cr",j.data.map(c=>({id:c.CAR_ID,n:`${c.CAR_NAME}, ${c.CAPACITY||""}, ${Math.round(c.POWER_PS||0)} л.с. [CAR_ID ${c.CAR_ID}]`})),"id","n","Выберите модификацию")}
-function checkSel(){if(!val("cr")){$("carout").innerHTML='<div class="bad">Выберите марку, модель и модификацию.</div>';return}$("carout").innerHTML='<div id="carchk"></div>';checkId(val("cr"),"carchk")}
+const LISTS={};
+function fill(sel,items,v,l){LISTS[sel]=items.map(i=>({v:String(i[v]),l:String(i[l]??"")}));$(sel+"f").value="";draw(sel)}
+function draw(sel){const q=val(sel+"f").toLowerCase();const rows=(LISTS[sel]||[]).filter(r=>!q||r.l.toLowerCase().includes(q));
+ $(sel).innerHTML=rows.map(r=>`<option value="${esc(r.v)}">${esc(r.l)}</option>`).join("");if(!rows.length)$(sel).innerHTML='<option disabled>— ничего не найдено —</option>'}
+function filt(sel){draw(sel)}
+function clearList(sel){LISTS[sel]=[];$(sel+"f").value="";$(sel).innerHTML=""}
+function pickedText(){const t=s=>$(s).selectedOptions.length?$(s).selectedOptions[0].text:"…";$("picked").textContent="Выбрано: "+t("mk")+" → "+t("md")+" → "+t("cr")}
+async function loadMakes(){clearList("mk");clearList("md");clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю марки…</p>';const j=await api("/api/call",{method:"getMakes",params:{carType:"PC"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("mk",j.data,"makeId","makeName")}
+async function loadModels(){pickedText();if(!val("mk"))return;clearList("md");clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю модели (до минуты — сервер PartsAPI бывает медленным)…</p>';const j=await api("/api/call",{method:"getModels",params:{carType:"PC",makeId:val("mk"),lang:"16"}});$("carmsg").innerHTML=showCall(j);if(Array.isArray(j.data))fill("md",j.data.map(m=>({id:m.modelId,n:m.modelName||m.shortModelName||m.modelname})),"id","n")}
+async function loadCars(){pickedText();if(!val("md"))return;clearList("cr");$("carmsg").innerHTML='<p class="note">Загружаю модификации…</p>';const j=await api("/api/call",{method:"getCars",params:{carType:"PC",makeId:val("mk"),modelId:val("md")}});$("carmsg").innerHTML=showCall(j);
+ if(Array.isArray(j.data))fill("cr",j.data.map(c=>({id:c.CAR_ID,n:`${c.CAR_NAME}, ${c.CAPACITY||""}, ${Math.round(c.POWER_PS||0)} л.с. [CAR_ID ${c.CAR_ID}]`})),"id","n")}
+function checkSel(){pickedText();if(!val("cr")){$("carout").innerHTML='<div class="bad">Выберите марку, модель и модификацию.</div>';return}$("carout").innerHTML='<div id="carchk"></div>';checkId(val("cr"),"carchk")}
 async function parseCode(){const j=await api("/api/parse",{text:$("code").value});
  if(!j.items.length){$("codeparsed").innerHTML='<div class="bad">Не нашёл адрес api.partsapi.ru с параметром method. Вставьте ссылку или код целиком.</div>';return}
  window._items=j.items;$("codeparsed").innerHTML=j.items.map((it,i)=>`<h3>Найден запрос: ${esc(it.method)}</h3><label>Параметры (по одному в строке, без ключа)</label>
