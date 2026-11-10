@@ -23,3 +23,6 @@ npm-debug.log*
 bot/bot-log.txt
 .env
 bot/.env
+
+__pycache__/
+*.pyc
