@@ -28,3 +28,15 @@
 .oil-prod-buy { text-align: right; flex: none; }
 .oil-prod-buy b { display: block; font-family: var(--font-heading); color: #101B4D; margin-bottom: 6px; }
 .oil-add { height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: #00AFC7; color: #fff; font-weight: 700; cursor: pointer; }
+
+.oil-sys { border: 1px solid #E1E7EF; border-radius: 18px; padding: 14px; margin: 0 0 12px; }
+.oil-sys-title { font-family: var(--font-heading); font-weight: 800; font-size: 16px; color: #101B4D; margin-bottom: 10px; }
+.oil-sys-title span { font-weight: 600; font-size: 12px; color: #66708A; }
+.oil-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.oil-chip { background: #F4F7FA; border-radius: 10px; padding: 6px 10px; font-size: 12px; color: #66708A; }
+.oil-chip b { color: #101B4D; }
+.oil-chip i { font-style: normal; }
+.oil-line { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: #66708A; margin: 6px 0; }
+.oil-line b { color: #101B4D; font-weight: 700; word-break: break-word; }
+.oil-group { font-size: 12px; font-weight: 700; color: #101B4D; margin: 12px 0 6px; padding-left: 8px; border-left: 3px solid #00AFC7; }
+.oil-btn-light { background: #fff; color: #101B4D; border: 1.5px solid #101B4D; }
