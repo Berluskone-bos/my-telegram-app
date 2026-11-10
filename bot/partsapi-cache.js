@@ -30,7 +30,7 @@ const DAILY_LIMIT = Number(process.env.PARTSAPI_DAILY_LIMIT || 45);
 
 // Сколько дней хранить ответ. Справочники и VIN почти не меняются.
 const TTL_DAYS = { getMakes: 90, getModels: 90, getCars: 90, VINdecode: 365, GetFillVolumes: 180, toDopusk: 180 };
-const EMPTY_TTL_DAYS = 1; // пустой ответ храним недолго: вдруг данные появятся позже
+const EMPTY_TTL_DAYS = 1 / 24; // пустой ответ храним час: вдруг данные появятся позже (лимит запросов в сутки защищает ключ)
 
 const isEmptyResponse = (method, d) => {
   if (method === 'toDopusk') return !(d && (d.oils?.length || d.specifications?.length));
@@ -93,7 +93,7 @@ async function saveVehicleFromCarsRow(pool, c, extra = {}) {
      ON CONFLICT (car_id) DO UPDATE SET make_name = EXCLUDED.make_name, model_name = EXCLUDED.model_name,
        modification = EXCLUDED.modification, engine_type = EXCLUDED.engine_type, capacity = EXCLUDED.capacity,
        power_ps = EXCLUDED.power_ps, year_from = EXCLUDED.year_from, year_to = EXCLUDED.year_to`,
-    [c.CAR_ID, c.MAKE_ID, c.MAKE_NAME || extra.make_name || '', c.MODEL_ID, c.FULL_MODEL_NAME || c.MODEL_NAME || extra.model_name || '', c.CAR_NAME, c.ENGINE_TYPE,
+    [c.CAR_ID, c.MAKE_ID, c.MAKE_NAME || extra.make_name || '', c.MODEL_ID, extra.model_name || c.MODEL_NAME || c.FULL_MODEL_NAME || '', c.CAR_NAME, c.ENGINE_TYPE,
      c.CAPACITY, Number(c.POWER_PS) || null, toDate(c.YEAR_START), toDate(c.YEAR_END)]);
   return c.CAR_ID;
 }
@@ -202,7 +202,21 @@ async function getOilSelection(pool, carId) {
       WHERE p.active = true AND p.coming_soon = false
       GROUP BY p.id ORDER BY p.name`);
   const systems = buildSystems({ fill: fill.rows, approvals: appr.rows, items: oems.rows, products: prods.rows });
-  return { vehicle: v.rows[0], systems, fill_volumes: fill.rows, approvals: appr.rows, manufacturer_items: oems.rows };
+  const noData = !fill.rows.length && !appr.rows.length && !oems.rows.length;
+  return { vehicle: v.rows[0], systems, no_data: noData, diagnostics: await diagnose(pool, id, fill.rows.length, appr.rows.length, oems.rows.length),
+           fill_volumes: fill.rows, approvals: appr.rows, manufacturer_items: oems.rows };
+}
+
+// Краткая справка «что вернул PartsAPI» — без ключей и личных данных; помогает понять, почему данных нет
+async function diagnose(pool, id, fillRows, apprRows, itemRows) {
+  const shape = d => Array.isArray(d) ? `список из ${d.length}` : (d && typeof d === 'object' ? 'объект: ' + (Object.keys(d).slice(0, 6).join(', ') || 'пустой') : String(d).slice(0, 60));
+  const one = async (method, key) => {
+    const r = await pool.query('SELECT response, is_empty, fetched_at FROM api_cache WHERE cache_key = $1', [`${method}|${key}`]);
+    if (!r.rows.length) return { method, state: 'нет в кэше' };
+    return { method, state: r.rows[0].is_empty ? 'PartsAPI вернул пусто' : 'данные получены', at: r.rows[0].fetched_at, shape: shape(r.rows[0].response) };
+  };
+  return { car_id: id, fill: await one('GetFillVolumes', `carId=${id}`), dopusk: await one('toDopusk', `typeId=${id}`),
+           saved: { fill: fillRows, approvals: apprRows, items: itemRows } };
 }
 
 async function requestsToday(pool) {

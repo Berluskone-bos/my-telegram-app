@@ -55,7 +55,7 @@ function productFitsSystem(p, key, kinds) {
       }
       return true;
     }
-    case 'axle':     return cat === 'transmission' || /gl-?[45]|трансм|редуктор|мост/.test(name);
+    case 'axle':     return !/atf|dexron|mercon|cvt|dsg|dct/.test(name) && (cat === 'transmission' || /gl-?[45]|трансм|редуктор|мост/.test(name));
     default:         return false;
   }
 }
@@ -106,6 +106,22 @@ function buildSystems({ fill, approvals, items, products }) {
       viscosities: [...sysVisc].map(v => v.replace(/W(\d)/, 'W-$1')),
       products: { exact: exact.slice(0, 6), by_viscosity: byVisc.slice(0, 6), by_type: byType.slice(0, 6) },
     });
+  }
+  return out.length ? out : fallbackSystems(products);
+}
+
+// В базе PartsAPI нет данных по этой машине: показываем, что есть в магазине по каждой системе.
+// Совпадение с машиной НЕ утверждаем — только «есть в магазине», допуск и вязкость сверяет клиент.
+function fallbackSystems(products) {
+  const out = [];
+  for (const s of SYSTEMS) {
+    if (s.key === 'ac' || s.key === 'other') continue;
+    const mine = (products || []).filter(p => productFitsSystem(p, s.key, new Set()))
+      .map(p => ({ id: p.id, name: p.name, volume: p.volume, viscosity: p.viscosity || null, price: Number(p.price), matched_approvals: [] }))
+      .sort((a, b) => a.price - b.price).slice(0, 6);
+    if (!mine.length) continue;
+    out.push({ key: s.key, title: s.title, no_data: true, kinds: [], volumes: [], specs: [], approvals: [], items: [], viscosities: [],
+               products: { exact: [], by_viscosity: [], by_type: [], catalog: mine } });
   }
   return out;
 }
