@@ -40,3 +40,6 @@
 .oil-line b { color: #101B4D; font-weight: 700; word-break: break-word; }
 .oil-group { font-size: 12px; font-weight: 700; color: #101B4D; margin: 12px 0 6px; padding-left: 8px; border-left: 3px solid #00AFC7; }
 .oil-btn-light { background: #fff; color: #101B4D; border: 1.5px solid #101B4D; }
+
+.oil-nodata { background: #FFF6E5; border: 1px solid #F1D9A8; color: #6B4A00; border-radius: 14px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin: 0 0 12px; }
+.oil-diag { font-size: 11px; color: #98A1B6; margin: 4px 0 0; word-break: break-word; }
