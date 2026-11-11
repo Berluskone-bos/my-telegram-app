@@ -15,7 +15,7 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     const id = v => { const n = Number(v); if (!Number.isInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true }); return n; };
 
     // Основной путь — каталог ТО PartsAPI: марка -> модель -> модификация (typeId) -> объёмы и допуски
-    app.get('/api/oil/by-vin', limit, wrap(async (req, res) => { res.json(await oc.vinHint(pool, req.query.vin)); }));
+    app.get('/api/oil/by-vin', limit, wrap(async (req, res) => { res.json(await oc.vinSearch(pool, req.query.vin)); }));
     app.get('/api/oil/makes', limit, wrap(async (req, res) => { res.json(await oc.listMakes(pool)); }));
     app.get('/api/oil/models', limit, wrap(async (req, res) => { res.json(await oc.listModels(pool, id(req.query.make_id))); }));
     app.get('/api/oil/cars', limit, wrap(async (req, res) => { res.json(await oc.listTypes(pool, id(req.query.model_id))); }));

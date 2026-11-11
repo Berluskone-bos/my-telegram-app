@@ -87,14 +87,67 @@ async function selectionByType(pool, typeId) {
                           dopusk: { method: 'toDopusk', state: '', shape: '' } } };
 }
 
-// VIN: VINdecode знает марку и модель (TecDoc), но номер машины из другого каталога — поэтому только подсказка для выбора
-async function vinHint(pool, vin) {
+// ---- Поиск по VIN: VINdecode (TecDoc) знает марку, модель, мощность и объём; номер машины берём из каталога ТО ----
+const norm = s => String(s || '').toUpperCase().replace(/\([^)]*\)/g, '').replace(/[^A-ZА-Я0-9]/g, '');
+const codes = s => ((String(s || '').match(/\(([^)]*)\)/g) || []).join(' ').toUpperCase().match(/[A-Z0-9]{2,}/g) || []);
+const ymYear = s => (/^\d{4}/.test(String(s || '')) ? Number(String(s).slice(0, 4)) : null);
+
+function pickModels(vin, models) {          // models: [{id, name, yearFrom, yearTo}] из toModels (сырые)
+  const n1 = norm(vin.modelName), c1 = codes(vin.modelName);
+  const from = ymYear(vin.yearOfConstrFrom), to = ymYear(vin.yearOfConstrTo) || 9999;
+  const scored = [];
+  for (const m of models) {
+    const n2 = norm(m.name); if (!n1 || !n2) continue;
+    let s = n1 === n2 ? 2 : (n2.startsWith(n1) || n1.startsWith(n2)) ? 1 : 0;
+    if (!s) continue;
+    if (codes(m.name).some(c => c1.includes(c))) s += 2;
+    const mf = m.yearFrom || 0, mt = m.yearTo || 9999;
+    if (from && (mt < from || mf > to)) continue;             // периоды выпуска не пересекаются
+    scored.push({ m, s });
+  }
+  const best = Math.max(0, ...scored.map(x => x.s));
+  let top = scored.filter(x => x.s === best).map(x => x.m);
+  if (top.length > 1 && from) {                       // поколения: берём то, что началось ближе всего к году выпуска VIN
+    const d = m => Math.abs((m.yearFrom || 0) - from);
+    const dmin = Math.min(...top.map(d));
+    const near = top.filter(m => d(m) === dmin);
+    if (near.length === 1) top = near;
+  }
+  return top;
+}
+
+async function vinSearch(pool, vin) {
   vin = String(vin || '').trim().toUpperCase();
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) throw userError('VIN должен состоять из 17 символов: латиница и цифры, без букв I, O, Q');
   const { data } = await pa.cachedApi(pool, 'VINdecode', { vin, lang: 'ru' });
   const car = data && data.result && data.result['0'];
-  if (!car) { console.warn(`[PartsAPI] VINdecode: пустой ответ, WMI=${vin.slice(0, 3)}`); throw userError('По этому VIN автомобиль не найден. Выберите машину по марке и модели.', 404); }
-  return { needs_pick: true, make_name: car.manuName || '', model_name: car.modelName || '', type_name: car.typeName || '', year: year(car.yearOfConstrFrom) };
+  if (!car) {
+    console.warn(`[PartsAPI] VINdecode: пустой ответ, WMI=${vin.slice(0, 3)}, статус=${String(data && data.statusMsg || '').slice(0, 80)}`);
+    throw userError('PartsAPI не нашёл автомобиль по этому VIN. Выберите машину по марке и модели.', 404);
+  }
+  const base = { needs_pick: true, make_name: car.manuName || '', model_name: car.modelName || '', type_name: car.typeName || '', year: ymYear(car.yearOfConstrFrom) };
+  const makes = await listMakes(pool);
+  const mk = makes.find(m => norm(m.makeName) === norm(car.manuName)) || makes.find(m => norm(m.makeName).startsWith(norm(car.manuName)) && norm(car.manuName).length >= 3);
+  if (!mk) return base;
+  base.make_id = mk.makeId;
+  const { data: rawModels } = await pa.cachedApi(pool, 'toModels', { brandId: mk.makeId });
+  const models = pickModels(car, Array.isArray(rawModels) ? rawModels : []);
+  if (models.length !== 1) return { ...base, model_candidates: models.slice(0, 8).map(m => ({ id: m.id, name: m.name })) };
+  base.model_id = models[0].id;
+  const types = await listTypes(pool, models[0].id);
+  const { data: rawTypes } = await pa.cachedApi(pool, 'toTypes', { modelId: models[0].id });
+  const mods = (rawTypes && rawTypes.modifications) || [];
+  const hp = Number(car.powerHpFrom) || 0, ccm = Number(car.cylinderCapacityCcm) || 0;
+  const near = mods.filter(t => (!hp || Math.abs((t.horsePower || 0) - hp) <= 3) && (!ccm || Math.abs((t.engineCapacity || 0) * 1000 - ccm) <= 60));
+  const same = near.filter(t => t.horsePower === hp);       // точное совпадение мощности важнее близкого
+  const fit = same.length ? same : near;
+  const label = id => (types.find(x => x.CAR_ID === id) || {}).CAR_NAME || String(id);
+  if (fit.length === 1) {
+    const r = await selectionByType(pool, fit[0].id);
+    return { ...r, vin_info: { make: base.make_name, model: base.model_name, type: base.type_name, matched: label(fit[0].id) } };
+  }
+  const list = (fit.length ? fit : mods).slice(0, 30);
+  return { ...base, candidates: list.map(t => ({ id: t.id, label: label(t.id) })), exact: fit.length > 0 };
 }
 
-module.exports = { listMakes, listModels, listTypes, selectionByType, dopuskToInput, vinHint };
+module.exports = { listMakes, listModels, listTypes, selectionByType, dopuskToInput, vinSearch, pickModels };
