@@ -12,6 +12,7 @@
 // Переменные .env (ключи PartsAPI; в код и в репозиторий их класть нельзя):
 //   PARTSAPI_KEY_VINDECODE, PARTSAPI_KEY_GETFILLVOLUMES, PARTSAPI_KEY_TODOPUSK,
 //   PARTSAPI_KEY_GETMAKES, PARTSAPI_KEY_GETMODELS, PARTSAPI_KEY_GETCARS
+//   PARTSAPI_KEY_TOMAKES, PARTSAPI_KEY_TOMODELS, PARTSAPI_KEY_TOTYPES  (каталог ТО — основной путь подбора)
 //   PARTSAPI_DAILY_LIMIT  - защитный лимит реальных запросов в сутки на метод (по умолчанию 45)
 
 // Ошибки, текст которых можно показать клиенту. Остальные ошибки наружу не отдаём.
@@ -29,12 +30,13 @@ function requireKey(m) {
 const DAILY_LIMIT = Number(process.env.PARTSAPI_DAILY_LIMIT || 45);
 
 // Сколько дней хранить ответ. Справочники и VIN почти не меняются.
-const TTL_DAYS = { getMakes: 90, getModels: 90, getCars: 90, VINdecode: 365, GetFillVolumes: 180, toDopusk: 180 };
+const TTL_DAYS = { getMakes: 90, getModels: 90, getCars: 90, toMakes: 90, toModels: 90, toTypes: 90, VINdecode: 365, GetFillVolumes: 180, toDopusk: 180 };
 const EMPTY_TTL_DAYS = 1 / 24; // пустой ответ храним час: вдруг данные появятся позже (лимит запросов в сутки защищает ключ)
 
 const isEmptyResponse = (method, d) => {
   if (method === 'toDopusk') return !(d && (d.oils?.length || d.specifications?.length));
   if (method === 'VINdecode') return !(d && d.result && d.result['0']);
+  if (method === 'toTypes') return !(d && d.modifications && d.modifications.length);
   return Array.isArray(d) ? d.length === 0 : !d;
 };
 
