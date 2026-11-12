@@ -3,6 +3,16 @@
 
 const VISC_RE = /\b(\d{1,2})W-?(\d{2,3})\b/gi;
 const normVisc = m => String(m).replace(/-/g, '').toUpperCase();
+// Допуск товара ищется в допусках/рекомендациях машины как целое обозначение (границы слов), а не как кусок строки:
+// «SP» не совпадёт с «SP-IV», «GL-5» не совпадёт с «GL-55», «GF-6» совпадёт с «ILSAC GF-6».
+function approvalIn(approval, sources) {
+  const a = String(approval || '').trim().toUpperCase();
+  if (a.length < 2) return false;
+  const body = a.split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  const re = new RegExp(`(?<![A-ZА-Я0-9-])${body}(?![A-ZА-Я0-9.+-])(?!\\s+PLUS)`);
+  return sources.some(s => re.test(s));
+}
+
 const normSpec = s => String(s || '').toUpperCase().replace(/[^A-Z0-9А-Я]/g, '');
 const viscIn = text => (String(text || '').match(VISC_RE) || []).map(normVisc);
 
@@ -85,13 +95,13 @@ function buildSystems({ fill, approvals, items, products }) {
   const out = [];
   for (const g of map.values()) {
     if (!g.volumes.length && !g.specs.length && !g.approvals.length && !g.items.length && !g.seen) continue;
-    const tokens = [...g.approvals, ...g.items.map(i => i.spec_group)].map(normSpec).filter(Boolean);
+    const sources = [...g.approvals, ...g.items.map(i => i.spec_group)].map(s => String(s || '').toUpperCase()).filter(Boolean);
     const sysVisc = g.viscosities;
     const mine = (products || []).filter(p => productFitsSystem(p, g.key, g.kinds));
     const exact = [], byVisc = [], byType = [];
     for (const p of mine) {
       const pv = viscIn(p.viscosity || p.name)[0] || null;
-      const matched = (p.approvals || []).filter(a => { const n = normSpec(a); return n.length >= 2 && tokens.some(t => t === n || (n.length >= 3 && t.includes(n))); });
+      const matched = (p.approvals || []).filter(a => approvalIn(a, sources));
       const viscOk = sysVisc.size === 0 || (pv && sysVisc.has(pv));
       const row = { id: p.id, name: p.name, volume: p.volume, viscosity: p.viscosity || null, price: Number(p.price), matched_approvals: matched };
       if (matched.length && viscOk) exact.push(row);

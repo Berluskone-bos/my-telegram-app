@@ -336,7 +336,12 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_key_idx
                             ON orders(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`);
         // Тариф СПб по решению владельца: 300 руб., бесплатно от 5000 руб.
-        await client.query(`UPDATE delivery_zones SET base_cost = 300, free_threshold = 5000 WHERE zone_code = 'spb'`);
+        // Выполняется ОДИН раз (метка в app_flags), чтобы не затирать тарифы, изменённые позже в админке
+        await client.query(`CREATE TABLE IF NOT EXISTS app_flags (flag TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        const flag = await client.query(`INSERT INTO app_flags (flag) VALUES ('spb_tariff_300_5000') ON CONFLICT DO NOTHING RETURNING flag`);
+        if (flag.rowCount) {
+            await client.query(`UPDATE delivery_zones SET base_cost = 300, free_threshold = 5000 WHERE zone_code = 'spb'`);
+        }
 
         // ─── Индексы для типовых запросов ───
         await client.query(`
