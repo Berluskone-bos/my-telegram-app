@@ -29,17 +29,10 @@ function requireEnv(name) {
     }
     return process.env[name];
 }
-const ADMIN_API_KEY = requireEnv('ADMIN_API_KEY');
 const WEBHOOK_SECRET = requireEnv('WEBHOOK_SECRET');
 
-function verifyAdmin(req, res, next) {
-    const key = req.headers['x-admin-key'];
-    if (!key || key !== ADMIN_API_KEY) {
-        console.log(`[SECURITY] Неверный или отсутствующий admin key: ${key ? '***' : 'missing'}`);
-        return res.status(403).json({ error: 'Forbidden: invalid admin key' });
-    }
-    next();
-}
+// Вход администратора: сессия в HttpOnly-cookie (см. admin-auth.js). Ключ из заголовка больше не принимается.
+function verifyAdmin(req, res, next) { return require('./admin-auth').instance().verifyAdmin(req, res, next); }
 // Простое ограничение запросов (в памяти процесса): 30 запросов/мин с одного IP
 const _pubBuckets = new Map();
 function publicLimiter(req, res, next) {
