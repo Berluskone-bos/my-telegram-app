@@ -43,3 +43,6 @@
 
 .oil-nodata { background: #FFF6E5; border: 1px solid #F1D9A8; color: #6B4A00; border-radius: 14px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin: 0 0 12px; }
 .oil-diag { font-size: 11px; color: #98A1B6; margin: 4px 0 0; word-break: break-word; }
+
+.oil-vin { font-size: 13px; color: #155E3B; background: #E8F6EF; border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; }
+.oil-pick { display: block; width: 100%; margin: 0 0 8px; text-align: left; }
