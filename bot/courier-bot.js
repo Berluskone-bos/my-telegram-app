@@ -1095,7 +1095,9 @@ function registerCourierRoutes(app) {
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
             const orderId = parseInt(req.params.id);
-            await db.updateOrderStatus(orderId, status);
+            const changed = await db.updateOrderStatus(orderId, status);
+            if (changed === 'CANCELLED_LOCKED') return res.status(409).json({ error: 'Отменённый заказ нельзя вернуть в работу. Оформите новый заказ.' });
+            if (!changed) return res.status(404).json({ error: 'Заказ не найден' });
 
             // Обновляем маршрут при доставке/отмене
             if (status === 'DELIVERED' || status === 'COMPLETED' || status === 'CANCELLED') {
