@@ -233,6 +233,29 @@ CREATE TABLE IF NOT EXISTS api_request_log (
 );
 CREATE INDEX IF NOT EXISTS idx_api_log_created ON api_request_log (created_at);
 
+-- Вход в админку: сессии (в БД только хэш токена) и журнал действий
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash  TEXT PRIMARY KEY,
+  role        TEXT NOT NULL DEFAULT 'admin',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at  TIMESTAMPTZ NOT NULL,
+  ip          TEXT,
+  user_agent  TEXT
+);
+CREATE TABLE IF NOT EXISTS admin_audit (
+  id      BIGSERIAL PRIMARY KEY,
+  at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  session TEXT,
+  ip      TEXT,
+  action  TEXT NOT NULL,
+  method  TEXT,
+  path    TEXT,
+  status  INT,
+  detail  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_at ON admin_audit (at DESC);
+
 
 CREATE TABLE IF NOT EXISTS to_vehicles (
   type_id         BIGINT PRIMARY KEY,       -- typeId из toTypes (каталог ТО PartsAPI)

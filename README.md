@@ -34,8 +34,8 @@ PORT=3000
 ```
 
 **Безопасность (проверено):**
-- `admin.html`: хардкод пароля удалён; вход по ключу `ADMIN_API_KEY`, который проверяет сервер
-- `courier-bot.js`: добавлена проверка `x-webhook-secret` и `x-admin-key` (`verifyWebhookSecret` / `verifyAdmin`)
+- Админка открывается с сервера: `https://gulf-bot-production.up.railway.app/admin`. Вход по ключу `ADMIN_API_KEY` один раз; дальше сессия в HttpOnly-cookie (SameSite=Strict, 12 ч / 2 ч без действий), журнал действий — вкладка «Журнал». Ключ в браузере не хранится, заголовок `x-admin-key` не принимается
+- `courier-bot.js`: проверка секрета вебхука (`verifyWebhookSecret`); админские маршруты защищает `verifyAdmin` из `bot/admin-auth.js`
 - `.env.example`: добавлены `WEBHOOK_URL`, `WEBHOOK_SECRET`, `ADMIN_API_KEY`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`
 - `TRUST_CLIENT_PRICES` по умолчанию `false` (цены из БД, не клиента)
 
