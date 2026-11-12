@@ -154,6 +154,7 @@ const Oil = {
         el.innerHTML = `
           <div class="oil-car"><div class="oil-car-name">${esc(name)}</div>
             <div class="oil-car-sub">${esc(v.modification || '')}${years ? ' · ' + esc(years) : ''}</div></div>
+          ${r.vin_info ? `<div class="oil-vin">Определено по VIN: <b>${esc(r.vin_info.matched)}</b>. Если модификация не ваша, <a href="#" onclick="Oil.toManual('${esc(r.vin_info.make)}');return false">выберите вручную</a>.</div>` : ''}
           ${r.no_data ? `<div class="oil-nodata"><b>Для этой модификации в базе нет объёмов и допусков.</b><br>Сколько и что заливать, уточните в руководстве по эксплуатации или напишите нам — подберём вручную. Ниже — что есть в магазине.</div>` : ''}
           ${(r.systems || []).length ? r.systems.map(s => this.system(s)).join('') : '<p class="oil-note">Для этой модификации данных о жидкостях нет. Напишите нам, и мы подберём вручную.</p>'}
           ${r.no_data && r.diagnostics ? this.diag(r.diagnostics) : ''}
@@ -176,10 +177,20 @@ const Oil = {
             <button class="oil-btn oil-btn-light" onclick="Oil.toManual('${esc(make || '')}')">Выбрать по марке и модели${make ? ' (' + esc(make) + ')' : ''}</button>`;
     },
 
-    // VIN распознан: марка и модель известны, точную модификацию выбираем из каталога
+    // VIN распознан, но модификацию однозначно определить не удалось: даём выбрать
     async vinPick(r) {
-        document.getElementById('oilResult').innerHTML = `<div class="oil-nodata"><b>${esc(r.make_name)} ${esc(r.model_name)}${r.year ? ', ' + esc(r.year) + ' г.' : ''}</b><br>Теперь выберите модель и модификацию из списка — так подбор будет точным.</div>
-            <button class="oil-btn oil-btn-light" onclick="Oil.toManual('${esc(r.make_name)}')">Выбрать модель и модификацию</button>`;
+        const head = `<div class="oil-nodata"><b>${esc(r.make_name)} ${esc(r.model_name)}${r.type_name ? ' ' + esc(r.type_name) : ''}${r.year ? ', ' + esc(r.year) + ' г.' : ''}</b><br>`;
+        if (r.candidates && r.candidates.length) {
+            document.getElementById('oilResult').innerHTML = head + `${r.exact ? 'Подходит несколько модификаций. Выберите вашу:' : 'Точную модификацию определить не удалось. Выберите вашу:'}</div>` +
+                r.candidates.map(c => `<button class="oil-btn oil-btn-light oil-pick" onclick="Oil.pickType(${Number(c.id)})">${esc(c.label)}</button>`).join('');
+            return;
+        }
+        document.getElementById('oilResult').innerHTML = head + 'Выберите модель и модификацию из списка — так подбор будет точным.</div>' +
+            `<button class="oil-btn oil-btn-light" onclick="Oil.toManual('${esc(r.make_name)}')">Выбрать модель и модификацию</button>`;
+    },
+
+    async pickType(id) {
+        try { this.busy('Подбираем жидкости…'); this.show(await this.api(`/api/oil/by-car?car_id=${encodeURIComponent(id)}`)); } catch (e) { this.fail(e); }
     },
 
     async toManual(make) {
