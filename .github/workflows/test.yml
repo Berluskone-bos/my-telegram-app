@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Проверить синтаксис серверного кода
+        run: for f in bot/*.js; do node --check "$f"; done
+      - name: Автотесты (подпись Telegram, охрана от утечки секретов)
+        run: npm test
