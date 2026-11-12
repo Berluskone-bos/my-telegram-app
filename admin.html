@@ -221,46 +221,47 @@
     <h2 style="color:#fff;font-family:Montserrat,sans-serif;font-size:24px;margin-bottom:24px;">АВТОПРОМОЙЛ — Админ</h2>
     <input id="adminPass" type="password" placeholder="Ключ администратора" autocomplete="off" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
     <button onclick="adminLogin()" style="padding:12px 28px;font-size:16px;border-radius:8px;border:none;background:#00AFC7;color:#fff;cursor:pointer;">Войти</button>
-    <p style="color:#88A0B8;font-size:12px;margin-top:16px;">Ключ хранится только на сервере (ADMIN_API_KEY). Проверяется сервером, а не страницей.</p>
+    <p style="color:#88A0B8;font-size:12px;margin-top:16px;">Ключ проверяет сервер и в браузере не сохраняется. Сессия закрывается после 2 часов без действий.</p>
 </div>
 <script>
-// Ключ проверяет СЕРВЕР: страница пароля не знает. Ключ живёт в sessionStorage до закрытия вкладки.
-const ADMIN_API = window.location.hostname === 'localhost' ? 'http://localhost:3001'
-    : (window.location.hostname.endsWith('github.io') ? 'https://gulf-bot-production.up.railway.app' : window.location.origin);
-function getAdminKey() { try { return sessionStorage.getItem('admin_key') || ''; } catch (e) { return ''; } }
+// Вход: ключ вводится один раз, сервер выдаёт сессию в HttpOnly-cookie. В браузере ключ не хранится.
+if (location.hostname.endsWith('github.io')) location.replace('https://gulf-bot-production.up.railway.app/admin');
+const ADMIN_API = window.location.origin;
 const _fetch = window.fetch.bind(window);
-window.fetch = (url, opts = {}) => {      // ко всем запросам к нашему серверу добавляем ключ
-    if (typeof url === 'string' && url.startsWith(ADMIN_API)) {
-        opts = { ...opts, headers: { ...(opts.headers || {}), 'x-admin-key': getAdminKey() } };
-    }
-    return _fetch(url, opts);
+function showAuth() { document.getElementById('adminAuth').style.display = 'flex'; }
+window.fetch = async (url, opts) => {          // сессия закончилась — снова показываем окно входа
+    const r = await _fetch(url, opts);
+    if (r.status === 401 && typeof url === 'string' && url.startsWith(ADMIN_API) && !url.includes('/api/admin/login')) showAuth();
+    return r;
 };
 async function adminLogin() {
     const key = document.getElementById('adminPass').value;
     try {
-        const r = await _fetch(ADMIN_API + '/api/couriers', { headers: { 'x-admin-key': key } });
-        if (r.ok) { sessionStorage.setItem('admin_key', key); location.reload(); }
-        else alert('Неверный ключ');
+        const r = await _fetch(ADMIN_API + '/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+        if (r.ok) { document.getElementById('adminPass').value = ''; location.reload(); return; }
+        const j = await r.json().catch(() => ({}));
+        alert(j.error || 'Не удалось войти');
     } catch (e) { alert('Сервер недоступен, попробуйте позже'); }
 }
+async function adminLogout() { try { await _fetch(ADMIN_API + '/api/admin/logout', { method: 'POST' }); } catch (e) {} location.reload(); }
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('adminPass').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+});
 (async () => {
-    if (!getAdminKey()) return;
-    try {
-        const r = await _fetch(ADMIN_API + '/api/couriers', { headers: { 'x-admin-key': getAdminKey() } });
-        if (r.ok) document.getElementById('adminAuth').style.display = 'none';
-        else sessionStorage.removeItem('admin_key');
-    } catch (e) {}
+    try { const r = await _fetch(ADMIN_API + '/api/admin/me'); if (r.ok) document.getElementById('adminAuth').style.display = 'none'; } catch (e) {}
 })();
 </script>
     <div class="header">
         <h1>АВТОПРОМОЙЛ — Админ-панель</h1>
         <div class="header-date" id="currentDate"></div>
+        <button class="btn btn-sm" onclick="adminLogout()" style="margin-left:12px">Выйти</button>
     </div>
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('delivery')">Доставка</button>
         <button class="tab-btn" onclick="switchTab('shop')">Магазин</button>
         <button class="tab-btn" onclick="switchTab('analytics')">Аналитика</button>
+        <button class="tab-btn" onclick="switchTab('audit')">Журнал</button>
     </div>
 
     <!-- ==================== ВКЛАДКА: ДОСТАВКА ==================== -->
@@ -322,6 +323,21 @@ async function adminLogin() {
     </div>
 
     <!-- ==================== ВКЛАДКА: АНАЛИТИКА ==================== -->
+    <!-- ==================== ВКЛАДКА: ЖУРНАЛ ДЕЙСТВИЙ ==================== -->
+    <div class="tab-content" id="tab-audit">
+        <div class="container">
+            <div class="section">
+                <div class="section-header"><div class="section-title">Журнал действий администратора (последние 100)</div></div>
+                <div class="section-body">
+                    <table>
+                        <thead><tr><th>Время</th><th>Действие</th><th>Что изменено</th><th>Ответ</th><th>IP</th></tr></thead>
+                        <tbody id="auditBody"><tr><td colspan="5" class="empty">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="tab-content" id="tab-analytics">
         <div class="container">
             <div class="section">
@@ -553,6 +569,20 @@ async function adminLogin() {
             event.target.classList.add('active');
 
             if (name === 'shop') loadShopData();
+            if (name === 'audit') loadAudit();
+        }
+
+        async function loadAudit() {
+            const body = document.getElementById('auditBody');
+            try {
+                const r = await fetch(`${ADMIN_API}/api/admin/audit?limit=100`);
+                if (!r.ok) { body.innerHTML = '<tr><td colspan="5">Не удалось загрузить журнал</td></tr>'; return; }
+                const rows = await r.json();
+                body.innerHTML = rows.length ? rows.map(a => `<tr>
+                    <td>${esc(new Date(a.at).toLocaleString('ru-RU'))}</td><td>${esc(a.action)}</td>
+                    <td>${esc(a.detail || '')}</td><td>${esc(a.status || '')}</td><td>${esc(a.ip || '')}</td></tr>`).join('')
+                    : '<tr><td colspan="5">Записей пока нет</td></tr>';
+            } catch (e) { body.innerHTML = '<tr><td colspan="5">Сервер недоступен</td></tr>'; }
         }
 
         // Экранирование для безопасности
