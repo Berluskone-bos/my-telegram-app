@@ -356,15 +356,50 @@ class DBAdapter {
     // Отмена / смена статуса
     // ───────────────────────────────────────────
 
+    // Возврат списанного остатка на склад. Вызывать только внутри транзакции, после блокировки строки заказа.
+    // Флаг stock_deducted сбрасывается, чтобы повторная отмена или удаление не вернули товар второй раз.
+    async _restoreStock(client, order) {
+        if (!order.stock_deducted) return;
+        const raw = order.items;
+        const list = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
+        for (const it of list) {
+            await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [it.qty, it.productId]);
+        }
+        await client.query('UPDATE orders SET stock_deducted = false WHERE id = $1', [order.id]);
+    }
+
+    // Единая точка смены статуса из админки и курьерского бота.
+    // CANCELLED возвращает остаток (если заказ не доставлен) и снимает остановки маршрута.
+    // Отменённый заказ в работу вернуть нельзя: остаток уже отдан другим покупателям (вернёт 'CANCELLED_LOCKED').
+    // Результат: true — готово, false — заказ не найден, 'CANCELLED_LOCKED' — заказ отменён, статус не изменён.
     async updateOrderStatus(orderId, status) {
         // 'AP-…' — не PK, отвечаем «не найдено» вместо 22P02 от Postgres.
         const id = Number(orderId);
         if (!Number.isInteger(id) || id <= 0) return false;
-        const res = await pool.query(
-            'UPDATE orders SET status = $1 WHERE id = $2 RETURNING id',
-            [status, id]
-        );
-        return res.rowCount > 0;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const cur = await client.query(
+                'SELECT id, status, items, stock_deducted, order_number FROM orders WHERE id = $1 FOR UPDATE', [id]);
+            if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
+            const o = cur.rows[0];
+            if (o.status === status) { await client.query('COMMIT'); return true; }
+            if (o.status === 'CANCELLED') { await client.query('ROLLBACK').catch(() => {}); return 'CANCELLED_LOCKED'; }
+            await client.query('UPDATE orders SET status = $1 WHERE id = $2', [status, id]);
+            if (status === 'CANCELLED') {
+                if (!['DELIVERED', 'COMPLETED'].includes(o.status)) await this._restoreStock(client, o);
+                await client.query(
+                    `UPDATE route_stops SET status = 'cancelled'
+                      WHERE order_number = $1 AND status IN ('pending', 'in_progress')`, [o.order_number]);
+            }
+            await client.query('COMMIT');
+            return true;
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     async cancelOrderByNumber(orderNumber) {
@@ -388,13 +423,7 @@ class DBAdapter {
             }
 
             // Возвращаем товар на склад, если при заказе остаток списывался
-            if (res.rows[0].stock_deducted) {
-                const raw = res.rows[0].items;
-                const list = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
-                for (const it of list) {
-                    await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [it.qty, it.productId]);
-                }
-            }
+            await this._restoreStock(client, res.rows[0]);
 
             // Убираем из активных остановок маршрута, чтобы курьер
             // не приехал по отменённому адресу.
@@ -441,6 +470,12 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            // Незавершённые заказы с списанным остатком: возвращаем товар на склад до удаления.
+            // Доставленные и завершённые не трогаем: товар у покупателя.
+            const active = await client.query(
+                `SELECT id, items, stock_deducted FROM orders
+                  WHERE stock_deducted AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED') FOR UPDATE`);
+            for (const o of active.rows) await this._restoreStock(client, o);
             await client.query('DELETE FROM route_stops');
             await client.query('DELETE FROM delivery_routes');
             await client.query('DELETE FROM orders');
