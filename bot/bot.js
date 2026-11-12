@@ -791,9 +791,22 @@ app.use((err, req, res, next) => {
 // ═══════════════════════════════════════════
 
 try {
+    // Вход в админку (/admin, /api/admin/*): сессии и журнал действий
+    const adminAuth = require('./admin-auth').instance();
+    adminAuth.registerRoutes(app);
+    adminAuth.cleanup();
+    setInterval(() => adminAuth.cleanup(), 6 * 3600e3).unref();
+    if (!ADMIN_API_KEY) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY не задан — админка отключена');
+    else if (ADMIN_API_KEY.length < 16) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY короче 16 символов — задайте длиннее');
+    console.log('[OK] Вход в админку подключён: /admin');
+} catch (e) {
+    console.error('[ОШИБКА] Вход в админку не подключён:', sanitizeLog(e.message));
+}
+
+try {
     const { registerOilRoutes } = require('./oil-routes');
     const { pool: dbPool } = require('./db');
-    registerOilRoutes(app, { pool: dbPool, rateLimit, verifyAdmin: require('./courier-bot').verifyAdmin });
+    registerOilRoutes(app, { pool: dbPool, rateLimit, verifyAdmin: require('./admin-auth').instance().verifyAdmin });
     console.log('[OK] Подбор масла подключён');
 } catch (e) {
     console.warn('[ВНИМАНИЕ] Подбор масла не загружен:', sanitizeLog(e.message));
