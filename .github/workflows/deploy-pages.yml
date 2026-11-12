@@ -30,7 +30,7 @@ jobs:
       - name: Собрать только публичные файлы Mini App
         run: |
           mkdir _site
-          cp index.html admin.html privacy.html _site/
+          cp index.html privacy.html _site/
           cp -r css js data img _site/
 
       - name: Upload artifact
