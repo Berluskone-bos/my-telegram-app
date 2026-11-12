@@ -1,13 +1,14 @@
 {
   "name": "avtopromol-shop",
   "version": "1.0.0",
-  "description": "\u0410\u0412\u0422\u041e\u041f\u0420\u041e\u041c\u041e\u0419\u041b Telegram Mini App",
+  "description": "АВТОПРОМОЙЛ Telegram Mini App",
   "main": "bot/bot.js",
   "scripts": {
     "start": "node bot/bot.js",
     "bot": "node bot/bot.js",
     "courier": "node bot/courier-bot.js",
-    "both": "node bot/bot.js & node bot/courier-bot.js"
+    "both": "node bot/bot.js & node bot/courier-bot.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.67.0",

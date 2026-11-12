@@ -159,40 +159,9 @@ function generateOrderId() {
 const ORDER_ID_RE = /^[0-9]{12}$/;
 
 // ─── Telegram initData ───
+const { verifyInitData: verifyInitDataCore } = require('./telegram-auth');
 function verifyInitData(initData, botToken) {
-    if (!initData || typeof initData !== 'string') return null;
-    let params;
-    try { params = new URLSearchParams(initData); } catch { return null; }
-
-    const hash = params.get('hash');
-    if (!hash || !/^[0-9a-f]{64}$/i.test(hash)) return null;
-
-    // В data-check-string исключается ТОЛЬКО hash. Поле signature (Ed25519, для сторонней проверки)
-    // остаётся в строке: иначе HMAC не сойдётся и все заказы получают 401.
-    params.delete('hash');
-
-    const dataCheckString = [...params.entries()]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([k, v]) => `${k}=${v}`)
-        .join('\n');
-
-    // По документации Telegram: secret_key = HMAC_SHA256(key="WebAppData", message=botToken)
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-    const computed  = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-    const a = Buffer.from(computed, 'hex');
-    const b = Buffer.from(hash, 'hex');
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-
-    const authDate = parseInt(params.get('auth_date') || '0', 10);
-    const now = Math.floor(Date.now() / 1000);
-    if (!authDate) return null;
-    if (authDate > now + 60) return null;
-    if (now - authDate > INIT_DATA_TTL_SEC) return null;
-
-    let user = null;
-    try { user = JSON.parse(params.get('user') || 'null'); } catch {}
-    return { user, authDate };
+    return verifyInitDataCore(initData, botToken, { ttlSec: INIT_DATA_TTL_SEC });
 }
 
 // ─── Rate limit ───

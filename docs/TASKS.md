@@ -64,3 +64,13 @@
 | 10.x Лимиты PartsAPI/геокодера, Redis | Частично: кэш и суточный лимит PartsAPI есть; геокодер и общий лимитер — нет |
 | 11 Тесты и CI | Не сделано |
 | 12 Подготовка к переносу (Dockerfile, `.env.example`, Nginx) | Не сделано |
+
+
+## B5. Защита main (12.11.2026) — шаги владельца в GitHub
+Статус: тесты и проверка `test` написаны и проверены локально; сама защита — **не включена** (нужны права владельца репозитория).
+1. Загрузить обновление 16 как обычно (последний прямой коммит в `main`). Во вкладке Actions должен появиться зелёный запуск «Tests».
+2. Settings → Rules → Rulesets → New ruleset → New branch ruleset. Имя `main`, Enforcement status = Active, Target branches → Add target → Include default branch.
+3. Включить: Restrict deletions; Block force pushes; Require a pull request before merging (Required approvals = 0, иначе одному владельцу не одобрить собственный PR); Require status checks to pass → Add checks → `test`.
+4. Bypass list оставить пустым — тогда прямой коммит в `main` невозможен даже владельцу.
+5. Как загружать обновления после этого: Add file → Upload files → внизу выбрать «Create a new branch for this commit and start a pull request» → Commit → Create pull request → дождаться зелёной галочки → Merge pull request.
+6. Перевыпустить токены двух ботов в BotFather (/mybots → бот → API Token → Revoke current token), новые вписать в переменные Railway, дождаться деплоя; проверить, что оба бота отвечают.
