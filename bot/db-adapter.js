@@ -12,6 +12,21 @@ function toDbValue(val) {
     return val;
 }
 
+// Допустимые смены статуса заказа. Конечные состояния защищены, чтобы нельзя было
+// «вернуть» доставленный заказ в работу и потом отменить его с повторным возвратом товара на склад.
+//   NEW, CONFIRMED, ASSEMBLING, SHIPPING — рабочие: между ними можно двигаться в любую сторону;
+//   DELIVERED  -> только COMPLETED или CANCELLED (возврат денег; на склад товар не возвращается);
+//   COMPLETED  -> только CANCELLED (поздний возврат; на склад товар не возвращается);
+//   CANCELLED  -> никуда.
+// Статус, которого нет в списке (старые данные), считаем рабочим.
+function orderTransitionAllowed(from, to) {
+    if (from === to) return true;
+    if (from === 'CANCELLED') return false;
+    if (from === 'DELIVERED') return to === 'COMPLETED' || to === 'CANCELLED';
+    if (from === 'COMPLETED') return to === 'CANCELLED';
+    return true;
+}
+
 class DBAdapter {
     constructor() {
         this.initialized = false;
@@ -371,7 +386,8 @@ class DBAdapter {
     // Единая точка смены статуса из админки и курьерского бота.
     // CANCELLED возвращает остаток (если заказ не доставлен) и снимает остановки маршрута.
     // Отменённый заказ в работу вернуть нельзя: остаток уже отдан другим покупателям (вернёт 'CANCELLED_LOCKED').
-    // Результат: true — готово, false — заказ не найден, 'CANCELLED_LOCKED' — заказ отменён, статус не изменён.
+    // Результат: true — статус изменён; 'ALREADY' — уже был таким, ничего не менялось; false — заказ не найден;
+    // 'CANCELLED_LOCKED' — заказ отменён, статус не изменён; 'TRANSITION_FORBIDDEN' — такая смена статуса запрещена.
     async updateOrderStatus(orderId, status) {
         // 'AP-…' — не PK, отвечаем «не найдено» вместо 22P02 от Postgres.
         const id = Number(orderId);
@@ -383,9 +399,14 @@ class DBAdapter {
                 'SELECT id, status, items, stock_deducted, order_number FROM orders WHERE id = $1 FOR UPDATE', [id]);
             if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
             const o = cur.rows[0];
-            if (o.status === status) { await client.query('COMMIT'); return true; }
+            if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
             if (o.status === 'CANCELLED') { await client.query('ROLLBACK').catch(() => {}); return 'CANCELLED_LOCKED'; }
-            await client.query('UPDATE orders SET status = $1 WHERE id = $2', [status, id]);
+            if (!orderTransitionAllowed(o.status, status)) { await client.query('ROLLBACK').catch(() => {}); return 'TRANSITION_FORBIDDEN'; }
+            // Товар доставлен: остаток больше не «наш», флаг снимаем — повторного возврата быть не может.
+            await client.query(
+                `UPDATE orders SET status = $1::text,
+                        stock_deducted = CASE WHEN $1::text IN ('DELIVERED', 'COMPLETED') THEN false ELSE stock_deducted END
+                  WHERE id = $2`, [status, id]);
             if (status === 'CANCELLED') {
                 if (!['DELIVERED', 'COMPLETED'].includes(o.status)) await this._restoreStock(client, o);
                 await client.query(
