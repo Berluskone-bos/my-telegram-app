@@ -872,6 +872,9 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
     }
 });
 
+// История заказов клиента (GET /api/orders/my, POST /api/orders/my/hide) — bot/order-history-routes.js
+require('./order-history-routes').registerOrderHistoryRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog });
+
 // ═══════════════════════════════════════════
 // API /api/order
 // ═══════════════════════════════════════════

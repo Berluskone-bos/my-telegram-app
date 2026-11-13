@@ -355,6 +355,9 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
         // Каталог: признак «скоро в продаже» и отметка, что остаток по заказу уже списан
         await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS coming_soon BOOLEAN NOT NULL DEFAULT false`);
         await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN NOT NULL DEFAULT false`);
+        // История заказов клиента: «удаление» из истории только скрывает заказ у клиента, запись остаётся в учёте
+        await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_hidden BOOLEAN NOT NULL DEFAULT false`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id, id DESC)`);
         // Идемпотентность: один ключ операции = один заказ (защита на уровне БД)
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_key_idx
                             ON orders(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`);

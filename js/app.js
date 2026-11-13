@@ -28,6 +28,7 @@ const App = {
         const tg = TelegramApp.init();
         await Profile.loadFromServer(tg);
         Profile.updateProfileUI();
+        Profile.syncOrders();   // история заказов с сервера (без ожидания)
 
         const user = TelegramApp.getUser(tg);
         const userName = TelegramApp.getUserName(user);
@@ -719,9 +720,6 @@ const App = {
             timestamp: Date.now()
         };
 
-        // Сохраняем заказ локально
-        Profile.addOrder(order);
-
         // Отправляем на сервер ТОЛЬКО список товаров (без цены/итога — сервер рассчитает сам)
         const orderPayload = {
             items: Cart.items.map(item => ({
@@ -778,6 +776,11 @@ const App = {
             const data = await response.json();
             const serverTotal = data.total || discountedTotal;
             window._orderKey = null;
+            // Заказ принят сервером: запоминаем его (для скидочной суммы) и подтягиваем историю с сервера
+            order.orderNumber = data.orderId;
+            order.total = serverTotal;
+            Profile.addOrder(order);
+            Profile.syncOrders();
             const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
             alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
             Cart.clear();
@@ -823,6 +826,7 @@ const App = {
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById('headerTitle').innerHTML = '<span class="header-logo-text">МОИ ЗАКАЗЫ</span>';
         Profile.renderOrderHistory();
+        Profile.syncOrders();
         if (typeof lucide !== 'undefined') lucide.createIcons();
     },
 

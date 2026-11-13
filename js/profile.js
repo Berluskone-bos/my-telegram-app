@@ -13,8 +13,10 @@ const Profile = {
         NEW: { text: 'Новый', class: 'order-status-new' },
         CONFIRMED: { text: 'Подтверждён', class: 'order-status-confirmed' },
         ASSEMBLING: { text: 'Собирается', class: 'order-status-assembling' },
+        SHIPPING: { text: 'В доставке', class: 'order-status-shipped' },
         SHIPPED: { text: 'В доставке', class: 'order-status-shipped' },
         DELIVERED: { text: 'Доставлен', class: 'order-status-delivered' },
+        COMPLETED: { text: 'Завершён', class: 'order-status-delivered' },
         CANCELLED: { text: 'Отменён', class: 'order-status-cancelled' }
     },
 
@@ -51,6 +53,37 @@ const Profile = {
         localStorage.setItem('gulf_orders', JSON.stringify(this.orderHistory));
     },
 
+    // История заказов с сервера: сервер — источник правды, localStorage — только запас на случай отсутствия связи.
+    async syncOrders() {
+        const initData = this.getTelegramInitData();
+        if (!initData) return false;
+        try {
+            const r = await fetch(this.getApiBase() + '/api/orders/my', { headers: { 'X-Telegram-Init-Data': initData } });
+            if (!r.ok) return false;
+            const data = await r.json();
+            if (!data.success || !Array.isArray(data.orders)) return false;
+            this.orderHistory = data.orders.map(o => ({
+                orderNumber: o.orderNumber,
+                status: o.status,
+                paymentStatus: o.paymentStatus,
+                deliveryType: o.deliveryType,
+                address: o.address,
+                items: o.items,
+                total: o.total,
+                discount: o.discount,
+                date: new Date(o.createdAt).toLocaleDateString('ru-RU'),
+                timestamp: Date.parse(o.createdAt) || 0
+            }));
+            this.selectedOrders.clear();
+            this.save();
+            this.renderOrderHistory();
+            return true;
+        } catch (e) {
+            console.warn('[Profile] История заказов не обновлена:', e && e.message);
+            return false;
+        }
+    },
+
     addOrder(order) {
         this.orderHistory.unshift(order);
         this.totalSpent += order.total;
@@ -72,7 +105,7 @@ const Profile = {
                 if (product.price !== item.price) {
                     priceChanges.push(`${product.name}: было ${item.price} ₽, стало ${product.price} ₽`);
                 }
-                Cart.add(product.id);
+                for (let q = 0; q < Math.min(Math.max(parseInt(item.qty) || 1, 1), 20); q++) Cart.add(product.id);
                 addedCount++;
             } else {
                 missingItems.push(item.name);
@@ -421,7 +454,7 @@ const Profile = {
         this.renderOrderHistory();
     },
 
-    deleteSelectedOrders() {
+    async deleteSelectedOrders() {
         if (this.selectedOrders.size === 0) return;
         const count = this.selectedOrders.size;
         const msg = count === this.orderHistory.length
@@ -429,16 +462,35 @@ const Profile = {
             : `Удалить выбранные заказы (${count})?`;
         if (!confirm(msg)) return;
 
-        const sorted = [...this.selectedOrders].sort((a, b) => b - a);
-        sorted.forEach(idx => {
-            this.orderHistory.splice(idx, 1);
-        });
+        const picked = [...this.selectedOrders].map(i => this.orderHistory[i]).filter(Boolean);
+        const serverNums = picked.map(o => o.orderNumber).filter(Boolean);
+        let hidden = new Set(serverNums);
+        let skipped = [];
+        if (serverNums.length) {
+            // Заказы хранятся на сервере: из истории скрываются только завершённые и отменённые
+            try {
+                const r = await fetch(this.getApiBase() + '/api/orders/my/hide', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': this.getTelegramInitData() },
+                    body: JSON.stringify({ orderNumbers: serverNums })
+                });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                hidden = new Set(d.hidden || []);
+                skipped = d.skipped || [];
+            } catch (e) {
+                alert('Не удалось удалить заказы: нет связи с сервером. Попробуйте позже.');
+                return;
+            }
+        }
+        this.orderHistory = this.orderHistory.filter(o => !picked.includes(o) || (o.orderNumber && !hidden.has(o.orderNumber)));
         this.save();
         this.selectedOrders.clear();
         this.editMode = false;
         const actionsBar = document.getElementById('ordersActions');
         if (actionsBar) actionsBar.style.display = 'none';
         this.renderOrderHistory();
+        if (skipped.length) alert('Заказы в работе нельзя удалить из истории, пока они не доставлены или не отменены:\n' + skipped.join(', '));
     },
 
     renderOrderHistory() {
@@ -472,7 +524,8 @@ const Profile = {
 
         this.orderHistory.forEach((order, idx) => {
             const orderNum = this.orderHistory.length - idx;
-            const itemsSummary = (order.items || []).map(i => esc(i.name)).join(', ');
+            const itemsCount = (order.items || []).reduce((n, i) => n + (parseInt(i.qty) || 1), 0);
+            const itemsSummary = (order.items || []).map(i => esc(i.name) + ((i.qty || 1) > 1 ? ' × ' + (parseInt(i.qty) || 1) : '')).join(', ');
             const checked = this.selectedOrders.has(idx);
             const status = this.getStatusText(order.status || 'NEW');
             const paymentStatus = order.paymentStatus || 'PENDING';
@@ -483,7 +536,7 @@ const Profile = {
                 <div class="order-card ${this.editMode ? 'order-card-edit' : ''}" ${this.editMode ? `onclick="Profile.toggleOrderSelection(${idx})"` : ''}>
                     ${this.editMode ? `<div class="order-checkbox">${checked ? '<i data-lucide="check-circle" style="width:22px;height:22px;color:var(--accent);"></i>' : '<i data-lucide="circle" style="width:22px;height:22px;color:var(--border);"></i>'}</div>` : ''}
                     <div class="order-header">
-                        <div class="order-number">Заказ #AP-${String(orderNum).padStart(6, '0')}</div>
+                        <div class="order-number">Заказ #${order.orderNumber ? esc(order.orderNumber) : 'AP-' + String(orderNum).padStart(6, '0')}</div>
                         <span class="order-status ${esc(status.class)}">${esc(status.text)}</span>
                     </div>
                     <div class="order-date">${esc(order.date || '')} · ${esc(deliveryLabel)}</div>
@@ -492,7 +545,7 @@ const Profile = {
                     <div class="order-footer">
                         <div>
                             <div class="order-total">${order.total.toLocaleString()} руб.</div>
-                            <div class="order-count">${order.items.length} ${order.items.length === 1 ? 'товар' : 'товара'}</div>
+                            <div class="order-count">${itemsCount} ${itemsCount === 1 ? 'товар' : 'товара'}</div>
                         </div>
                         ${!this.editMode ? `<button class="order-reorder-btn" onclick="event.stopPropagation(); Profile.reorder(${idx})">
                             <i data-lucide="repeat" style="width:14px;height:14px;"></i> Заказать повторно

@@ -483,6 +483,30 @@ class DBAdapter {
 
     // Устаревшее имя: ищет по PK, а не по order_number. Оставлено для совместимости.
     // Используйте getOrderById / getOrderByOrderNumber.
+    // История заказов клиента (только его заказы, без телефона и комментария).
+    async getOrdersByUser(userId, limit = 50) {
+        const res = await pool.query(
+            `SELECT order_number, status, payment_status, delivery_type, address, items,
+                    subtotal, total, discount, delivery_cost, created_at
+               FROM orders
+              WHERE user_id = $1::bigint AND NOT customer_hidden
+              ORDER BY id DESC LIMIT $2::int`, [String(userId), Math.min(Math.max(parseInt(limit) || 50, 1), 100)]);
+        return res.rows;
+    }
+
+    // «Удаление» из истории: скрываем только завершённые заказы клиента; активные остаются видимыми.
+    // Возвращает номера скрытых заказов.
+    async hideOrdersForUser(userId, orderNumbers) {
+        const list = (Array.isArray(orderNumbers) ? orderNumbers : []).map(String).slice(0, 100);
+        if (!list.length) return [];
+        const res = await pool.query(
+            `UPDATE orders SET customer_hidden = true
+              WHERE user_id = $1::bigint AND order_number = ANY($2::text[])
+                AND status IN ('DELIVERED', 'COMPLETED', 'CANCELLED')
+          RETURNING order_number`, [String(userId), list]);
+        return res.rows.map(r => r.order_number);
+    }
+
     async getOrderByNumber(orderId) {
         return this.getOrderById(orderId);
     }
