@@ -85,7 +85,18 @@ if (process.env.ADMIN_BOT_TOKEN) {
         if (data && data.startsWith('cancel_')) {
             const orderId = parseInt(data.split('_')[1]);
             try {
-                await db.updateOrderStatus(orderId, 'CANCELLED');
+                const done = await db.updateOrderStatus(orderId, 'CANCELLED');
+                if (done === false) {
+                    adminBot.answerCallbackQuery(query.id, { text: 'Заказ не найден' });
+                    return;
+                }
+                if (done !== true) { // ALREADY: уже отменён раньше — повторно не уведомляем клиента
+                    adminBot.answerCallbackQuery(query.id, { text: 'Заказ уже отменён' });
+                    adminBot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+                        chat_id: query.message.chat.id, message_id: query.message.message_id
+                    }).catch(() => {});
+                    return;
+                }
                 const order = await db.getOrderByNumber(orderId);
                 adminBot.answerCallbackQuery(query.id, { text: 'Заказ отменён' });
                 adminBot.editMessageReplyMarkup({ inline_keyboard: [] }, {
@@ -696,8 +707,9 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const stop = route?.stops?.find(s => parseInt(s.id) === stopId);
             console.log(`[DELIVER] Route: ${route?.route_number}, stops=${route?.stops?.length}, stop found: ${!!stop}, order_id: ${stop?.order_id}`);
             if (stop?.order_id) {
-                await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED');
-                console.log(`[DELIVER] Order ${stop.order_id} -> COMPLETED`);
+                const st = await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED');
+                console.log(`[DELIVER] Order ${stop.order_id} -> COMPLETED (${st})`);
+                if (st === 'CANCELLED_LOCKED' || st === 'TRANSITION_FORBIDDEN') console.warn(`[DELIVER] Заказ ${stop.order_id} не переведён в COMPLETED: ${st}`);
             }
             // Обновляем маршрут
             if (route) {
@@ -836,7 +848,9 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
             // Обновляем статус заказа на COMPLETED
             if (stop.order_id) {
-                db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED').catch(() => {});
+                db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED')
+                    .then(st => { if (st === 'CANCELLED_LOCKED' || st === 'TRANSITION_FORBIDDEN') console.warn(`[DELIVER] Заказ ${stop.order_id} не переведён в COMPLETED: ${st}`); })
+                    .catch(() => {});
             }
         } else {
             notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'failed', reason)
@@ -1028,7 +1042,7 @@ function registerCourierRoutes(app) {
         try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/geocode', publicLimiter, async (req, res) => {
+    app.get('/api/geocode', verifyAdmin, async (req, res) => {
         const address = req.query.address;
         if (!address) return res.status(400).json({ error: 'address required' });
         try {
@@ -1037,13 +1051,13 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/map-links', publicLimiter, (req, res) => {
+    app.get('/api/map-links', verifyAdmin, (req, res) => {
         const { address, lat, lon } = req.query;
         if (!address && (!lat || !lon)) return res.status(400).json({ error: 'address or lat/lon required' });
         res.json(MapLinks.all(address || '', parseFloat(lat), parseFloat(lon)));
     });
 
-    app.post('/api/map-links/route', publicLimiter, (req, res) => {
+    app.post('/api/map-links/route', verifyAdmin, (req, res) => {
         const { stops } = req.body;
         if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
         res.json(MapLinks.allRoute(stops));
@@ -1090,6 +1104,7 @@ function registerCourierRoutes(app) {
             const orderId = parseInt(req.params.id);
             const changed = await db.updateOrderStatus(orderId, status);
             if (changed === 'CANCELLED_LOCKED') return res.status(409).json({ error: 'Отменённый заказ нельзя вернуть в работу. Оформите новый заказ.' });
+            if (changed === 'TRANSITION_FORBIDDEN') return res.status(409).json({ error: 'Недопустимая смена статуса: доставленный или завершённый заказ нельзя вернуть в работу.' });
             if (!changed) return res.status(404).json({ error: 'Заказ не найден' });
 
             // Обновляем маршрут при доставке/отмене
@@ -1169,6 +1184,9 @@ function registerCourierRoutes(app) {
 
             const order = await db.getOrderByNumber(orderId);
             if (!order) return res.status(404).json({ error: 'Order not found' });
+            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
+                return res.status(409).json({ error: 'Заказ уже отменён или доставлен, курьеру его назначить нельзя' });
+            }
 
             // Автоназначение если курьер один
             if (!courier_id) {
