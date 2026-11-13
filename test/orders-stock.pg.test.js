@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const DB = process.env.TEST_DATABASE_URL;
+const DB = require('./helpers/test-db').testDatabaseUrl(); // бросает ошибку, если база не тестовая
 const skip = DB ? false : 'нет TEST_DATABASE_URL';
 
 test('склад: отмена и удаление заказов возвращают остаток ровно один раз', { skip }, async (t) => {
@@ -23,7 +23,7 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await stock(), 7, 'списано 3');
     assert.equal(await db.updateOrderStatus(o1.id, 'CANCELLED'), true);
     assert.equal(await stock(), 10, 'остаток вернулся');
-    assert.equal(await db.updateOrderStatus(o1.id, 'CANCELLED'), true);
+    assert.equal(await db.updateOrderStatus(o1.id, 'CANCELLED'), 'ALREADY');
     assert.equal(await stock(), 10, 'повтор не возвращает второй раз');
     assert.equal(await db.updateOrderStatus(o1.id, 'SHIPPING'), 'CANCELLED_LOCKED', 'из CANCELLED назад нельзя');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o1.id])).rows[0].status, 'CANCELLED');
@@ -35,16 +35,35 @@ test('склад: отмена и удаление заказов возвращ
     await db.updateOrderStatus(o2.id, 'CANCELLED');
     assert.equal(await stock(), 8, 'доставленный заказ остаток не возвращает');
 
+    // Обход через промежуточный статус: доставлен -> новый -> отменён не должен вернуть товар второй раз
+    assert.equal(await db.updateOrderStatus(o2.id, 'NEW'), 'CANCELLED_LOCKED', 'отменённый заказ закрыт');
+    const o2b = await mk(1, 'k2b');
+    assert.equal(await stock(), 7);
+    await db.updateOrderStatus(o2b.id, 'DELIVERED');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'NEW'), 'TRANSITION_FORBIDDEN', 'DELIVERED -> NEW запрещено');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'SHIPPING'), 'TRANSITION_FORBIDDEN', 'DELIVERED -> SHIPPING запрещено');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'COMPLETED'), true, 'DELIVERED -> COMPLETED можно');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'ASSEMBLING'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> ASSEMBLING запрещено');
+    assert.equal((await pool.query('SELECT stock_deducted FROM orders WHERE id = $1', [o2b.id])).rows[0].stock_deducted, false, 'флаг снят при доставке');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'CANCELLED'), true, 'поздний возврат денег допустим');
+    assert.equal(await stock(), 7, 'товар не вернулся: он у покупателя');
+    // рабочие статусы двигаются в любую сторону
+    const o2c = await mk(1, 'k2c');
+    assert.equal(await stock(), 6);
+    for (const st of ['CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'ASSEMBLING', 'NEW']) assert.equal(await db.updateOrderStatus(o2c.id, st), true, st);
+    assert.equal(await db.updateOrderStatus(o2c.id, 'CANCELLED'), true);
+    assert.equal(await stock(), 7, 'рабочий заказ при отмене вернул товар');
+
     await mk(1, 'k3'); await mk(2, 'k4');
+    assert.equal(await stock(), 4);
+    await db.cancelOrderByNumber('AP-k3');
     assert.equal(await stock(), 5);
     await db.cancelOrderByNumber('AP-k3');
-    assert.equal(await stock(), 6);
-    await db.cancelOrderByNumber('AP-k3');
-    assert.equal(await stock(), 6, 'повторная отмена по номеру не меняет остаток');
+    assert.equal(await stock(), 5, 'повторная отмена по номеру не меняет остаток');
 
     await mk(1, 'k5');
-    assert.equal(await stock(), 5);
+    assert.equal(await stock(), 4);
     await db.deleteAllOrders();
-    assert.equal(await stock(), 8, 'вернули активные k4 и k5, доставленный k2 не вернули');
+    assert.equal(await stock(), 7, 'вернули активные k4 и k5, доставленные k2 и k2b не вернули');
     assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);
 });

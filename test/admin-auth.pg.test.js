@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const DB = process.env.TEST_DATABASE_URL;
+const DB = require('./helpers/test-db').testDatabaseUrl(); // бросает ошибку, если база не тестовая
 const skip = DB ? false : 'нет TEST_DATABASE_URL';
 
 test('вход в админку: cookie, сессии, защита от подбора и CSRF, журнал', { skip }, async (t) => {
