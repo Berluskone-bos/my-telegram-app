@@ -167,6 +167,13 @@ async function initDB() {
 
         // ─── Миграции: добавляем то, что появилось в новых версиях ───
 
+        // Профиль покупателя хранит только имя и телефон: один раз стираем адреса, сохранённые раньше
+        await client.query(`CREATE TABLE IF NOT EXISTS app_flags (flag TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        const purged = await client.query(`INSERT INTO app_flags (flag) VALUES ('profile_address_purged') ON CONFLICT DO NOTHING RETURNING flag`);
+        if (purged.rowCount) {
+            await client.query(`UPDATE customer_profiles SET city = '', street = '', house = '', building = '', letter = '', entrance = '', floor = '', apartment = ''`);
+        }
+
         // Госномер курьера: код его уже читает и пишет (регистрация курьера, команда в курьер-боте), а в схеме колонки не было
         await client.query(`ALTER TABLE couriers ADD COLUMN IF NOT EXISTS license_plate VARCHAR(20)`);
 
@@ -208,6 +215,7 @@ async function initDB() {
         await client.query(`
             ALTER TABLE orders
                 ADD COLUMN IF NOT EXISTS building      VARCHAR(32),
+                ADD COLUMN IF NOT EXISTS structure     VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS letter        VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS floor         VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS subtotal      NUMERIC(12,2) NOT NULL DEFAULT 0,

@@ -307,6 +307,7 @@ async function validateOrder(raw, userId = null) {
             street:       String(raw.street    || '').slice(0, 200),
             house:        String(raw.house     || '').slice(0, 20),
             building:     String(raw.building  || '').slice(0, 20),
+            structure:    String(raw.structure || '').slice(0, 20),
             letter:       String(raw.letter    || '').slice(0, 20),
             entrance:     String(raw.entrance  || '').slice(0, 20),
             floor:        String(raw.floor     || '').slice(0, 20),
@@ -566,6 +567,7 @@ async function saveOrderToDb(orderId, order) {
             street:       order.street || '',
             house:        order.house || '',
             building:     order.building || '',
+            structure:    order.structure || '',
             letter:       order.letter || '',
             entrance:     order.entrance || '',
             floor:        order.floor || '',
@@ -632,6 +634,7 @@ function buildAdminOrderMessage(orderId, order) {
             order.street && `ул. ${order.street}`,
             order.house && `д. ${order.house}`,
             order.building && `корп. ${order.building}`,
+            order.structure && `стр. ${order.structure}`,
             order.letter && `лит. ${order.letter}`,
             order.entrance && `подъезд ${order.entrance}`,
             order.floor && `этаж ${order.floor}`,
@@ -792,23 +795,16 @@ try {
 // API ПРОФИЛЯ — доступ только по проверенному Telegram initData
 // ═══════════════════════════════════════════
 
-function normalizeProfile(raw) {
+// В профиле только имя и телефон. Имя всегда берётся из Telegram (подписанные данные), а не из тела запроса.
+function normalizeProfile(raw, user) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const pick = (key, max) => typeof raw[key] === 'string' ? raw[key].trim().slice(0, max) : '';
-    const profile = {
-        name: pick('name', 100),
-        phone: pick('phone', 30),
-        city: pick('city', 100),
-        street: pick('street', 200),
-        house: pick('house', 20),
-        building: pick('building', 20),
-        letter: pick('letter', 20),
-        entrance: pick('entrance', 20),
-        floor: pick('floor', 20),
-        apartment: pick('apartment', 20)
-    };
-    if (profile.phone && !PHONE_RE.test(profile.phone)) return null;
-    return profile;
+    const phone = typeof raw.phone === 'string' ? raw.phone.trim().slice(0, 30) : '';
+    if (phone && !PHONE_RE.test(phone)) return null;
+    return { name: telegramName(user), phone };
+}
+
+function telegramName(user) {
+    return [user && user.first_name, user && user.last_name].filter(Boolean).join(' ').trim().slice(0, 100);
 }
 
 function authenticatedTelegramUser(req) {
@@ -821,8 +817,8 @@ app.get('/api/profile', rateLimit(60, 60_000), async (req, res) => {
     try {
         const user = authenticatedTelegramUser(req);
         if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const profile = await db.getCustomerProfile(String(user.id));
-        return res.json({ success: true, profile });
+        const stored = await db.getCustomerProfile(String(user.id));
+        return res.json({ success: true, profile: { name: telegramName(user), phone: stored ? stored.phone : '' } });
     } catch (e) {
         console.error('[API /profile GET]:', sanitizeLog(e.message));
         return res.status(500).json({ success: false, error: 'Internal error' });
@@ -833,7 +829,7 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
     try {
         const user = authenticatedTelegramUser(req);
         if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const profile = normalizeProfile(req.body);
+        const profile = normalizeProfile(req.body, user);
         if (!profile) return res.status(400).json({ success: false, error: 'Invalid profile data' });
         const saved = await db.upsertCustomerProfile(String(user.id), profile);
         return res.json({ success: true, profile: saved });

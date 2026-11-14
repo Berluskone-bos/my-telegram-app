@@ -66,14 +66,11 @@ class DBAdapter {
     // Профили покупателей
     // ───────────────────────────────────────────
 
+    // Профиль хранит только имя (из Telegram) и телефон. Адрес на сервере не хранится: вводится при каждом заказе.
     async getCustomerProfile(userId) {
         const id = String(userId || '');
         if (!/^\d{1,20}$/.test(id)) return null;
-        const res = await pool.query(
-            `SELECT name, phone, city, street, house, building, letter, entrance, floor, apartment
-               FROM customer_profiles WHERE user_id = $1`,
-            [id]
-        );
+        const res = await pool.query('SELECT name, phone FROM customer_profiles WHERE user_id = $1', [id]);
         return res.rows[0] || null;
     }
 
@@ -81,25 +78,15 @@ class DBAdapter {
         const id = String(userId || '');
         if (!/^\d{1,20}$/.test(id)) throw new Error('invalid Telegram user ID');
         const res = await pool.query(
-            `INSERT INTO customer_profiles
-                (user_id, name, phone, city, street, house, building, letter, entrance, floor, apartment, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+            `INSERT INTO customer_profiles (user_id, name, phone, updated_at)
+             VALUES ($1, $2, $3, NOW())
              ON CONFLICT (user_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 phone = EXCLUDED.phone,
-                city = EXCLUDED.city,
-                street = EXCLUDED.street,
-                house = EXCLUDED.house,
-                building = EXCLUDED.building,
-                letter = EXCLUDED.letter,
-                entrance = EXCLUDED.entrance,
-                floor = EXCLUDED.floor,
-                apartment = EXCLUDED.apartment,
+                city = '', street = '', house = '', building = '', letter = '', entrance = '', floor = '', apartment = '',
                 updated_at = NOW()
-             RETURNING name, phone, city, street, house, building, letter, entrance, floor, apartment`,
-            [id, profile.name, profile.phone, profile.city, profile.street,
-             profile.house, profile.building || '', profile.letter || '', profile.entrance,
-             profile.floor || '', profile.apartment]
+             RETURNING name, phone`,
+            [id, profile.name || '', profile.phone || '']
         );
         return res.rows[0];
     }
@@ -313,13 +300,13 @@ class DBAdapter {
 
             const res = await client.query(
                 `INSERT INTO orders (order_number, user_id, user_name, phone, address, zone, city, street, house,
-                                     building, letter, entrance, floor, apartment, items, subtotal, total, discount, discount_code,
+                                     building, structure, letter, entrance, floor, apartment, items, subtotal, total, discount, discount_code,
                                      delivery_type, payment, comment, status, payment_status, delivery_cost, idempotency_key)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING *`,
+                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27) RETURNING *`,
                 [order.order_number, order.user_id, order.user_name, order.phone, order.address,
                  order.zone, order.city, order.street, order.house,
-                 order.building || null, order.letter || null, order.entrance, order.floor || null, order.apartment,
+                 order.building || null, order.structure || null, order.letter || null, order.entrance, order.floor || null, order.apartment,
                  JSON.stringify(order.items || []),
                  order.subtotal || 0,
                  order.total,

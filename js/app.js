@@ -456,40 +456,16 @@ const App = {
         if (screenName === 'profile') Profile.updateUI();
     },
 
+    // В форму подставляются только имя (из Telegram) и телефон. Адрес вводится при каждом заказе.
     autoFillOrderForm() {
-        const profile = Profile.getProfileData();
-        if (!profile) return;
+        const profile = Profile.getProfileData() || {};
 
         const nameInput = document.getElementById('orderName');
-        if (nameInput && profile.name && !nameInput.value) {
-            nameInput.value = profile.name;
-        }
+        const name = Profile.getTelegramName() || profile.name;
+        if (nameInput && name && !nameInput.value) nameInput.value = name;
 
         const phoneInput = document.getElementById('orderPhone');
-        if (phoneInput && profile.phone && !phoneInput.value) {
-            phoneInput.value = profile.phone;
-        }
-
-        const cityInput = document.getElementById('orderCity');
-        if (cityInput && profile.city && !cityInput.value) {
-            cityInput.value = profile.city;
-        }
-        const streetInput = document.getElementById('orderStreet');
-        if (streetInput && profile.street && !streetInput.value) {
-            streetInput.value = profile.street;
-        }
-        const houseInput = document.getElementById('orderHouse');
-        if (houseInput && profile.house && !houseInput.value) {
-            houseInput.value = profile.house;
-        }
-        [['orderBuilding', 'building'], ['orderLetter', 'letter'], ['orderEntrance', 'entrance'], ['orderFloor', 'floor']].forEach(([id, key]) => {
-            const el = document.getElementById(id);
-            if (el && profile[key] && !el.value) el.value = profile[key];
-        });
-        const apartmentInput = document.getElementById('orderApartment');
-        if (apartmentInput && profile.apartment && !apartmentInput.value) {
-            apartmentInput.value = profile.apartment;
-        }
+        if (phoneInput && profile.phone && !phoneInput.value) phoneInput.value = profile.phone;
     },
 
     addToCart(productId) {
@@ -661,6 +637,7 @@ const App = {
         let street = '';
         let house = '';
         let building = '';
+        let structure = '';
         let letter = '';
         let entrance = '';
         let floor = '';
@@ -672,6 +649,7 @@ const App = {
             street = document.getElementById('orderStreet').value.trim();
             house = document.getElementById('orderHouse').value.trim();
             building = document.getElementById('orderBuilding').value.trim();
+            structure = document.getElementById('orderStructure').value.trim();
             letter = document.getElementById('orderLetter').value.trim();
             entrance = document.getElementById('orderEntrance').value.trim();
             floor = document.getElementById('orderFloor').value.trim();
@@ -684,6 +662,7 @@ const App = {
 
             address = `${city}, ул. ${street}, д. ${house}`;
             if (building) address += `, корп. ${building}`;
+            if (structure) address += `, стр. ${structure}`;
             if (letter) address += `, лит. ${letter}`;
             if (entrance) address += `, под. ${entrance}`;
             if (floor) address += `, эт. ${floor}`;
@@ -717,6 +696,7 @@ const App = {
             street: street,
             house: house,
             building: building,
+            structure: structure,
             letter: letter,
             entrance: entrance,
             floor: floor,
@@ -746,6 +726,7 @@ const App = {
             street: street,
             house: house,
             building: building,
+            structure: structure,
             letter: letter,
             entrance: entrance,
             floor: floor,
@@ -850,35 +831,17 @@ const App = {
         alert('Поддержка: напишите нам в Telegram @avtopromol_support или позвоните 8-800-555-35-35');
     },
 
-    // Профиль: редактирование данных
+    // Профиль: редактирование данных (имя берётся из Telegram, редактируется только телефон)
     editProfile() {
         const profile = Profile.getProfileData();
-        document.getElementById('modalProfileName').value = profile.name || '';
+        document.getElementById('modalProfileName').value = Profile.getTelegramName() || profile.name || '';
         document.getElementById('modalProfilePhone').value = profile.phone || '';
-        document.getElementById('modalProfileCity').value = profile.city || '';
-        document.getElementById('modalProfileStreet').value = profile.street || '';
-        document.getElementById('modalProfileHouse').value = profile.house || '';
-        document.getElementById('modalProfileBuilding').value = profile.building || '';
-        document.getElementById('modalProfileLetter').value = profile.letter || '';
-        document.getElementById('modalProfileEntrance').value = profile.entrance || '';
-        document.getElementById('modalProfileFloor').value = profile.floor || '';
-        document.getElementById('modalProfileApartment').value = profile.apartment || '';
         document.getElementById('modalProfile').classList.add('open');
     },
 
     async saveProfile() {
-        const name = document.getElementById('modalProfileName').value.trim();
         const phone = document.getElementById('modalProfilePhone').value.trim();
-        const city = document.getElementById('modalProfileCity').value.trim();
-        const street = document.getElementById('modalProfileStreet').value.trim();
-        const house = document.getElementById('modalProfileHouse').value.trim();
-        const building = document.getElementById('modalProfileBuilding').value.trim();
-        const letter = document.getElementById('modalProfileLetter').value.trim();
-        const entrance = document.getElementById('modalProfileEntrance').value.trim();
-        const floor = document.getElementById('modalProfileFloor').value.trim();
-        const apartment = document.getElementById('modalProfileApartment').value.trim();
-
-        const result = await Profile.saveProfileData({ name, phone, city, street, house, building, letter, entrance, floor, apartment });
+        const result = await Profile.saveProfileData({ phone });
         if (!result.savedLocally) {
             alert('Не удалось сохранить данные профиля на этом устройстве.');
             return;
@@ -890,42 +853,9 @@ const App = {
         if (result.synced) {
             alert('Данные профиля сохранены.');
         } else if (result.error) {
-            alert('Данные сохранены на устройстве, но не синхронизированы с сервером. Проверьте соединение и попробуйте снова.');
+            alert('Данные сохранены на устройстве, но не синхронизированы с сервером. Попробуйте позже.');
         } else {
-            alert('Данные сохранены на этом устройстве. Для синхронизации откройте магазин через Telegram.');
-        }
-    },
-
-    // Профиль: автомобиль
-    addCar() {
-        const car = Profile.getCarData();
-        document.getElementById('modalCarBrand').value = car.brand || '';
-        document.getElementById('modalCarModel').value = car.model || '';
-        document.getElementById('modalCarYear').value = car.year || '';
-        document.getElementById('modalCarEngine').value = car.engine || '';
-        document.getElementById('modalCar').classList.add('open');
-    },
-
-    saveCar() {
-        const brand = document.getElementById('modalCarBrand').value.trim();
-        const model = document.getElementById('modalCarModel').value.trim();
-        const year = document.getElementById('modalCarYear').value.trim();
-        const engine = document.getElementById('modalCarEngine').value.trim();
-
-        if (!brand || !model) {
-            alert('Укажите марку и модель автомобиля!');
-            return;
-        }
-
-        Profile.saveCarData({ brand, model, year, engine });
-        Profile.updateCarUI();
-        this.closeModal('modalCar');
-    },
-
-    removeCar() {
-        if (confirm('Удалить автомобиль из профиля?')) {
-            Profile.saveCarData(null);
-            Profile.updateCarUI();
+            alert('Данные сохранены на этом устройстве. Для синхронизации откройте магазин из Telegram.');
         }
     },
 
@@ -938,9 +868,7 @@ const App = {
     logout() {
         if (confirm('Выйти из аккаунта? Данные корзины и избранного будут сохранены.')) {
             localStorage.removeItem('gulf_profile');
-            localStorage.removeItem('gulf_car');
             Profile.updateProfileUI();
-            Profile.updateCarUI();
             alert('Вы вышли из аккаунта.');
         }
     }
