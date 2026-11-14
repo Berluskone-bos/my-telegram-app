@@ -672,14 +672,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             console.log(`[DELIVER] Route ${routeId} -> in_progress`);
         } catch (e) { console.error('[DELIVER] route update error:', e.message); }
 
-        // Уведомляем клиента
-        try {
-            const route = await db.getRouteById(routeId);
-            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-            if (stop?.client_chat_id && stop.status !== 'cancelled') {
-                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`);
-            }
-        } catch (e) { console.error('[DELIVER] notify error:', e.message); }
+        // Клиенту здесь ничего не отправляем: курьер только принял заказ со склада, он ещё не выехал.
+        // Сообщение «курьер везёт ваш заказ» уйдёт, когда курьер нажмёт «В пути».
     }
 
     else if (action === 'enroute') {
@@ -691,14 +685,15 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
         } catch (e) { console.error('[DELIVER] edit error:', e.message); }
-        bot.answerCallbackQuery(query.id, { text: 'Прибыли к клиенту' }).catch(() => {});
+        bot.answerCallbackQuery(query.id, { text: 'Вы в пути. Клиент уведомлён.' }).catch(() => {});
 
-        // Уведомляем клиента
+        // Курьер выехал: сообщаем клиенту (один раз, даже при повторном нажатии)
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
-                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>`);
+                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`,
+                    { dedupKey: `stop-enroute:${stopId}` });
             }
         } catch (e) { console.error('[DELIVER] notify error:', e.message); }
     }
@@ -711,7 +706,17 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
         } catch (e) { console.error('[DELIVER] edit error:', e.message); }
-        bot.answerCallbackQuery(query.id, { text: 'Подтвердите передачу заказа' }).catch(() => {});
+        bot.answerCallbackQuery(query.id, { text: 'Клиент уведомлён. Подтвердите передачу заказа.' }).catch(() => {});
+
+        // Курьер на месте: сообщаем клиенту
+        try {
+            const route = await db.getRouteById(routeId);
+            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            if (stop?.client_chat_id && stop.status !== 'cancelled') {
+                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>\nКурьер у вас, встречайте заказ.`,
+                    { dedupKey: `stop-arrived:${stopId}` });
+            }
+        } catch (e) { console.error('[DELIVER] notify error:', e.message); }
     }
 
     else if (action === 'done') {
