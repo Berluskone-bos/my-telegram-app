@@ -167,6 +167,36 @@ async function initDB() {
 
         // ─── Миграции: добавляем то, что появилось в новых версиях ───
 
+        // Госномер курьера: код его уже читает и пишет (регистрация курьера, команда в курьер-боте), а в схеме колонки не было
+        await client.query(`ALTER TABLE couriers ADD COLUMN IF NOT EXISTS license_plate VARCHAR(20)`);
+
+        // ─── Очередь уведомлений (см. outbox.js) и ссылка на сообщение курьеру ───
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS notification_outbox (
+                id BIGSERIAL PRIMARY KEY,
+                bot TEXT NOT NULL,
+                method TEXT NOT NULL DEFAULT 'sendMessage',
+                payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+                dedup_key TEXT,
+                depends_on TEXT,
+                on_sent JSONB,
+                edit_stop_id INT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INT NOT NULL DEFAULT 0,
+                next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                locked_until TIMESTAMPTZ,
+                last_error TEXT,
+                tg_message_id BIGINT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                sent_at TIMESTAMPTZ
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS notification_outbox_dedup_idx ON notification_outbox(dedup_key) WHERE dedup_key IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS notification_outbox_due_idx ON notification_outbox(status, next_attempt_at);
+            ALTER TABLE route_stops
+                ADD COLUMN IF NOT EXISTS courier_chat_id BIGINT,
+                ADD COLUMN IF NOT EXISTS courier_message_id BIGINT;
+        `);
+
         await client.query(`
             ALTER TABLE customer_profiles
                 ADD COLUMN IF NOT EXISTS building VARCHAR(20) NOT NULL DEFAULT '',

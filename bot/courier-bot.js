@@ -5,6 +5,8 @@ const MapLinks = require('./services/map-links');
 const RouteOptimizer = require('./services/route-optimizer');
 const Notifier = require('./services/notifier');
 const db = require('./db-adapter');
+const queue = require('./notify-queue');
+const { checkStopActive, CANCELLED_BUTTON } = require('./cancel-flow');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -19,6 +21,8 @@ const { escapeHtml } = require('./services/notifier');
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
+// Очередь уведомлений: отправка с повторами (см. outbox.js). Запуск идемпотентный: можно вызывать из обоих модулей.
+db.init().then(() => queue.instance().start()).catch(e => console.error('[OUTBOX] запуск не удался:', String(e.message).slice(0, 150)));
 const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID, process.env.ADMIN_BOT_TOKEN || '');
 
 // ===== Безопасность =====
@@ -83,32 +87,37 @@ if (process.env.ADMIN_BOT_TOKEN) {
             return;
         }
         if (data && data.startsWith('cancel_')) {
-            const orderId = parseInt(data.split('_')[1]);
+            const raw = data.slice('cancel_'.length);
+            if (!/^[0-9]{1,14}$/.test(raw)) {
+                adminBot.answerCallbackQuery(query.id, { text: 'Некорректный номер' });
+                return;
+            }
             try {
-                const done = await db.updateOrderStatus(orderId, 'CANCELLED');
+                // Новые кнопки несут внутренний номер (до 9 цифр). Старые сообщения — номер заказа без «AP-» (12–14 цифр).
+                let orderId = Number(raw);
+                if (raw.length > 9) {
+                    const r = await require('./db').pool.query('SELECT id FROM orders WHERE order_number = $1', ['AP-' + raw]);
+                    orderId = r.rows[0] ? r.rows[0].id : 0;
+                }
+                const done = orderId ? await db.updateOrderStatus(orderId, 'CANCELLED') : false;
                 if (done === false) {
                     adminBot.answerCallbackQuery(query.id, { text: 'Заказ не найден' });
                     return;
                 }
-                if (done !== true) { // ALREADY: уже отменён раньше — повторно не уведомляем клиента
-                    adminBot.answerCallbackQuery(query.id, { text: 'Заказ уже отменён' });
+                if (done !== true) { // ALREADY, доставлен или завершён: повторно никого не уведомляем
+                    adminBot.answerCallbackQuery(query.id, { text: done === 'ALREADY' ? 'Заказ уже отменён' : 'Заказ нельзя отменить в этом статусе' });
                     adminBot.editMessageReplyMarkup({ inline_keyboard: [] }, {
                         chat_id: query.message.chat.id, message_id: query.message.message_id
                     }).catch(() => {});
                     return;
                 }
-                const order = await db.getOrderByNumber(orderId);
+                const order = await db.getOrderById(orderId);
                 adminBot.answerCallbackQuery(query.id, { text: 'Заказ отменён' });
                 adminBot.editMessageReplyMarkup({ inline_keyboard: [] }, {
                     chat_id: query.message.chat.id, message_id: query.message.message_id
-                });
-                adminBot.sendMessage(query.message.chat.id, `Заказ ${order?.order_number || orderId} отменён.`);
-                // Уведомляем клиента
-                if (order?.user_id) {
-                    notifier._send(notifier.clientBotBase, order.user_id,
-                        `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Отменён</b>`
-                    ).catch(() => {});
-                }
+                }).catch(() => {});
+                adminBot.sendMessage(query.message.chat.id, `Заказ ${order?.order_number || orderId} отменён. Клиенту и курьеру (если заказ был на маршруте) сообщения отправлены.`).catch(() => {});
+                // Сообщения клиенту и курьеру уже поставлены в очередь внутри отмены (см. cancel-flow.js)
             } catch (e) {
                 console.error('[ADMIN BOT] Cancel error:', e.message);
                 adminBot.answerCallbackQuery(query.id, { text: 'Ошибка отмены' });
@@ -122,8 +131,7 @@ if (process.env.ADMIN_BOT_TOKEN) {
 
 function notifyAdmin(text, buttons = null) {
     if (!ADMIN_CHAT_ID) return Promise.resolve();
-    return notifier._send(notifier.adminBotBase, ADMIN_CHAT_ID, text, buttons)
-        .catch(e => console.error(`[ОШИБКА] Уведомление админу: ${e.message}`));
+    return queue.notify('admin', ADMIN_CHAT_ID, text, { buttons });
 }
 
 function generateRouteNumber() {
@@ -255,7 +263,7 @@ async function showMainScreen(chatId, courier) {
     const totalStops = stops.length;
     const delivered = stops.filter(s => s.status === 'delivered').length;
     const failed = stops.filter(s => s.status === 'failed').length;
-    const remaining = totalStops - delivered - failed;
+    const remaining = stops.filter(s => s.status === 'pending' || s.status === 'in_progress').length;
 
     let text = `<b>АВТОПРОМОЙЛ — Курьер</b>\n\n`;
     text += `Добрый день, ${escapeHtml(courier.name)}!\n\n`;
@@ -349,7 +357,8 @@ async function sendRouteDetails(chatId, route) {
 
     stops.forEach((stop, idx) => {
         const statusIcon = stop.status === 'delivered' ? '[OK]' :
-                          stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
+                          stop.status === 'failed' ? '[X]' :
+                          stop.status === 'cancelled' ? '[ОТМЕНЁН]' : `[${idx + 1}]`;
         text += `<b>${statusIcon} ${escapeHtml(stop.order_number || '')}</b>\n`;
         text += `Адрес: ${escapeHtml(stop.address)}\n`;
         if (stop.items_count) text += `Товаров: ${escapeHtml(stop.items_count)}\n`;
@@ -502,6 +511,17 @@ bot.on('callback_query', async (query) => {
             bot.answerCallbackQuery(query.id, { text: 'Нет доступа к этому маршруту' }).catch(() => {});
             return;
         }
+        // Заказ отменили, пока сообщение висело у курьера: действие не выполняем, клиента не уведомляем, кнопки гасим
+        if (sId !== null) {
+            const chk = await checkStopActive(require('./db').pool, sId);
+            if (!chk.active) {
+                bot.answerCallbackQuery(query.id, { text: chk.reason === 'cancelled' ? 'Заказ отменён. Везти его не нужно.' : 'Остановка не найдена', show_alert: true }).catch(() => {});
+                if (chk.reason === 'cancelled' && query.message) {
+                    bot.editMessageReplyMarkup({ inline_keyboard: CANCELLED_BUTTON }, { chat_id: chatId, message_id: query.message.message_id }).catch(() => {});
+                }
+                return;
+            }
+        }
     }
 
     if (data.startsWith('showroute_')) {
@@ -571,6 +591,11 @@ bot.on('callback_query', async (query) => {
         return;
     }
 
+    if (data === 'noop_cancelled') {
+        bot.answerCallbackQuery(query.id, { text: 'Заказ отменён. Везти его не нужно.', show_alert: true }).catch(() => {});
+        return;
+    }
+
     if (data === 'noop') {
         bot.answerCallbackQuery(query.id, { text: 'Заказ уже доставлен' });
         return;
@@ -602,6 +627,10 @@ async function handleStartRoute(chatId, routeId, user) {
     const route = await db.getRouteById(routeId);
     if (!route) return;
 
+    if (!(route.stops || []).some(s => s.status === 'pending')) {
+        bot.sendMessage(chatId, 'В маршруте не осталось активных заказов: все доставлены, не доставлены или отменены.');
+        return;
+    }
     await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
 
     bot.sendMessage(chatId, 'Маршрут начат! Удачи в доставке!');
@@ -610,9 +639,8 @@ async function handleStartRoute(chatId, routeId, user) {
     for (const stop of stops) {
         if (stop.status === 'pending' && stop.client_chat_id) {
             const timeText = stop.time_window ? `, ожидайте ${escapeHtml(stop.time_window)}` : '';
-            notifier.notifyClient(stop.client_chat_id, stop.order_number, 'shipped',
-                `Курьер уже выехал к вам${timeText}. Ожидайте доставку.`
-            ).catch(() => {});
+            queue.notify('client', stop.client_chat_id,
+                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>передан курьеру</b>\nКурьер уже выехал к вам${timeText}. Ожидайте доставку.`);
         }
     }
 
@@ -648,10 +676,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-            if (stop?.client_chat_id) {
-                notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`
-                ).catch(() => {});
+            if (stop?.client_chat_id && stop.status !== 'cancelled') {
+                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`);
             }
         } catch (e) { console.error('[DELIVER] notify error:', e.message); }
     }
@@ -671,10 +697,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-            if (stop?.client_chat_id) {
-                notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>`
-                ).catch(() => {});
+            if (stop?.client_chat_id && stop.status !== 'cancelled') {
+                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>`);
             }
         } catch (e) { console.error('[DELIVER] notify error:', e.message); }
     }
@@ -726,10 +750,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-            if (stop?.client_chat_id) {
-                notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!`
-                ).catch(() => {});
+            if (stop?.client_chat_id && stop.status !== 'cancelled') {
+                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!`);
                 // Рейтинг
                 const courier = (await db.getCouriers()).find(c => c.id === route?.courier_id);
                 if (courier) {
@@ -738,9 +760,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                             text: String(n),
                             callback_data: `rate_${courier.id}_o_${n}`
                         }))];
-                        notifier._send(notifier.clientBotBase, stop.client_chat_id,
-                            'Пожалуйста, оцените доставку:', rateButtons
-                        ).catch(() => {});
+                        queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', { buttons: rateButtons });
                     }, 3000);
                 }
             }
@@ -809,6 +829,11 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId, { text: 'Остановка не найдена' });
         return;
     }
+    if (stop.status === 'cancelled') {
+        if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId, { text: 'Заказ отменён. Везти его не нужно.', show_alert: true }).catch(() => {});
+        else bot.sendMessage(chatId, `Заказ ${stop.order_number || ''} отменён, причина недоставки не нужна.`).catch(() => {});
+        return;
+    }
 
     if (reason === 'Другое') {
         if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId);
@@ -843,8 +868,8 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
     if (stop.client_chat_id) {
         if (status === 'delivered') {
             // Благодарность + рейтинг через основной бот
-            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'delivered')
-                .catch(() => {});
+            queue.notify('client', stop.client_chat_id,
+                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>доставлен</b>.\n\nСпасибо за покупку!`);
 
             // Обновляем статус заказа на COMPLETED
             if (stop.order_id) {
@@ -853,8 +878,8 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
                     .catch(() => {});
             }
         } else {
-            notifier.notifyClientDelivery(stop.client_chat_id, stop.order_number, 'failed', reason)
-                .catch(() => {});
+            queue.notify('client', stop.client_chat_id,
+                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>не доставлен</b>.` + (reason ? `\nПричина: ${escapeHtml(reason)}` : ''));
         }
     }
 }
@@ -1106,15 +1131,18 @@ function registerCourierRoutes(app) {
             if (changed === 'CANCELLED_LOCKED') return res.status(409).json({ error: 'Отменённый заказ нельзя вернуть в работу. Оформите новый заказ.' });
             if (changed === 'TRANSITION_FORBIDDEN') return res.status(409).json({ error: 'Недопустимая смена статуса: доставленный или завершённый заказ нельзя вернуть в работу.' });
             if (!changed) return res.status(404).json({ error: 'Заказ не найден' });
+            // Тот же статус уже стоял: повторных сообщений и повторной работы с маршрутом не нужно
+            if (changed === 'ALREADY') return res.json({ success: true, unchanged: true });
 
-            // Обновляем маршрут при доставке/отмене
-            if (status === 'DELIVERED' || status === 'COMPLETED' || status === 'CANCELLED') {
+            // Обновляем маршрут при доставке. Отмена обрабатывается внутри updateOrderStatus (cancel-flow.js):
+            // остановка маршрута помечается «отменена», курьеру и клиенту ставятся в очередь сообщения.
+            if (status === 'DELIVERED' || status === 'COMPLETED') {
                 const routes = await db.getRoutes();
                 for (const route of routes) {
                     const stop = (route.stops || []).find(s => String(s.order_id) === String(orderId));
                     if (stop) {
-                        const stopStatus = (status === 'CANCELLED') ? 'failed' : 'delivered';
-                        await db.updateStopStatus(stop.id, stopStatus, status === 'CANCELLED' ? 'Отменён менеджером' : '');
+                        const stopStatus = 'delivered';
+                        await db.updateStopStatus(stop.id, stopStatus, '');
                         const stops = route.stops || [];
                         const newCompleted = stops.filter(s => s.status === 'delivered' || (s.id === stop.id && stopStatus === 'delivered')).length;
                         const newFailed = stops.filter(s => s.status === 'failed' || (s.id === stop.id && stopStatus === 'failed')).length;
@@ -1155,11 +1183,9 @@ function registerCourierRoutes(app) {
                         `Статус: <b>${label}</b>`,
                         cancelBtn
                     );
-                    // Уведомление клиенту
-                    if (order.user_id) {
-                        notifier._send(notifier.clientBotBase, order.user_id,
-                            `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`
-                        ).catch(() => {});
+                    // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
+                    if (order.user_id && status !== 'CANCELLED') {
+                        queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`);
                     }
                 }
             }
@@ -1248,7 +1274,7 @@ function registerCourierRoutes(app) {
             await db.updateOrderStatus(orderId, 'SHIPPING');
 
             // Уведомляем курьера через курьерский бот
-            if (bot && courier.telegram_id) {
+            if (courier.telegram_id) {
                 const stopId = route.stops && route.stops[0] ? route.stops[0].id : 0;
                 const msgText =
                     `<b>Новый заказ!</b>\n\n` +
@@ -1272,12 +1298,11 @@ function registerCourierRoutes(app) {
                     { text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }
                 ]);
 
-                console.log(`[КУРЬЕР] Отправка курьеру ${escapeHtml(courier.telegram_id)}`);
-                bot.sendMessage(courier.telegram_id, msgText, {
-                    parse_mode: 'HTML',
-                    reply_markup: { inline_keyboard: navButtons }
-                }).then(() => console.log(`[OK] Уведомление отправлено курьеру ${escapeHtml(courier.telegram_id)}`))
-                  .catch(e => console.error(`[ОШИБКА] Уведомление курьеру: ${e.message}`));
+                // Через очередь: при сбое Telegram сообщение повторится; id сообщения запоминаем,
+                // чтобы при отмене заказа погасить на нём кнопки (см. cancel-flow.js)
+                queue.notify('courier', courier.telegram_id, msgText, {
+                    buttons: navButtons, dedupKey: `assign:${stopId}`, onSent: { stopId }
+                });
             }
 
             // Уведомление в админ-бот о назначении курьера
@@ -1293,9 +1318,7 @@ function registerCourierRoutes(app) {
 
             // Уведомление клиенту о назначении курьера
             if (order.user_id) {
-                notifier._send(notifier.clientBotBase, order.user_id,
-                    `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`
-                ).catch(() => {});
+                queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
             }
 
             res.json({ success: true, route });

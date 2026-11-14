@@ -456,20 +456,33 @@ bot.on('callback_query', async (query) => {
                 return;
             }
             const id = data.slice('cancel_'.length);
-            if (!ORDER_ID_RE.test(id)) {
+            // Новые кнопки несут внутренний номер (до 9 цифр), старые — номер заказа без «AP-» (12–14 цифр)
+            if (!/^[0-9]{1,14}$/.test(id)) {
                 await bot.answerCallbackQuery(query.id, { text: 'Некорректный номер' }).catch(() => {});
                 return;
             }
-            const orderNumber = 'AP-' + id;
+            const orderNumber = id.length > 9 ? 'AP-' + id : null;
 
             let ok = false;
             try {
-                if (hasCancelByNum) {
-                    ok = await db.cancelOrderByNumber(orderNumber);
-                } else {
-                    ok = await db.updateOrderStatus(orderNumber, 'CANCELLED');
+                if (orderNumber) ok = await db.cancelOrderByNumber(orderNumber);
+                else {
+                    const r = await db.updateOrderStatus(Number(id), 'CANCELLED');
+                    if (r === false) {
+                        await bot.answerCallbackQuery(query.id, { text: 'Заказ не найден' }).catch(() => {});
+                        return;
+                    }
+                    ok = r === true;
                 }
-                if (!ok) throw new Error('заказ не найден или уже отменён');
+                if (!ok) {
+                    await bot.answerCallbackQuery(query.id, { text: 'Заказ уже отменён, доставлен или не найден' }).catch(() => {});
+                    if (query.message && query.message.chat) {
+                        await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+                            chat_id: query.message.chat.id, message_id: query.message.message_id
+                        }).catch(() => {});
+                    }
+                    return;
+                }
             } catch (e) {
                 console.error('[cancel_] db:', sanitizeLog(e.message));
                 await bot.answerCallbackQuery(query.id, { text: 'Ошибка отмены' }).catch(() => {});
@@ -482,7 +495,7 @@ bot.on('callback_query', async (query) => {
                     chat_id: query.message.chat.id, message_id: query.message.message_id
                 }).catch(() => {});
                 // без parse_mode — экранирование не нужно
-                await bot.sendMessage(query.message.chat.id, `Заказ #${orderNumber} отменён.`).catch(() => {});
+                await bot.sendMessage(query.message.chat.id, `Заказ отменён: ${orderNumber || 'внутренний номер ' + id}. Клиенту и курьеру сообщения отправлены.`).catch(() => {});
             }
             return;
         }
@@ -568,7 +581,8 @@ async function saveOrderToDb(orderId, order) {
             payment:      order.payment || 'cash',
             comment:      order.comment || '',
             status:         'NEW',
-            payment_status: 'PENDING'
+            payment_status: 'PENDING',
+            buildNotifications: (row) => buildOrderNotifications(orderId, order, row)
         });
         return result ? result.id : null;
     } catch (e) {
@@ -594,30 +608,21 @@ function deliveryLabel(t) {
     return t === 'pickup' ? 'Самовывоз' : 'Доставка';
 }
 
-async function sendCustomerOrderNotification(userId, orderId, order) {
-    if (!userId) return false;
-    const message =
-        `<b>Заказ принят!</b>\n\n` +
+// Сообщения о новом заказе: клиенту и админу. Не отправляются сразу, а кладутся в очередь
+// в той же транзакции, что и заказ (см. outbox.js): сбой Telegram не приводит к потере уведомления.
+function buildCustomerOrderMessage(orderId, order) {
+    return `<b>Заказ принят!</b>\n\n` +
         `<b>Номер:</b> #${escapeHtml('AP-' + orderId)}\n` +
         `<b>Товары:</b>\n${buildItemsList(order.items)}\n\n` +
-        `<b>Итого:</b> ${Number(order.total).toLocaleString('ru-RU')} руб.\n` +
+        `<b>Итого:</b> ${Number(order.total).toLocaleString('ru-RU')} руб.` +
+        (order.discount > 0 ? ` (скидка ${order.discount}%)` : '') + `\n` +
         `<b>Доставка:</b> ${escapeHtml(deliveryLabel(order.deliveryType))}\n` +
         `<b>Адрес:</b> ${escapeHtml(order.address)}\n` +
         `<b>Телефон:</b> ${escapeHtml(order.phone)}\n\n` +
         `Мы свяжемся с вами для подтверждения заказа.`;
-    await bot.sendMessage(String(userId), message, { parse_mode: 'HTML' });
-    console.log('[OK] Подтверждение заказа отправлено покупателю');
-    return true;
 }
 
-async function sendAdminNotification(orderId, order) {
-    if (!ADMIN_CHAT_ID) {
-        console.log('[ВНИМАНИЕ] ADMIN_CHAT_ID не задан — уведомление пропущено');
-        return false;
-    }
-    const useAdminBot = !!ADMIN_BOT_TOKEN;
-    const sendToken = useAdminBot ? ADMIN_BOT_TOKEN : token;
-
+function buildAdminOrderMessage(orderId, order) {
     const zoneName = order.zone === 'spb' ? 'Санкт-Петербург (КАД)' : 'Ленинградская область';
 
     const addressLines = [order.address];
@@ -654,91 +659,41 @@ async function sendAdminNotification(orderId, order) {
     if (order.comment) {
         msg += `\n\n<b>Комментарий:</b> ${escapeHtml(order.comment)}`;
     }
+    return msg;
+}
 
-    const payload = JSON.stringify({
-        chat_id: ADMIN_CHAT_ID,
-        text: msg,
-        parse_mode: 'HTML',
-        reply_markup: {
-            inline_keyboard: [[{
-                text: 'Отменить заказ',
-                callback_data: `cancel_${orderId}`
-            }]]
-        }
-    });
-
-    const body = await new Promise((resolve, reject) => {
-        const url = new URL(`https://api.telegram.org/bot${sendToken}/sendMessage`);
-        const req = https.request({
-            hostname: url.hostname,
-            path: url.pathname,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload)
-            },
-            timeout: 10_000
-        }, (res) => {
-            let b = '';
-            res.on('data', c => b += c);
-            res.on('end', () => resolve({ status: res.statusCode, body: b }));
-        });
-        req.on('timeout', () => { req.destroy(new Error('timeout')); });
-        req.on('error', reject);
-        req.write(payload);
-        req.end();
-    });
-
-    let parsed;
-    try { parsed = JSON.parse(body.body); } catch { parsed = null; }
-
-    if (body.status !== 200 || !parsed || parsed.ok !== true) {
-        const desc = parsed && parsed.description ? parsed.description : body.body.slice(0, 200);
-        throw new Error(`Telegram API ${body.status}: ${sanitizeLog(desc)}`);
+// row — сохранённая строка заказа: кнопка «Отменить» должна нести внутренний номер (id), а не номер для клиента
+function buildOrderNotifications(orderId, order, row) {
+    const list = [];
+    if (order.userId) {
+        list.push({ bot: 'client', dedupKey: `order-client:${row.id}`,
+            payload: { chat_id: String(order.userId), parse_mode: 'HTML', text: buildCustomerOrderMessage(orderId, order) } });
+    } else {
+        console.warn('[ЗАКАЗ] Telegram user ID отсутствует — сообщение покупателю не будет отправлено');
     }
-    console.log('[OK] Уведомление отправлено админу');
-    return true;
+    if (ADMIN_CHAT_ID) {
+        list.push({ bot: 'admin', dedupKey: `order-admin:${row.id}`,
+            payload: { chat_id: String(ADMIN_CHAT_ID), parse_mode: 'HTML', text: buildAdminOrderMessage(orderId, order),
+                reply_markup: { inline_keyboard: [[{ text: 'Отменить заказ', callback_data: `cancel_${row.id}` }]] } } });
+    } else {
+        console.log('[ВНИМАНИЕ] ADMIN_CHAT_ID не задан — уведомление админу пропущено');
+    }
+    return list;
 }
 
 async function handleNewOrder(chatId, order) {
     const orderId = generateOrderId();
     const dbOrderId = await saveOrderToDb(orderId, order);
 
-    if (dbOrderId === null) {
+    if (dbOrderId === null || typeof dbOrderId === 'object' || dbOrderId === 'PROMO_EXHAUSTED') {
         console.error('[handleNewOrder] Не сохранён в БД — клиенту честный отказ');
         await bot.sendMessage(chatId,
             'Не удалось сохранить заказ. Попробуйте ещё раз или свяжитесь с нами.'
         ).catch(() => {});
         return;
     }
-
-    const zoneName = order.zone === 'spb' ? 'Санкт-Петербург (КАД)' : 'Ленинградская область';
-
     console.log(`[ЗАКАЗ] #AP-${orderId} сохранён (dbId=${dbOrderId}), итого=${order.total}`);
-
-    try {
-        await bot.sendMessage(chatId,
-            `<b>Заказ оформлен!</b>\n\n` +
-            `<b>Номер заказа:</b> #${escapeHtml('AP-' + orderId)}\n` +
-            `<b>Дата:</b> ${escapeHtml(formatDateTime())}\n\n` +
-            `<b>Товары:</b>\n${buildItemsList(order.items)}\n\n` +
-            `<b>Итого:</b> ${order.total.toLocaleString('ru-RU')} руб.` +
-            (order.discount > 0 ? ` (скидка ${order.discount}%)` : '') + `\n` +
-            `<b>Доставка:</b> ${escapeHtml(zoneName)}\n` +
-            `<b>Адрес:</b> ${escapeHtml(order.address)}\n\n` +
-            `Мы свяжемся с вами в ближайшее время для подтверждения заказа.`,
-            { parse_mode: 'HTML' }
-        );
-    } catch (err) {
-        console.error('[handleNewOrder] sendMessage:', sanitizeLog(err.message));
-    }
-
-    try {
-        await sendAdminNotification(orderId, order);
-    } catch (e) {
-        console.error('[handleNewOrder] admin notify failed:', sanitizeLog(e.message));
-        // клиенту не сообщаем, заказ в БД есть — админ увидит в списке
-    }
+    // Сообщения клиенту и админу уже в очереди (записаны вместе с заказом) и уйдут с повторами при сбое.
 }
 
 // ═══════════════════════════════════════════
@@ -964,15 +919,7 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
             return res.status(500).json({ success: false, error: 'Failed to save order' });
         }
 
-        if (v.data.userId) {
-            sendCustomerOrderNotification(v.data.userId, orderId, v.data).catch(e =>
-                console.error('[API /order] customer notify:', sanitizeLog(e.message)));
-        } else {
-            console.warn('[API /order] Telegram user ID отсутствует — сообщение покупателю не отправлено');
-        }
-
-        sendAdminNotification(orderId, v.data).catch(e =>
-            console.error('[API /order] admin notify:', sanitizeLog(e.message)));
+        // Сообщения клиенту и админу уже поставлены в очередь вместе с заказом (см. saveOrderToDb)
 
         recentOrders.set(dedupKey, { at: Date.now(), orderId: 'AP-' + orderId, total: v.data.total });
         return res.json({ success: true, orderId: 'AP-' + orderId, total: v.data.total, discount: v.data.discount, discountSource: v.data.discountSource });
@@ -1042,6 +989,8 @@ db.init().then(async () => {
     if (typeof db.seedProductsFromCatalog === 'function') {
         await db.seedProductsFromCatalog();
     }
+
+    require('./notify-queue').instance().start();
 
     server = app.listen(PORT, async () => {
         console.log(`Веб-сервер: http://localhost:${PORT}`);
