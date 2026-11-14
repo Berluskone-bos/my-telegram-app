@@ -212,7 +212,7 @@ setInterval(() => {
 
 const PHONE_RE = /^(\+7|8|7)?[\s\-()]*\d{3}[\s\-()]*\d{3}[\s\-()]*\d{2}[\s\-()]*\d{2}$/;
 
-async function validateOrder(raw) {
+async function validateOrder(raw, userId = null) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'invalid body' };
 
     const items = Array.isArray(raw.items) ? raw.items : null;
@@ -255,18 +255,21 @@ async function validateOrder(raw) {
         cleanItems.push({ productId, name, volume, price, qty });
     }
 
-    // Скидка — только через промокод с серверной проверкой
-    let discount = 0;
-    let discountCode = null;
+    // Скидка считается только здесь. Два источника: шкала по обороту клиента и промокод.
+    // Они не суммируются: действует большая, промокод «сгорает» только если он реально дал выигрыш.
+    let promoPct = 0, promoCode = null;
     const rawCode = String(raw.discountCode || raw.promoCode || '').trim().slice(0, 50);
     if (rawCode && hasGetDiscount) {
         const promo = await db.getDiscountByCode(rawCode);
         const pct = promo ? Number(promo.percent) : NaN;   // NUMERIC из pg приходит строкой
-        if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
-            discount = pct;
-            discountCode = rawCode;
-        }
+        if (Number.isFinite(pct) && pct >= 0 && pct <= 100) { promoPct = pct; promoCode = rawCode; }
     }
+    let loyaltyPct = 0;
+    if (userId && typeof db.getLoyalty === 'function') {
+        try { loyaltyPct = (await db.getLoyalty(userId)).percent || 0; }
+        catch (e) { console.error('[validateOrder] loyalty:', sanitizeLog(e.message)); }
+    }
+    const { discount, discountCode, discountSource } = require('./discount').resolveDiscount({ promoPct, promoCode, loyaltyPct });
 
     const goodsTotal = Math.round(subtotal * (1 - discount / 100) * 100) / 100;
 
@@ -303,13 +306,17 @@ async function validateOrder(raw) {
             city:         String(raw.city      || '').slice(0, 100),
             street:       String(raw.street    || '').slice(0, 200),
             house:        String(raw.house     || '').slice(0, 20),
+            building:     String(raw.building  || '').slice(0, 20),
+            letter:       String(raw.letter    || '').slice(0, 20),
             entrance:     String(raw.entrance  || '').slice(0, 20),
+            floor:        String(raw.floor     || '').slice(0, 20),
             apartment:    String(raw.apartment || '').slice(0, 20),
             items:        cleanItems,
             total,
             subtotal,
             discount,
             discountCode,
+            discountSource,
             deliveryCost,
             deliveryNote,
             deliveryType,
@@ -505,7 +512,7 @@ bot.on('message', async (msg) => {
 
     let v;
     try {
-        v = await validateOrder(payload);
+        v = await validateOrder(payload, msg.from && msg.from.id);
     } catch (e) {
         console.error('[web_app_data] validate:', sanitizeLog(e.message));
         await bot.sendMessage(chatId, 'Ошибка обработки заказа.').catch(() => {});
@@ -545,7 +552,10 @@ async function saveOrderToDb(orderId, order) {
             city:         order.city || '',
             street:       order.street || '',
             house:        order.house || '',
+            building:     order.building || '',
+            letter:       order.letter || '',
             entrance:     order.entrance || '',
+            floor:        order.floor || '',
             apartment:    order.apartment || '',
             items:        order.items || [],
             total:        order.total || 0,
@@ -616,7 +626,10 @@ async function sendAdminNotification(orderId, order) {
             order.city && `г. ${order.city}`,
             order.street && `ул. ${order.street}`,
             order.house && `д. ${order.house}`,
+            order.building && `корп. ${order.building}`,
+            order.letter && `лит. ${order.letter}`,
             order.entrance && `подъезд ${order.entrance}`,
+            order.floor && `этаж ${order.floor}`,
             order.apartment && `кв. ${order.apartment}`
         ].filter(Boolean).join(', '));
     }
@@ -833,7 +846,10 @@ function normalizeProfile(raw) {
         city: pick('city', 100),
         street: pick('street', 200),
         house: pick('house', 20),
+        building: pick('building', 20),
+        letter: pick('letter', 20),
         entrance: pick('entrance', 20),
+        floor: pick('floor', 20),
         apartment: pick('apartment', 20)
     };
     if (profile.phone && !PHONE_RE.test(profile.phone)) return null;
@@ -874,6 +890,8 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
 
 // История заказов клиента (GET /api/orders/my, POST /api/orders/my/hide) — bot/order-history-routes.js
 require('./order-history-routes').registerOrderHistoryRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog });
+// Скидка клиента по обороту (GET /api/loyalty) — bot/loyalty-routes.js
+require('./loyalty-routes').registerLoyaltyRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog });
 
 // ═══════════════════════════════════════════
 // API /api/order
@@ -902,7 +920,7 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
 
         let v;
         try {
-            v = await validateOrder(req.body);
+            v = await validateOrder(req.body, auth.user.id);
         } catch (e) {
             // №14 — validateOrder бросает только при сбое БД, не при плохих данных
             console.error('[API /order] validate (инфраструктура):', sanitizeLog(e.message));
@@ -957,7 +975,7 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
             console.error('[API /order] admin notify:', sanitizeLog(e.message)));
 
         recentOrders.set(dedupKey, { at: Date.now(), orderId: 'AP-' + orderId, total: v.data.total });
-        return res.json({ success: true, orderId: 'AP-' + orderId, total: v.data.total });
+        return res.json({ success: true, orderId: 'AP-' + orderId, total: v.data.total, discount: v.data.discount, discountSource: v.data.discountSource });
     } catch (e) {
         console.error('[API /order] fatal:', sanitizeLog(e.message));
         return res.status(500).json({ success: false, error: 'Internal error' });

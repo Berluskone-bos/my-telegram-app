@@ -29,6 +29,7 @@ const App = {
         await Profile.loadFromServer(tg);
         Profile.updateProfileUI();
         Profile.syncOrders();   // история заказов с сервера (без ожидания)
+        Profile.syncLoyalty();  // скидка клиента с сервера
 
         const user = TelegramApp.getUser(tg);
         const userName = TelegramApp.getUserName(user);
@@ -481,10 +482,10 @@ const App = {
         if (houseInput && profile.house && !houseInput.value) {
             houseInput.value = profile.house;
         }
-        const entranceInput = document.getElementById('orderEntrance');
-        if (entranceInput && profile.entrance && !entranceInput.value) {
-            entranceInput.value = profile.entrance;
-        }
+        [['orderBuilding', 'building'], ['orderLetter', 'letter'], ['orderEntrance', 'entrance'], ['orderFloor', 'floor']].forEach(([id, key]) => {
+            const el = document.getElementById(id);
+            if (el && profile[key] && !el.value) el.value = profile[key];
+        });
         const apartmentInput = document.getElementById('orderApartment');
         if (apartmentInput && profile.apartment && !apartmentInput.value) {
             apartmentInput.value = profile.apartment;
@@ -659,7 +660,10 @@ const App = {
         let city = '';
         let street = '';
         let house = '';
+        let building = '';
+        let letter = '';
         let entrance = '';
+        let floor = '';
         let apartment = '';
 
         if (deliveryType === 'delivery') {
@@ -667,7 +671,10 @@ const App = {
             city = document.getElementById('orderCity').value.trim();
             street = document.getElementById('orderStreet').value.trim();
             house = document.getElementById('orderHouse').value.trim();
+            building = document.getElementById('orderBuilding').value.trim();
+            letter = document.getElementById('orderLetter').value.trim();
             entrance = document.getElementById('orderEntrance').value.trim();
+            floor = document.getElementById('orderFloor').value.trim();
             apartment = document.getElementById('orderApartment').value.trim();
 
             if (!street || !house) {
@@ -676,7 +683,10 @@ const App = {
             }
 
             address = `${city}, ул. ${street}, д. ${house}`;
+            if (building) address += `, корп. ${building}`;
+            if (letter) address += `, лит. ${letter}`;
             if (entrance) address += `, под. ${entrance}`;
+            if (floor) address += `, эт. ${floor}`;
             if (apartment) address += `, кв. ${apartment}`;
         } else {
             address = 'Самовывоз';
@@ -706,7 +716,10 @@ const App = {
             city: city,
             street: street,
             house: house,
+            building: building,
+            letter: letter,
             entrance: entrance,
+            floor: floor,
             apartment: apartment,
             comment: comment,
             phone: phone,
@@ -732,7 +745,10 @@ const App = {
             city: city,
             street: street,
             house: house,
+            building: building,
+            letter: letter,
             entrance: entrance,
+            floor: floor,
             apartment: apartment,
             comment: comment,
             phone: phone,
@@ -782,7 +798,7 @@ const App = {
             Profile.addOrder(order);
             Profile.syncOrders();
             const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
-            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${discount > 0 ? ' (скидка ' + discount + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${(data.discount !== undefined ? data.discount : discount) > 0 ? ' (скидка ' + (data.discount !== undefined ? data.discount : discount) + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
             Cart.clear();
             this.updateCartBadge();
             Cart.render();
@@ -842,7 +858,10 @@ const App = {
         document.getElementById('modalProfileCity').value = profile.city || '';
         document.getElementById('modalProfileStreet').value = profile.street || '';
         document.getElementById('modalProfileHouse').value = profile.house || '';
+        document.getElementById('modalProfileBuilding').value = profile.building || '';
+        document.getElementById('modalProfileLetter').value = profile.letter || '';
         document.getElementById('modalProfileEntrance').value = profile.entrance || '';
+        document.getElementById('modalProfileFloor').value = profile.floor || '';
         document.getElementById('modalProfileApartment').value = profile.apartment || '';
         document.getElementById('modalProfile').classList.add('open');
     },
@@ -853,10 +872,13 @@ const App = {
         const city = document.getElementById('modalProfileCity').value.trim();
         const street = document.getElementById('modalProfileStreet').value.trim();
         const house = document.getElementById('modalProfileHouse').value.trim();
+        const building = document.getElementById('modalProfileBuilding').value.trim();
+        const letter = document.getElementById('modalProfileLetter').value.trim();
         const entrance = document.getElementById('modalProfileEntrance').value.trim();
+        const floor = document.getElementById('modalProfileFloor').value.trim();
         const apartment = document.getElementById('modalProfileApartment').value.trim();
 
-        const result = await Profile.saveProfileData({ name, phone, city, street, house, entrance, apartment });
+        const result = await Profile.saveProfileData({ name, phone, city, street, house, building, letter, entrance, floor, apartment });
         if (!result.savedLocally) {
             alert('Не удалось сохранить данные профиля на этом устройстве.');
             return;

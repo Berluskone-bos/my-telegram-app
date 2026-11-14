@@ -68,7 +68,7 @@ class DBAdapter {
         const id = String(userId || '');
         if (!/^\d{1,20}$/.test(id)) return null;
         const res = await pool.query(
-            `SELECT name, phone, city, street, house, entrance, apartment
+            `SELECT name, phone, city, street, house, building, letter, entrance, floor, apartment
                FROM customer_profiles WHERE user_id = $1`,
             [id]
         );
@@ -80,20 +80,24 @@ class DBAdapter {
         if (!/^\d{1,20}$/.test(id)) throw new Error('invalid Telegram user ID');
         const res = await pool.query(
             `INSERT INTO customer_profiles
-                (user_id, name, phone, city, street, house, entrance, apartment, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                (user_id, name, phone, city, street, house, building, letter, entrance, floor, apartment, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
              ON CONFLICT (user_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 phone = EXCLUDED.phone,
                 city = EXCLUDED.city,
                 street = EXCLUDED.street,
                 house = EXCLUDED.house,
+                building = EXCLUDED.building,
+                letter = EXCLUDED.letter,
                 entrance = EXCLUDED.entrance,
+                floor = EXCLUDED.floor,
                 apartment = EXCLUDED.apartment,
                 updated_at = NOW()
-             RETURNING name, phone, city, street, house, entrance, apartment`,
+             RETURNING name, phone, city, street, house, building, letter, entrance, floor, apartment`,
             [id, profile.name, profile.phone, profile.city, profile.street,
-             profile.house, profile.entrance, profile.apartment]
+             profile.house, profile.building || '', profile.letter || '', profile.entrance,
+             profile.floor || '', profile.apartment]
         );
         return res.rows[0];
     }
@@ -307,12 +311,13 @@ class DBAdapter {
 
             const res = await client.query(
                 `INSERT INTO orders (order_number, user_id, user_name, phone, address, zone, city, street, house,
-                                     entrance, apartment, items, subtotal, total, discount, discount_code,
+                                     building, letter, entrance, floor, apartment, items, subtotal, total, discount, discount_code,
                                      delivery_type, payment, comment, status, payment_status, delivery_cost, idempotency_key)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
+                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING *`,
                 [order.order_number, order.user_id, order.user_name, order.phone, order.address,
-                 order.zone, order.city, order.street, order.house, order.entrance, order.apartment,
+                 order.zone, order.city, order.street, order.house,
+                 order.building || null, order.letter || null, order.entrance, order.floor || null, order.apartment,
                  JSON.stringify(order.items || []),
                  order.subtotal || 0,
                  order.total,
@@ -483,6 +488,42 @@ class DBAdapter {
 
     // Устаревшее имя: ищет по PK, а не по order_number. Оставлено для совместимости.
     // Используйте getOrderById / getOrderByOrderNumber.
+    // ───────────────────────────────────────────
+    // Скидки по обороту (loyalty_tiers)
+    // ───────────────────────────────────────────
+
+    async getLoyaltyTiers() {
+        const now = Date.now();
+        if (this._tiers && now - this._tiersAt < 60_000) return this._tiers;
+        const res = await pool.query('SELECT min_turnover, percent, name FROM loyalty_tiers ORDER BY min_turnover');
+        this._tiers = res.rows.map(r => ({ at: Number(r.min_turnover), percent: Number(r.percent), name: r.name }));
+        this._tiersAt = now;
+        return this._tiers;
+    }
+
+    // Оборот клиента: сумма товаров (без доставки) по доставленным и завершённым заказам.
+    async getCustomerTurnover(userId) {
+        const res = await pool.query(
+            `SELECT COALESCE(SUM(GREATEST(total - COALESCE(delivery_cost, 0), 0)), 0) AS t
+               FROM orders WHERE user_id = $1::bigint AND status IN ('DELIVERED', 'COMPLETED')`, [String(userId)]);
+        return Number(res.rows[0].t) || 0;
+    }
+
+    // Текущая скидка клиента и ближайший уровень. Считает только сервер.
+    async getLoyalty(userId) {
+        const [tiers, turnover] = await Promise.all([this.getLoyaltyTiers(), this.getCustomerTurnover(userId)]);
+        let cur = null, next = null;
+        for (const t of tiers) { if (t.at <= turnover) cur = t; else { next = t; break; } }
+        return {
+            turnover,
+            percent: cur ? cur.percent : 0,
+            name: cur ? cur.name : '',
+            from: cur ? cur.at : 0,
+            next: next ? { at: next.at, percent: next.percent, name: next.name } : null,
+            tiers
+        };
+    }
+
     // История заказов клиента (только его заказы, без телефона и комментария).
     async getOrdersByUser(userId, limit = 50) {
         const res = await pool.query(
