@@ -61,6 +61,7 @@ test('курьерский бот: кнопки отменённого зака�
         await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: { inline_keyboard: [] } } });
         await new Promise(r => setTimeout(r, 150));
     };
+    const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
     const clientTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'client' ORDER BY id")).rows.map(r => r.t);
 
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
@@ -80,6 +81,7 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`delivered_${a.route.id}_${a.stopId}`);
     assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /отменён/);
     assert.deepEqual(await clientTexts(), [], 'клиенту ничего не отправлено');
+    assert.deepEqual(await adminTexts(), [], 'админу о кнопках отменённого заказа ничего не отправлено');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [a.stopId])).rows[0].status, 'cancelled', 'остановка не перезаписана');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [a.o.id])).rows[0].status, 'CANCELLED');
 
@@ -90,12 +92,14 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${b.route.id}_${b.stopId}_accept`);
     assert.ok(!calls.some(c => c[0] === 'answerCallbackQuery' && c[2] && c[2].show_alert), 'предупреждения нет');
     assert.deepEqual(await clientTexts(), [], 'после «Принять» клиенту ничего не отправлено');
+    assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
     let texts = await clientTexts();
     assert.equal(texts.length, 1); assert.match(texts[0], /Курьер в пути/); assert.match(texts[0], /везёт ваш заказ/);
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);   // повторное нажатие не дублирует сообщение
     assert.equal((await clientTexts()).length, 1, 'дубля нет');
+    assert.equal((await adminTexts()).length, 2, 'админу «выехал» один раз'); assert.match((await adminTexts())[1], /выехал к клиенту/);
 
     await press(`deliver_${b.route.id}_${b.stopId}_arrived`);
     texts = await clientTexts();
@@ -104,4 +108,7 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${b.route.id}_${b.stopId}_done`);
     texts = await clientTexts();
     assert.ok(texts.length >= 3); assert.match(texts[2], /Доставлен/);
+    const adm = await adminTexts();
+    assert.equal(adm.length, 4); assert.match(adm[2], /приехал к клиенту/); assert.match(adm[3], /заказ доставлен/);
+    assert.match(adm[3], new RegExp('AP-cg2'));
 });
