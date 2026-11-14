@@ -89,7 +89,6 @@ const Profile = {
     addOrder(order) {
         this.orderHistory.unshift(order);
         this.totalSpent += order.total;
-        this.setReferralExpiry();
         this.save();
     },
 
@@ -189,46 +188,40 @@ const Profile = {
         return span > 0 ? ((l.turnover - l.from) / span) * 100 : 0;
     },
 
+    // Реферальный код постоянный и привязан к Telegram ID: REF-<ID>. Баланс и правила — только с сервера.
     getReferralCode() {
-        let code = localStorage.getItem('gulf_referral');
-        if (!code) {
-            const tg = window.Telegram.WebApp;
-            const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
-            let suffix;
-            if (user && user.id) {
-                suffix = String(user.id).slice(-4);
-            } else {
-                suffix = String(Math.floor(1000 + Math.random() * 9000));
-            }
-            code = 'AP-' + suffix;
-            localStorage.setItem('gulf_referral', code);
-        }
-        return code;
+        if (this.bonuses && this.bonuses.referralCode) return this.bonuses.referralCode;
+        const tg = window.Telegram && window.Telegram.WebApp;
+        const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+        return user && user.id ? 'REF-' + user.id : '';
     },
 
-    getReferralExpiry() {
-        const expiry = localStorage.getItem('gulf_referral_expiry');
-        return expiry ? parseInt(expiry) : null;
-    },
-
-    setReferralExpiry() {
-        if (!localStorage.getItem('gulf_referral_expiry')) {
-            const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
-            localStorage.setItem('gulf_referral_expiry', String(expiry));
+    async syncBonuses() {
+        const initData = this.getTelegramInitData();
+        if (!initData) return false;
+        try {
+            const r = await fetch(this.getApiBase() + '/api/bonuses', { headers: { 'X-Telegram-Init-Data': initData } });
+            if (!r.ok) return false;
+            const data = await r.json();
+            if (!data.success) return false;
+            this.bonuses = data;
+            return true;
+        } catch (e) {
+            console.warn('[Profile] Бонусы не обновлены:', e && e.message);
+            return false;
         }
     },
 
-    isReferralActive() {
-        const expiry = this.getReferralExpiry();
-        if (!expiry) return false;
-        return Date.now() < expiry;
+    getBonusBalance() {
+        return this.bonuses ? Number(this.bonuses.balance) || 0 : 0;
     },
 
-    getReferralDaysLeft() {
-        const expiry = this.getReferralExpiry();
-        if (!expiry) return 0;
-        const left = expiry - Date.now();
-        return left > 0 ? Math.ceil(left / (24 * 60 * 60 * 1000)) : 0;
+    // Сколько бонусов можно списать в заказе на эту сумму товаров (то же правило, что на сервере)
+    getBonusSpendable(goodsTotal) {
+        const b = this.bonuses;
+        if (!b) return 0;
+        const cap = Math.floor(Math.max(goodsTotal, 0) * (Number(b.maxSharePct) || 0) / 100);
+        return Math.max(0, Math.min(this.getBonusBalance(), cap));
     },
 
     updateUI() {
@@ -244,18 +237,24 @@ const Profile = {
         document.getElementById('loyaltyNext').textContent = this.loyalty ? (next > 0 ? next.toLocaleString() + ' руб.' : 'MAX') : '—';
         document.getElementById('loyaltyProgress').style.width = Math.min(this.getProgress(), 100) + '%';
 
-        // Обновляем данные профиля и автомобиля
         this.updateProfileUI();
-        this.updateCarUI();
     },
 
     // Данные профиля. JSON в localStorage хранится в UTF-8 без btoa,
     // который бросает InvalidCharacterError на кириллице.
     getProfileData() {
         try {
+            try { localStorage.removeItem('gulf_car'); } catch (e) {}   // автомобиль в профиле больше не хранится
             const saved = localStorage.getItem('gulf_profile');
             if (!saved) return {};
-            try { return JSON.parse(saved); } catch { return JSON.parse(atob(saved)); }
+            let data;
+            try { data = JSON.parse(saved); } catch { data = JSON.parse(atob(saved)); }
+            // старые версии хранили здесь адрес: оставляем только имя и телефон
+            if (data && Object.keys(data).some(k => k !== 'name' && k !== 'phone')) {
+                data = { name: data.name || '', phone: data.phone || '' };
+                try { localStorage.setItem('gulf_profile', JSON.stringify(data)); } catch (e) {}
+            }
+            return data || {};
         } catch (e) {
             console.warn('[Profile] Не удалось прочитать локальный профиль:', e);
             return {};
@@ -274,18 +273,18 @@ const Profile = {
             : '';
     },
 
+    // Имя пользователя из Telegram (подписанные данные запуска)
+    getTelegramName() {
+        const u = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe
+            ? window.Telegram.WebApp.initDataUnsafe.user : null;
+        return u ? [u.first_name, u.last_name].filter(Boolean).join(' ').trim() : '';
+    },
+
+    // В профиле только имя (из Telegram) и телефон. Адрес не хранится ни на сервере, ни на устройстве.
     saveProfileData(data) {
         const profile = {
-            name: String(data.name || '').trim(),
-            phone: String(data.phone || '').trim(),
-            city: String(data.city || '').trim(),
-            street: String(data.street || '').trim(),
-            house: String(data.house || '').trim(),
-            building: String(data.building || '').trim(),
-            letter: String(data.letter || '').trim(),
-            entrance: String(data.entrance || '').trim(),
-            floor: String(data.floor || '').trim(),
-            apartment: String(data.apartment || '').trim()
+            name: this.getTelegramName() || String(data.name || '').trim(),
+            phone: String(data.phone || '').trim()
         };
 
         try {
@@ -355,90 +354,10 @@ const Profile = {
         const profile = this.getProfileData();
         const nameEl = document.getElementById('profileName');
         const phoneEl = document.getElementById('profilePhone');
-        const addressEl = document.getElementById('profileAddress');
-        const detailsEl = document.getElementById('profileAddressDetails');
-        const detailsValueEl = document.getElementById('profileAddressDetailsValue');
-
-        if (nameEl) nameEl.textContent = profile.name || '—';
+        if (nameEl) nameEl.textContent = this.getTelegramName() || profile.name || '—';
         if (phoneEl) phoneEl.textContent = profile.phone || '—';
-
-        if (profile.city || profile.street || profile.house) {
-            if (addressEl) addressEl.textContent = profile.city || '—';
-            if (detailsEl && detailsValueEl) {
-                const parts = [];
-                if (profile.street) parts.push('ул. ' + profile.street);
-                if (profile.house) parts.push('д. ' + profile.house);
-                if (profile.building) parts.push('корп. ' + profile.building);
-                if (profile.letter) parts.push('лит. ' + profile.letter);
-                if (profile.entrance) parts.push('под. ' + profile.entrance);
-                if (profile.floor) parts.push('эт. ' + profile.floor);
-                if (profile.apartment) parts.push('кв. ' + profile.apartment);
-                if (parts.length > 0) {
-                    detailsValueEl.textContent = parts.join(', ');
-                    detailsEl.style.display = 'flex';
-                } else {
-                    detailsEl.style.display = 'none';
-                }
-            }
-        } else {
-            if (addressEl) addressEl.textContent = '—';
-            if (detailsEl) detailsEl.style.display = 'none';
-        }
     },
 
-    // Данные автомобиля
-    getCarData() {
-        try {
-            const saved = localStorage.getItem('gulf_car');
-            return saved ? JSON.parse(saved) : {};
-        } catch (e) {
-            return {};
-        }
-    },
-
-    saveCarData(data) {
-        if (data) {
-            localStorage.setItem('gulf_car', JSON.stringify(data));
-        } else {
-            localStorage.removeItem('gulf_car');
-        }
-    },
-
-    updateCarUI() {
-        const car = this.getCarData();
-        const container = document.getElementById('profileCarCard');
-        if (!container) return;
-
-        if (car && car.brand && car.model) {
-            const yearText = car.year ? ` ${esc(car.year)}` : '';
-            const engineText = car.engine ? ` · ${esc(car.engine)}` : '';
-            container.innerHTML = `
-                <div class="profile-car-info">
-                    <div class="profile-car-name">${esc(car.brand)} ${esc(car.model)}</div>
-                    <div class="profile-car-details">${yearText}${engineText}</div>
-                </div>
-                <div class="profile-car-actions">
-                    <button class="profile-car-action-btn" onclick="App.addCar()">
-                        <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Изменить
-                    </button>
-                    <button class="profile-car-action-btn delete" onclick="App.removeCar()">
-                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Удалить
-                    </button>
-                </div>
-            `;
-        } else {
-            container.innerHTML = `
-                <div class="profile-car-empty">
-                    <i data-lucide="car" style="width:32px;height:32px;color:var(--text-muted);opacity:0.4;"></i>
-                    <p>Автомобиль не добавлен</p>
-                    <button class="profile-add-car-btn" onclick="App.addCar()">
-                        <i data-lucide="plus" style="width:16px;height:16px;"></i> Добавить автомобиль
-                    </button>
-                </div>
-            `;
-        }
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    },
 
     toggleEditMode() {
         this.editMode = !this.editMode;

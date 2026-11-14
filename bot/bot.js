@@ -212,6 +212,8 @@ setInterval(() => {
 
 const PHONE_RE = /^(\+7|8|7)?[\s\-()]*\d{3}[\s\-()]*\d{3}[\s\-()]*\d{2}[\s\-()]*\d{2}$/;
 
+const { parseReferralCode, referralCodeFor, bonusToSpend } = require('./referral');
+
 async function validateOrder(raw, userId = null) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'invalid body' };
 
@@ -259,7 +261,9 @@ async function validateOrder(raw, userId = null) {
     // Они не суммируются: действует большая, промокод «сгорает» только если он реально дал выигрыш.
     let promoPct = 0, promoCode = null;
     const rawCode = String(raw.discountCode || raw.promoCode || '').trim().slice(0, 50);
-    if (rawCode && hasGetDiscount) {
+    // Реферальный код друга (REF-<ID>) скидки не даёт: он только привязывает заказ к приглашающему (см. referral.js)
+    const referrerCandidate = parseReferralCode(rawCode);
+    if (rawCode && hasGetDiscount && !referrerCandidate) {
         const promo = await db.getDiscountByCode(rawCode);
         const pct = promo ? Number(promo.percent) : NaN;   // NUMERIC из pg приходит строкой
         if (Number.isFinite(pct) && pct >= 0 && pct <= 100) { promoPct = pct; promoCode = rawCode; }
@@ -278,6 +282,15 @@ async function validateOrder(raw, userId = null) {
     if (!PHONE_RE.test(phoneRaw)) return { ok: false, error: 'bad phone' };
     const phone = phoneRaw.slice(0, 30);
 
+    // Реферальный код: проверяем приглашающего (не сам покупатель, клиент существует, телефон не совпадает)
+    let referrerId = null, referralCode = null, referralReason = null;
+    if (referrerCandidate) {
+        const r = await db.resolveReferrer(referrerCandidate, userId, phone);
+        if (r.ok) { referrerId = r.referrerId; referralCode = referralCodeFor(r.referrerId); }
+        else if (r.reason === 'own_code') return { ok: false, error: 'own_referral_code' };
+        else referralReason = r.reason;
+    }
+
     const address = String(raw.address || '').trim().slice(0, 500);
     if (address.length < 5) return { ok: false, error: 'bad address' };
 
@@ -293,7 +306,13 @@ async function validateOrder(raw, userId = null) {
             deliveryNote = 'Стоимость доставки по ЛО рассчитает менеджер';   // тарифы ЛО не утверждены
         }
     }
-    const total = Math.round((goodsTotal + deliveryCost) * 100) / 100;
+    // Оплата бонусами (1 бонус = 1 ₽): не более заданной доли стоимости товаров и не более баланса
+    let bonusUsed = 0;
+    if (raw.useBonuses === true && userId) {
+        const s = await db.getSettings();
+        bonusUsed = bonusToSpend({ goodsTotal, balance: await db.getBonusBalance(userId), maxSharePct: s.bonus_max_share_pct, wantUse: true });
+    }
+    const total = Math.round((goodsTotal - bonusUsed + deliveryCost) * 100) / 100;
     const payment      = ['cash', 'card', 'online'].includes(raw.payment) ? raw.payment : 'cash';
 
     return {
@@ -307,6 +326,7 @@ async function validateOrder(raw, userId = null) {
             street:       String(raw.street    || '').slice(0, 200),
             house:        String(raw.house     || '').slice(0, 20),
             building:     String(raw.building  || '').slice(0, 20),
+            structure:    String(raw.structure || '').slice(0, 20),
             letter:       String(raw.letter    || '').slice(0, 20),
             entrance:     String(raw.entrance  || '').slice(0, 20),
             floor:        String(raw.floor     || '').slice(0, 20),
@@ -321,6 +341,10 @@ async function validateOrder(raw, userId = null) {
             deliveryNote,
             deliveryType,
             payment,
+            bonusUsed,
+            referrerId,
+            referralCode,
+            referralReason,
             comment:      String(raw.comment   || '').slice(0, 500),
             userId:       null   // заполняется из доверенного источника
         }
@@ -566,6 +590,7 @@ async function saveOrderToDb(orderId, order) {
             street:       order.street || '',
             house:        order.house || '',
             building:     order.building || '',
+            structure:    order.structure || '',
             letter:       order.letter || '',
             entrance:     order.entrance || '',
             floor:        order.floor || '',
@@ -577,6 +602,9 @@ async function saveOrderToDb(orderId, order) {
             delivery_cost: order.deliveryCost || 0,
             idempotency_key: order.idempotencyKey || null,
             discount_code: order.discountCode || null,   // №2
+            referrer_id:  order.referrerId || null,
+            referral_code: order.referralCode || null,
+            bonus_used:   order.bonusUsed || 0,
             delivery_type: order.deliveryType || 'delivery',
             payment:      order.payment || 'cash',
             comment:      order.comment || '',
@@ -589,6 +617,7 @@ async function saveOrderToDb(orderId, order) {
         console.error('[saveOrderToDb]', sanitizeLog(e.message));
         if (e.code === 'PROMO_EXHAUSTED') return 'PROMO_EXHAUSTED';
         if (e.code === 'OUT_OF_STOCK') return { outOfStock: e.product || '' };
+        if (e.code === 'BONUS_INSUFFICIENT') return 'BONUS_INSUFFICIENT';
         return null;
     }
 }
@@ -632,6 +661,7 @@ function buildAdminOrderMessage(orderId, order) {
             order.street && `ул. ${order.street}`,
             order.house && `д. ${order.house}`,
             order.building && `корп. ${order.building}`,
+            order.structure && `стр. ${order.structure}`,
             order.letter && `лит. ${order.letter}`,
             order.entrance && `подъезд ${order.entrance}`,
             order.floor && `этаж ${order.floor}`,
@@ -792,23 +822,16 @@ try {
 // API ПРОФИЛЯ — доступ только по проверенному Telegram initData
 // ═══════════════════════════════════════════
 
-function normalizeProfile(raw) {
+// В профиле только имя и телефон. Имя всегда берётся из Telegram (подписанные данные), а не из тела запроса.
+function normalizeProfile(raw, user) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const pick = (key, max) => typeof raw[key] === 'string' ? raw[key].trim().slice(0, max) : '';
-    const profile = {
-        name: pick('name', 100),
-        phone: pick('phone', 30),
-        city: pick('city', 100),
-        street: pick('street', 200),
-        house: pick('house', 20),
-        building: pick('building', 20),
-        letter: pick('letter', 20),
-        entrance: pick('entrance', 20),
-        floor: pick('floor', 20),
-        apartment: pick('apartment', 20)
-    };
-    if (profile.phone && !PHONE_RE.test(profile.phone)) return null;
-    return profile;
+    const phone = typeof raw.phone === 'string' ? raw.phone.trim().slice(0, 30) : '';
+    if (phone && !PHONE_RE.test(phone)) return null;
+    return { name: telegramName(user), phone };
+}
+
+function telegramName(user) {
+    return [user && user.first_name, user && user.last_name].filter(Boolean).join(' ').trim().slice(0, 100);
 }
 
 function authenticatedTelegramUser(req) {
@@ -821,8 +844,8 @@ app.get('/api/profile', rateLimit(60, 60_000), async (req, res) => {
     try {
         const user = authenticatedTelegramUser(req);
         if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const profile = await db.getCustomerProfile(String(user.id));
-        return res.json({ success: true, profile });
+        const stored = await db.getCustomerProfile(String(user.id));
+        return res.json({ success: true, profile: { name: telegramName(user), phone: stored ? stored.phone : '' } });
     } catch (e) {
         console.error('[API /profile GET]:', sanitizeLog(e.message));
         return res.status(500).json({ success: false, error: 'Internal error' });
@@ -833,7 +856,7 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
     try {
         const user = authenticatedTelegramUser(req);
         if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
-        const profile = normalizeProfile(req.body);
+        const profile = normalizeProfile(req.body, user);
         if (!profile) return res.status(400).json({ success: false, error: 'Invalid profile data' });
         const saved = await db.upsertCustomerProfile(String(user.id), profile);
         return res.json({ success: true, profile: saved });
@@ -845,6 +868,8 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
 
 // История заказов клиента (GET /api/orders/my, POST /api/orders/my/hide) — bot/order-history-routes.js
 require('./order-history-routes').registerOrderHistoryRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog });
+// Бонусы и реферальный код (GET /api/bonuses, GET /api/referral/check) — bot/referral-routes.js
+require('./referral-routes').registerReferralRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog });
 // Скидка клиента по обороту (GET /api/loyalty) — bot/loyalty-routes.js
 require('./loyalty-routes').registerLoyaltyRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog });
 
@@ -894,7 +919,7 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
 
         // Идемпотентность: тот же заказ от того же клиента в течение 60 с (двойной тап, повтор после сбоя сети)
         const dedupKey = require('crypto').createHash('sha256')
-            .update(JSON.stringify([v.data.userId || req.ip, v.data.items, v.data.phone, v.data.address, v.data.deliveryType, v.data.payment, v.data.total])).digest('hex');
+            .update(JSON.stringify([v.data.userId || req.ip, v.data.items, v.data.phone, v.data.address, v.data.deliveryType, v.data.payment, v.data.total, v.data.referrerId || null])).digest('hex');
         const prev = recentOrders.get(dedupKey);
         if (prev && Date.now() - prev.at < 60_000) {
             return res.json({ success: true, orderId: prev.orderId, duplicate: true, total: prev.total });
@@ -915,6 +940,9 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         if (dbOrderId === 'PROMO_EXHAUSTED') {
             return res.status(409).json({ success: false, error: 'Promo code limit reached' });
         }
+        if (dbOrderId === 'BONUS_INSUFFICIENT') {
+            return res.status(409).json({ success: false, error: 'bonus_insufficient' });
+        }
         if (dbOrderId === null) {
             return res.status(500).json({ success: false, error: 'Failed to save order' });
         }
@@ -922,7 +950,8 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         // Сообщения клиенту и админу уже поставлены в очередь вместе с заказом (см. saveOrderToDb)
 
         recentOrders.set(dedupKey, { at: Date.now(), orderId: 'AP-' + orderId, total: v.data.total });
-        return res.json({ success: true, orderId: 'AP-' + orderId, total: v.data.total, discount: v.data.discount, discountSource: v.data.discountSource });
+        return res.json({ success: true, orderId: 'AP-' + orderId, total: v.data.total, discount: v.data.discount, discountSource: v.data.discountSource,
+            bonusUsed: v.data.bonusUsed, referralApplied: !!v.data.referrerId, referralReason: v.data.referralReason });
     } catch (e) {
         console.error('[API /order] fatal:', sanitizeLog(e.message));
         return res.status(500).json({ success: false, error: 'Internal error' });

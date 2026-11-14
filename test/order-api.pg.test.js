@@ -48,7 +48,7 @@ test('заказ через API: сообщения клиенту и админ
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData(token, { id: 777005, first_name: 'Тест' }) },
         body: JSON.stringify({ items: [{ productId: pid, qty: 2 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5, корп. 2, эт. 3', city: 'Санкт-Петербург', street: 'Тестовая',
-            house: '5', building: '2', floor: '3', zone: 'spb', deliveryType: 'delivery', payment: 'cash' })
+            house: '5', building: '2', structure: '4', floor: '3', zone: 'spb', deliveryType: 'delivery', payment: 'cash' })
     });
     const body = await res.json();
     assert.equal(res.status, 200, JSON.stringify(body) + '\n' + log.slice(-800));
@@ -62,6 +62,6 @@ test('заказ через API: сообщения клиенту и админ
     assert.equal(rows[0].payload.chat_id, '777005');
     assert.match(rows[0].payload.text, new RegExp(body.orderId));
     assert.equal(rows[1].payload.chat_id, '4242');
-    assert.match(rows[1].payload.text, /корп\. 2/); assert.match(rows[1].payload.text, /этаж 3/);
+    assert.match(rows[1].payload.text, /корп\. 2/); assert.match(rows[1].payload.text, /стр\. 4/); assert.match(rows[1].payload.text, /этаж 3/);
     assert.equal(rows[1].payload.reply_markup.inline_keyboard[0][0].callback_data, `cancel_${order.id}`);
 });

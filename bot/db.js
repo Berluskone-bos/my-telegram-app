@@ -167,6 +167,35 @@ async function initDB() {
 
         // ─── Миграции: добавляем то, что появилось в новых версиях ───
 
+        // Профиль покупателя хранит только имя и телефон: один раз стираем адреса, сохранённые раньше
+        await client.query(`CREATE TABLE IF NOT EXISTS app_flags (flag TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        const purged = await client.query(`INSERT INTO app_flags (flag) VALUES ('profile_address_purged') ON CONFLICT DO NOTHING RETURNING flag`);
+        if (purged.rowCount) {
+            await client.query(`UPDATE customer_profiles SET city = '', street = '', house = '', building = '', letter = '', entrance = '', floor = '', apartment = ''`);
+        }
+
+        // ─── Бонусы и рефералы (см. referral.js) ───
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+            INSERT INTO app_settings (key, value) VALUES ('referral_bonus', '200'), ('referral_min_order', '6000'), ('bonus_max_share_pct', '20')
+                ON CONFLICT (key) DO NOTHING;
+            CREATE TABLE IF NOT EXISTS bonus_ledger (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                delta INT NOT NULL,
+                reason TEXT NOT NULL,
+                order_id INT,
+                note TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS bonus_ledger_user_idx ON bonus_ledger(user_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS bonus_ledger_order_reason_idx ON bonus_ledger(order_id, reason) WHERE order_id IS NOT NULL;
+            ALTER TABLE orders
+                ADD COLUMN IF NOT EXISTS referrer_id BIGINT,
+                ADD COLUMN IF NOT EXISTS referral_code VARCHAR(40),
+                ADD COLUMN IF NOT EXISTS bonus_used INT NOT NULL DEFAULT 0;
+        `);
+
         // Госномер курьера: код его уже читает и пишет (регистрация курьера, команда в курьер-боте), а в схеме колонки не было
         await client.query(`ALTER TABLE couriers ADD COLUMN IF NOT EXISTS license_plate VARCHAR(20)`);
 
@@ -208,6 +237,7 @@ async function initDB() {
         await client.query(`
             ALTER TABLE orders
                 ADD COLUMN IF NOT EXISTS building      VARCHAR(32),
+                ADD COLUMN IF NOT EXISTS structure     VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS letter        VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS floor         VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS subtotal      NUMERIC(12,2) NOT NULL DEFAULT 0,
