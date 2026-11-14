@@ -42,6 +42,8 @@ const Profile = {
             if (savedSpent) this.totalSpent = parseFloat(savedSpent) || 0;
             const savedHistory = localStorage.getItem('gulf_orders');
             if (savedHistory) this.orderHistory = JSON.parse(savedHistory);
+            const savedLoyalty = localStorage.getItem('gulf_loyalty');
+            if (savedLoyalty) this.loyalty = JSON.parse(savedLoyalty);
         } catch (e) {
             this.totalSpent = 0;
             this.orderHistory = [];
@@ -127,60 +129,64 @@ const Profile = {
         App.switchScreen('cart');
     },
 
+    // Номер карты = Telegram ID: уникален, не хранится и не угадывается из случайного числа.
     getCardNumber() {
-        let num = localStorage.getItem('gulf_card');
-        if (!num) {
-            const tg = window.Telegram.WebApp;
-            const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
-            let digits;
-            if (user && user.id) {
-                digits = String(user.id).padStart(6, '0').slice(-6);
-            } else {
-                digits = String(Math.floor(100000 + Math.random() * 900000));
-            }
-            num = 'AR-' + digits;
-            localStorage.setItem('gulf_card', num);
+        const tg = window.Telegram && window.Telegram.WebApp;
+        const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+        try { localStorage.removeItem('gulf_card'); } catch (e) {}   // старый номер AR-… больше не используется
+        return user && user.id ? 'TG-' + user.id : 'TG-—';
+    },
+
+    // Скидка и уровень приходят с сервера (GET /api/loyalty); считает только сервер, здесь лишь показ.
+    // Пока ответа нет, показываем базовую скидку 3 %, она положена каждому покупателю.
+    loyalty: null,
+
+    async syncLoyalty() {
+        const initData = this.getTelegramInitData();
+        if (!initData) return false;
+        try {
+            const r = await fetch(this.getApiBase() + '/api/loyalty', { headers: { 'X-Telegram-Init-Data': initData } });
+            if (!r.ok) return false;
+            const data = await r.json();
+            if (!data.success || !data.loyalty) return false;
+            this.loyalty = data.loyalty;
+            try { localStorage.setItem('gulf_loyalty', JSON.stringify(this.loyalty)); } catch (e) {}
+            this.updateUI();
+            return true;
+        } catch (e) {
+            console.warn('[Profile] Скидка не обновлена:', e && e.message);
+            return false;
         }
-        return num;
     },
 
     getLevel() {
-        if (this.totalSpent >= 120000) return 4;
-        if (this.totalSpent >= 80000) return 3;
-        if (this.totalSpent >= 40000) return 2;
-        return 1;
+        const l = this.loyalty;
+        if (!l || !Array.isArray(l.tiers)) return 1;
+        const idx = l.tiers.findIndex(t => t.at === l.from);
+        return idx >= 0 ? idx + 1 : 1;
     },
 
     getDiscount() {
-        const level = this.getLevel();
-        if (level === 4) return 7;
-        if (level === 3) return 5;
-        if (level === 2) return 3;
-        return 0;
+        return this.loyalty ? Number(this.loyalty.percent) || 0 : 3;
     },
 
     getStatus() {
-        const level = this.getLevel();
-        if (level === 4) return 'Золотой';
-        if (level === 3) return 'Серебряный';
-        if (level === 2) return 'Бронзовый';
-        return 'Железный';
+        return this.loyalty && this.loyalty.name ? this.loyalty.name : 'Железный';
     },
 
+    // Сколько оборота осталось до следующего уровня (0 — уровень максимальный)
     getNextLevelAmount() {
-        const level = this.getLevel();
-        if (level === 4) return 0;
-        if (level === 3) return 120000;
-        if (level === 2) return 80000;
-        return 40000;
+        const l = this.loyalty;
+        if (!l || !l.next) return 0;
+        return Math.max(Math.round(l.next.at - l.turnover), 0);
     },
 
     getProgress() {
-        const level = this.getLevel();
-        if (level === 4) return 100;
-        if (level === 3) return ((this.totalSpent - 80000) / 40000) * 100;
-        if (level === 2) return ((this.totalSpent - 40000) / 40000) * 100;
-        return (this.totalSpent / 40000) * 100;
+        const l = this.loyalty;
+        if (!l) return 0;
+        if (!l.next) return 100;
+        const span = l.next.at - l.from;
+        return span > 0 ? ((l.turnover - l.from) / span) * 100 : 0;
     },
 
     getReferralCode() {
@@ -235,7 +241,7 @@ const Profile = {
         document.getElementById('cardDiscountValue').textContent = this.getDiscount() + '%';
         document.getElementById('loyaltyStatus').textContent = this.getStatus();
         const next = this.getNextLevelAmount();
-        document.getElementById('loyaltyNext').textContent = next > 0 ? next.toLocaleString() + ' руб.' : 'MAX';
+        document.getElementById('loyaltyNext').textContent = this.loyalty ? (next > 0 ? next.toLocaleString() + ' руб.' : 'MAX') : '—';
         document.getElementById('loyaltyProgress').style.width = Math.min(this.getProgress(), 100) + '%';
 
         // Обновляем данные профиля и автомобиля
@@ -275,7 +281,10 @@ const Profile = {
             city: String(data.city || '').trim(),
             street: String(data.street || '').trim(),
             house: String(data.house || '').trim(),
+            building: String(data.building || '').trim(),
+            letter: String(data.letter || '').trim(),
             entrance: String(data.entrance || '').trim(),
+            floor: String(data.floor || '').trim(),
             apartment: String(data.apartment || '').trim()
         };
 
@@ -359,7 +368,10 @@ const Profile = {
                 const parts = [];
                 if (profile.street) parts.push('ул. ' + profile.street);
                 if (profile.house) parts.push('д. ' + profile.house);
+                if (profile.building) parts.push('корп. ' + profile.building);
+                if (profile.letter) parts.push('лит. ' + profile.letter);
                 if (profile.entrance) parts.push('под. ' + profile.entrance);
+                if (profile.floor) parts.push('эт. ' + profile.floor);
                 if (profile.apartment) parts.push('кв. ' + profile.apartment);
                 if (parts.length > 0) {
                     detailsValueEl.textContent = parts.join(', ');
