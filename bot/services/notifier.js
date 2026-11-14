@@ -17,21 +17,12 @@ class Notifier {
         this.managerChatId = managerChatId;
     }
 
-    // Отправка сообщения через Telegram API
-    _send(botBase, chatId, text, buttons = null) {
+    // Любой метод Bot API (sendMessage, editMessageReplyMarkup, ...).
+    // При ошибке Telegram бросает Error с полями tgCode (error_code) и retryAfter (секунды, если Telegram просит подождать).
+    _call(botBase, method, payload, timeoutMs = 15000) {
         return new Promise((resolve, reject) => {
-            const payload = {
-                chat_id: chatId,
-                text: text,
-                parse_mode: 'HTML'
-            };
-            if (buttons) {
-                payload.reply_markup = { inline_keyboard: buttons };
-            }
-
             const data = JSON.stringify(payload);
-            const url = new URL(`${botBase}/sendMessage`);
-
+            const url = new URL(`${botBase}/${method}`);
             const options = {
                 hostname: url.hostname,
                 path: url.pathname,
@@ -39,36 +30,41 @@ class Notifier {
                 headers: {
                     'Content-Type': 'application/json',
                     'Content-Length': Buffer.byteLength(data)
-                }
+                },
+                timeout: timeoutMs
             };
 
-            console.log(`[NOTIFIER] POST ${url.hostname}${url.pathname} -> chat_id=${chatId}`);
             const req = https.request(options, (res) => {
                 let body = '';
                 res.on('data', chunk => body += chunk);
                 res.on('end', () => {
-                    try {
-                        const json = JSON.parse(body);
-                        if (json.ok) {
-                            console.log(`[NOTIFIER] OK -> chat_id=${chatId}`);
-                            resolve(json.result);
-                        } else {
-                            console.error(`[NOTIFIER] Ошибка Telegram API: ${json.description}`);
-                            reject(new Error(json.description || 'Telegram API error'));
-                        }
-                    } catch (e) {
-                        console.error(`[NOTIFIER] Ошибка парсинга ответа: ${body}`);
-                        reject(e);
+                    let json;
+                    try { json = JSON.parse(body); } catch (e) {
+                        const err = new Error(`Ответ Telegram не разобран (HTTP ${res.statusCode})`);
+                        err.tgCode = res.statusCode;
+                        return reject(err);
                     }
+                    if (json.ok) return resolve(json.result);
+                    const err = new Error(json.description || 'Telegram API error');
+                    err.tgCode = json.error_code || res.statusCode;
+                    if (json.parameters && json.parameters.retry_after) err.retryAfter = Number(json.parameters.retry_after);
+                    reject(err);
                 });
             });
-
-            req.on('error', (e) => {
-                console.error(`[NOTIFIER] Ошибка соединения: ${e.message}`);
-                reject(e);
-            });
+            req.on('timeout', () => req.destroy(new Error('timeout')));
+            req.on('error', reject);
             req.write(data);
             req.end();
+        });
+    }
+
+    // Отправка сообщения через Telegram API
+    _send(botBase, chatId, text, buttons = null) {
+        const payload = { chat_id: chatId, text: text, parse_mode: 'HTML' };
+        if (buttons) payload.reply_markup = { inline_keyboard: buttons };
+        return this._call(botBase, 'sendMessage', payload).catch(e => {
+            console.error(`[NOTIFIER] Ошибка отправки chat_id=${chatId}: ${String(e.message).slice(0, 120)}`);
+            throw e;
         });
     }
 

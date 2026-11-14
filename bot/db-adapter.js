@@ -1,4 +1,6 @@
 const { pool, initDB } = require('./db');
+const { enqueue: enqueueNotice } = require('./outbox');
+const { queueCancelNotices } = require('./cancel-flow');
 
 // ───────────────────────────────────────────
 // Сериализация значений для node-pg
@@ -332,6 +334,11 @@ class DBAdapter {
                  order.idempotency_key || null]
             );
 
+            // Уведомления о новом заказе — в очередь в той же транзакции: заказ без уведомлений не останется
+            if (typeof order.buildNotifications === 'function') {
+                for (const n of order.buildNotifications(res.rows[0]) || []) await enqueueNotice(client, n);
+            }
+
             // Инкремент использований промокода — в той же транзакции,
             // чтобы «списанный» промокод не остался на откатившемся заказе.
             if (order.discount_code && this.promoEnabled === true) {
@@ -401,7 +408,7 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
             const cur = await client.query(
-                'SELECT id, status, items, stock_deducted, order_number FROM orders WHERE id = $1 FOR UPDATE', [id]);
+                'SELECT id, status, items, stock_deducted, order_number, user_id FROM orders WHERE id = $1 FOR UPDATE', [id]);
             if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
             const o = cur.rows[0];
             if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
@@ -417,6 +424,8 @@ class DBAdapter {
                 await client.query(
                     `UPDATE route_stops SET status = 'cancelled'
                       WHERE order_number = $1 AND status IN ('pending', 'in_progress')`, [o.order_number]);
+                // сообщения курьеру и клиенту — в той же транзакции: отмена и уведомления либо есть вместе, либо нет
+                await queueCancelNotices(client, o);
             }
             await client.query('COMMIT');
             return true;
@@ -439,7 +448,7 @@ class DBAdapter {
                     SET status = 'CANCELLED'
                   WHERE order_number = $1
                     AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED')
-                 RETURNING id, items, stock_deducted`,
+                 RETURNING id, items, stock_deducted, order_number, user_id`,
                 [orderNumber]
             );
 
@@ -460,6 +469,7 @@ class DBAdapter {
                     AND status IN ('pending', 'in_progress')`,
                 [orderNumber]
             );
+            await queueCancelNotices(client, res.rows[0]);
 
             await client.query('COMMIT');
             return true;
