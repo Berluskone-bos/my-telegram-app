@@ -156,7 +156,10 @@ async function initDB() {
                 city VARCHAR(100) NOT NULL DEFAULT '',
                 street VARCHAR(200) NOT NULL DEFAULT '',
                 house VARCHAR(20) NOT NULL DEFAULT '',
+                building VARCHAR(20) NOT NULL DEFAULT '',
+                letter VARCHAR(20) NOT NULL DEFAULT '',
                 entrance VARCHAR(20) NOT NULL DEFAULT '',
+                floor VARCHAR(20) NOT NULL DEFAULT '',
                 apartment VARCHAR(20) NOT NULL DEFAULT '',
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -164,9 +167,19 @@ async function initDB() {
 
         // ─── Миграции: добавляем то, что появилось в новых версиях ───
 
+        await client.query(`
+            ALTER TABLE customer_profiles
+                ADD COLUMN IF NOT EXISTS building VARCHAR(20) NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS letter   VARCHAR(20) NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS floor    VARCHAR(20) NOT NULL DEFAULT '';
+        `);
+
         // CREATE TABLE IF NOT EXISTS НЕ добавляет колонки к существующим таблицам.
         await client.query(`
             ALTER TABLE orders
+                ADD COLUMN IF NOT EXISTS building      VARCHAR(32),
+                ADD COLUMN IF NOT EXISTS letter        VARCHAR(32),
+                ADD COLUMN IF NOT EXISTS floor         VARCHAR(32),
                 ADD COLUMN IF NOT EXISTS subtotal      NUMERIC(12,2) NOT NULL DEFAULT 0,
                 ADD COLUMN IF NOT EXISTS discount_code TEXT,
                 ADD COLUMN IF NOT EXISTS delivery_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -358,6 +371,16 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
         // История заказов клиента: «удаление» из истории только скрывает заказ у клиента, запись остаётся в учёте
         await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_hidden BOOLEAN NOT NULL DEFAULT false`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id, id DESC)`);
+
+        // Шкала скидок по накопленному обороту (PRD, решено 25.10.2026). Оборот — доставленные и завершённые заказы клиента.
+        await client.query(`CREATE TABLE IF NOT EXISTS loyalty_tiers (
+            min_turnover NUMERIC(12,2) PRIMARY KEY,
+            percent      NUMERIC(5,2)  NOT NULL CHECK (percent >= 0 AND percent <= 100),
+            name         TEXT          NOT NULL
+        )`);
+        await client.query(`INSERT INTO loyalty_tiers (min_turnover, percent, name)
+            SELECT v.m, v.p, v.n FROM (VALUES (0, 3, 'Железный'), (15000, 5, 'Бронзовый'), (40000, 7, 'Серебряный'), (100000, 10, 'Золотой')) AS v(m, p, n)
+             WHERE NOT EXISTS (SELECT 1 FROM loyalty_tiers)`);
         // Идемпотентность: один ключ операции = один заказ (защита на уровне БД)
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_key_idx
                             ON orders(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`);
