@@ -1,6 +1,7 @@
 const { pool, initDB } = require('./db');
 const { enqueue: enqueueNotice } = require('./outbox');
 const { queueCancelNotices } = require('./cancel-flow');
+const { DEFAULTS: REF_DEFAULTS, qualifiesForReferralBonus, phoneKey } = require('./referral');
 
 // ───────────────────────────────────────────
 // Сериализация значений для node-pg
@@ -301,9 +302,10 @@ class DBAdapter {
             const res = await client.query(
                 `INSERT INTO orders (order_number, user_id, user_name, phone, address, zone, city, street, house,
                                      building, structure, letter, entrance, floor, apartment, items, subtotal, total, discount, discount_code,
-                                     delivery_type, payment, comment, status, payment_status, delivery_cost, idempotency_key)
+                                     delivery_type, payment, comment, status, payment_status, delivery_cost, idempotency_key,
+                                     referrer_id, referral_code, bonus_used)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27) RETURNING *`,
+                         $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30) RETURNING *`,
                 [order.order_number, order.user_id, order.user_name, order.phone, order.address,
                  order.zone, order.city, order.street, order.house,
                  order.building || null, order.structure || null, order.letter || null, order.entrance, order.floor || null, order.apartment,
@@ -318,8 +320,19 @@ class DBAdapter {
                  order.status || 'NEW',
                  order.payment_status || 'PENDING',
                  order.delivery_cost || 0,
-                 order.idempotency_key || null]
+                 order.idempotency_key || null,
+                 order.referrer_id || null, order.referral_code || null, Math.max(0, Math.floor(Number(order.bonus_used) || 0))]
             );
+
+            // Списание бонусов — в той же транзакции; блокировка по клиенту исключает двойное списание двумя заказами сразу
+            const bonusUsed = Math.max(0, Math.floor(Number(order.bonus_used) || 0));
+            if (bonusUsed > 0) {
+                if (!order.user_id) { const err = new Error('BONUS_INSUFFICIENT'); err.code = 'BONUS_INSUFFICIENT'; throw err; }
+                await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [String(order.user_id)]);
+                const bal = Number((await client.query('SELECT COALESCE(SUM(delta), 0)::int AS b FROM bonus_ledger WHERE user_id = $1', [order.user_id])).rows[0].b);
+                if (bal < bonusUsed) { const err = new Error('BONUS_INSUFFICIENT'); err.code = 'BONUS_INSUFFICIENT'; throw err; }
+                await client.query("INSERT INTO bonus_ledger (user_id, delta, reason, order_id, note) VALUES ($1, $2, 'spend', $3, 'оплата бонусами')", [order.user_id, -bonusUsed, res.rows[0].id]);
+            }
 
             // Уведомления о новом заказе — в очередь в той же транзакции: заказ без уведомлений не останется
             if (typeof order.buildNotifications === 'function') {
@@ -395,7 +408,7 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
             const cur = await client.query(
-                'SELECT id, status, items, stock_deducted, order_number, user_id FROM orders WHERE id = $1 FOR UPDATE', [id]);
+                'SELECT id, status, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost FROM orders WHERE id = $1 FOR UPDATE', [id]);
             if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
             const o = cur.rows[0];
             if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
@@ -413,7 +426,9 @@ class DBAdapter {
                       WHERE order_number = $1 AND status IN ('pending', 'in_progress')`, [o.order_number]);
                 // сообщения курьеру и клиенту — в той же транзакции: отмена и уведомления либо есть вместе, либо нет
                 await queueCancelNotices(client, o);
+                await this._undoBonuses(client, o);
             }
+            if (status === 'DELIVERED' || status === 'COMPLETED') await this._grantReferralBonus(client, o);
             await client.query('COMMIT');
             return true;
         } catch (e) {
@@ -421,6 +436,86 @@ class DBAdapter {
             throw e;
         } finally {
             client.release();
+        }
+    }
+
+    // ───────────────────────────────────────────
+    // Бонусы и рефералы (правила — в referral.js)
+    // ───────────────────────────────────────────
+
+    async getSettings() {
+        if (this._settings && Date.now() - this._settings.at < 60_000) return this._settings.v;
+        const v = { ...REF_DEFAULTS };
+        try {
+            const r = await pool.query("SELECT key, value FROM app_settings WHERE key IN ('referral_bonus', 'referral_min_order', 'bonus_max_share_pct')");
+            for (const row of r.rows) { const n = Number(row.value); if (Number.isFinite(n) && n >= 0) v[row.key] = n; }
+        } catch (e) { /* таблицы нет — используем значения по умолчанию */ }
+        this._settings = { at: Date.now(), v };
+        return v;
+    }
+
+    async getBonusBalance(userId, client = pool) {
+        if (!userId) return 0;
+        const r = await client.query('SELECT COALESCE(SUM(delta), 0)::int AS b FROM bonus_ledger WHERE user_id = $1', [userId]);
+        return r.rows[0].b;
+    }
+
+    async getBonusSummary(userId) {
+        const [balance, earned, invited, history] = await Promise.all([
+            this.getBonusBalance(userId),
+            pool.query("SELECT COALESCE(SUM(delta), 0)::int AS s FROM bonus_ledger WHERE user_id = $1 AND reason = 'referral'", [userId]),
+            pool.query("SELECT COUNT(*)::int AS n FROM bonus_ledger WHERE user_id = $1 AND reason = 'referral'", [userId]),
+            pool.query('SELECT delta, reason, created_at FROM bonus_ledger WHERE user_id = $1 ORDER BY id DESC LIMIT 20', [userId])
+        ]);
+        return { balance, earned: earned.rows[0].s, invitedOrders: invited.rows[0].n, history: history.rows };
+    }
+
+    // Код друга годится, если это не сам покупатель, такой клиент у нас есть и телефон заказа не совпадает с его телефонами
+    // (защита от «приглашения» самого себя со второго аккаунта). Возвращает { ok, referrerId } или { ok: false, reason }.
+    async resolveReferrer(referrerId, buyerId, phone) {
+        const id = String(referrerId || '');
+        if (!/^\d{5,15}$/.test(id)) return { ok: false, reason: 'bad_code' };
+        if (buyerId && String(buyerId) === id) return { ok: false, reason: 'own_code' };
+        const known = await pool.query(
+            `SELECT 1 FROM orders WHERE user_id = $1 UNION ALL SELECT 1 FROM customer_profiles WHERE user_id = $1 LIMIT 1`, [id]);
+        if (!known.rowCount) return { ok: false, reason: 'unknown_code' };
+        if (phone) {
+            const phones = await pool.query(
+                `SELECT phone FROM orders WHERE user_id = $1 UNION SELECT phone FROM customer_profiles WHERE user_id = $1`, [id]);
+            const mine = phoneKey(phone);
+            if (mine && phones.rows.some(r => phoneKey(r.phone) === mine)) return { ok: false, reason: 'own_phone' };
+        }
+        return { ok: true, referrerId: id };
+    }
+
+    // Заказ друга доставлен: приглашающему +бонус (один раз на заказ — защищает уникальный индекс)
+    async _grantReferralBonus(client, o) {
+        if (!o.referrer_id) return;
+        const s = await this.getSettings();
+        const paidGoods = Number(o.total) - Number(o.delivery_cost || 0);
+        if (!qualifiesForReferralBonus(paidGoods, s.referral_min_order)) return;
+        await client.query(
+            `INSERT INTO bonus_ledger (user_id, delta, reason, order_id, note)
+             VALUES ($1, $2, 'referral', $3, $4) ON CONFLICT DO NOTHING`,
+            [o.referrer_id, Math.floor(s.referral_bonus), o.id, `заказ друга ${o.order_number}`]);
+    }
+
+    // Заказ отменён или возвращён: списанные бонусы возвращаются покупателю, бонус приглашающему аннулируется
+    async _undoBonuses(client, o) {
+        const used = Math.floor(Number(o.bonus_used) || 0);
+        if (used > 0 && o.user_id) {
+            await client.query(
+                `INSERT INTO bonus_ledger (user_id, delta, reason, order_id, note)
+                 VALUES ($1, $2, 'spend_refund', $3, 'возврат бонусов: заказ отменён') ON CONFLICT DO NOTHING`, [o.user_id, used, o.id]);
+        }
+        if (o.referrer_id) {
+            const g = await client.query("SELECT delta FROM bonus_ledger WHERE order_id = $1 AND reason = 'referral'", [o.id]);
+            if (g.rowCount) {
+                await client.query(
+                    `INSERT INTO bonus_ledger (user_id, delta, reason, order_id, note)
+                     VALUES ($1, $2, 'referral_revoked', $3, 'аннулировано: заказ друга отменён') ON CONFLICT DO NOTHING`,
+                    [o.referrer_id, -g.rows[0].delta, o.id]);
+            }
         }
     }
 
@@ -435,7 +530,7 @@ class DBAdapter {
                     SET status = 'CANCELLED'
                   WHERE order_number = $1
                     AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED')
-                 RETURNING id, items, stock_deducted, order_number, user_id`,
+                 RETURNING id, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost`,
                 [orderNumber]
             );
 
@@ -457,6 +552,7 @@ class DBAdapter {
                 [orderNumber]
             );
             await queueCancelNotices(client, res.rows[0]);
+            await this._undoBonuses(client, res.rows[0]);
 
             await client.query('COMMIT');
             return true;

@@ -30,6 +30,7 @@ const App = {
         Profile.updateProfileUI();
         Profile.syncOrders();   // история заказов с сервера (без ожидания)
         Profile.syncLoyalty();  // скидка клиента с сервера
+        Profile.syncBonuses();  // бонусный баланс и реферальный код с сервера
 
         const user = TelegramApp.getUser(tg);
         const userName = TelegramApp.getUserName(user);
@@ -457,7 +458,25 @@ const App = {
     },
 
     // В форму подставляются только имя (из Telegram) и телефон. Адрес вводится при каждом заказе.
+    // Блок «Списать бонусы»: показываем, только если на балансе есть бонусы; сумму считает сервер (здесь лишь подсказка)
+    async refreshBonusBox() {
+        const box = document.getElementById('bonusBox');
+        if (!box) return;
+        await Profile.syncBonuses();
+        const spendable = Profile.getBonusSpendable(Math.round(Cart.getTotal() * (1 - Profile.getDiscount() / 100)));
+        const cb = document.getElementById('orderUseBonuses');
+        if (Profile.getBonusBalance() > 0 && spendable > 0) {
+            document.getElementById('bonusLabel').textContent =
+                `Списать бонусы: до ${spendable.toLocaleString('ru-RU')} ₽ (на балансе ${Profile.getBonusBalance().toLocaleString('ru-RU')})`;
+            box.style.display = '';
+        } else {
+            box.style.display = 'none';
+            if (cb) cb.checked = false;
+        }
+    },
+
     autoFillOrderForm() {
+        this.refreshBonusBox();
         const profile = Profile.getProfileData() || {};
 
         const nameInput = document.getElementById('orderName');
@@ -734,6 +753,8 @@ const App = {
             comment: comment,
             phone: phone,
             payment: payment,
+            discountCode: (document.getElementById('orderReferral').value || '').trim(),
+            useBonuses: !!(document.getElementById('orderUseBonuses') && document.getElementById('orderUseBonuses').checked),
             userName: userName,
             userId: user ? user.id : null,
             status: 'NEW',
@@ -763,11 +784,21 @@ const App = {
                 const e = await response.json().catch(() => ({}));
                 if (e.error === 'out_of_stock') {
                     alert(`К сожалению, товара${e.product ? ' «' + e.product + '»' : ''} уже нет в наличии. Уберите его из корзины или уменьшите количество и повторите заказ.`);
+                } else if (e.error === 'bonus_insufficient') {
+                    alert('Бонусов на балансе стало меньше, чем нужно для списания. Снимите галочку «Списать бонусы» или обновите приложение и повторите заказ.');
                 } else {
                     alert('Не удалось применить промокод: лимит исчерпан. Уберите промокод и оформите заказ ещё раз.');
                 }
                 try { await Products.load(); this.renderProducts(); } catch (_) {}
                 return;
+            }
+            if (response.status === 400) {
+                const e = await response.json().catch(() => ({}));
+                if (/own_referral_code/.test(String(e.error))) {
+                    alert('Это ваш собственный код. Его вводит друг, а вы получите бонус за его заказ. Очистите поле «Код друга» и оформите заказ ещё раз.');
+                    return;
+                }
+                throw new Error('Сервер отклонил заказ: ' + e.error);
             }
             if (!response.ok) throw new Error('Сервер вернул ошибку: ' + response.status);
             const data = await response.json();
@@ -778,8 +809,14 @@ const App = {
             order.total = serverTotal;
             Profile.addOrder(order);
             Profile.syncOrders();
+            Profile.syncBonuses();
+            let refText = '';
+            if (orderPayload.discountCode) {
+                refText = data.referralApplied ? '\nКод друга принят.'
+                    : '\nКод друга не применён (' + ({ unknown_code: 'такого кода нет', own_phone: 'код привязан к вашему же телефону', bad_code: 'неверный формат' }[data.referralReason] || 'проверьте код') + '), заказ оформлен без него.';
+            }
             const deliveryText = deliveryType === 'pickup' ? 'Самовывоз' : `Доставка: ${address}`;
-            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${(data.discount !== undefined ? data.discount : discount) > 0 ? ' (скидка ' + (data.discount !== undefined ? data.discount : discount) + '%)' : ''}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
+            alert(`Заказ оформлен!\n\nНомер: #${data.orderId}\nСумма: ${serverTotal.toLocaleString()} руб.${(data.discount !== undefined ? data.discount : discount) > 0 ? ' (скидка ' + (data.discount !== undefined ? data.discount : discount) + '%)' : ''}${data.bonusUsed > 0 ? '\nСписано бонусов: ' + data.bonusUsed.toLocaleString('ru-RU') + ' ₽' : ''}${refText}\n${deliveryText}\nТелефон: ${phone}\n\nСпасибо за покупку!`);
             Cart.clear();
             this.updateCartBadge();
             Cart.render();
@@ -796,22 +833,19 @@ const App = {
 
     },
 
-    openReferral() {
+    async openReferral() {
+        await Profile.syncBonuses();
+        const b = Profile.bonuses;
         const code = Profile.getReferralCode();
-        const active = Profile.isReferralActive();
-        const daysLeft = Profile.getReferralDaysLeft();
-
-        let msg = `Ваш промокод: ${code}\n\nДайте его друзьям. За каждый заказ по вашему промокоду вы получите бонус 100 руб. на счёт!`;
-
-        if (active) {
-            msg += `\n\nДействует ещё ${daysLeft} дн.`;
-        } else if (Profile.getReferralExpiry()) {
-            msg += '\n\nСрок действия промокода истёк.';
-        } else {
-            msg += '\n\nПромокод активируется после первой покупки и действует 30 дней.';
+        if (!b || !code) {
+            alert('Не удалось загрузить бонусы. Проверьте интернет и попробуйте ещё раз.');
+            return;
         }
-
-        alert(msg);
+        const n = (v) => Number(v).toLocaleString('ru-RU');
+        alert(`Ваш код: ${code}\n\nКод постоянный. Друг вводит его при заказе в поле «Код друга».\n` +
+            `За каждый заказ друга, где товары дороже ${n(b.minOrder)} ₽, вы получите ${n(b.bonusPerOrder)} бонусов после доставки.\n` +
+            `1 бонус = 1 ₽, бонусами можно оплатить до ${b.maxSharePct}% стоимости товаров в заказе.\n\n` +
+            `Ваш баланс: ${n(b.balance)} бонусов\nЗаказов друзей с бонусом: ${b.invitedOrders}, начислено всего: ${n(b.earned)}`);
     },
 
     showOrderHistory() {

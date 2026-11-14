@@ -301,6 +301,19 @@
             </div>
 
             <div class="form-group">
+                <label for="orderReferral">Код друга (необязательно):</label>
+                <input type="text" id="orderReferral" placeholder="REF-123456789" autocomplete="off" />
+                <small style="color:#888;">Скидки код не даёт: бонус получит пригласивший вас друг.</small>
+            </div>
+
+            <div class="form-group" id="bonusBox" style="display:none;">
+                <label style="display:flex;gap:8px;align-items:center;">
+                    <input type="checkbox" id="orderUseBonuses" style="width:auto;" />
+                    <span id="bonusLabel">Списать бонусы</span>
+                </label>
+            </div>
+
+            <div class="form-group">
                 <label>Способ оплаты:</label>
                 <select id="orderPayment">
                     <option value="cash">Наличные при получении</option>
@@ -359,7 +372,7 @@
                 <div class="p-menu-item" onclick="App.openReferral()">
                     <div class="p-menu-left">
                         <span class="p-menu-icon"><i data-lucide="gift" class="icon-sm"></i></span>
-                        <span class="p-menu-text">Промокод за рекомендацию</span>
+                        <span class="p-menu-text">Бонусы и приглашение друзей</span>
                     </div>
                     <span class="p-menu-arrow">›</span>
                 </div>

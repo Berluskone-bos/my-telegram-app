@@ -89,7 +89,6 @@ const Profile = {
     addOrder(order) {
         this.orderHistory.unshift(order);
         this.totalSpent += order.total;
-        this.setReferralExpiry();
         this.save();
     },
 
@@ -189,46 +188,40 @@ const Profile = {
         return span > 0 ? ((l.turnover - l.from) / span) * 100 : 0;
     },
 
+    // Реферальный код постоянный и привязан к Telegram ID: REF-<ID>. Баланс и правила — только с сервера.
     getReferralCode() {
-        let code = localStorage.getItem('gulf_referral');
-        if (!code) {
-            const tg = window.Telegram.WebApp;
-            const user = tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
-            let suffix;
-            if (user && user.id) {
-                suffix = String(user.id).slice(-4);
-            } else {
-                suffix = String(Math.floor(1000 + Math.random() * 9000));
-            }
-            code = 'AP-' + suffix;
-            localStorage.setItem('gulf_referral', code);
-        }
-        return code;
+        if (this.bonuses && this.bonuses.referralCode) return this.bonuses.referralCode;
+        const tg = window.Telegram && window.Telegram.WebApp;
+        const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+        return user && user.id ? 'REF-' + user.id : '';
     },
 
-    getReferralExpiry() {
-        const expiry = localStorage.getItem('gulf_referral_expiry');
-        return expiry ? parseInt(expiry) : null;
-    },
-
-    setReferralExpiry() {
-        if (!localStorage.getItem('gulf_referral_expiry')) {
-            const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
-            localStorage.setItem('gulf_referral_expiry', String(expiry));
+    async syncBonuses() {
+        const initData = this.getTelegramInitData();
+        if (!initData) return false;
+        try {
+            const r = await fetch(this.getApiBase() + '/api/bonuses', { headers: { 'X-Telegram-Init-Data': initData } });
+            if (!r.ok) return false;
+            const data = await r.json();
+            if (!data.success) return false;
+            this.bonuses = data;
+            return true;
+        } catch (e) {
+            console.warn('[Profile] Бонусы не обновлены:', e && e.message);
+            return false;
         }
     },
 
-    isReferralActive() {
-        const expiry = this.getReferralExpiry();
-        if (!expiry) return false;
-        return Date.now() < expiry;
+    getBonusBalance() {
+        return this.bonuses ? Number(this.bonuses.balance) || 0 : 0;
     },
 
-    getReferralDaysLeft() {
-        const expiry = this.getReferralExpiry();
-        if (!expiry) return 0;
-        const left = expiry - Date.now();
-        return left > 0 ? Math.ceil(left / (24 * 60 * 60 * 1000)) : 0;
+    // Сколько бонусов можно списать в заказе на эту сумму товаров (то же правило, что на сервере)
+    getBonusSpendable(goodsTotal) {
+        const b = this.bonuses;
+        if (!b) return 0;
+        const cap = Math.floor(Math.max(goodsTotal, 0) * (Number(b.maxSharePct) || 0) / 100);
+        return Math.max(0, Math.min(this.getBonusBalance(), cap));
     },
 
     updateUI() {
