@@ -656,14 +656,8 @@ async function handleStartRoute(chatId, routeId, user) {
 
     bot.sendMessage(chatId, 'Маршрут начат! Удачи в доставке!');
 
-    const stops = route.stops || [];
-    for (const stop of stops) {
-        if (stop.status === 'pending' && stop.client_chat_id) {
-            const timeText = stop.time_window ? `, ожидайте ${escapeHtml(stop.time_window)}` : '';
-            queue.notify('client', stop.client_chat_id,
-                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>передан курьеру</b>\nКурьер уже выехал к вам${timeText}. Ожидайте доставку.`);
-        }
-    }
+    // Клиентам здесь ничего не отправляем: «курьер в пути» каждому уходит по кнопке «В пути» своей остановки
+    // (иначе клиент получил бы два сообщения о выезде).
 
     notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
 }

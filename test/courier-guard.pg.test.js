@@ -85,6 +85,12 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [a.stopId])).rows[0].status, 'cancelled', 'остановка не перезаписана');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [a.o.id])).rows[0].status, 'CANCELLED');
 
+    // кнопка «Поехал!» (начало маршрута) клиентам ничего не отправляет
+    const c = await mk('cg3');
+    await press(`startroute_${c.route.id}`);
+    assert.deepEqual(await clientTexts(), [], '«Поехал!» клиенту сообщений не шлёт');
+    await pool.query('DELETE FROM notification_outbox');
+
     // обычный заказ: сообщения клиенту уходят на правильных шагах
     //   «Принять заказ» — клиенту ничего (курьер лишь взял заказ со склада)
     //   «В пути» — «Курьер в пути / везёт ваш заказ»; «У клиента» — «Курьер приехал»; «Доставлен» — «Доставлен»
