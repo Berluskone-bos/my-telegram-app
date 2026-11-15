@@ -56,3 +56,13 @@ test('выключатель WIDGETS_ENABLED=0', () => {
         process.env.WIDGETS_ENABLED = '1'; assert.equal(w.widgetsEnabled(), true);
     } finally { if (prev === undefined) delete process.env.WIDGETS_ENABLED; else process.env.WIDGETS_ENABLED = prev; }
 });
+
+test('автопауза: ответ Telegram «WIDGET_NOT_ALLOWED» выключает карточки на время, потом они снова включаются', () => {
+    try {
+        assert.equal(w.isNotAllowedError(new Error('Bad Request: INPUT_MEDIA_WIDGET_NOT_ALLOWED')), true);
+        assert.equal(w.isNotAllowedError(new Error('Bad Request: chat not found')), false);
+        assert.equal(w.widgetsEnabled(), true);
+        w.pauseWidgets(60e3); assert.equal(w.widgetsEnabled(), false);
+        w.pauseWidgets(-1); assert.equal(w.widgetsEnabled(), true, 'пауза закончилась');
+    } finally { w.resumeWidgets(); }
+});

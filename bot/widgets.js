@@ -17,7 +17,16 @@ const MAX_HTML_ZIPPED = 4096;
 const MAX_DATA = 1024;
 const BRAND = '#00AFC7';
 
-const widgetsEnabled = () => String(process.env.WIDGETS_ENABLED || '1').trim() !== '0';
+// Автопауза: с 13.11.2026 Telegram отвечает обычным ботам «INPUT_MEDIA_WIDGET_NOT_ALLOWED» (карточки им пока не разрешены).
+// Получив такой ответ, на время паузы не пробуем отправлять карточки (всё идёт обычными сообщениями), потом пробуем снова —
+// если Telegram разрешит, карточки заработают сами. Пауза хранится в памяти процесса (после перезапуска — одна лишняя попытка).
+const PAUSE_MS = 6 * 3600e3;
+let pausedUntil = 0;
+const widgetsEnabled = () => String(process.env.WIDGETS_ENABLED || '1').trim() !== '0' && Date.now() >= pausedUntil;
+const isNotAllowedError = (e) => /WIDGET_NOT_ALLOWED/i.test(String((e && e.message) || e || ''));
+function pauseWidgets(ms = PAUSE_MS) { pausedUntil = Date.now() + ms; }
+function resumeWidgets() { pausedUntil = 0; }
+const widgetsPausedUntil = () => pausedUntil;
 
 const esc = (s) => String(s === null || s === undefined ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -189,7 +198,7 @@ function summaryFallbackText(sum) {
 }
 
 module.exports = {
-    widgetsEnabled, checkWidget, zippedSize, clip, fitData, esc,
+    widgetsEnabled, pauseWidgets, resumeWidgets, widgetsPausedUntil, isNotAllowedError, checkWidget, zippedSize, clip, fitData, esc,
     trackerWidget, trackerState, trackerFallbackText, TRACKER_HTML, TRACKER_STEPS,
     routeSheetWidget, routeSheetData, ROUTE_HTML,
     summaryWidget, summaryFallbackText, SUMMARY_HTML,

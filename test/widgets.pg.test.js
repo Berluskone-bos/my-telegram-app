@@ -82,6 +82,16 @@ test('виджеты: очередь, запасной вариант, трек�
     assert.equal((await store.get(pool, 'route', 'fb')).active, false);
     rejectWidgets = false;
 
+    // ── 4б. Telegram: «карточки обычным ботам не разрешены» → автопауза, дальше карточки не пробуем, текст уходит ──
+    await mkOrder('wg2b');
+    const blockedQ = createOutbox({ pool, send: async (bot, method) => { if (method === 'sendWidget') throw Object.assign(new Error('Bad Request: INPUT_MEDIA_WIDGET_NOT_ALLOWED'), { tgCode: 400 }); return { message_id: 1 }; } });
+    await blockedQ.enqueue(tracker.trackerItem({ chatId: 777101, orderNumber: 'AP-wg2b' }));
+    await blockedQ.processOnce();
+    assert.equal(widgets.widgetsEnabled(), false, 'после такого ответа карточки на паузе');
+    assert.equal(tracker.trackerItem({ chatId: 1, orderNumber: 'AP-y' }), null, 'новые карточки не ставятся');
+    assert.equal((await store.get(pool, 'tracker', 'AP-wg2b')).active, false);
+    widgets.resumeWidgets();
+
     // ── 5. оценка звёздами: только доставленный заказ, только владелец, один раз ──
     const calls = [];
     const call = async (method, payload) => { calls.push({ method, payload }); return true; };
