@@ -224,6 +224,9 @@ async function initDB() {
             ALTER TABLE route_stops
                 ADD COLUMN IF NOT EXISTS courier_chat_id BIGINT,
                 ADD COLUMN IF NOT EXISTS courier_message_id BIGINT;
+            ALTER TABLE route_stops
+                ADD COLUMN IF NOT EXISTS eta_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS eta_told_at TIMESTAMPTZ;
         `);
 
         await client.query(`

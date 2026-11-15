@@ -228,14 +228,14 @@ class DBAdapter {
             if (route.stops && route.stops.length > 0) {
                 for (const stop of route.stops) {
                     const stopRes = await client.query(
-                        `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, city, street, house, lat, lon, time_window, status, payment_status, amount_to_pay, phone, client_name, client_chat_id, items_count, comment)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
+                        `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, city, street, house, lat, lon, time_window, status, payment_status, amount_to_pay, phone, client_name, client_chat_id, items_count, comment, eta_at)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
                         [newRoute.id, stop.order_id, stop.order_number,
                          stop.stop_number || stops.length + 1,
                          stop.address, stop.city, stop.street, stop.house, stop.lat, stop.lon,
                          stop.time_window, stop.status || 'pending', stop.payment_status,
                          stop.amount_to_pay || 0, stop.phone, stop.client_name, stop.client_chat_id,
-                         stop.items_count, stop.comment]
+                         stop.items_count, stop.comment, stop.eta_at || null]
                     );
                     stops.push(stopRes.rows[0]);
                 }
@@ -277,6 +277,24 @@ class DBAdapter {
             [String(status), reason ? String(reason) : null, id]
         );
         return res.rows[0] || null;
+    }
+
+    // Расчётное время приезда на точку; told = true — это время только что сообщили клиенту
+    async setStopEta(stopId, etaAt, told = false) {
+        const id = Number(stopId);
+        if (!Number.isInteger(id)) return;
+        await pool.query(
+            `UPDATE route_stops SET eta_at = $2::timestamptz,
+                    eta_told_at = CASE WHEN $3::boolean THEN $2::timestamptz ELSE eta_told_at END WHERE id = $1`,
+            [id, etaAt || null, !!told]);
+    }
+
+    // Номер маршрута, по которому заказ уже едет (точка ждёт или в работе), либо null
+    async activeRouteNumberForOrder(orderNumber) {
+        const r = await pool.query(
+            `SELECT dr.route_number FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id
+              WHERE rs.order_number = $1 AND rs.status IN ('pending', 'in_progress') LIMIT 1`, [orderNumber]);
+        return r.rows[0] ? r.rows[0].route_number : null;
     }
 
     async updateStopPhoto(stopId, photoFileId) {
