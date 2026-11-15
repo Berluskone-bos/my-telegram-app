@@ -6,7 +6,9 @@ const RouteOptimizer = require('./services/route-optimizer');
 const Notifier = require('./services/notifier');
 const db = require('./db-adapter');
 const queue = require('./notify-queue');
-const { checkStopActive, CANCELLED_BUTTON } = require('./cancel-flow');
+const { checkStopActive, CANCELLED_BUTTON, CANCELLED_BUTTON_OLD } = require('./cancel-flow');
+const { trackerEvent, hasTracker } = require('./tracker');
+const widgets = require('./widgets');
 const { createRouteService } = require('./route-service');
 
 // Конфигурация
@@ -127,8 +129,23 @@ if (process.env.ADMIN_BOT_TOKEN) {
             }
         }
     });
+    // /summary — сводка дня карточкой; дальше она сама обновляется (summary.js)
+    adminBot.onText(/^\/summary(?:@[\w_]+)?(?:\s|$)/, async (msg) => {
+        if (!isTrustedAdmin(msg.from?.id)) return;
+        try { await summarySvc().send(); }
+        catch (e) { console.error('[СВОДКА]', e.message); adminBot.sendMessage(msg.chat.id, 'Не удалось собрать сводку.').catch(() => {}); }
+    });
     console.log('[OK] Админ-бот запущен (polling)');
 }
+let _summary = null;
+function summarySvc() {
+    if (!_summary) {
+        _summary = require('./summary').createSummaryService({ db, pool: require('./db').pool, queue, chatId: ADMIN_CHAT_ID });
+        _summary.start();
+    }
+    return _summary;
+}
+if (adminBot && ADMIN_CHAT_ID) summarySvc();      // после перезапуска карточка продолжает обновляться
 
 // ====== Утилиты ======
 
@@ -136,6 +153,8 @@ function notifyAdmin(text, buttons = null, dedupKey = null) {
     if (!ADMIN_CHAT_ID) return Promise.resolve();
     return queue.notify('admin', ADMIN_CHAT_ID, text, { buttons, dedupKey: dedupKey || undefined });
 }
+
+const trackerPool = () => require('./db').pool;
 
 // Сообщение админу о шаге доставки: забрал заказ / выехал / на месте / доставил (один раз на шаг)
 async function notifyAdminStep(routeId, stopId, step, query) {
@@ -539,7 +558,8 @@ bot.on('callback_query', async (query) => {
             if (!chk.active) {
                 bot.answerCallbackQuery(query.id, { text: chk.reason === 'cancelled' ? 'Заказ отменён. Везти его не нужно.' : 'Остановка не найдена', show_alert: true }).catch(() => {});
                 if (chk.reason === 'cancelled' && query.message) {
-                    bot.editMessageReplyMarkup({ inline_keyboard: CANCELLED_BUTTON }, { chat_id: chatId, message_id: query.message.message_id }).catch(() => {});
+                    bot.editMessageReplyMarkup({ inline_keyboard: CANCELLED_BUTTON }, { chat_id: chatId, message_id: query.message.message_id })
+                        .catch(() => bot.editMessageReplyMarkup({ inline_keyboard: CANCELLED_BUTTON_OLD }, { chat_id: chatId, message_id: query.message.message_id }).catch(() => {}));
                 }
                 return;
             }
@@ -715,7 +735,9 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 const r = await routeSvc.refreshEtas({ routeId, firstStopId: stopId, notifyNew: true });
                 ownSent = !!(r && r.sent.some(x => Number(x.stopId) === Number(stopId) && x.kind === 'own'));
             } catch (e) { console.error('[DELIVER] расчёт времени приезда не удался:', e.message); }
-            if (!ownSent && stop?.client_chat_id && stop.status !== 'cancelled') {
+            // карточка заказа у клиента (если есть) меняется без уведомления; обычный текст — только когда карточки нет
+            const onCard = stop?.order_number && stop.status !== 'cancelled' ? await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute' }) : false;
+            if (!ownSent && !onCard && stop?.client_chat_id && stop.status !== 'cancelled') {
                 queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`,
                     { dedupKey: `stop-enroute:${stopId}` });
             }
@@ -738,6 +760,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
+                // карточка меняется молча, а это сообщение — уведомление на телефон: клиенту нужно выйти навстречу
+                await trackerEvent(trackerPool(), stop.order_number, { stage: 'arrived', eta: '' }).catch(() => {});
                 queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>\nКурьер у вас, встречайте заказ.`,
                     { dedupKey: `stop-arrived:${stopId}` });
             }
@@ -784,9 +808,11 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
-                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!`);
-                // Рейтинг
-                const courier = (await db.getCouriers()).find(c => c.id === route?.courier_id);
+                const onCard = await trackerEvent(trackerPool(), stop.order_number, { stage: 'delivered', eta: '', canRate: true }).catch(() => false);
+                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!` +
+                    (onCard ? '\nОцените доставку звёздами в карточке заказа.' : ''));
+                // Рейтинг: есть карточка — звёзды в ней, иначе прежние кнопки
+                const courier = onCard ? null : (await db.getCouriers()).find(c => c.id === route?.courier_id);
                 if (courier) {
                     setTimeout(() => {
                         const rateButtons = [[1,2,3,4,5].map(n => ({
@@ -902,8 +928,9 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
     if (stop.client_chat_id) {
         if (status === 'delivered') {
             // Благодарность + рейтинг через основной бот
+            const onCard = await trackerEvent(trackerPool(), stop.order_number, { stage: 'delivered', eta: '', canRate: true }).catch(() => false);
             queue.notify('client', stop.client_chat_id,
-                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>доставлен</b>.\n\nСпасибо за покупку!`);
+                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>доставлен</b>.\n\nСпасибо за покупку!` + (onCard ? '\nОцените доставку звёздами в карточке заказа.' : ''));
 
             // Обновляем статус заказа на COMPLETED
             if (stop.order_id) {
@@ -912,6 +939,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
                     .catch(() => {});
             }
         } else {
+            await trackerEvent(trackerPool(), stop.order_number, { stage: 'failed', eta: '' }).catch(() => {});
             queue.notify('client', stop.client_chat_id,
                 `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>не доставлен</b>.` + (reason ? `\nПричина: ${escapeHtml(reason)}` : ''));
         }
@@ -1207,7 +1235,15 @@ function registerCourierRoutes(app) {
                     );
                     // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
                     if (order.user_id && status !== 'CANCELLED') {
-                        queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`);
+                        // промежуточные статусы — молча в карточку заказа; «доставлен/выполнен» — ещё и сообщением (уведомление на телефон)
+                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered' };
+                        const finalSt = status === 'DELIVERED' || status === 'COMPLETED';
+                        const onCard = stageMap[status]
+                            ? await trackerEvent(trackerPool(), order.order_number, { stage: stageMap[status], ...(finalSt ? { eta: '', canRate: true } : {}) }).catch(() => false)
+                            : false;
+                        if (!onCard || finalSt) {
+                            queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`);
+                        }
                     }
                 }
             }
@@ -1340,7 +1376,8 @@ function registerCourierRoutes(app) {
 
             // Уведомление клиенту о назначении курьера
             if (order.user_id) {
-                queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
+                const onCard = await trackerEvent(trackerPool(), order.order_number, { stage: 'shipping', courier: courier.name }).catch(() => false);
+                if (!onCard) queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
             }
 
             res.json({ success: true, route });

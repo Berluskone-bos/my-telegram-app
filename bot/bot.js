@@ -213,6 +213,7 @@ setInterval(() => {
 const PHONE_RE = /^(\+7|8|7)?[\s\-()]*\d{3}[\s\-()]*\d{3}[\s\-()]*\d{2}[\s\-()]*\d{2}$/;
 
 const { parseReferralCode, referralCodeFor, bonusToSpend } = require('./referral');
+const { trackerItem: trackerItemFor, handleWidgetQuery } = require('./tracker');
 
 async function validateOrder(raw, userId = null) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'invalid body' };
@@ -698,6 +699,9 @@ function buildOrderNotifications(orderId, order, row) {
     if (order.userId) {
         list.push({ bot: 'client', dedupKey: `order-client:${row.id}`,
             payload: { chat_id: String(order.userId), parse_mode: 'HTML', text: buildCustomerOrderMessage(orderId, order) } });
+        // карточка-трекер: уходит сразу после текста о заказе; выключается WIDGETS_ENABLED=0
+        const card = trackerItemFor({ chatId: order.userId, orderNumber: 'AP-' + orderId, dependsOn: `order-client:${row.id}` });
+        if (card) list.push(card);
     } else {
         console.warn('[ЗАКАЗ] Telegram user ID отсутствует — сообщение покупателю не будет отправлено');
     }
@@ -976,7 +980,15 @@ app.post(WEBHOOK_PATH, (req, res) => {
     }
 
     try {
-        bot.processUpdate(req.body);
+        if (req.body && req.body.widget_query) {
+            // нажатие в интерактивной карточке (звёзды оценки в трекере); библиотека бота такие обновления не знает
+            const notifyQueue = require('./notify-queue').instance();
+            handleWidgetQuery(req.body.widget_query, { pool: notifyQueue.pool, db, call: (m, p) => notifyQueue.send('client', m, p) })
+                .then(r => console.log('[ВИДЖЕТ] нажатие:', r))
+                .catch(e => console.error('[ВИДЖЕТ] нажатие не обработано:', sanitizeLog(e.message)));
+        } else {
+            bot.processUpdate(req.body);
+        }
     } catch (e) {
         console.error('[WEBHOOK] processUpdate:', sanitizeLog(e.message));
     }
@@ -1026,7 +1038,13 @@ db.init().then(async () => {
 
         const webhookUrl = WEBHOOK_BASE.replace(/\/+$/, '') + WEBHOOK_PATH;
         try {
-            await bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET });
+            // widget_query нужен для нажатий в карточках. Если Telegram не примет такой список — ставим вебхук как раньше.
+            try {
+                await bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET, allowed_updates: JSON.stringify(['message', 'callback_query', 'widget_query']) });
+            } catch (e1) {
+                console.warn('[ВНИМАНИЕ] webhook с widget_query не принят:', sanitizeLog(e1.message), '— ставлю без списка');
+                await bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET });
+            }
             console.log(`[OK] Webhook установлен: ${webhookUrl}`);
         } catch (e) {
             console.error('[FATAL] setWebHook:', sanitizeLog(e.message));

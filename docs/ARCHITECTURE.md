@@ -25,7 +25,7 @@
 | Бэкенд | Node.js, Express, `pg`, `node-telegram-bot-api` 0.67 (с `overrides` для безопасных `form-data`, `qs`, `tough-cookie`, `uuid`) |
 | База | Neon PostgreSQL. Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals` и таблицы кэша подбора масла |
 | Хостинг | Фронт — GitHub Pages (workflow `deploy-pages.yml`). Бэкенд — Railway (`Procfile`). |
-| Секреты (Railway Variables) | `BOT_TOKEN`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`, `ADMIN_API_KEY`, `WEBHOOK_URL` (база без пути), `WEBHOOK_SECRET`, `DATABASE_URL`, `YANDEX_GEO_KEY`, `PARTSAPI_KEY_VINDECODE`, `PARTSAPI_KEY_GETFILLVOLUMES`, `PARTSAPI_KEY_TODOPUSK`, `PARTSAPI_KEY_GETMAKES`, `PARTSAPI_KEY_GETMODELS`, `PARTSAPI_KEY_GETCARS`; опц. `WAREHOUSE_ADDRESS` (или `WAREHOUSE_LAT` + `WAREHOUSE_LON`) — склад, откуда курьер стартует; `SERVICE_MINUTES` (время на выдачу заказа, по умолчанию 5), `ETA_UPDATE_MINUTES` (порог пересылки времени клиенту, 15), `OSRM_URL` (сервис дорог, по умолчанию публичный router.project-osrm.org), `PARTSAPI_DAILY_LIMIT`, `ADMIN_USER_IDS`, `ALLOWED_ORIGINS`, `DB_SSL_STRICT`, `INIT_DATA_TTL_SEC` |
+| Секреты (Railway Variables) | `BOT_TOKEN`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`, `ADMIN_API_KEY`, `WEBHOOK_URL` (база без пути), `WEBHOOK_SECRET`, `DATABASE_URL`, `YANDEX_GEO_KEY`, `PARTSAPI_KEY_VINDECODE`, `PARTSAPI_KEY_GETFILLVOLUMES`, `PARTSAPI_KEY_TODOPUSK`, `PARTSAPI_KEY_GETMAKES`, `PARTSAPI_KEY_GETMODELS`, `PARTSAPI_KEY_GETCARS`; опц. `WAREHOUSE_ADDRESS` (или `WAREHOUSE_LAT` + `WAREHOUSE_LON`) — склад, откуда курьер стартует; `SERVICE_MINUTES` (время на выдачу заказа, по умолчанию 5), `ETA_UPDATE_MINUTES` (порог пересылки времени клиенту, 15), `OSRM_URL` (сервис дорог, по умолчанию публичный router.project-osrm.org), `WIDGETS_ENABLED` (0 — выключить интерактивные карточки, по умолчанию включены), `PARTSAPI_DAILY_LIMIT`, `ADMIN_USER_IDS`, `ALLOWED_ORIGINS`, `DB_SSL_STRICT`, `INIT_DATA_TTL_SEC` |
 
 ## Заказ (как работает сейчас)
 1. Клиент оформляет заказ в Mini App → `POST /api/order` с `X-Telegram-Init-Data`.
@@ -45,9 +45,16 @@ bot/courier-bot.js                     курьерский бот и админ
 bot/db.js, db-adapter.js               работа с Neon (миграции при старте)
 bot/oil-routes.js, oil-systems.js,
 bot/partsapi-cache.js                  подбор жидкостей, кэш и лимит PartsAPI
-bot/services/                          geocoder, map-links, route-optimizer, notifier
+bot/services/                          geocoder, map-links, route-planner (маршрут и время), notifier
+bot/outbox.js, notify-queue.js         очередь уведомлений (таблица notification_outbox)
+bot/route-service.js, route-sheet.js   маршрут из нескольких заказов и его карточка у курьера
+bot/widgets.js, widget-store.js,
+bot/tracker.js, summary.js             интерактивные карточки Telegram (виджеты): трекер заказа, сводка админа
 .github/workflows/deploy-pages.yml     публикация сайта
 ```
+
+## Интерактивные карточки Telegram (виджеты, с 15.11.2026)
+Bot API 10.4: `sendWidget` (HTML + `chat_data`), `editMessageWidgetData` (меняет только данные, без уведомления), нажатия — обновление `widget_query` (главный вебхук `/webhook/main`, ответ `answerWidgetQuery`). Карточки: **трекер заказа** (клиентский бот, `kind=tracker`, ref = номер заказа), **маршрутный лист** (курьерский бот, `kind=route`, ref = id маршрута), **сводка дня** (админ-бот, `kind=summary`, ref = chat_id админа). Состояние — таблица `widget_messages` (`active=false` — карточка выключена, работают обычные сообщения). Отправка и правка идут через очередь `notification_outbox` (методы `sendWidget`/`editMessageWidgetData`, `edit_ref = «kind:ref»`, запасной вариант в `on_sent.fallback`). Лимиты Telegram: HTML ≤ 32 КБ и ≤ 4096 Б в сжатом виде, данные ≤ 1024 Б (проверяет `widgets.checkWidget`). Выключатель: `WIDGETS_ENABLED=0`. В карточках только то, что разрешено в виджетах: цвета темы `--tg-theme-*`, системные шрифты, без `color-mix`, `vh`, полей ввода, сети, внешних картинок.
 
 ## Подбор жидкостей (работает; с 11.11.2026 — каталог ТО PartsAPI)
 Файлы в `bot/`: `oil-catalog.js` (запросы и разбор), `oil-systems.js` (разбор по системам и подбор товаров), `oil-routes.js` (маршруты), `partsapi-cache.js` (кэш и лимит); фронтенд — `js/oil.js`, `css/oil.css`. Таблицы Neon: `api_cache`, `api_request_log`, `to_vehicles` (название модификации по `typeId`), `product_approvals`; старые таблицы `vehicles`, `vehicle_*` не используются.
@@ -78,4 +85,5 @@ toMakes (id марки) → toModels (brandId) → toTypes (modelId) → typeId
 - Лимиты запросов и дедупликация заказов — в памяти процесса (при нескольких копиях сервера не общие).
 - Корзина, избранное, «потрачено» хранятся в `localStorage`, скидка по обороту не считается на сервере (задача C4). Профиль и гараж частично хранятся на сервере (`customer_profiles`, `user_garage`).
 - VINdecode опирается на TecDoc и может не знать VIN российской сборки (Z94, XTA и др.).
+- Вид интерактивных карточек в Telegram, приём наших полей `sendWidget` и доставка `widget_query` не проверены на живом сервисе (см. TASKS.md, обновление 27).
 - Живая работа ботов в Telegram, Railway и Neon из среды Claude не проверялась; серверные проверки выполнялись на локальной копии с подставными ответами Telegram.

@@ -63,7 +63,9 @@ test('отмена заказа: курьер получает сообщени�
     const edit = sent.find(s => s.method === 'editMessageReplyMarkup');
     assert.ok(edit, 'на прежнем сообщении курьера кнопки заменены');
     assert.equal(edit.payload.message_id, 501); assert.equal(edit.payload.chat_id, '900001');
-    assert.equal(edit.payload.reply_markup.inline_keyboard[0][0].callback_data, 'noop_cancelled');
+    assert.deepEqual(edit.payload.reply_markup.inline_keyboard[0][0].disabled, {}, 'серая кнопка (disabled) вместо заглушки');
+    const editRow = (await pool.query(`SELECT on_sent FROM notification_outbox WHERE dedup_key = $1`, [`cancel-edit:${stopId}`])).rows[0];
+    assert.equal(editRow.on_sent.fallback.payload.reply_markup.inline_keyboard[0][0].callback_data, 'noop_cancelled', 'запасной вариант — прежняя кнопка');
     const toCourier = sent.find(s => s.bot === 'courier' && s.method === 'sendMessage');
     assert.match(toCourier.payload.text, /Заказ отменён/); assert.match(toCourier.payload.text, /AP-cf1/);
     assert.equal(toCourier.payload.chat_id, '900001');
