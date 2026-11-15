@@ -4,6 +4,10 @@
 const defaultPlanner = require('./services/route-planner');
 const MapLinks = require('./services/map-links');
 const { escapeHtml } = require('./services/notifier');
+const widgets = require('./widgets');
+const { trackerEvent } = require('./tracker');
+const { queueRouteSheetEdit, sheetKey } = require('./route-sheet');
+const poolOf = () => require('./db').pool;
 
 const DEFAULT_START = { lat: 59.9343, lon: 30.3351, source: 'default' };   // центр Санкт-Петербурга, пока склад не задан
 const ACTIVE = ['pending', 'in_progress'];
@@ -105,10 +109,19 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 `\n${list}\n\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз.${startNote}`;
             const ll = [start, ...placed].map(p => ({ lat: p.lat, lon: p.lon }));
             const nav = placed.length ? MapLinks.allRoute(ll) : null;
-            queue.notify('courier', courier.telegram_id, sheet, {
-                dedupKey: `route-sheet:${route.id}`,
-                buttons: nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null
-            });
+            const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
+            if (queue.notifyWidget && widgets.widgetsEnabled()) {
+                // карточка «Маршрутный лист»; если Telegram её не примет или виджеты выключены — прежний текстовый лист
+                const card = widgets.routeSheetWidget(route.route_number, sequence.map(s => ({
+                    order_number: s.order.order_number, address: s.order.address || '', status: 'pending',
+                    clock: s.etaAt ? planner.formatEta(s.etaAt, now()).clock : ''
+                })));
+                await queue.notifyWidget('courier', courier.telegram_id, card, {
+                    kind: 'route', ref: route.id, state: {}, fallbackText: sheet, buttons: sheetButtons, dedupKey: sheetKey(route.id)
+                });
+            } else {
+                queue.notify('courier', courier.telegram_id, sheet, { dedupKey: `route-sheet:${route.id}`, buttons: sheetButtons });
+            }
             route.stops.forEach((st, i) => {
                 const s = sequence[i], o = s.order;
                 const text =
@@ -132,7 +145,10 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         }
         for (const s of sequence) {
             const o = s.order;
-            if (o.user_id) queue.notify('client', o.user_id, `<b>Заказ ${escapeHtml(o.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
+            if (o.user_id) {
+                const onCard = await trackerEvent(poolOf(), o.order_number, { stage: 'shipping', courier: courier.name }).catch(() => false);
+                if (!onCard) queue.notify('client', o.user_id, `<b>Заказ ${escapeHtml(o.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
+            }
         }
         return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: start.source }, sequence: sequence.map(s => s.order.order_number) };
     }
@@ -153,6 +169,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
     async function refreshEtas({ routeId, firstStopId = null, from = null, notifyNew = true }) {
         const route = await db.getRouteById(routeId);
         if (!route) return null;
+        await queueRouteSheetEdit(poolOf(), routeId, { activeStopId: firstStopId, now: now() }).catch(e => console.error('[ROUTE] карточка маршрута не обновлена:', e.message));
         const t = now();
         let pending = (route.stops || []).filter(s => ACTIVE.includes(s.status)).sort((a, b) => a.stop_number - b.stop_number);
         if (firstStopId) {
@@ -180,6 +197,8 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 queue.notify('client', stop.client_chat_id, etaClientText(stop, p.etaAt, kind, pos, pending.length),
                     { dedupKey: `eta:${stop.id}:${kind}:${clock}` });
                 sent.push({ stopId: stop.id, kind });
+                // то же время — в карточку заказа клиента (без уведомления; текст выше его и так даёт)
+                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, ...(kind === 'own' ? { stage: 'enroute' } : {}) }).catch(() => {});
             }
         }
         // точки без координат остаются без времени; сообщение «курьер в пути» их клиентам отправляет обработчик кнопки

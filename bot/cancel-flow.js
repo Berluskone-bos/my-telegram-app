@@ -7,8 +7,12 @@
 //   3. клиенту: «Статус: Отменён» (один раз, даже если отмену нажали дважды)
 const { enqueue, supersede } = require('./outbox');
 const { escapeHtml } = require('./services/notifier');
+const { trackerEvent } = require('./tracker');
+const { queueRouteSheetEdit } = require('./route-sheet');
 
-const CANCELLED_BUTTON = [[{ text: 'Заказ отменён', callback_data: 'noop_cancelled' }]];
+// Серая кнопка (Bot API 10.3: поле disabled — пустой объект): нажать нельзя. Если Telegram её не примет — прежняя кнопка-заглушка.
+const CANCELLED_BUTTON_OLD = [[{ text: 'Заказ отменён', callback_data: 'noop_cancelled' }]];
+const CANCELLED_BUTTON = [[{ text: 'Заказ отменён', disabled: {} }]];
 
 async function queueCancelNotices(client, order) {
     // 1. маршруты, где есть отменённая остановка этого заказа
@@ -30,6 +34,7 @@ async function queueCancelNotices(client, order) {
                            COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress'))::int AS open
                       FROM route_stops WHERE route_id = $1) x
              WHERE dr.id = $1`, [routeId]);
+        await queueRouteSheetEdit(client, routeId);     // карточка маршрута у курьера: точка станет «отменён»
     }
 
     // 2. курьеру
@@ -39,7 +44,8 @@ async function queueCancelNotices(client, order) {
         if (await supersede(client, `assign:${s.id}`)) continue;
         await enqueue(client, {
             bot: 'courier', dedupKey: `cancel-edit:${s.id}`, dependsOn: `assign:${s.id}`, editStopMessage: s.id,
-            method: 'editMessageReplyMarkup', payload: { reply_markup: { inline_keyboard: CANCELLED_BUTTON } }
+            method: 'editMessageReplyMarkup', payload: { reply_markup: { inline_keyboard: CANCELLED_BUTTON } },
+            fallback: { payload: { reply_markup: { inline_keyboard: CANCELLED_BUTTON_OLD } } }
         });
         await enqueue(client, {
             bot: 'courier', dedupKey: `cancel-courier:${s.id}`, dependsOn: `assign:${s.id}`,
@@ -51,8 +57,9 @@ async function queueCancelNotices(client, order) {
         });
     }
 
-    // 3. клиенту
+    // 3. клиенту: карточка-трекер показывает «Отменён» (без уведомления), текст остаётся — он даёт уведомление
     if (order.user_id) {
+        await trackerEvent(client, order.order_number, { stage: 'cancelled' });
         await enqueue(client, {
             bot: 'client', dedupKey: `cancel-client:${order.id}`,
             payload: { chat_id: String(order.user_id), parse_mode: 'HTML',
@@ -73,4 +80,4 @@ async function checkStopActive(pool, stopId) {
     return { active: true, orderNumber: row.order_number, orderStatus: row.order_status };
 }
 
-module.exports = { queueCancelNotices, checkStopActive, CANCELLED_BUTTON };
+module.exports = { queueCancelNotices, checkStopActive, CANCELLED_BUTTON, CANCELLED_BUTTON_OLD };

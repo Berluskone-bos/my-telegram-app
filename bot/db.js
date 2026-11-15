@@ -229,6 +229,25 @@ async function initDB() {
                 ADD COLUMN IF NOT EXISTS eta_told_at TIMESTAMPTZ;
         `);
 
+        // ─── Интерактивные карточки Telegram (виджеты, см. widgets.js): где лежит сообщение и что на нём показано ───
+        //   kind: tracker (ref = номер заказа) | route (ref = id маршрута) | summary (ref = chat_id админа)
+        //   active = false — Telegram карточку не принял или она выключена: тогда работают обычные сообщения
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS widget_messages (
+                kind TEXT NOT NULL,
+                ref TEXT NOT NULL,
+                chat_id BIGINT,
+                message_id BIGINT,
+                state JSONB NOT NULL DEFAULT '{}'::jsonb,
+                active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (kind, ref)
+            );
+            CREATE INDEX IF NOT EXISTS widget_messages_msg_idx ON widget_messages(kind, chat_id, message_id);
+            ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS edit_ref TEXT;
+        `);
+
         await client.query(`
             ALTER TABLE customer_profiles
                 ADD COLUMN IF NOT EXISTS building VARCHAR(20) NOT NULL DEFAULT '',

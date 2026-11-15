@@ -3,6 +3,7 @@
 const Notifier = require('./services/notifier');
 const { createOutbox } = require('./outbox');
 const { escapeHtml } = require('./services/notifier');
+const widgets = require('./widgets');
 
 let _q = null;
 function instance() {
@@ -20,6 +21,7 @@ function instance() {
     };
     _q = createOutbox({ pool, send });
     _q.pool = pool;
+    _q.send = send;     // прямой вызов Bot API (например, ответ на нажатие в карточке — его нужно дать за 15 секунд)
     return _q;
 }
 
@@ -35,4 +37,41 @@ function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = n
     });
 }
 
-module.exports = { instance, notify, escapeHtml };
+// Интерактивная карточка (виджет) в очередь. Если виджеты выключены (WIDGETS_ENABLED=0), карточка не собралась или
+// Telegram её не примет — уйдёт fallbackText обычным сообщением (null — тогда ничего не отправляется).
+// kind/ref — как карточку найти позже (таблица widget_messages), state — что на ней сейчас показано.
+// Возвращает true, если в очередь поставлена именно карточка.
+function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText = null, buttons = null, dedupKey = null, dependsOn = null, db = null } = {}) {
+    if (chatId === null || chatId === undefined || chatId === '') return Promise.resolve(false);
+    const plain = () => fallbackText
+        ? notify(bot, chatId, fallbackText, { buttons, dedupKey: dedupKey ? 'fb:' + dedupKey : null, db }).then(() => false)
+        : Promise.resolve(false);
+    let ok = widgets.widgetsEnabled();
+    if (ok) { try { widgets.checkWidget(widget); } catch (e) { console.error('[ВИДЖЕТ]', e.message); ok = false; } }
+    if (!ok) return plain();
+    const fbPayload = fallbackText
+        ? { chat_id: String(chatId), text: fallbackText, parse_mode: 'HTML', ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}) }
+        : null;
+    return instance().enqueue({
+        bot, method: 'sendWidget', dedupKey, dependsOn,
+        payload: { chat_id: String(chatId), html: widget.html, chat_data: widget.chat_data, caption: widget.caption, allow_queries: widget.allow_queries !== false,
+            ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}) },
+        widget: { kind, ref, state }, fallback: { method: 'sendMessage', payload: fbPayload }
+    }, db).then(() => true).catch(e => {
+        console.error('[OUTBOX] карточка не поставлена в очередь:', String(e.message).slice(0, 150));
+        return false;
+    });
+}
+
+// Изменить данные уже отправленной карточки (editMessageWidgetData). Пуш-уведомления клиенту такое изменение не даёт.
+function editWidget(bot, kind, ref, chatData, { dependsOn = null, db = null } = {}) {
+    return instance().enqueue({
+        bot, method: 'editMessageWidgetData', payload: { chat_data: chatData },
+        editRef: `${kind}:${ref}`, dependsOn
+    }, db).catch(e => {
+        console.error('[OUTBOX] изменение карточки не поставлено в очередь:', String(e.message).slice(0, 150));
+        return null;
+    });
+}
+
+module.exports = { instance, notify, notifyWidget, editWidget, escapeHtml };

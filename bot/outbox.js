@@ -12,6 +12,7 @@ const MAX_ATTEMPTS = 8;
 const RETRY_SEC = [30, 120, 600, 3600, 3 * 3600, 6 * 3600, 12 * 3600]; // пауза после 1-й, 2-й, ... неудачи
 const LEASE_SEC = 120;          // «аренда» строки обработчиком: если процесс умер, строку возьмёт другой
 const BOTS = ['client', 'admin', 'courier'];
+const widgetStore = require('./widget-store');
 
 const retryDelaySec = (attempts) => RETRY_SEC[Math.min(Math.max(attempts, 1), RETRY_SEC.length) - 1];
 
@@ -33,13 +34,20 @@ function classifyError(err) {
 //   editStopMessage: stopId — для editMessageReplyMarkup: message_id взять из route_stops в момент отправки
 async function enqueue(db, item) {
     if (!BOTS.includes(item.bot)) throw new Error('outbox: неизвестный бот ' + item.bot);
+    // on_sent — служебные данные: stopId (запомнить message_id у остановки), widget {kind, ref} (запомнить карточку),
+    // fallback {method?, payload} — что отправить вместо, если Telegram не принял карточку/кнопку (payload null — просто пропустить)
+    const onSent = item.onSent || item.widget || item.fallback
+        ? { ...(item.onSent || {}), ...(item.widget ? { widget: { kind: item.widget.kind, ref: String(item.widget.ref) } } : {}),
+            ...(item.fallback ? { fallback: item.fallback } : {}) }
+        : null;
     const r = await db.query(
-        `INSERT INTO notification_outbox (bot, method, payload, dedup_key, depends_on, on_sent, edit_stop_id)
-         VALUES ($1, $2, $3::jsonb, $4, $5, $6::jsonb, $7)
+        `INSERT INTO notification_outbox (bot, method, payload, dedup_key, depends_on, on_sent, edit_stop_id, edit_ref)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6::jsonb, $7, $8)
          ON CONFLICT (dedup_key) WHERE dedup_key IS NOT NULL DO NOTHING
          RETURNING id`,
         [item.bot, item.method || 'sendMessage', JSON.stringify(item.payload || {}), item.dedupKey || null,
-         item.dependsOn || null, item.onSent ? JSON.stringify(item.onSent) : null, item.editStopMessage || null]);
+         item.dependsOn || null, onSent ? JSON.stringify(onSent) : null, item.editStopMessage || null, item.editRef || null]);
+    if (r.rowCount && item.widget) await widgetStore.upsert(db, item.widget.kind, item.widget.ref, item.widget.state || {});
     return r.rowCount ? r.rows[0].id : null;
 }
 
@@ -62,15 +70,38 @@ function createOutbox({ pool, send, batch = 10 }) {
 
     async function deliver(row) {
         let payload = row.payload;
+        const meta = row.on_sent || {};
         if (row.edit_stop_id) {
             const ref = await resolveMessageId(row.edit_stop_id);
             if (!ref) return { skipped: 'нет сообщения для изменения' };
             payload = { ...payload, chat_id: ref.chat_id, message_id: ref.message_id };
         }
-        const result = await send(row.bot, row.method, payload);
-        if (row.on_sent && row.on_sent.stopId && result && result.message_id) {
+        if (row.edit_ref) {
+            const i = row.edit_ref.indexOf(':');
+            const w = await widgetStore.get(pool, row.edit_ref.slice(0, i), row.edit_ref.slice(i + 1));
+            if (!w || !w.active || !w.message_id) return { skipped: 'нет карточки для изменения' };
+            payload = { ...payload, chat_id: String(w.chat_id), message_id: Number(w.message_id) };
+        }
+        let result, method = row.method;
+        try {
+            result = await send(row.bot, method, payload);
+        } catch (e) {
+            // Telegram не принял карточку/кнопку насовсем — отправляем запасной вариант (обычное сообщение), а карточку выключаем
+            if (!(meta.fallback && classifyError(e).kind === 'permanent')) throw e;
+            console.error(`[OUTBOX] #${row.id} ${method} отклонён Telegram (${String(e.message).slice(0, 200)}) — запасной вариант`);
+            if (meta.widget) await widgetStore.deactivate(pool, meta.widget.kind, meta.widget.ref);
+            const fb = meta.fallback;
+            if (!fb.payload) return { skipped: 'карточка не принята Telegram, запасной вариант не нужен' };
+            method = fb.method || (method === 'sendWidget' ? 'sendMessage' : method);
+            payload = { ...(payload.message_id ? { chat_id: payload.chat_id, message_id: payload.message_id } : {}), ...fb.payload };
+            result = await send(row.bot, method, payload);
+        }
+        if (meta.stopId && result && result.message_id) {
             await pool.query('UPDATE route_stops SET courier_chat_id = $1, courier_message_id = $2 WHERE id = $3',
-                [String(payload.chat_id), result.message_id, row.on_sent.stopId]);
+                [String(payload.chat_id), result.message_id, meta.stopId]);
+        }
+        if (meta.widget && method === 'sendWidget' && result && result.message_id) {
+            await widgetStore.setMessage(pool, meta.widget.kind, meta.widget.ref, payload.chat_id, result.message_id);
         }
         return { messageId: result && result.message_id ? result.message_id : null };
     }

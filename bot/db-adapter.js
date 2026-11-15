@@ -297,6 +297,33 @@ class DBAdapter {
         return r.rows[0] ? r.rows[0].route_number : null;
     }
 
+    // Курьер, который вёз заказ (последняя доставленная точка этого заказа) — для оценки доставки
+    async courierIdForOrder(orderNumber) {
+        const r = await pool.query(
+            `SELECT dr.courier_id FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id
+              WHERE rs.order_number = $1 AND rs.status = 'delivered' ORDER BY rs.id DESC LIMIT 1`, [orderNumber]);
+        return r.rows[0] ? r.rows[0].courier_id : null;
+    }
+
+    // Сводка за сегодняшний день по Москве / Санкт-Петербургу (для виджета админа)
+    async getDaySummary() {
+        const r = await pool.query(
+            `SELECT COUNT(*)::int AS orders,
+                    COALESCE(SUM(total) FILTER (WHERE status <> 'CANCELLED'), 0)::numeric AS revenue,
+                    COUNT(*) FILTER (WHERE status IN ('NEW', 'CONFIRMED'))::int AS new_cnt,
+                    COUNT(*) FILTER (WHERE status = 'ASSEMBLING')::int AS assembling,
+                    COUNT(*) FILTER (WHERE status = 'SHIPPING')::int AS shipping,
+                    COUNT(*) FILTER (WHERE status IN ('DELIVERED', 'COMPLETED'))::int AS delivered,
+                    COUNT(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled,
+                    TO_CHAR(NOW() AT TIME ZONE 'Europe/Moscow', 'DD.MM.YYYY') AS date,
+                    TO_CHAR(NOW() AT TIME ZONE 'Europe/Moscow', 'HH24:MI') AS clock
+               FROM orders
+              WHERE (created_at AT TIME ZONE current_setting('TimeZone') AT TIME ZONE 'Europe/Moscow')::date = (NOW() AT TIME ZONE 'Europe/Moscow')::date`);
+        const x = r.rows[0];
+        return { orders: x.orders, revenue: Number(x.revenue), new: x.new_cnt, assembling: x.assembling, shipping: x.shipping,
+                 delivered: x.delivered, cancelled: x.cancelled, date: x.date, updated: 'обновлено ' + x.clock };
+    }
+
     async updateStopPhoto(stopId, photoFileId) {
         const id = Number(stopId);
         if (!Number.isInteger(id)) return;

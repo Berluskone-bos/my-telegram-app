@@ -57,11 +57,16 @@ test('заказ через API: сообщения клиенту и админ
     const order = (await pool.query('SELECT id, building, floor FROM orders WHERE order_number = $1', [body.orderId])).rows[0];
     assert.equal(order.building, '2'); assert.equal(order.floor, '3');
     const rows = (await pool.query('SELECT bot, status, payload FROM notification_outbox ORDER BY id')).rows;
-    assert.deepEqual(rows.map(r => r.bot), ['client', 'admin']);
+    // клиенту: текст о заказе и сразу за ним карточка-трекер (виджет); админу: текст с кнопкой отмены
+    assert.deepEqual(rows.map(r => r.bot), ['client', 'client', 'admin']);
     assert.ok(rows.every(r => r.status === 'pending'));
     assert.equal(rows[0].payload.chat_id, '777005');
     assert.match(rows[0].payload.text, new RegExp(body.orderId));
-    assert.equal(rows[1].payload.chat_id, '4242');
-    assert.match(rows[1].payload.text, /корп\. 2/); assert.match(rows[1].payload.text, /стр\. 4/); assert.match(rows[1].payload.text, /этаж 3/);
-    assert.equal(rows[1].payload.reply_markup.inline_keyboard[0][0].callback_data, `cancel_${order.id}`);
+    assert.equal(rows[1].payload.chat_id, '777005');
+    assert.ok(rows[1].payload.html && rows[1].payload.allow_queries === true, 'карточка-трекер');
+    assert.equal(rows[2].payload.chat_id, '4242');
+    assert.match(rows[2].payload.text, /корп\. 2/); assert.match(rows[2].payload.text, /стр\. 4/); assert.match(rows[2].payload.text, /этаж 3/);
+    assert.equal(rows[2].payload.reply_markup.inline_keyboard[0][0].callback_data, `cancel_${order.id}`);
+    const tr = (await pool.query(`SELECT active, state FROM widget_messages WHERE kind = 'tracker' AND ref = $1`, [body.orderId])).rows[0];
+    assert.ok(tr && tr.active, 'запись о карточке создана вместе с заказом');
 });
