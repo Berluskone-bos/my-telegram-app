@@ -7,6 +7,7 @@ const Notifier = require('./services/notifier');
 const db = require('./db-adapter');
 const queue = require('./notify-queue');
 const { checkStopActive, CANCELLED_BUTTON } = require('./cancel-flow');
+const { createRouteService } = require('./route-service');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -21,6 +22,8 @@ const { escapeHtml } = require('./services/notifier');
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
+// Маршрут из нескольких заказов: порядок, время приезда, сообщения клиентам (см. route-service.js)
+const routeSvc = createRouteService({ db, geocoder: YANDEX_GEO_KEY ? geocoder : null, queue });
 // Очередь уведомлений: отправка с повторами (см. outbox.js). Запуск идемпотентный: можно вызывать из обоих модулей.
 db.init().then(() => queue.instance().start()).catch(e => console.error('[OUTBOX] запуск не удался:', String(e.message).slice(0, 150)));
 const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID, process.env.ADMIN_BOT_TOKEN || '');
@@ -304,7 +307,6 @@ async function showMainScreen(chatId, courier) {
             buttons.push([{ text: 'Поехал!', callback_data: `startroute_${activeRoute.id}` }]);
         }
         buttons.push([{ text: 'Маршрутный лист', callback_data: `showroute_${activeRoute.id}` }]);
-        buttons.push([{ text: 'Построить маршрут', callback_data: `optimizeroute_${activeRoute.id}` }]);
     }
     buttons.push([{ text: 'Обновить', callback_data: 'refresh_main' }]);
 
@@ -388,6 +390,7 @@ async function sendRouteDetails(chatId, route) {
         }
         if (stop.phone) text += `Телефон: ${escapeHtml(stop.phone)}\n`;
         if (stop.time_window) text += `Окно: ${escapeHtml(stop.time_window)}\n`;
+        if (stop.eta_at && stop.status === 'pending') text += `Ориентировочно: к ${require('./services/route-planner').formatEta(stop.eta_at).clock}\n`;
         if (stop.comment) text += `Комментарий: ${escapeHtml(stop.comment)}\n`;
         text += '\n';
     });
@@ -417,10 +420,8 @@ async function sendRouteDetails(chatId, route) {
         }
     });
 
-    if (stops.filter(s => s.status === 'pending').length >= 2) {
-        buttons.push([{ text: 'Построить маршрут', callback_data: `optimizeroute_${route.id}` }]);
-    }
-
+    // Порядок точек строит система при назначении маршрута; кнопки «Построить маршрут» больше нет
+    // (старый подбор считал по прямой линии и мог противоречить порядку, о котором уже знают клиенты).
     bot.sendMessage(chatId, text, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: buttons }
@@ -704,11 +705,17 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         bot.answerCallbackQuery(query.id, { text: 'Вы в пути. Клиент уведомлён.' }).catch(() => {});
         await notifyAdminStep(routeId, stopId, 'enroute', query);
 
-        // Курьер выехал: сообщаем клиенту (один раз, даже при повторном нажатии)
+        // Курьер выехал: этому клиенту — «везёт ваш заказ» (с временем, если считается), остальным клиентам
+        // маршрута, кому ещё не писали, — «курьер выехал, вы N-й, будет через…». Один раз, даже при повторном нажатии.
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-            if (stop?.client_chat_id && stop.status !== 'cancelled') {
+            let ownSent = false;
+            try {
+                const r = await routeSvc.refreshEtas({ routeId, firstStopId: stopId, notifyNew: true });
+                ownSent = !!(r && r.sent.some(x => Number(x.stopId) === Number(stopId) && x.kind === 'own'));
+            } catch (e) { console.error('[DELIVER] расчёт времени приезда не удался:', e.message); }
+            if (!ownSent && stop?.client_chat_id && stop.status !== 'cancelled') {
                 queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`,
                     { dedupKey: `stop-enroute:${stopId}` });
             }
@@ -770,6 +777,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         } catch (e) { console.error('[DELIVER] db update error:', e.message, e.stack); }
 
         await notifyAdminStep(routeId, stopId, 'done', query);
+        routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', e.message));
 
         // Уведомляем клиента + рейтинг
         try {
@@ -880,6 +888,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
     const newStatus = allDone ? 'completed' : (route.status === 'assigned' ? 'in_progress' : route.status);
 
     await db.updateRouteStatus(routeId, newStatus, newCompleted, newFailed);
+    routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', e.message));
 
     const statusText = status === 'delivered' ? 'Доставлено' : 'Не доставлено';
     if (callbackQueryId) {
@@ -912,40 +921,12 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 // ====== Оптимизация маршрута ======
 
 async function handleOptimizeRoute(chatId, routeId) {
+    // Порядок точек строит система при назначении маршрута (route-service.js). Кнопка осталась в старых сообщениях:
+    // показываем актуальный маршрутный лист с временем вместо старого подбора по прямой линии.
     const route = await db.getRouteById(routeId);
-    if (!route) {
-        bot.sendMessage(chatId, 'Маршрут не найден.');
-        return;
-    }
-
-    const stops = route.stops || [];
-    const pendingStops = stops.filter(s => s.status === 'pending' && s.lat && s.lon);
-
-    if (pendingStops.length < 2) {
-        bot.sendMessage(chatId, 'Недостаточно остановок с координатами для оптимизации.');
-        return;
-    }
-
-    const optimized = RouteOptimizer.optimizeRoute(pendingStops);
-    const distance = RouteOptimizer.calcDistance(optimized);
-
-    let text = `<b>Маршрут оптимизирован!</b>\n\nОптимальный порядок:\n`;
-    optimized.forEach((stop, idx) => {
-        text += `${idx + 1}. ${escapeHtml(stop.order_number || '')} — ${escapeHtml(stop.address)}\n`;
-    });
-    text += `\nРасстояние: ~${distance} км\n`;
-
-    const allLinks = MapLinks.allRoute(optimized);
-    const buttons = [
-        [{ text: 'Яндекс Карты', url: allLinks.yandex }],
-        [{ text: 'Google Maps', url: allLinks.google }],
-        [{ text: '2GIS', url: allLinks.gis2 }]
-    ];
-
-    bot.sendMessage(chatId, text, {
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: buttons }
-    });
+    if (!route) return;
+    bot.sendMessage(chatId, 'Порядок точек уже рассчитан системой по дорогам. Вот актуальный маршрутный лист:');
+    sendRouteDetails(chatId, route);
 }
 
 // ====== Обработка фото ======
@@ -1078,6 +1059,22 @@ function registerCourierRoutes(app) {
                 { parse_mode: 'HTML' }
             ).then(() => res.json({ success: true })).catch(err => { console.error('[API]', err.message); res.json({ success: false, error: 'Internal error' }); });
         } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+    });
+
+    // Собрать маршрут из нескольких заказов: система строит порядок и время, курьер получает маршрутный лист
+    app.post('/api/routes/build', verifyAdmin, async (req, res) => {
+        try {
+            const { order_ids, courier_id } = req.body || {};
+            const courier = (await db.getCouriers()).find(c => c.id === parseInt(courier_id));
+            if (!courier) return res.status(404).json({ error: 'Курьер не найден' });
+            if (!courier.is_active) return res.status(409).json({ error: 'Курьер не активен' });
+            const out = await routeSvc.buildRoute({ orderIds: order_ids, courier, notifyAdmin: (t) => notifyAdmin(t) });
+            res.json({ success: true, route: out.route, plan: out.plan, sequence: out.sequence });
+        } catch (e) {
+            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
+            if (status) return res.status(status).json({ error: e.message });
+            console.error('[API /routes/build]', e.message); res.status(500).json({ error: 'Internal error' });
+        }
     });
 
     app.get('/api/routes', verifyAdmin, async (req, res) => {

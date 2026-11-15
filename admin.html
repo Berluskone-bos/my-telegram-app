@@ -383,7 +383,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">Заказы</div>
-                    <div style="display:flex;gap:8px;">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <select id="routeCourier" class="status-select" title="Курьер для маршрута"><option value="">-- курьер --</option></select>
+                        <button class="btn btn-primary btn-sm" id="buildRouteBtn" onclick="buildRoute()">Собрать маршрут из выбранных</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteAllOrders()">Удалить все</button>
                         <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
                     </div>
@@ -392,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <table>
                         <thead>
                             <tr>
+                                <th title="Отметьте заказы, которые курьер возьмёт одним рейсом">Рейс</th>
                                 <th>Номер</th>
                                 <th>Клиент</th>
                                 <th>Адрес</th>
@@ -401,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <th>Дата</th>
                             </tr>
                         </thead>
-                        <tbody id="shopOrdersTable"><tr><td colspan="7" class="empty">Загрузка...</td></tr></tbody>
+                        <tbody id="shopOrdersTable"><tr><td colspan="8" class="empty">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -688,6 +691,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetch(`${API_BASE}/api/routes`).then(r => r.json())
                 ]);
                 allCouriers = couriers;
+                document.getElementById('routeCourier').innerHTML = '<option value="">-- курьер --</option>' +
+                    couriers.filter(c => c.is_active).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
 
                 const todayOrders = orders.filter(o => o.created_at && o.created_at.startsWith(today()));
                 document.getElementById('shopOrdersToday').textContent = todayOrders.length;
@@ -711,7 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 document.getElementById('shopOrdersTable').innerHTML = orders.length === 0
-                    ? '<tr><td colspan="7" class="empty">Нет заказов</td></tr>'
+                    ? '<tr><td colspan="8" class="empty">Нет заказов</td></tr>'
                     : orders.slice(0, 50).map(o => {
                         const courierOptions = couriers.map(c =>
                             `<option value="${esc(c.id)}">${esc(c.name)}</option>`
@@ -724,7 +729,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M20 6L9 17l-5-5"/></svg>'
                             : '';
                         const rowStyle = isCompleted ? ' style="background:rgba(22,163,74,0.04)"' : '';
+                        const canBatch = showAssign && o.delivery_type !== 'pickup' && !courierName;
                         return `<tr${rowStyle}>
+                            <td>${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" onclick="event.stopPropagation()">` : ''}</td>
                             <td>${checkmark}<strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
                             <td>${esc(o.user_name || '-')}${o.phone ? '<br><small>' + esc(o.phone || '') + '</small>' : ''}</td>
                             <td>${esc((o.address || '-').substring(0, 30))}${o.comment ? '<br><small style="color:var(--orange)">' + esc(o.comment.substring(0, 40)) + '</small>' : ''}</td>
@@ -760,6 +767,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadDeliveryData();
                 }
             } catch (e) { console.error('Assign courier error:', e); }
+        }
+
+        // Несколько заказов одному курьеру: система сама выстроит порядок и время (маршрутный лист придёт курьеру в бот)
+        async function buildRoute() {
+            const ids = [...document.querySelectorAll('.route-pick:checked')].map(c => parseInt(c.value));
+            const courierId = parseInt(document.getElementById('routeCourier').value);
+            if (!ids.length) { alert('Отметьте заказы галочками в первой колонке.'); return; }
+            if (!courierId) { alert('Выберите курьера в списке над таблицей.'); return; }
+            const btn = document.getElementById('buildRouteBtn');
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/api/routes/build`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_ids: ids, courier_id: courierId })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(data.error || 'Не удалось собрать маршрут'); return; }
+                alert('Маршрут ' + data.route.route_number + ' отправлен курьеру. Порядок: ' + data.sequence.join(' → ') +
+                      (data.plan.totalMin ? '\nВ пути около ' + data.plan.totalMin + ' мин.' : '') +
+                      (data.plan.start === 'default' ? '\nВнимание: склад не задан, старт принят за центр города.' : ''));
+                loadShopOrders();
+                loadDeliveryData();
+            } catch (e) { console.error('Build route error:', e); alert('Нет связи с сервером. Попробуйте ещё раз.'); }
+            finally { btn.disabled = false; }
         }
 
         async function deleteAllOrders() {
