@@ -13,6 +13,7 @@ const RETRY_SEC = [30, 120, 600, 3600, 3 * 3600, 6 * 3600, 12 * 3600]; // пау
 const LEASE_SEC = 120;          // «аренда» строки обработчиком: если процесс умер, строку возьмёт другой
 const BOTS = ['client', 'admin', 'courier'];
 const widgetStore = require('./widget-store');
+const widgets = require('./widgets');
 
 const retryDelaySec = (attempts) => RETRY_SEC[Math.min(Math.max(attempts, 1), RETRY_SEC.length) - 1];
 
@@ -87,6 +88,10 @@ function createOutbox({ pool, send, batch = 10 }) {
             result = await send(row.bot, method, payload);
         } catch (e) {
             // Telegram не принял карточку/кнопку насовсем — отправляем запасной вариант (обычное сообщение), а карточку выключаем
+            if (method === 'sendWidget' && widgets.isNotAllowedError(e) && widgets.widgetsEnabled()) {
+                widgets.pauseWidgets();
+                console.error('[ВИДЖЕТ] Telegram не разрешает этому боту карточки (INPUT_MEDIA_WIDGET_NOT_ALLOWED) — на 6 часов всё идёт обычными сообщениями, потом попробуем снова');
+            }
             if (!(meta.fallback && classifyError(e).kind === 'permanent')) throw e;
             console.error(`[OUTBOX] #${row.id} ${method} отклонён Telegram (${String(e.message).slice(0, 200)}) — запасной вариант`);
             if (meta.widget) await widgetStore.deactivate(pool, meta.widget.kind, meta.widget.ref);
