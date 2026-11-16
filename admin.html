@@ -80,13 +80,21 @@
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: 0.2s;
+            --glow: 0, 175, 199;   /* цвет свечения (R, G, B) */
+            transition: background .2s, color .2s, border-color .2s, box-shadow .25s ease, transform .15s ease;
         }
+        /* Свечение при наведении и при выборе с клавиатуры (три слоя, как в образце) */
+        .btn:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(var(--glow), 0.9), 0 0 18px rgba(var(--glow), 0.5); }
+        @media (hover: hover) {
+            .btn:hover:not(:disabled) { box-shadow: 0 0 4px rgba(var(--glow), 0.85), 0 0 12px rgba(var(--glow), 0.55), 0 0 26px rgba(var(--glow), 0.32); }
+        }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .btn-primary { background: var(--cyan); color: var(--white); }
         .btn-primary:hover { background: var(--light-cyan); }
         .btn-sm { padding: 4px 10px; font-size: 12px; }
-        .btn-danger { background: var(--red); color: var(--white); }
-        .btn-danger:hover { opacity: 0.85; }
+        .btn-danger { background: var(--red); color: var(--white); --glow: 220, 38, 38; }
+        .btn-danger:hover { background: #ef4444; }
         .btn-outline {
             background: transparent;
             border: 1px solid var(--border);
@@ -271,7 +279,34 @@
         /* Верхняя полоса страницы */
         .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 18px 24px 6px; }
         .topbar h1 { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); letter-spacing: -0.3px; }
-        .topbar .header-date { margin-left: auto; font-size: 13px; color: var(--muted); }
+
+        /* Часы по Москве + календарь на месяц (верхний правый угол) */
+        .clock { position: relative; margin-left: auto; }
+        .clock-btn { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px 0 7px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.9); background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(16,27,77,0.08); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: box-shadow .2s, background .2s; }
+        .clock-btn:hover, .clock-btn[aria-expanded="true"] { background: #fff; box-shadow: 0 8px 22px rgba(16,27,77,0.14); }
+        .clock-btn:focus-visible, .cal-nav:focus-visible, .cal-today:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 2px; }
+        .clock-ico { flex: none; width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; background: var(--ink); color: var(--light-cyan); }
+        .clock-ico svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .clock-text { display: flex; flex-direction: column; gap: 3px; }
+        .clock-time { font: 800 18px/1 'Montserrat', sans-serif; letter-spacing: -0.2px; font-variant-numeric: tabular-nums; }
+        .clock-meta { font-size: 11.5px; line-height: 1; color: var(--muted); white-space: nowrap; }
+        .cal { position: absolute; top: calc(100% + 10px); right: 0; z-index: 40; width: 308px; padding: 16px; border-radius: 22px; background: rgba(255,255,255,0.96); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 24px 54px rgba(16,27,77,0.22); color: var(--ink); opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity .18s, transform .18s, visibility 0s linear .18s; }
+        .cal.open { opacity: 1; visibility: visible; transform: none; transition: opacity .18s, transform .18s; }
+        .cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .cal-title { flex: 1; font: 800 16px/1.2 'Montserrat', sans-serif; letter-spacing: -0.2px; }
+        .cal-nav { width: 32px; height: 32px; border-radius: 10px; border: none; background: rgba(16,27,77,0.06); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .15s; }
+        .cal-nav:hover { background: rgba(0,175,199,0.18); }
+        .cal-nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+        .cal-w { padding: 6px 0; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+        .cal-w.we { color: rgba(234,88,12,0.8); }
+        .cal-d { height: 36px; display: grid; place-items: center; border-radius: 12px; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .cal-d.we { color: var(--orange); }
+        .cal-d.other { opacity: 0.32; font-weight: 500; }
+        .cal-d.today { background: var(--ink); color: #fff; box-shadow: 0 0 0 3px rgba(0,175,199,0.25); }
+        .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(16,27,77,0.08); font-size: 11.5px; color: var(--muted); }
+        .cal-today { border: none; border-radius: 10px; padding: 7px 12px; background: rgba(0,175,199,0.14); color: #007a8c; font: 700 12px 'Inter', sans-serif; cursor: pointer; transition: background .15s; }
+        .cal-today:hover { background: rgba(0,175,199,0.26); }
         .burger { display: none; }
         .scrim { display: none; }
 
@@ -297,10 +332,16 @@
             .shell[data-collapsed="1"] .me { padding: 8px; justify-content: flex-start; background: rgba(255,255,255,0.8); border: 1px solid var(--border); }
             .topbar { padding: 14px 16px 4px; }
             .topbar h1 { font-size: 20px; }
+            .clock { position: static; }
+            .clock-btn { height: 40px; padding: 0 12px 0 5px; gap: 8px; }
+            .clock-ico { width: 30px; height: 30px; }
+            .clock-time { font-size: 16px; }
+            .clock-meta { display: none; }
+            .cal { position: fixed; top: 62px; right: 12px; left: 12px; width: auto; max-width: 340px; margin-left: auto; }
             #collapseBtn { display: none; }
             .fly { display: none; }
         }
-        @media (prefers-reduced-motion: reduce) { .side, .main, .fly, .nav-item, .nav-item .ico { transition: none; } }
+        @media (prefers-reduced-motion: reduce) { .side, .main, .fly, .nav-item, .nav-item .ico, .btn, .cal { transition: none; } .btn:active:not(:disabled) { transform: none; } }
 
         /* Магазин: одна страница = один раздел (Заказы / Товары / Клиенты) */
         #tab-shop[data-view="orders"] [data-sec]:not([data-sec="orders"]),
@@ -393,7 +434,24 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="topbar">
         <button class="icon-btn burger" onclick="openDrawer()" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg></button>
         <h1 id="pageTitle">Доставка</h1>
-        <div class="header-date" id="currentDate"></div>
+        <div class="clock" id="clock">
+            <button class="clock-btn" id="clockBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cal" aria-label="Время по Москве. Открыть календарь">
+                <span class="clock-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/><path d="M3 10h18"/></svg></span>
+                <span class="clock-text">
+                    <span class="clock-time" id="clockTime">--:--:--</span>
+                    <span class="clock-meta" id="clockMeta">Москва</span>
+                </span>
+            </button>
+            <div class="cal" id="cal" role="dialog" aria-label="Календарь на месяц">
+                <div class="cal-head">
+                    <div class="cal-title" id="calTitle" aria-live="polite"></div>
+                    <button class="cal-nav" id="calPrev" type="button" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+                    <button class="cal-nav" id="calNext" type="button" aria-label="Следующий месяц"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+                </div>
+                <div class="cal-grid" id="calGrid"></div>
+                <div class="cal-foot"><span>Московское время, UTC+3</span><button class="cal-today" id="calToday" type="button">Сегодня</button></div>
+            </div>
+        </div>
     </div>
 
     <!-- ==================== ВКЛАДКА: ДОСТАВКА ==================== -->
@@ -1243,9 +1301,69 @@ document.addEventListener('DOMContentLoaded', () => {
         function fmtDate(d) { return d ? new Date(d).toLocaleDateString('ru-RU') : '-'; }
 
         // ====== Инициализация ======
-        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        });
+        // ====== Часы по Москве и календарь на месяц ======
+        // Москва живёт по UTC+3 без перехода на летнее время; время берём через Intl с зоной Europe/Moscow,
+        // поэтому оно верное, в каком бы часовом поясе ни был компьютер администратора.
+        const MSK = 'Europe/Moscow';
+        const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+        const WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+        const mskTimeFmt = new Intl.DateTimeFormat('ru-RU', { timeZone: MSK, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+        const mskDateFmt = new Intl.DateTimeFormat('ru-RU', { timeZone: MSK, weekday: 'short', day: 'numeric', month: 'long' });
+        const mskPartsFmt = new Intl.DateTimeFormat('en-CA', { timeZone: MSK, year: 'numeric', month: '2-digit', day: '2-digit' });
+        function mskToday() {
+            const [y, m, d] = mskPartsFmt.format(new Date()).split('-').map(Number);
+            return { y, m: m - 1, d };
+        }
+        const clockEl = document.getElementById('clock');
+        const clockBtn = document.getElementById('clockBtn');
+        const calEl = document.getElementById('cal');
+        let calView = null;          // показанный месяц {y, m}
+        let clockDayKey = '';
+
+        function renderCalendar() {
+            const t = mskToday();
+            const { y, m } = calView;
+            const offset = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7;   // неделя с понедельника
+            let html = WEEKDAYS.map((w, i) => `<div class="cal-w${i > 4 ? ' we' : ''}">${w}</div>`).join('');
+            for (let i = 0; i < 42; i++) {
+                const d = new Date(Date.UTC(y, m, 1 - offset + i));
+                const isToday = d.getUTCFullYear() === t.y && d.getUTCMonth() === t.m && d.getUTCDate() === t.d;
+                const cls = ['cal-d', d.getUTCMonth() !== m ? 'other' : '', (i % 7) > 4 ? 'we' : '', isToday ? 'today' : ''].filter(Boolean).join(' ');
+                html += `<div class="${cls}"${isToday ? ' aria-current="date"' : ''}>${d.getUTCDate()}</div>`;
+            }
+            document.getElementById('calTitle').textContent = MONTHS[m] + ' ' + y;
+            document.getElementById('calGrid').innerHTML = html;
+        }
+        function calShift(delta) {
+            const d = new Date(Date.UTC(calView.y, calView.m + delta, 1));
+            calView = { y: d.getUTCFullYear(), m: d.getUTCMonth() };
+            renderCalendar();
+        }
+        function calToday() { const t = mskToday(); calView = { y: t.y, m: t.m }; renderCalendar(); }
+        function openCal() { calToday(); calEl.classList.add('open'); clockBtn.setAttribute('aria-expanded', 'true'); }
+        function closeCal(refocus) {
+            calEl.classList.remove('open');
+            clockBtn.setAttribute('aria-expanded', 'false');
+            if (refocus) clockBtn.focus();
+        }
+        function tickClock() {
+            const now = new Date();
+            document.getElementById('clockTime').textContent = mskTimeFmt.format(now);
+            const key = mskPartsFmt.format(now);
+            if (key !== clockDayKey) {                       // новый день по Москве
+                clockDayKey = key;
+                document.getElementById('clockMeta').textContent = mskDateFmt.format(now) + ' · МСК';
+                if (calEl.classList.contains('open')) renderCalendar();
+            }
+        }
+        clockBtn.addEventListener('click', () => calEl.classList.contains('open') ? closeCal() : openCal());
+        document.getElementById('calPrev').addEventListener('click', () => calShift(-1));
+        document.getElementById('calNext').addEventListener('click', () => calShift(1));
+        document.getElementById('calToday').addEventListener('click', calToday);
+        document.addEventListener('click', e => { if (calEl.classList.contains('open') && !clockEl.contains(e.target)) closeCal(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && calEl.classList.contains('open')) closeCal(true); });
+        tickClock();
+        setInterval(tickClock, 1000);
 
         loadDeliveryData();
         loadAnalytics();
