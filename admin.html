@@ -22,44 +22,6 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
 
-        /* Header */
-        .header {
-            background: var(--navy);
-            color: var(--white);
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .header h1 { font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 700; }
-        .header-date { font-size: 13px; opacity: 0.7; }
-
-        /* Tabs */
-        .tabs {
-            background: var(--white);
-            border-bottom: 2px solid var(--border);
-            display: flex;
-            gap: 0;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .tab-btn {
-            padding: 14px 28px;
-            font-family: 'Montserrat', sans-serif;
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--muted);
-            background: none;
-            border: none;
-            border-bottom: 3px solid transparent;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .tab-btn:hover { color: var(--navy); }
-        .tab-btn.active {
-            color: var(--cyan);
-            border-bottom-color: var(--cyan);
-        }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
@@ -208,10 +170,146 @@
         .form-textarea { resize: vertical; min-height: 80px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+
+        /* ===== Боковое меню: узкая полоса с иконками ↔ полная панель ===== */
+        :root { --rail: 76px; --panel: 272px; --ink: #0c1440; --glass: rgba(255,255,255,0.74); }
+        body {
+            background: var(--bg);
+            background-image:
+                radial-gradient(520px 420px at 6% 8%, rgba(0,175,199,0.20), transparent 70%),
+                radial-gradient(640px 520px at 96% 100%, rgba(16,27,77,0.07), transparent 70%);
+            background-attachment: fixed;
+        }
+        .shell { display: flex; min-height: 100vh; }
+        .side {
+            position: fixed; z-index: 40; top: 12px; left: 12px; bottom: 12px;
+            width: var(--panel);
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 14px 12px;
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 30px;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 18px 50px rgba(16,27,77,0.14), 0 2px 8px rgba(16,27,77,0.06);
+            transition: width .28s cubic-bezier(.3,.8,.3,1), transform .28s cubic-bezier(.3,.8,.3,1);
+        }
+        .shell[data-collapsed="1"] .side { width: var(--rail); }
+        .main { flex: 1; min-width: 0; margin-left: calc(var(--panel) + 24px); transition: margin-left .28s cubic-bezier(.3,.8,.3,1); }
+        .shell[data-collapsed="1"] .main { margin-left: calc(var(--rail) + 24px); }
+
+        .brand { display: flex; align-items: center; gap: 10px; padding: 2px 4px 6px; min-height: 52px; }
+        .brand-mark { flex: none; width: 44px; height: 44px; border-radius: 15px; background: var(--ink); display: grid; place-items: center; box-shadow: 0 6px 14px rgba(16,27,77,0.28); }
+        .brand-mark svg { width: 22px; height: 22px; stroke: var(--cyan); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .brand-name { flex: 1; min-width: 0; line-height: 1.15; }
+        .brand-name b { display: block; font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 15px; color: var(--ink); letter-spacing: .2px; }
+        .brand-name span { font-size: 11.5px; color: var(--muted); }
+        .icon-btn { flex: none; width: 36px; height: 36px; border-radius: 12px; border: none; background: rgba(16,27,77,0.06); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .15s; }
+        .icon-btn:hover { background: rgba(0,175,199,0.16); }
+        .icon-btn svg, .nav-item svg, .search svg, .me-out svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+        .search { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; padding: 0 12px; height: 44px; border-radius: 16px; background: rgba(255,255,255,0.85); border: 1px solid var(--border); color: var(--muted); cursor: text; }
+        .search:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,175,199,0.18); }
+        .search input { flex: 1; min-width: 0; border: none; outline: none; background: none; font: 500 13.5px 'Inter', sans-serif; color: var(--text); }
+        .search kbd { font: 600 11px 'Inter', sans-serif; color: var(--muted); background: var(--bg); border-radius: 7px; padding: 3px 7px; }
+
+        .nav { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; scrollbar-width: none; padding: 2px 0; }
+        .nav::-webkit-scrollbar { display: none; }
+        .nav-sep { height: 1px; background: var(--border); margin: 6px 14px; }
+        .nav-item {
+            position: relative; display: flex; align-items: center; gap: 12px;
+            width: 100%; height: 52px; padding: 0 12px 0 6px;
+            border: none; border-radius: 26px; background: none; text-align: left;
+            font: 600 14.5px 'Inter', sans-serif; color: var(--text); cursor: pointer;
+            transition: background .18s, color .18s;
+        }
+        .nav-item .ico { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgba(16,27,77,0.06); color: var(--ink); transition: background .18s, color .18s, transform .18s; }
+        .nav-item .lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+        .nav-item:hover { background: rgba(16,27,77,0.05); }
+        .nav-item:hover .ico { background: rgba(0,175,199,0.18); }
+        .nav-item:focus-visible, .icon-btn:focus-visible, .me-out:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 2px; }
+        .nav-item.active { background: var(--ink); color: #fff; box-shadow: 0 10px 22px rgba(16,27,77,0.30); }
+        .nav-item.active .ico { background: var(--cyan); color: #fff; box-shadow: 0 0 0 4px rgba(0,175,199,0.22); }
+        .chip { flex: none; min-width: 24px; padding: 3px 9px; border-radius: 12px; background: rgba(16,27,77,0.08); color: var(--muted); font: 600 12px 'Inter', sans-serif; text-align: center; white-space: nowrap; }
+        .chip.hot { background: rgba(234,88,12,0.14); color: var(--orange); }
+        .nav-item.active .chip { background: rgba(255,255,255,0.16); color: #fff; }
+        .nav-item.active .chip.hot { background: var(--orange); color: #fff; }
+        .chip:empty { display: none; }
+
+        .me { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 8px; border-radius: 22px; background: rgba(255,255,255,0.8); border: 1px solid var(--border); }
+        .me-ava { flex: none; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--light-cyan)); color: #fff; display: grid; place-items: center; font: 800 14px 'Montserrat', sans-serif; }
+        .me-text { flex: 1; min-width: 0; line-height: 1.2; }
+        .me-text b { display: block; font-size: 13.5px; color: var(--ink); }
+        .me-text span { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+        .me-out { flex: none; width: 36px; height: 36px; border-radius: 12px; border: none; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+        .me-out:hover { background: rgba(220,38,38,0.1); color: var(--red); }
+
+        /* Узкая полоса: только иконки, число — маленьким значком на иконке */
+        .shell[data-collapsed="1"] .brand-name, .shell[data-collapsed="1"] .lbl, .shell[data-collapsed="1"] .me-text, .shell[data-collapsed="1"] .search input,
+        .shell[data-collapsed="1"] .search kbd, .shell[data-collapsed="1"] .me-out { display: none; }
+        .shell[data-collapsed="1"] .brand { flex-direction: column; padding: 0; gap: 8px; }
+        .shell[data-collapsed="1"] .search { justify-content: center; padding: 0; width: 48px; margin-left: auto; margin-right: auto; border-radius: 50%; }
+        .shell[data-collapsed="1"] .nav-item { width: 52px; padding: 0 6px; margin: 0 auto; justify-content: center; }
+        .shell[data-collapsed="1"] .chip { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; line-height: 20px; font-size: 0; background: var(--cyan); color: #fff; box-shadow: 0 0 0 2px #fff; }
+        .shell[data-collapsed="1"] .chip::after { content: attr(data-n); font-size: 11px; }
+        .shell[data-collapsed="1"] .chip.hot { background: var(--orange); }
+        .shell[data-collapsed="1"] .me { padding: 5px; justify-content: center; background: none; border: none; }
+
+        /* Всплывающая карточка при наведении (как «Энергия» на образце): число и столбики за день */
+        .fly { position: fixed; z-index: 60; width: 292px; padding: 18px 18px 14px; border-radius: 26px; color: #fff; background: var(--ink); box-shadow: 0 24px 60px rgba(12,20,64,0.38); opacity: 0; transform: translateX(-8px) scale(.98); pointer-events: none; transition: opacity .16s, transform .16s; }
+        .fly.on { opacity: 1; transform: none; }
+        .fly-head { display: flex; align-items: center; gap: 10px; font: 600 14px 'Inter', sans-serif; }
+        .fly-head i { width: 34px; height: 34px; border-radius: 50%; background: rgba(0,175,199,0.22); display: grid; place-items: center; color: var(--light-cyan); }
+        .fly-head i svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .fly-big { margin: 12px 0 2px; font: 800 38px/1 'Montserrat', sans-serif; letter-spacing: -0.5px; }
+        .fly-big small { font: 600 14px 'Inter', sans-serif; color: rgba(255,255,255,0.65); margin-left: 4px; letter-spacing: 0; }
+        .fly-sub { font-size: 12.5px; color: rgba(255,255,255,0.62); min-height: 16px; }
+        .fly-bars { display: flex; align-items: flex-end; gap: 3px; height: 64px; margin-top: 12px; }
+        .fly-bars b { flex: 1; min-height: 3px; border-radius: 3px 3px 1px 1px; background: rgba(255,255,255,0.18); }
+        .fly-bars b.hi { background: var(--cyan); }
+        .fly-axis { display: flex; justify-content: space-between; margin-top: 5px; font-size: 10.5px; color: rgba(255,255,255,0.5); }
+
+        /* Верхняя полоса страницы */
+        .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 18px 24px 6px; }
+        .topbar h1 { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); letter-spacing: -0.3px; }
+        .topbar .header-date { margin-left: auto; font-size: 13px; color: var(--muted); }
+        .burger { display: none; }
+        .scrim { display: none; }
+
+        @media (max-width: 900px) {
+            .side { width: min(86vw, var(--panel)) !important; transform: translateX(calc(-100% - 24px)); }
+            .shell[data-open="1"] .side { transform: none; }
+            .shell .main, .shell[data-collapsed="1"] .main { margin-left: 0; }
+            .burger { display: grid; }
+            .shell[data-open="1"] .scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgba(12,20,64,0.38); }
+            .shell[data-collapsed="1"] .brand-name, .shell[data-collapsed="1"] .lbl, .shell[data-collapsed="1"] .me-text, .shell[data-collapsed="1"] .search input,
+            .shell[data-collapsed="1"] .search kbd, .shell[data-collapsed="1"] .me-out { display: revert; }
+            .shell[data-collapsed="1"] .brand { flex-direction: row; padding: 2px 4px 6px; }
+            .shell[data-collapsed="1"] .search { width: auto; margin: 2px 0 8px; padding: 0 12px; border-radius: 16px; justify-content: flex-start; }
+            .shell[data-collapsed="1"] .nav-item { width: 100%; padding: 0 12px 0 6px; justify-content: flex-start; margin: 0; }
+            .shell[data-collapsed="1"] .chip, .shell[data-collapsed="1"] .chip.hot { position: static; min-width: 24px; height: auto; padding: 3px 9px; line-height: normal; font-size: 12px; box-shadow: none; }
+            .shell[data-collapsed="1"] .chip::after { content: none; }
+            .shell[data-collapsed="1"] .chip { background: rgba(16,27,77,0.08); color: var(--muted); }
+            .shell[data-collapsed="1"] .chip.hot { background: rgba(234,88,12,0.14); color: var(--orange); }
+            .shell[data-collapsed="1"] .nav-item.active .chip { background: rgba(255,255,255,0.16); color: #fff; }
+            .shell[data-collapsed="1"] .nav-item.active .chip.hot { background: var(--orange); color: #fff; }
+            .section-body { overflow-x: auto; }
+            .section-header { flex-wrap: wrap; gap: 8px; }
+            .shell[data-collapsed="1"] .me { padding: 8px; justify-content: flex-start; background: rgba(255,255,255,0.8); border: 1px solid var(--border); }
+            .topbar { padding: 14px 16px 4px; }
+            .topbar h1 { font-size: 20px; }
+            #collapseBtn { display: none; }
+            .fly { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) { .side, .main, .fly, .nav-item, .nav-item .ico { transition: none; } }
+
+        /* Магазин: одна страница = один раздел (Заказы / Товары / Клиенты) */
+        #tab-shop[data-view="orders"] [data-sec]:not([data-sec="orders"]),
+        #tab-shop[data-view="products"] [data-sec]:not([data-sec="products"]),
+        #tab-shop[data-view="customers"] [data-sec]:not([data-sec="customers"]) { display: none; }
+
         /* Responsive */
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
-            .tab-btn { padding: 12px 16px; font-size: 13px; }
             .form-row { grid-template-columns: 1fr; }
         }
     </style>
@@ -251,17 +349,51 @@ document.addEventListener('DOMContentLoaded', () => {
     try { const r = await _fetch(ADMIN_API + '/api/admin/me'); if (r.ok) document.getElementById('adminAuth').style.display = 'none'; } catch (e) {}
 })();
 </script>
-    <div class="header">
-        <h1>АВТОПРОМОЙЛ — Админ-панель</h1>
+    <div class="shell" id="shell" data-collapsed="0" data-open="0">
+    <aside class="side" id="side" aria-label="Меню админ-панели">
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3s6 6.2 6 10.5A6 6 0 0 1 6 13.5C6 9.2 12 3 12 3z"/></svg></div>
+            <div class="brand-name"><b>Автопромойл</b><span>Админ-панель</span></div>
+            <button class="icon-btn" id="collapseBtn" onclick="toggleCollapse()" title="Свернуть / развернуть меню" aria-label="Свернуть или развернуть меню"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg></button>
+        </div>
+        <label class="search" id="searchBox" title="Найти заказ или клиента (Ctrl+K)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="menuSearch" type="search" placeholder="Поиск по заказам" autocomplete="off" aria-label="Найти заказ или клиента"><kbd>Ctrl K</kbd>
+        </label>
+        <nav class="nav" id="nav">
+            <button class="nav-item" data-view="orders" title="Заказы" onclick="go('orders')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span><span class="lbl">Заказы</span><span class="chip" data-chip="orders"></span>
+            </button>
+            <button class="nav-item" data-view="delivery" title="Доставка" onclick="go('delivery')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><span class="lbl">Доставка</span><span class="chip" data-chip="delivery"></span>
+            </button>
+            <button class="nav-item" data-view="products" title="Товары" onclick="go('products')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span><span class="lbl">Товары</span><span class="chip" data-chip="products"></span>
+            </button>
+            <button class="nav-item" data-view="customers" title="Клиенты" onclick="go('customers')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="lbl">Клиенты</span><span class="chip" data-chip="customers"></span>
+            </button>
+            <button class="nav-item" data-view="analytics" title="Аналитика" onclick="go('analytics')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg></span><span class="lbl">Аналитика</span><span class="chip" data-chip="analytics"></span>
+            </button>
+            <div class="nav-sep"></div>
+            <button class="nav-item" data-view="audit" title="Журнал" onclick="go('audit')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span><span class="lbl">Журнал</span><span class="chip" data-chip="audit"></span>
+            </button>
+        </nav>
+        <div class="me">
+            <div class="me-ava" aria-hidden="true">А</div>
+            <div class="me-text"><b>Администратор</b><span>ИП Гаврилов И. В.</span></div>
+            <button class="me-out" onclick="adminLogout()" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></button>
+        </div>
+    </aside>
+    <div class="scrim" onclick="closeDrawer()"></div>
+    <div class="fly" id="fly" role="tooltip"></div>
+    <main class="main">
+    <div class="topbar">
+        <button class="icon-btn burger" onclick="openDrawer()" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg></button>
+        <h1 id="pageTitle">Доставка</h1>
         <div class="header-date" id="currentDate"></div>
-        <button class="btn btn-sm" onclick="adminLogout()" style="margin-left:12px">Выйти</button>
-    </div>
-
-    <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('delivery')">Доставка</button>
-        <button class="tab-btn" onclick="switchTab('shop')">Магазин</button>
-        <button class="tab-btn" onclick="switchTab('analytics')">Аналитика</button>
-        <button class="tab-btn" onclick="switchTab('audit')">Журнал</button>
     </div>
 
     <!-- ==================== ВКЛАДКА: ДОСТАВКА ==================== -->
@@ -370,9 +502,9 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
 
     <!-- ==================== ВКЛАДКА: МАГАЗИН ==================== -->
-    <div class="tab-content" id="tab-shop">
+    <div class="tab-content" id="tab-shop" data-view="orders">
         <div class="container">
-            <div class="stats-grid" id="shopStatsGrid">
+            <div class="stats-grid" id="shopStatsGrid" data-sec="orders">
                 <div class="stat-card"><div class="stat-label">Заказов сегодня</div><div class="stat-value" id="shopOrdersToday">0</div></div>
                 <div class="stat-card"><div class="stat-label">Выручка сегодня</div><div class="stat-value green" id="shopRevenueToday">0</div></div>
                 <div class="stat-card"><div class="stat-label">Товаров в каталоге</div><div class="stat-value" id="shopProductsCount">0</div></div>
@@ -380,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <!-- Заказы магазина -->
-            <div class="section">
+            <div class="section" data-sec="orders">
                 <div class="section-header">
                     <div class="section-title">Заказы</div>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -410,7 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <!-- Товары -->
-            <div class="section">
+            <div class="section" data-sec="products">
                 <div class="section-header">
                     <div class="section-title">Товары</div>
                     <div style="display:flex;gap:8px;">
@@ -437,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <!-- Клиенты -->
-            <div class="section">
+            <div class="section" data-sec="customers">
                 <div class="section-header">
                     <div class="section-title">Клиенты</div>
                     <button class="btn btn-outline btn-sm" onclick="loadShopCustomers()">Обновить</button>
@@ -459,6 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
         </div>
+    </div>
+
+    </main>
     </div>
 
     <!-- Модальное окно: детали заказа -->
@@ -564,16 +699,47 @@ document.addEventListener('DOMContentLoaded', () => {
     <script>
         const API_BASE = ADMIN_API;
 
-        // ====== Табы ======
-        function switchTab(name) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById('tab-' + name).classList.add('active');
-            event.target.classList.add('active');
+        // ====== Разделы (боковое меню) ======
+        // Каждый пункт меню — отдельная страница. Магазин состоит из трёх: Заказы, Товары, Клиенты.
+        const VIEWS = {
+            orders:    { tab: 'shop', title: 'Заказы' },
+            delivery:  { tab: 'delivery', title: 'Доставка' },
+            products:  { tab: 'shop', title: 'Товары' },
+            customers: { tab: 'shop', title: 'Клиенты' },
+            analytics: { tab: 'analytics', title: 'Аналитика' },
+            audit:     { tab: 'audit', title: 'Журнал' }
+        };
+        let currentView = 'delivery', shopLoaded = false;
 
-            if (name === 'shop') loadShopData();
-            if (name === 'audit') loadAudit();
+        function go(view, { fromHash = false, initial = false } = {}) {
+            const v = VIEWS[view]; if (!v) return;
+            currentView = view;
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + v.tab).classList.add('active');
+            document.getElementById('tab-shop').dataset.view = v.tab === 'shop' ? view : 'orders';
+            document.querySelectorAll('.nav-item').forEach(b => {
+                const on = b.dataset.view === view;
+                b.classList.toggle('active', on);
+                if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+            });
+            document.getElementById('pageTitle').textContent = v.title;
+            document.title = v.title + ' — Автопромойл, админ-панель';
+            if (!fromHash) { try { history.replaceState(null, '', '#' + view); } catch (e) {} }
+            closeDrawer(); hideFly();
+
+            if (v.tab === 'shop') {
+                if (!shopLoaded) { shopLoaded = true; loadShopData(); }
+                else if (view === 'orders') loadShopOrders();
+                else if (view === 'products') loadShopProducts();
+                else loadShopCustomers();
+            }
+            if (!initial && view === 'delivery') loadDeliveryData();
+            if (!initial && view === 'analytics') loadAnalytics();
+            if (view === 'audit') loadAudit();
+            applySearch();
         }
+        // совместимость со старыми вызовами
+        function switchTab(name) { go(name === 'shop' ? 'orders' : name); }
 
         async function loadAudit() {
             const body = document.getElementById('auditBody');
@@ -955,6 +1121,123 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { console.error('Save product error:', e); }
         }
 
+
+        // ====== Боковое меню: свернуть/развернуть, выдвижное на телефоне, значки, всплывающие карточки, поиск ======
+        const shellEl = document.getElementById('shell');
+        const store = {
+            get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+            set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+        };
+        function toggleCollapse() {
+            const c = shellEl.dataset.collapsed === '1' ? '0' : '1';
+            shellEl.dataset.collapsed = c; store.set('adminMenuCollapsed', c); hideFly();
+        }
+        function openDrawer() { shellEl.dataset.open = '1'; }
+        function closeDrawer() { shellEl.dataset.open = '0'; }
+        // по умолчанию: на широком экране меню развёрнуто, на среднем — узкая полоса; выбор владельца запоминается
+        (function initCollapse() {
+            const saved = store.get('adminMenuCollapsed');
+            shellEl.dataset.collapsed = saved !== null ? saved : (window.innerWidth < 1180 ? '1' : '0');
+        })();
+
+        // --- данные для значков и карточек (раз в минуту, пока вкладка открыта) ---
+        const menuData = { orders: [], stats: null, products: null };
+        const chipText = {};
+        function setChip(view, text, hot) {
+            const el = document.querySelector(`[data-chip="${view}"]`);
+            if (!el) return;
+            el.textContent = text || ''; el.classList.toggle('hot', !!hot);
+            el.dataset.n = (String(text || '').match(/\d+/) || [''])[0];
+        }
+        async function refreshMenuData() {
+            try {
+                const [orders, stats, products] = await Promise.all([
+                    fetch(`${API_BASE}/api/orders`).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch(`${API_BASE}/api/dispatch/stats?date=${today()}`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`${API_BASE}/api/products`).then(r => r.ok ? r.json() : null).catch(() => null)
+                ]);
+                if (Array.isArray(orders)) menuData.orders = orders;
+                menuData.stats = stats; menuData.products = Array.isArray(products) ? products : menuData.products;
+                const fresh = menuData.orders.filter(o => o.status === 'NEW').length;
+                setChip('orders', fresh ? fresh + ' нов.' : '', fresh > 0);
+                const way = stats ? (Number(stats.pending) || 0) : 0;
+                setChip('delivery', way ? way + ' в пути' : '', false);
+                if (menuData.products) setChip('products', String(menuData.products.filter(p => p.active !== false).length), false);
+            } catch (e) { /* значки необязательны: без них меню работает */ }
+        }
+        refreshMenuData();
+        setInterval(() => { if (!document.hidden) refreshMenuData(); }, 60000);
+
+        // --- всплывающая карточка при наведении (только мышь) ---
+        const flyEl = document.getElementById('fly');
+        let flyTimer = null;
+        const FLY_ICONS = {
+            orders: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+            delivery: '<path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>'
+        };
+        function flyContent(view) {
+            if (view === 'orders') {
+                const todays = menuData.orders.filter(o => o.created_at && String(o.created_at).startsWith(today()) && o.status !== 'CANCELLED');
+                const sum = todays.reduce((a, o) => a + (parseFloat(o.total) || 0), 0);
+                const byHour = new Array(24).fill(0);
+                todays.forEach(o => { const h = new Date(o.created_at).getHours(); if (h >= 0 && h < 24) byHour[h]++; });
+                const max = Math.max(1, ...byHour), nowH = new Date().getHours();
+                return { title: 'Заказы сегодня', big: String(todays.length), unit: 'шт.',
+                    sub: 'Выручка: ' + Math.round(sum).toLocaleString('ru-RU') + ' ₽ (без отменённых)',
+                    bars: byHour.map((n, h) => ({ v: n / max, hi: h === nowH })), axis: ['0 ч', '6 ч', '12 ч', '18 ч', '24 ч'] };
+            }
+            if (view === 'delivery') {
+                const st = menuData.stats || {};
+                const vals = [Number(st.delivered) || 0, Number(st.pending) || 0, Number(st.failed) || 0];
+                const max = Math.max(1, ...vals);
+                return { title: 'Доставка сегодня', big: String(vals[0]), unit: 'доставлено',
+                    sub: `В пути: ${vals[1]} · не доставлено: ${vals[2]}`,
+                    bars: vals.map((v, i) => ({ v: v / max, hi: i === 0 })), axis: ['доставлено', 'в пути', 'не доставл.'], wide: true };
+            }
+            return null;
+        }
+        function showFly(btn) {
+            if (!window.matchMedia('(hover: hover) and (min-width: 901px)').matches) return;
+            const c = flyContent(btn.dataset.view); if (!c) return;
+            const bars = c.bars.map(b => `<b class="${b.hi ? 'hi' : ''}" style="height:${Math.max(4, Math.round(b.v * 100))}%"></b>`).join('');
+            flyEl.innerHTML = `<div class="fly-head"><i><svg viewBox="0 0 24 24">${FLY_ICONS[btn.dataset.view]}</svg></i>${esc(c.title)}</div>
+                <div class="fly-big">${esc(c.big)}<small>${esc(c.unit)}</small></div><div class="fly-sub">${esc(c.sub)}</div>
+                <div class="fly-bars">${bars}</div><div class="fly-axis">${c.axis.map(a => `<span>${esc(a)}</span>`).join('')}</div>`;
+            const r = btn.getBoundingClientRect(), sideR = document.getElementById('side').getBoundingClientRect();
+            flyEl.style.left = (sideR.right + 12) + 'px';
+            flyEl.style.top = Math.max(12, Math.min(r.top - 20, window.innerHeight - 260)) + 'px';
+            flyEl.classList.add('on');
+        }
+        function hideFly() { clearTimeout(flyTimer); flyEl.classList.remove('on'); }
+        document.querySelectorAll('.nav-item').forEach(b => {
+            b.addEventListener('mouseenter', () => { clearTimeout(flyTimer); flyTimer = setTimeout(() => showFly(b), 180); });
+            b.addEventListener('mouseleave', hideFly);
+            b.addEventListener('focus', () => { if (b.matches(':focus-visible')) showFly(b); });
+            b.addEventListener('blur', hideFly);
+        });
+
+        // --- поиск по заказам: открывает «Заказы» и оставляет подходящие строки ---
+        const searchEl = document.getElementById('menuSearch');
+        function applySearch() {
+            const q = searchEl.value.trim().toLowerCase();
+            document.querySelectorAll('#shopOrdersTable tr').forEach(tr => {
+                if (tr.querySelector('.empty')) return;
+                tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+            });
+        }
+        searchEl.addEventListener('input', () => { if (searchEl.value.trim() && currentView !== 'orders') go('orders'); applySearch(); });
+        searchEl.addEventListener('keydown', e => { if (e.key === 'Escape') { searchEl.value = ''; applySearch(); searchEl.blur(); } });
+        new MutationObserver(applySearch).observe(document.getElementById('shopOrdersTable'), { childList: true });   // таблицу перерисовали — фильтр сохраняется
+        document.getElementById('searchBox').addEventListener('click', () => {
+            if (shellEl.dataset.collapsed === '1' && window.innerWidth > 900) { shellEl.dataset.collapsed = '0'; store.set('adminMenuCollapsed', '0'); }
+            searchEl.focus();
+        });
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('searchBox').click(); }
+            if (e.key === 'Escape') { closeDrawer(); hideFly(); }
+        });
+        window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (VIEWS[h] && h !== currentView) go(h, { fromHash: true }); });
+
         // ====== Утилиты ======
         function today() { return new Date().toISOString().split('T')[0]; }
         function fmtDate(d) { return d ? new Date(d).toLocaleDateString('ru-RU') : '-'; }
@@ -967,6 +1250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadDeliveryData();
         loadAnalytics();
         setInterval(loadDeliveryData, 30000);
+        { const h = location.hash.slice(1); go(VIEWS[h] ? h : 'delivery', { fromHash: true, initial: true }); }   // открыть раздел из адреса (#orders) или «Доставку»
     </script>
 </body>
 </html>
