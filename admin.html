@@ -348,6 +348,99 @@
         #tab-shop[data-view="products"] [data-sec]:not([data-sec="products"]),
         #tab-shop[data-view="customers"] [data-sec]:not([data-sec="customers"]) { display: none; }
 
+        /* Переключатель-«сегменты» (Доска / Таблица, Заказы / Выручка, периоды) */
+        .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--bg); }
+        .seg button { border: none; background: transparent; padding: 6px 12px; border-radius: 9px; font: 600 12.5px 'Inter', sans-serif; color: var(--muted); cursor: pointer; transition: background .15s, color .15s; white-space: nowrap; }
+        .seg button:hover { color: var(--navy); }
+        .seg button.on { background: var(--navy); color: #fff; }
+        #ochartMode { flex-wrap: wrap; }
+        .seg button:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 1px; }
+
+        /* График заказов за период */
+        .ochart-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+        .ochart-nav { display: inline-flex; align-items: center; gap: 4px; }
+        .ochart-nav button { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--navy); display: grid; place-items: center; cursor: pointer; }
+        .ochart-nav button:disabled { opacity: .35; cursor: not-allowed; }
+        .ochart-nav button:not(:disabled):hover { border-color: var(--cyan); color: var(--cyan); }
+        .ochart-nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .ochart-label { min-width: 150px; text-align: center; font: 800 15px 'Montserrat', sans-serif; color: var(--navy); }
+        .ochart-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+        .ochart-range input { padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: 500 12.5px 'Inter', sans-serif; color: var(--text); background: var(--white); }
+        .ochart-sum { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: flex-end; margin-bottom: 14px; }
+        .ochart-big { font: 800 34px/1 'Montserrat', sans-serif; letter-spacing: -0.5px; color: var(--navy); font-variant-numeric: tabular-nums; }
+        .ochart-cap { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .ochart-mid { font: 700 18px/1 'Montserrat', sans-serif; color: var(--navy); font-variant-numeric: tabular-nums; }
+        .delta { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+        .delta.up { background: rgba(22,163,74,0.12); color: var(--green); }
+        .delta.down { background: rgba(220,38,38,0.12); color: var(--red); }
+        .delta.flat { background: rgba(107,114,128,0.12); color: var(--muted); }
+        .ochart-plot { position: relative; padding-left: 52px; }
+        .ochart-y { position: absolute; left: 0; top: 0; bottom: 24px; width: 46px; }
+        .ochart-y span { position: absolute; right: 0; transform: translateY(50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .ochart-grid { position: relative; height: 200px; border-bottom: 1px solid var(--border); background: linear-gradient(rgba(16,27,77,0.08), rgba(16,27,77,0.08)) 0 0 / 100% 1px no-repeat, linear-gradient(rgba(16,27,77,0.08), rgba(16,27,77,0.08)) 0 50% / 100% 1px no-repeat; }
+        .ochart-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 3px; }
+        .obar { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; cursor: pointer; border-radius: 6px 6px 0 0; outline: none; }
+        .obar i { display: block; width: 100%; min-height: 3px; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, var(--light-cyan), var(--cyan)); opacity: .8; transition: opacity .15s, filter .15s; }
+        .obar.zero i { background: var(--border); opacity: 1; }
+        .obar.now i { background: linear-gradient(180deg, #2b3a8c, var(--navy)); opacity: 1; }
+        .obar.future { cursor: default; }
+        .obar.future i { background: transparent; border-top: 3px dashed rgba(16,27,77,0.12); opacity: 1; min-height: 0; height: 0 !important; }
+        .obar:hover i, .obar:focus-visible i { opacity: 1; filter: drop-shadow(0 0 6px rgba(0,175,199,0.55)); }
+        .obar:focus-visible { box-shadow: 0 0 0 2px rgba(0,175,199,0.55); }
+        .ochart-x { display: flex; gap: 3px; height: 24px; padding-top: 6px; }
+        .ochart-x span { flex: 1 1 0; min-width: 0; font-size: 10.5px; color: var(--muted); text-align: center; white-space: nowrap; overflow: visible; font-variant-numeric: tabular-nums; }
+        .ochart-tip { position: absolute; z-index: 5; pointer-events: none; padding: 8px 11px; border-radius: 10px; background: var(--navy); color: #fff; font-size: 12px; line-height: 1.45; box-shadow: 0 10px 24px rgba(16,27,77,0.3); white-space: nowrap; opacity: 0; transition: opacity .12s; }
+        .ochart-tip.show { opacity: 1; }
+        .ochart-tip b { font-weight: 700; }
+        .ochart-empty { padding: 36px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
+
+        /* Доска заказов */
+        .board { display: grid; grid-template-columns: repeat(5, minmax(188px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
+        .bcol { background: var(--bg); border-radius: 14px; padding: 10px; min-width: 0; transition: box-shadow .15s, background .15s; }
+        .bcol.over { background: rgba(0,175,199,0.1); box-shadow: inset 0 0 0 2px var(--cyan); }
+        .bcol-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 2px 4px 10px; font-size: 13px; font-weight: 700; color: var(--navy); }
+        .bcol-head .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--cyan)); flex: none; }
+        .bcol-head .cnt { margin-left: auto; padding: 1px 8px; border-radius: 999px; background: #fff; font-size: 11.5px; font-weight: 700; }
+        .bcol-head .sum { flex-basis: 100%; padding-left: 17px; font-size: 11.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .bcol-head .ttl { flex: 1; min-width: 0; white-space: nowrap; }
+        .bcol-body { display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+        .bcol-empty { padding: 18px 8px; text-align: center; font-size: 12px; color: var(--muted); border: 1px dashed var(--border); border-radius: 10px; }
+        .bcol-more { padding: 6px; text-align: center; font-size: 11.5px; color: var(--muted); }
+        .bcard { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--c, var(--cyan)); border-radius: 12px; padding: 10px 11px; cursor: pointer; font-size: 12.5px; transition: box-shadow .15s, transform .15s; }
+        .bcard:hover { box-shadow: 0 6px 16px rgba(16,27,77,0.1); }
+        .bcard:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 2px; }
+        .bcard[draggable="true"] { cursor: grab; }
+        .bcard.drag { opacity: .45; }
+        .bcard-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+        .bcard-num { font: 800 13px 'Montserrat', sans-serif; color: var(--navy); }
+        .bcard-tag { margin-left: auto; padding: 1px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; background: rgba(0,175,199,0.12); color: #007a8c; }
+        .bcard-tag.pickup { background: rgba(234,88,12,0.12); color: var(--orange); }
+        .bcard-name { font-weight: 600; }
+        .bcard-line { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bcard-note { color: var(--orange); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bcard-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+        .bcard-sum { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .bcard-time { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: auto; }
+        .bcard-act { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+        .bcard-act .btn { flex: 1; padding: 6px 8px; font-size: 12px; }
+        .bcard-act .status-select { min-width: 0; }
+        .bcard-pick { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+        .bcard-done { color: var(--green); font-weight: 700; font-size: 11.5px; }
+        .bcancel { margin-top: 14px; }
+        .bcancel summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); padding: 6px 2px; }
+        .bcancel .bcol-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin-top: 8px; }
+        .bcancel .bcard { --c: #9ca3af; cursor: default; opacity: .85; }
+        .btoast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 9000; max-width: min(92vw, 460px); padding: 11px 16px; border-radius: 12px; background: var(--navy); color: #fff; font-size: 13px; box-shadow: 0 14px 34px rgba(16,27,77,0.35); }
+        .btoast.err { background: var(--red); }
+        #ordersBoardWrap[hidden], #ordersTableWrap[hidden] { display: none; }
+        @media (max-width: 900px) {
+            .board { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 84%; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 6px; }
+            .bcol { scroll-snap-align: start; }
+            .ochart-label { min-width: 0; flex: 1; }
+            .ochart-big { font-size: 28px; }
+        }
+        @media (prefers-reduced-motion: reduce) { .obar i, .bcard, .bcol, .ochart-tip { transition: none; } }
+
         /* Responsive */
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -569,10 +662,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="stat-card"><div class="stat-label">Клиентов</div><div class="stat-value" id="shopCustomersCount">0</div></div>
             </div>
 
+            <!-- График заказов за период -->
+            <div class="section" data-sec="orders" id="ochart">
+                <div class="section-header">
+                    <div class="section-title">Заказы за период</div>
+                    <div class="seg" id="ochartMetric" role="group" aria-label="Что показывать на графике">
+                        <button type="button" data-m="orders" class="on">Заказы</button>
+                        <button type="button" data-m="revenue">Выручка</button>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <div class="ochart-top">
+                        <div class="ochart-nav">
+                            <button type="button" id="ochPrev" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+                            <div class="ochart-label" id="ochLabel" aria-live="polite">…</div>
+                            <button type="button" id="ochNext" aria-label="Следующий месяц"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+                        </div>
+                        <div class="seg" id="ochartMode" role="group" aria-label="Период">
+                            <button type="button" data-p="month" class="on">Этот месяц</button>
+                            <button type="button" data-p="prev">Прошлый месяц</button>
+                            <button type="button" data-p="30d">30 дней</button>
+                            <button type="button" data-p="all" title="От первого заказа до сегодня">С начала продаж</button>
+                        </div>
+                        <div class="ochart-range">
+                            <label for="ochFrom">с</label><input type="date" id="ochFrom">
+                            <label for="ochTo">по</label><input type="date" id="ochTo">
+                        </div>
+                    </div>
+                    <div id="ochartBody"><div class="ochart-empty">Загрузка…</div></div>
+                </div>
+            </div>
+
             <!-- Заказы магазина -->
             <div class="section" data-sec="orders">
                 <div class="section-header">
-                    <div class="section-title">Заказы</div>
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                        <div class="section-title">Заказы</div>
+                        <div class="seg" id="ordersView" role="group" aria-label="Вид списка заказов">
+                            <button type="button" data-v="board" class="on">Доска</button>
+                            <button type="button" data-v="table">Таблица</button>
+                        </div>
+                    </div>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                         <select id="routeCourier" class="status-select" title="Курьер для маршрута"><option value="">-- курьер --</option></select>
                         <button class="btn btn-primary btn-sm" id="buildRouteBtn" onclick="buildRoute()">Собрать маршрут из выбранных</button>
@@ -580,7 +710,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
                     </div>
                 </div>
-                <div class="section-body">
+                <div class="section-body" id="ordersBoardWrap">
+                    <div class="board" id="ordersBoard"><div class="empty" style="grid-column:1/-1">Загрузка...</div></div>
+                    <details class="bcancel" id="ordersCancelled" hidden>
+                        <summary id="ordersCancelledSum">Отменённые</summary>
+                        <div class="bcol-body" id="ordersCancelledBody"></div>
+                    </details>
+                </div>
+                <div class="section-body" id="ordersTableWrap" hidden>
                     <table>
                         <thead>
                             <tr>
@@ -904,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let allCouriers = [];
 
         async function loadShopData() {
-            await Promise.all([loadShopOrders(), loadShopProducts(), loadShopCustomers()]);
+            await Promise.all([loadShopOrders(), loadShopProducts(), loadShopCustomers(), loadOrderChart()]);
         }
 
         async function loadShopOrders() {
@@ -975,6 +1112,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;
                     }).join('');
+                window._orders = orders;
+                renderBoard(orders, couriers, getCourierForOrder);
             } catch (e) { console.error('Shop orders error:', e); }
         }
 
@@ -995,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Несколько заказов одному курьеру: система сама выстроит порядок и время (маршрутный лист придёт курьеру в бот)
         async function buildRoute() {
-            const ids = [...document.querySelectorAll('.route-pick:checked')].map(c => parseInt(c.value));
+            const ids = [...new Set([...document.querySelectorAll('.route-pick:checked')].map(c => parseInt(c.value)))];
             const courierId = parseInt(document.getElementById('routeCourier').value);
             if (!ids.length) { alert('Отметьте заказы галочками в первой колонке.'); return; }
             if (!courierId) { alert('Выберите курьера в списке над таблицей.'); return; }
@@ -1029,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function showOrderDetail(id) {
             try {
-                const orders = await fetch(`${API_BASE}/api/orders`).then(r => r.json());
+                const orders = window._orders || await fetch(`${API_BASE}/api/orders`).then(r => r.json());
                 const o = orders.find(x => x.id === id);
                 if (!o) return;
                 const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
@@ -1052,14 +1191,410 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { console.error('Order detail error:', e); }
         }
 
+        // true — статус сменился; false — сервер отказал (например, доставленный заказ нельзя вернуть в работу)
         async function updateOrderStatus(id, status) {
+            let ok = false;
             try {
-                await fetch(`${API_BASE}/api/orders/${id}/status`, {
+                const res = await fetch(`${API_BASE}/api/orders/${id}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status })
                 });
-            } catch (e) { console.error('Status update error:', e); }
+                ok = res.ok;
+                if (!ok) { const d = await res.json().catch(() => ({})); toast(d.error || 'Не удалось сменить статус', true); }
+            } catch (e) { console.error('Status update error:', e); toast('Нет связи с сервером. Попробуйте ещё раз.', true); }
+            loadShopOrders();                       // и таблица, и доска показывают то, что реально в базе
+            loadOrderChart();
+            if (typeof refreshMenuData === 'function') refreshMenuData();
+            return ok;
+        }
+
+        // ====== Всплывающее сообщение (ошибки и подтверждения на доске) ======
+        function toast(msg, err) {
+            const t = document.createElement('div');
+            t.className = 'btoast' + (err ? ' err' : '');
+            t.setAttribute('role', err ? 'alert' : 'status');
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 4500);
+        }
+
+        // ====== Доска заказов ======
+        // Колонки = рабочие статусы. «Доставлены» объединяет DELIVERED и COMPLETED. Правила смены статуса — на сервере
+        // (db-adapter.orderTransitionAllowed): доставленный заказ в работу не вернуть, отменённый — никуда; сервер ответит 409.
+        const BOARD_COLS = [
+            { key: 'NEW',        title: 'Новые',        st: ['NEW'],                    color: '#00AFC7', drop: 'NEW',        next: 'CONFIRMED',  label: 'Подтвердить' },
+            { key: 'CONFIRMED',  title: 'Подтверждены', st: ['CONFIRMED'],              color: '#6366f1', drop: 'CONFIRMED',  next: 'ASSEMBLING', label: 'В сборку' },
+            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#ea580c', drop: 'ASSEMBLING', next: 'SHIPPING',   label: 'Отправить', labelPickup: 'Готов к выдаче' },
+            { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: 'DELIVERED',  label: 'Доставлен', labelPickup: 'Выдан клиенту' },
+            { key: 'DONE',       title: 'Доставлены',   st: ['DELIVERED', 'COMPLETED'], color: '#16a34a', drop: 'DELIVERED',  limit: 15 }
+        ];
+        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
+        let dragId = null, dragFrom = null;
+
+        function agoText(ts) {
+            const t = new Date(ts).getTime();
+            if (!t) return '';
+            const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+            if (min < 1) return 'только что';
+            if (min < 60) return min + ' мин назад';
+            if (min < 1440) return Math.floor(min / 60) + ' ч назад';
+            return new Date(t).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Moscow' });
+        }
+
+        function orderCardHtml(o, col, ctx) {
+            const num = esc(o.order_number || 'AP-' + o.id);
+            const pickup = o.delivery_type === 'pickup';
+            let items = [];
+            try { items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []); } catch (e) { items = []; }
+            const qty = items.reduce((s, i) => s + (Number(i.qty) || 1), 0);
+            const courierName = ctx.courierOf(o.id);
+            const showAssign = ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
+            const canBatch = showAssign && !pickup && !courierName;
+            const drag = col && col.key !== 'DONE' && o.status !== 'CANCELLED';
+            const color = col ? col.color : '#9ca3af';
+            let act = '';
+            if (col && col.next) {
+                const label = pickup && col.labelPickup ? col.labelPickup : col.label;
+                act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${col.next}" data-num="${num}">${esc(label)} →</button></div>`;
+            }
+            if (showAssign) {
+                act += `<div class="bcard-act"><select class="status-select" style="flex:1" data-assign="${Number(o.id)}" aria-label="Курьер для заказа ${num}">
+                    <option value="">-- курьер --</option>${ctx.couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div>`;
+            }
+            const who = courierName ? `Курьер: ${esc(courierName)}` : (pickup ? '' : '');
+            return `<div class="bcard" style="--c:${color}" tabindex="0" data-id="${Number(o.id)}" data-status="${esc(o.status)}"${drag ? ' draggable="true"' : ''}>
+                <div class="bcard-top"><span class="bcard-num">${num}</span><span class="bcard-tag${pickup ? ' pickup' : ''}">${pickup ? 'Самовывоз' : 'Курьер'}</span></div>
+                <div class="bcard-name">${esc(o.user_name || '—')}</div>
+                <div class="bcard-line">${esc(pickup ? 'Самовывоз' : (o.address || '—'))}</div>
+                ${o.comment ? `<div class="bcard-note">${esc(String(o.comment).substring(0, 60))}</div>` : ''}
+                ${who ? `<div class="bcard-line"><strong>${who}</strong></div>` : ''}
+                <div class="bcard-foot"><span class="bcard-sum">${rub(parseFloat(o.total) || 0)} руб.</span><span class="bcard-time">${qty ? qty + ' шт. · ' : ''}${esc(agoText(o.created_at))}</span></div>
+                ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен'}</div>` : ''}
+                ${act}
+                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}"> в рейс</label>` : ''}
+            </div>`;
+        }
+
+        function renderBoard(orders, couriers, courierOf) {
+            const ctx = { couriers: couriers.filter(c => c.is_active !== false), courierOf };
+            const board = document.getElementById('ordersBoard');
+            const cancelledList = orders.filter(o => o.status === 'CANCELLED');
+            if (!orders.length) {
+                board.innerHTML = '<div class="empty" style="grid-column:1/-1">Нет заказов</div>';
+            } else {
+                board.innerHTML = BOARD_COLS.map(col => {
+                    // статус, которого нет в списке (старые данные), считаем «новым», чтобы заказ не пропал с доски
+                    const list = orders.filter(o => col.st.includes(o.status) || (col.key === 'NEW' && !KNOWN_STATUSES.has(o.status)));
+                    const sum = list.reduce((s, o) => s + (parseFloat(o.total) || 0), 0);
+                    const lim = col.limit || 30;
+                    return `<div class="bcol" style="--c:${col.color}" data-drop="${col.drop}">
+                        <div class="bcol-head"><span class="dot"></span><span class="ttl">${esc(col.title)}</span><span class="cnt">${list.length}</span><span class="sum" title="Сумма заказов в колонке">${rub(sum)} ₽</span></div>
+                        <div class="bcol-body">${list.length ? list.slice(0, lim).map(o => orderCardHtml(o, col, ctx)).join('') : '<div class="bcol-empty">Пусто</div>'}
+                        ${list.length > lim ? `<div class="bcol-more">Показаны ${lim} из ${list.length}. Остальные — во вкладке «Таблица»</div>` : ''}</div>
+                    </div>`;
+                }).join('');
+            }
+            const box = document.getElementById('ordersCancelled');
+            box.hidden = cancelledList.length === 0;
+            document.getElementById('ordersCancelledSum').textContent = 'Отменённые (' + cancelledList.length + ')';
+            document.getElementById('ordersCancelledBody').innerHTML = cancelledList.slice(0, 30).map(o => orderCardHtml(o, null, ctx)).join('');
+        }
+
+        async function advanceOrder(id, to, num) {
+            if (to === 'DELIVERED' && !confirm('Отметить заказ ' + num + ' доставленным?\nВернуть его в работу потом будет нельзя.')) return;
+            await updateOrderStatus(id, to);
+        }
+
+        function setOrdersView(v, save) {
+            document.getElementById('ordersBoardWrap').hidden = v !== 'board';
+            document.getElementById('ordersTableWrap').hidden = v !== 'table';
+            document.querySelectorAll('#ordersView button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+            if (save) store.set('adminOrdersView', v);
+        }
+
+        function initBoard() {
+            document.getElementById('ordersView').addEventListener('click', e => {
+                const b = e.target.closest('button[data-v]');
+                if (b) setOrdersView(b.dataset.v, true);
+            });
+            setOrdersView(store.get('adminOrdersView') === 'table' ? 'table' : 'board');
+
+            const boardEl = document.getElementById('ordersBoard');
+            const cancelEl = document.getElementById('ordersCancelledBody');
+            const onClick = e => {
+                const btn = e.target.closest('[data-act="advance"]');
+                if (btn) { advanceOrder(Number(btn.dataset.id), btn.dataset.to, btn.dataset.num); return; }
+                if (e.target.closest('select, input, label, button, a')) return;
+                const card = e.target.closest('.bcard');
+                if (card && card.dataset.id) showOrderDetail(Number(card.dataset.id));
+            };
+            const onKey = e => {
+                if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('bcard')) showOrderDetail(Number(e.target.dataset.id));
+            };
+            [boardEl, cancelEl].forEach(el => { el.addEventListener('click', onClick); el.addEventListener('keydown', onKey); });
+            boardEl.addEventListener('change', e => {
+                const sel = e.target.closest('[data-assign]');
+                if (sel && sel.value) assignCourier(Number(sel.dataset.assign), sel.value);
+            });
+
+            // Перетаскивание карточек между колонками (на телефоне — кнопки на карточке)
+            boardEl.addEventListener('dragstart', e => {
+                const c = e.target.closest('.bcard[draggable="true"]');
+                if (!c) return;
+                dragId = Number(c.dataset.id); dragFrom = c.dataset.status;
+                c.classList.add('drag');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(dragId));
+            });
+            const clearDrag = () => {
+                dragId = null; dragFrom = null;
+                boardEl.querySelectorAll('.drag').forEach(x => x.classList.remove('drag'));
+                boardEl.querySelectorAll('.over').forEach(x => x.classList.remove('over'));
+            };
+            boardEl.addEventListener('dragend', clearDrag);
+            boardEl.addEventListener('dragover', e => {
+                const col = e.target.closest('.bcol');
+                if (!col || dragId === null) return;
+                e.preventDefault();
+                col.classList.add('over');
+            });
+            boardEl.addEventListener('dragleave', e => {
+                const col = e.target.closest('.bcol');
+                if (col && !col.contains(e.relatedTarget)) col.classList.remove('over');
+            });
+            boardEl.addEventListener('drop', e => {
+                const col = e.target.closest('.bcol');
+                if (!col || dragId === null) return;
+                e.preventDefault();
+                const id = dragId, from = dragFrom, to = col.dataset.drop;
+                clearDrag();
+                if (to === from || (to === 'DELIVERED' && from === 'COMPLETED')) return;
+                const card = window._orders && window._orders.find(o => o.id === id);
+                advanceOrder(id, to, card ? (card.order_number || 'AP-' + card.id) : '№' + id);
+            });
+
+            // Доска — рабочий экран диспетчера: сама обновляется, пока открыта и не занята рукой
+            setInterval(() => {
+                if (document.visibilityState !== 'visible' || currentView !== 'orders' || dragId !== null) return;
+                const a = document.activeElement;
+                if (a && a.closest && a.closest('#ordersBoard select')) return;
+                loadShopOrders();
+                loadOrderChart();
+            }, 30000);
+        }
+
+        // ====== График заказов за период ======
+        // Период: месяц (стрелки назад — до месяца первого заказа), прошлый месяц, 30 дней, с начала продаж или свои даты.
+        // Данные считает сервер (GET /api/orders/stats) по календарным дням Москвы.
+        const och = { mode: 'month', y: null, m: null, from: '', to: '', metric: 'orders', first: null, seq: 0, data: null, range: null, pts: [] };
+        const pad2 = n => String(n).padStart(2, '0');
+        const ymd = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+        const monthLen = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+        const dnum = s => { const [y, m, d] = s.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 86400000); };
+        const dstr = n => new Date(n * 86400000).toISOString().slice(0, 10);
+        const dm = s => s.slice(8, 10) + '.' + s.slice(5, 7);
+        const dmy = s => dm(s) + '.' + s.slice(0, 4);
+        const rub = n => Math.round(Number(n) || 0).toLocaleString('ru-RU');
+        const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+        function ochToday() { const t = mskToday(); return { y: t.y, m: t.m, s: ymd(t.y, t.m, t.d) }; }
+
+        function ochRange() {
+            const t = ochToday();
+            if (och.y === null) { och.y = t.y; och.m = t.m; }
+            if (och.mode === 'month') return { from: ymd(och.y, och.m, 1), to: ymd(och.y, och.m, monthLen(och.y, och.m)), label: MONTHS[och.m] + ' ' + och.y };
+            let from, to = t.s;
+            if (och.mode === '30d') from = dstr(dnum(t.s) - 29);
+            else if (och.mode === 'all') from = och.first || t.s;
+            else { from = och.from; to = och.to; }
+            return { from, to, label: dmy(from) + ' — ' + dmy(to) };
+        }
+
+        function ochControls(range) {
+            const t = ochToday();
+            const isMonth = och.mode === 'month';
+            const curYM = och.y + '-' + pad2(och.m + 1);
+            document.getElementById('ochLabel').textContent = range.label;
+            document.getElementById('ochPrev').disabled = !isMonth || (!!och.first && curYM <= och.first.slice(0, 7));
+            document.getElementById('ochNext').disabled = !isMonth || curYM >= t.y + '-' + pad2(t.m + 1);
+            const pm = new Date(Date.UTC(t.y, t.m - 1, 1));
+            const on = {
+                month: isMonth && och.y === t.y && och.m === t.m,
+                prev: isMonth && och.y === pm.getUTCFullYear() && och.m === pm.getUTCMonth(),
+                '30d': och.mode === '30d', all: och.mode === 'all'
+            };
+            document.querySelectorAll('#ochartMode button').forEach(b => { b.classList.toggle('on', !!on[b.dataset.p]); if (b.dataset.p === 'all') b.disabled = !och.first; });
+            const f = document.getElementById('ochFrom'), tt = document.getElementById('ochTo');
+            f.min = tt.min = och.first || '';
+            f.max = tt.max = t.s;
+            f.value = range.from;
+            tt.value = range.to > t.s ? t.s : range.to;
+            f.disabled = tt.disabled = !och.first;
+        }
+
+        function niceMax(max, metric) {
+            if (max <= 0) return metric === 'orders' ? 4 : 1000;
+            const e = Math.pow(10, Math.floor(Math.log10(max)));
+            const n = max / e;
+            const k = [1, 1.5, 2, 3, 4, 5, 6, 8, 10].find(x => n <= x + 1e-9);
+            let v = k * e;
+            if (metric === 'orders') v = Math.max(2, Math.ceil(v / 2) * 2);   // чтобы середина шкалы была целым числом заказов
+            return v;
+        }
+        function axisFmt(v, metric) {
+            if (metric === 'orders') return String(Math.round(v * 10) / 10);
+            if (v >= 1e6) return (v / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн';
+            if (v >= 1000) return (v / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' тыс.';
+            return rub(v);
+        }
+        function periodName(p, group) {
+            if (group === 'day') return new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'long' }).format(new Date(dnum(p.from) * 86400000));
+            if (group === 'week') return dmy(p.from) + ' — ' + dmy(p.to);
+            return MONTHS[+p.from.slice(5, 7) - 1] + ' ' + p.from.slice(0, 4);
+        }
+        function tipLines(p, group) {
+            const l = [periodName(p, group), 'Заказов: ' + rub(p.orders), 'Выручка: ' + rub(p.revenue) + ' руб.'];
+            if (p.cancelled) l.push('Отменено: ' + rub(p.cancelled));
+            return l;
+        }
+
+        function ochDraw() {
+            const d = och.data, range = och.range;
+            if (!d || !range) return;
+            const body = document.getElementById('ochartBody');
+            ochControls(range);
+            if (!d.first_order_date) {
+                body.innerHTML = '<div class="ochart-empty">Заказов пока нет. График появится после первого заказа.</div>';
+                return;
+            }
+            const t = ochToday();
+            const pts = d.points.slice();
+            if (d.group === 'day') {                      // дни до конца месяца показываем пустыми, чтобы месяц был виден целиком
+                for (let n = dnum(d.to) + 1, end = dnum(range.to); n <= end; n++) { const s = dstr(n); pts.push({ from: s, to: s, orders: 0, revenue: 0, cancelled: 0, future: true }); }
+            }
+            och.pts = pts;
+            const metric = och.metric;
+            const top = niceMax(Math.max(0, ...pts.map(p => p[metric])), metric);
+            const w = body.clientWidth || 600;
+            const labW = d.group === 'day' ? 26 : d.group === 'week' ? 44 : 52;
+            const step = Math.max(1, Math.ceil(pts.length / Math.max(2, Math.floor((w - 60) / labW))));
+            const label = p => d.group === 'day' ? p.from.slice(8) : d.group === 'week' ? dm(p.from) : MONTHS_SHORT[+p.from.slice(5, 7) - 1] + ' ' + p.from.slice(2, 4);
+            const bars = pts.map((p, i) => {
+                const h = Math.round(p[metric] / top * 1000) / 10;
+                const cls = ['obar', p.future ? 'future' : '', !p.future && p[metric] === 0 ? 'zero' : '', !p.future && p.from <= t.s && t.s <= p.to ? 'now' : ''].filter(Boolean).join(' ');
+                return `<div class="${cls}" data-i="${i}"${p.future ? '' : ` tabindex="0" role="img" aria-label="${esc(tipLines(p, d.group).join(', '))}"`}><i style="height:${h}%"></i></div>`;
+            }).join('');
+            const xs = pts.map((p, i) => `<span>${i % step === 0 ? label(p) : ''}</span>`).join('');
+
+            const tot = d.totals, prev = d.previous, days = dnum(d.to) - dnum(d.from) + 1;
+            const cur = tot[metric], was = prev[metric];
+            const fv = v => metric === 'orders' ? rub(v) : rub(v) + ' руб.';
+            let delta = '';
+            if (was > 0) {
+                const pct = Math.round((cur - was) / was * 100);
+                delta = `<span class="delta ${pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat'}">${pct > 0 ? '▲' : pct < 0 ? '▼' : '•'} ${Math.abs(pct)} %</span>`;
+            }
+            const cap = (metric === 'orders' ? 'заказов' : 'выручка') + (was > 0 ? ` · к предыдущим ${days} дн. (было ${fv(was)})` : ' за период');
+            const other = metric === 'orders' ? ['Выручка', rub(tot.revenue) + ' руб.'] : ['Заказов', rub(tot.orders)];
+            body.innerHTML = `
+                <div class="ochart-sum">
+                    <div><div class="ochart-big">${fv(cur)}${delta}</div><div class="ochart-cap">${esc(cap)}</div></div>
+                    <div><div class="ochart-mid">${other[1]}</div><div class="ochart-cap">${other[0]}</div></div>
+                    <div><div class="ochart-mid">${tot.orders ? rub(tot.revenue / tot.orders) + ' руб.' : '—'}</div><div class="ochart-cap">Средний чек</div></div>
+                    <div><div class="ochart-mid">${rub(tot.cancelled)}</div><div class="ochart-cap">Отменено</div></div>
+                </div>
+                <div class="ochart-plot">
+                    <div class="ochart-y"><span style="bottom:100%">${axisFmt(top, metric)}</span><span style="bottom:50%">${axisFmt(top / 2, metric)}</span><span style="bottom:0">0</span></div>
+                    <div class="ochart-grid"><div class="ochart-bars">${bars}</div></div>
+                    <div class="ochart-x">${xs}</div>
+                    <div class="ochart-tip" id="ochTip" role="tooltip"></div>
+                </div>`;
+        }
+
+        function ochShowTip(bar) {
+            const tip = document.getElementById('ochTip');
+            if (!tip) return;
+            if (!bar || bar.classList.contains('future')) { tip.classList.remove('show'); return; }
+            const p = och.pts[Number(bar.dataset.i)];
+            if (!p) return;
+            tip.innerHTML = tipLines(p, och.data.group).map((x, i) => i === 0 ? `<b>${esc(x)}</b>` : esc(x)).join('<br>');
+            const plot = bar.closest('.ochart-plot');
+            const pr = plot.getBoundingClientRect(), ir = bar.firstElementChild.getBoundingClientRect(), br = bar.getBoundingClientRect();
+            tip.classList.add('show');
+            let left = br.left - pr.left + br.width / 2 - tip.offsetWidth / 2;
+            left = Math.max(52, Math.min(left, pr.width - tip.offsetWidth));
+            tip.style.left = left + 'px';
+            tip.style.top = Math.max(0, ir.top - pr.top - tip.offsetHeight - 8) + 'px';
+        }
+
+        async function loadOrderChart() {
+            const my = ++och.seq;
+            const range = ochRange(), t = ochToday();
+            const to = range.to > t.s ? t.s : range.to;           // будущее не запрашиваем
+            const body = document.getElementById('ochartBody');
+            try {
+                const r = await fetch(`${API_BASE}/api/orders/stats?from=${range.from}&to=${to}`);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                if (my !== och.seq) return;                       // пришёл ответ на уже устаревший запрос
+                och.first = d.first_order_date;
+                och.data = d; och.range = range;
+                ochDraw();
+            } catch (e) {
+                if (my !== och.seq) return;
+                console.error('Order chart error:', e);
+                body.innerHTML = '<div class="ochart-empty">Не удалось загрузить график. Нажмите «Обновить» в блоке «Заказы».</div>';
+            }
+        }
+
+        function ochShift(delta) {
+            const d = new Date(Date.UTC(och.y, och.m + delta, 1));
+            och.y = d.getUTCFullYear(); och.m = d.getUTCMonth();
+            loadOrderChart();
+        }
+
+        function initOrderChart() {
+            const saved = store.get('adminChartMetric');
+            if (saved === 'revenue') { och.metric = 'revenue'; document.querySelectorAll('#ochartMetric button').forEach(b => b.classList.toggle('on', b.dataset.m === 'revenue')); }
+            document.getElementById('ochartMetric').addEventListener('click', e => {
+                const b = e.target.closest('button[data-m]');
+                if (!b) return;
+                och.metric = b.dataset.m;
+                store.set('adminChartMetric', och.metric);
+                document.querySelectorAll('#ochartMetric button').forEach(x => x.classList.toggle('on', x === b));
+                ochDraw();
+            });
+            document.getElementById('ochartMode').addEventListener('click', e => {
+                const b = e.target.closest('button[data-p]');
+                if (!b || b.disabled) return;
+                const t = ochToday();
+                if (b.dataset.p === 'month') { och.mode = 'month'; och.y = t.y; och.m = t.m; }
+                else if (b.dataset.p === 'prev') { const d = new Date(Date.UTC(t.y, t.m - 1, 1)); och.mode = 'month'; och.y = d.getUTCFullYear(); och.m = d.getUTCMonth(); }
+                else och.mode = b.dataset.p;
+                loadOrderChart();
+            });
+            document.getElementById('ochPrev').addEventListener('click', () => ochShift(-1));
+            document.getElementById('ochNext').addEventListener('click', () => ochShift(1));
+            const custom = () => {
+                const f = document.getElementById('ochFrom').value, t = document.getElementById('ochTo').value;
+                if (!f || !t) return;
+                if (f > t) { toast('Начало периода позже конца', true); return; }
+                och.mode = 'custom'; och.from = f; och.to = t;
+                loadOrderChart();
+            };
+            document.getElementById('ochFrom').addEventListener('change', custom);
+            document.getElementById('ochTo').addEventListener('change', custom);
+
+            const body = document.getElementById('ochartBody');
+            const barOf = e => e.target.closest && e.target.closest('.obar');
+            body.addEventListener('mouseover', e => { const b = barOf(e); if (b) ochShowTip(b); });
+            body.addEventListener('mouseout', e => { if (barOf(e)) ochShowTip(null); });
+            body.addEventListener('focusin', e => { const b = barOf(e); if (b) ochShowTip(b); });
+            body.addEventListener('focusout', () => ochShowTip(null));
+            body.addEventListener('click', e => { const b = barOf(e); if (b) ochShowTip(b); });     // на телефоне подсказка по касанию
+            let rt;
+            window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(ochDraw, 150); });
         }
 
         async function loadShopProducts() {
@@ -1282,10 +1817,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tr.querySelector('.empty')) return;
                 tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
             });
+            document.querySelectorAll('.bcard').forEach(c => {
+                c.style.display = !q || c.textContent.toLowerCase().includes(q) ? '' : 'none';
+            });
         }
         searchEl.addEventListener('input', () => { if (searchEl.value.trim() && currentView !== 'orders') go('orders'); applySearch(); });
         searchEl.addEventListener('keydown', e => { if (e.key === 'Escape') { searchEl.value = ''; applySearch(); searchEl.blur(); } });
-        new MutationObserver(applySearch).observe(document.getElementById('shopOrdersTable'), { childList: true });   // таблицу перерисовали — фильтр сохраняется
+        new MutationObserver(applySearch).observe(document.getElementById('shopOrdersTable'), { childList: true });
+        new MutationObserver(applySearch).observe(document.getElementById('ordersBoard'), { childList: true });   // таблицу перерисовали — фильтр сохраняется
         document.getElementById('searchBox').addEventListener('click', () => {
             if (shellEl.dataset.collapsed === '1' && window.innerWidth > 900) { shellEl.dataset.collapsed = '0'; store.set('adminMenuCollapsed', '0'); }
             searchEl.focus();
@@ -1364,6 +1903,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && calEl.classList.contains('open')) closeCal(true); });
         tickClock();
         setInterval(tickClock, 1000);
+        initBoard();
+        initOrderChart();
 
         loadDeliveryData();
         loadAnalytics();
