@@ -278,6 +278,9 @@
 
         /* Верхняя полоса страницы */
         .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 18px 24px 6px; }
+        .titlebox { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .pagesub { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pagesub:empty { display: none; }
         .topbar h1 { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); letter-spacing: -0.3px; }
 
         /* Часы по Москве + календарь на месяц (верхний правый угол) */
@@ -393,6 +396,28 @@
         .ochart-tip.show { opacity: 1; }
         .ochart-tip b { font-weight: 700; }
         .ochart-empty { padding: 36px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
+
+        /* Аналитика магазина: топ товаров и способы получения */
+        .an-sum { display: flex; flex-wrap: wrap; gap: 8px 32px; margin-bottom: 18px; }
+        .an-two { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+        .an-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+        .an-card h3 { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 14px; }
+        .prow { margin-bottom: 13px; }
+        .prow:last-child { margin-bottom: 0; }
+        .prow-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+        .prow-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .prow-name small { margin-left: 6px; font-weight: 500; color: var(--muted); }
+        .prow-val { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .ptrack { height: 8px; margin-top: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+        .ptrack i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--light-cyan), var(--cyan)); }
+        .stack { display: flex; gap: 2px; height: 14px; border-radius: 999px; overflow: hidden; }
+        .stack i { display: block; height: 100%; min-width: 4px; }
+        .leg { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+        .leg-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+        .leg-row span.v { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+        .leg-row small { display: block; color: var(--muted); font-size: 11.5px; }
+        @media (max-width: 900px) { .an-two { grid-template-columns: 1fr; } }
 
         /* Карточки показателей: сегодня / неделя / месяц / год */
         .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -543,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <main class="main">
     <div class="topbar">
         <button class="icon-btn burger" onclick="openDrawer()" aria-label="Открыть меню"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg></button>
-        <h1 id="pageTitle">Доставка</h1>
+        <div class="titlebox"><h1 id="pageTitle">Доставка</h1><p class="pagesub" id="pageSub"></p></div>
         <div class="clock" id="clock">
             <button class="clock-btn" id="clockBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cal" aria-label="Время по Москве. Открыть календарь">
                 <span class="clock-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/><path d="M3 10h18"/></svg></span>
@@ -640,6 +665,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <div class="tab-content" id="tab-analytics">
         <div class="container">
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">Магазин за период</div>
+                    <div class="seg" id="anPeriod" role="group" aria-label="Период аналитики магазина">
+                        <button type="button" data-d="7">7 дней</button>
+                        <button type="button" data-d="30" class="on">30 дней</button>
+                        <button type="button" data-d="90">90 дней</button>
+                        <button type="button" data-d="all" title="От первого заказа до сегодня">С начала продаж</button>
+                    </div>
+                </div>
+                <div class="section-body" id="anShop"><div class="ochart-empty">Загрузка…</div></div>
+            </div>
+
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">Аналитика доставки (7 дней)</div>
@@ -944,9 +982,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 else loadShopCustomers();
             }
             if (!initial && view === 'delivery') loadDeliveryData();
-            if (!initial && view === 'analytics') loadAnalytics();
+            if (view === 'analytics') loadAnalytics();
             if (view === 'audit') loadAudit();
             applySearch();
+            refreshPageSub();
+        }
+
+        // Подпись под заголовком страницы: живые цифры там, где они есть, иначе — коротко, что на странице
+        function refreshPageSub() {
+            const el = document.getElementById('pageSub');
+            if (!el) return;
+            const num = id => parseInt((document.getElementById(id) || {}).textContent, 10);
+            let t = '';
+            if (currentView === 'orders') {
+                const list = window._orders || [];
+                if (shopLoaded && window._orders) {
+                    const work = list.filter(o => ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING'].includes(o.status)).length;
+                    const fresh = list.filter(o => o.status === 'NEW').length;
+                    t = work === 0 ? 'Все заказы обработаны'
+                        : `${work} ${plural(work, 'заказ', 'заказа', 'заказов')} в работе` + (fresh ? ` · ${fresh} ${plural(fresh, 'ждёт', 'ждут', 'ждут')} подтверждения` : '');
+                }
+            } else if (currentView === 'products') {
+                const n = num('shopProductsCount');
+                if (!isNaN(n) && shopLoaded) t = `${n} ${plural(n, 'товар', 'товара', 'товаров')} в каталоге`;
+            } else if (currentView === 'customers') {
+                const n = num('shopCustomersCount');
+                if (!isNaN(n) && shopLoaded) t = `${n} ${plural(n, 'клиент', 'клиента', 'клиентов')} сделали заказ`;
+            } else if (currentView === 'delivery') t = 'Рейсы, курьеры и маршруты';
+            else if (currentView === 'analytics') t = 'Магазин и доставка за выбранный период';
+            else if (currentView === 'audit') t = 'Кто и что менял в админке';
+            el.textContent = t;
         }
         // совместимость со старыми вызовами
         function switchTab(name) { go(name === 'shop' ? 'orders' : name); }
@@ -1025,7 +1090,55 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { console.error('Delivery load error:', e); }
         }
 
+        // ====== Аналитика магазина: топ товаров и способы получения ======
+        const an = { period: '30', seq: 0 };
+        const DELIVERY_LABELS = { delivery: ['Курьером', '#00AFC7'], pickup: ['Самовывоз', '#ea580c'] };
+
+        async function loadShopAnalytics() {
+            const my = ++an.seq, box = document.getElementById('anShop');
+            let q = 'period=all';
+            if (an.period !== 'all') {
+                const t = mskToday(), to = ymd(t.y, t.m, t.d);
+                q = `from=${dstr(dnum(to) - (Number(an.period) - 1))}&to=${to}`;
+            }
+            try {
+                const r = await fetch(`${API_BASE}/api/analytics/shop?${q}`);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                if (my !== an.seq) return;
+                const tot = d.totals, n = tot.orders;
+                const maxRev = Math.max(1, ...d.products.map(p => p.revenue));
+                const prods = d.products.length ? d.products.map(p => `
+                    <div class="prow">
+                        <div class="prow-top"><span class="prow-name">${esc(p.name || '—')}${p.volume ? `<small>${esc(p.volume)}</small>` : ''}</span><span class="prow-val">${rub(p.qty)} шт. · ${rub(p.revenue)} руб.</span></div>
+                        <div class="ptrack"><i style="width:${Math.max(2, Math.round(p.revenue / maxRev * 100))}%"></i></div>
+                    </div>`).join('') : '<div class="ochart-empty">В этом периоде заказов нет</div>';
+                const sumOrders = d.delivery.reduce((s, x) => s + x.orders, 0) || 1;
+                const stack = d.delivery.map(x => { const l = DELIVERY_LABELS[x.type] || [x.type, '#9ca3af']; return `<i style="width:${x.orders / sumOrders * 100}%;background:${l[1]}" title="${esc(l[0])}"></i>`; }).join('');
+                const legend = d.delivery.map(x => {
+                    const l = DELIVERY_LABELS[x.type] || [x.type, '#9ca3af'];
+                    return `<div class="leg-row"><span class="leg-dot" style="background:${l[1]}"></span>${esc(l[0])}<span class="v"><b>${Math.round(x.orders / sumOrders * 100)} %</b><small>${rub(x.orders)} ${plural(x.orders, 'заказ', 'заказа', 'заказов')} · ${rub(x.revenue)} руб.</small></span></div>`;
+                }).join('');
+                box.innerHTML = `
+                    <div class="an-sum">
+                        <div><div class="ochart-big">${rub(n)}</div><div class="ochart-cap">${plural(n, 'заказ', 'заказа', 'заказов')} за ${esc(dmy(d.from))} — ${esc(dmy(d.to))}</div></div>
+                        <div><div class="ochart-mid">${rub(tot.revenue)} руб.</div><div class="ochart-cap">Выручка</div></div>
+                        <div><div class="ochart-mid">${n ? rub(tot.revenue / n) + ' руб.' : '—'}</div><div class="ochart-cap">Средний чек</div></div>
+                        <div><div class="ochart-mid">${rub(tot.cancelled)}</div><div class="ochart-cap">Отменено</div></div>
+                    </div>
+                    <div class="an-two">
+                        <div class="an-card"><h3>Что покупают чаще всего</h3>${prods}<div class="ochart-cap" style="margin-top:12px">Выручка по товарам — в ценах каталога, до скидок заказа. Отменённые не учтены.</div></div>
+                        <div class="an-card"><h3>Как получают заказы</h3>${d.delivery.length ? `<div class="stack">${stack}</div><div class="leg">${legend}</div>` : '<div class="ochart-empty">Нет заказов</div>'}</div>
+                    </div>`;
+            } catch (e) {
+                if (my !== an.seq) return;
+                console.error('Shop analytics error:', e);
+                box.innerHTML = '<div class="ochart-empty">Не удалось загрузить данные магазина. Нажмите «Обновить» ниже.</div>';
+            }
+        }
+
         async function loadAnalytics() {
+            loadShopAnalytics();
             try {
                 const a = await fetch(`${API_BASE}/api/analytics`).then(r => r.json());
                 const s = a.summary || {};
@@ -1125,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).join('');
                 window._orders = orders;
                 renderBoard(orders, couriers, getCourierForOrder);
+                refreshPageSub();
             } catch (e) { console.error('Shop orders error:', e); }
         }
 
@@ -1677,6 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const products = await fetch(`${API_BASE}/api/products`).then(r => r.json());
                 window._products = products;
                 document.getElementById('shopProductsCount').textContent = products.filter(p => p.active !== false).length;
+                refreshPageSub();
 
                 document.getElementById('shopProductsTable').innerHTML = products.length === 0
                     ? '<tr><td colspan="7" class="empty">Каталог пуст</td></tr>'
@@ -1715,6 +1830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const customers = Object.values(customerMap).sort((a, b) => b.lastDate - a.lastDate);
                 document.getElementById('shopCustomersCount').textContent = customers.length;
+                refreshPageSub();
 
                 document.getElementById('shopCustomersTable').innerHTML = customers.length === 0
                     ? '<tr><td colspan="6" class="empty">Нет клиентов</td></tr>'
@@ -1980,6 +2096,13 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(tickClock, 1000);
         initBoard();
         initOrderChart();
+        document.getElementById('anPeriod').addEventListener('click', e => {
+            const b = e.target.closest('button[data-d]');
+            if (!b) return;
+            an.period = b.dataset.d;
+            document.querySelectorAll('#anPeriod button').forEach(x => x.classList.toggle('on', x === b));
+            loadShopAnalytics();
+        });
 
         loadDeliveryData();
         loadAnalytics();

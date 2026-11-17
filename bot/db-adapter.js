@@ -390,6 +390,36 @@ class DBAdapter {
         return { today, week, month, year };
     }
 
+    async getMoscowToday() {
+        const r = await pool.query(`SELECT TO_CHAR((NOW() AT TIME ZONE 'Europe/Moscow')::date, 'YYYY-MM-DD') AS d`);
+        return r.rows[0].d;
+    }
+
+    // Отчёт по магазину за период (календарные дни Москвы, отменённые не считаются):
+    // топ товаров (по выручке в ценах каталога — до скидок заказа), способы получения, итоги.
+    // items — JSONB-массив {productId, name, volume, price, qty}; у старых заказов поля могут быть кривыми, поэтому разбор «мягкий».
+    async getShopAnalytics(from, to) {
+        const [prod, deliv, tot] = await Promise.all([
+            pool.query(
+                `SELECT COALESCE(it->>'productId', it->>'name') AS key,
+                        MAX(it->>'name') AS name, MAX(it->>'volume') AS volume,
+                        SUM(CASE WHEN it->>'qty' ~ '^[0-9]+$' THEN (it->>'qty')::int ELSE 1 END)::int AS qty,
+                        SUM((CASE WHEN it->>'qty' ~ '^[0-9]+$' THEN (it->>'qty')::int ELSE 1 END)
+                            * (CASE WHEN it->>'price' ~ '^[0-9]+(\.[0-9]+)?$' THEN (it->>'price')::numeric ELSE 0 END))::float8 AS revenue,
+                        COUNT(DISTINCT o.id)::int AS orders
+                   FROM orders o, LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(o.items) = 'array' THEN o.items ELSE '[]'::jsonb END) it
+                  WHERE o.status <> 'CANCELLED' AND ${MSK_DAY.replace(/created_at/g, 'o.created_at')} BETWEEN $1::date AND $2::date
+                    AND COALESCE(it->>'productId', it->>'name') IS NOT NULL
+                  GROUP BY 1 ORDER BY revenue DESC, qty DESC LIMIT 10`, [from, to]),
+            pool.query(
+                `SELECT COALESCE(delivery_type, 'delivery') AS type, COUNT(*)::int AS orders, COALESCE(SUM(total), 0)::float8 AS revenue
+                   FROM orders WHERE status <> 'CANCELLED' AND ${MSK_DAY} BETWEEN $1::date AND $2::date
+                  GROUP BY 1 ORDER BY orders DESC`, [from, to]),
+            this.getOrderTotals(from, to)
+        ]);
+        return { products: prod.rows, delivery: deliv.rows, totals: tot };
+    }
+
     async getOrderTotals(from, to) {
         const r = await pool.query(
             `SELECT COUNT(*) FILTER (WHERE status <> 'CANCELLED')::int AS orders,

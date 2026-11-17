@@ -1,6 +1,7 @@
 'use strict';
 // GET /api/orders/stats — данные для графика заказов в админке (по дням, неделям или месяцам);
-// GET /api/orders/kpi — карточки показателей «сегодня / неделя / месяц / год».
+// GET /api/orders/kpi — карточки показателей «сегодня / неделя / месяц / год»;
+// GET /api/analytics/shop — топ товаров и способы получения за период.
 // Даты — календарные дни по Москве, строки 'YYYY-MM-DD'. Подключается из courier-bot.js рядом с остальными админскими маршрутами.
 
 const MAX_DAYS = 3660;                       // не больше ~10 лет за один запрос
@@ -49,6 +50,22 @@ function parseRange(query) {
 }
 
 function registerOrderStatsRoutes(app, { db, verifyAdmin }) {
+    // Аналитика магазина за период: GET /api/analytics/shop?from&to или ?period=all (с первого заказа до сегодня)
+    app.get('/api/analytics/shop', verifyAdmin, async (req, res) => {
+        try {
+            let from, to;
+            if (req.query.period === 'all') {
+                to = await db.getMoscowToday();
+                from = (await db.getFirstOrderDate()) || to;
+            } else {
+                const range = parseRange(req.query);
+                if (range.error) return res.status(400).json({ error: range.error });
+                ({ from, to } = range);
+            }
+            res.json({ from, to, ...(await db.getShopAnalytics(from, to)) });
+        } catch (e) { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }
+    });
+
     // Карточки «сегодня / неделя / месяц / год» с мини-графиками
     app.get('/api/orders/kpi', verifyAdmin, async (req, res) => {
         try { res.json(await db.getKpi()); }
