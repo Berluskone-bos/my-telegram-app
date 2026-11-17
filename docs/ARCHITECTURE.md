@@ -9,7 +9,7 @@
         ▼
 [ Railway: bot/bot.js (Express, webhook) ]──► Neon PostgreSQL
         │        ├─ bot/courier-bot.js: маршруты, курьеры, /api/couriers, /api/orders, /api/products (админ)
-        ├─ bot/order-stats.js: GET /api/orders/stats?from&to[&group] — график заказов в админке (только админ)
+        ├─ bot/order-stats.js: GET /api/orders/stats?from&to[&group] — график заказов; GET /api/orders/kpi — карточки показателей (только админ)
         ├─ bot/oil-routes.js + partsapi-cache.js + oil-systems.js: подбор жидкостей (PartsAPI, кэш в Neon)
         └─ /api/catalog — публичный каталог с остатками (без закупочных цен)
         ├──► Telegram: клиентский бот, курьерский бот, админ-бот

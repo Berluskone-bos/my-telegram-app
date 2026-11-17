@@ -351,6 +351,45 @@ class DBAdapter {
         return r.rows;
     }
 
+    // Карточки показателей «сегодня / неделя / месяц / год»: период с начала до ЭТОГО МОМЕНТА против такого же отрезка
+    // прошлого периода (сегодня до 15:30 — против вчера до 15:30), чтобы утром не было ложного «минус 90 %».
+    // nowOverride ('ГГГГ-ММ-ДД ЧЧ:ММ:СС' по Москве) нужен только тестам. Отменённые не считаются.
+    // SQL-вставки ниже — только из этого списка констант, из запроса пользователя в них ничего не попадает.
+    async getKpi(nowOverride) {
+        const col = (c) => ({
+            today: { start: "date_trunc('day', n.now_m)", iv: "interval '1 day'", bucket: `EXTRACT(HOUR FROM ${c})::int`, count: '24' },
+            week: { start: "date_trunc('week', n.now_m)", iv: "interval '7 days'", bucket: `(${c}::date - date_trunc('week', n.now_m)::date)`, count: '7' },
+            month: { start: "date_trunc('month', n.now_m)", iv: "interval '1 month'", bucket: `(EXTRACT(DAY FROM ${c})::int - 1)`,
+                     count: "EXTRACT(DAY FROM (date_trunc('month', n.now_m) + interval '1 month' - interval '1 day'))::int" },
+            year: { start: "date_trunc('year', n.now_m)", iv: "interval '1 year'", bucket: `(EXTRACT(MONTH FROM ${c})::int - 1)`, count: '12' }
+        });
+        const head = `WITH n AS (SELECT COALESCE($1::timestamp, NOW() AT TIME ZONE 'Europe/Moscow') AS now_m),
+                o AS (SELECT created_at AT TIME ZONE current_setting('TimeZone') AT TIME ZONE 'Europe/Moscow' AS ts, total
+                        FROM orders WHERE status <> 'CANCELLED')`;
+        const one = async (key) => {
+            const d = col('o.ts')[key];
+            const idxExpr = col('n.now_m')[key].bucket;
+            const totals = await pool.query(
+                `${head}
+                 SELECT (SELECT COUNT(*) FROM o, n WHERE o.ts >= ${d.start} AND o.ts <= n.now_m)::int AS orders,
+                        (SELECT COALESCE(SUM(o.total), 0) FROM o, n WHERE o.ts >= ${d.start} AND o.ts <= n.now_m)::float8 AS revenue,
+                        (SELECT COUNT(*) FROM o, n WHERE o.ts >= ${d.start} - ${d.iv} AND o.ts <= n.now_m - ${d.iv})::int AS prev_orders,
+                        (SELECT COALESCE(SUM(o.total), 0) FROM o, n WHERE o.ts >= ${d.start} - ${d.iv} AND o.ts <= n.now_m - ${d.iv})::float8 AS prev_revenue,
+                        (SELECT ${idxExpr} FROM n)::int AS idx`, [nowOverride || null]);
+            const series = await pool.query(
+                `${head},
+                      b AS (SELECT g AS i FROM n, generate_series(0, ${d.count} - 1) g),
+                      s AS (SELECT ${d.bucket} AS i, COUNT(*) AS c, SUM(o.total) AS r FROM o, n
+                             WHERE o.ts >= ${d.start} AND o.ts <= n.now_m GROUP BY 1)
+                 SELECT b.i, COALESCE(s.c, 0)::int AS orders, COALESCE(s.r, 0)::float8 AS revenue FROM b LEFT JOIN s ON s.i = b.i ORDER BY b.i`, [nowOverride || null]);
+            const t = totals.rows[0];
+            return { orders: t.orders, revenue: t.revenue, prev: { orders: t.prev_orders, revenue: t.prev_revenue }, idx: t.idx,
+                     series: series.rows.map(r => ({ orders: r.orders, revenue: r.revenue })) };
+        };
+        const [today, week, month, year] = await Promise.all(['today', 'week', 'month', 'year'].map(one));
+        return { today, week, month, year };
+    }
+
     async getOrderTotals(from, to) {
         const r = await pool.query(
             `SELECT COUNT(*) FILTER (WHERE status <> 'CANCELLED')::int AS orders,

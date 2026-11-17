@@ -1,5 +1,6 @@
 'use strict';
-// GET /api/orders/stats — данные для графика заказов в админке (по дням, неделям или месяцам).
+// GET /api/orders/stats — данные для графика заказов в админке (по дням, неделям или месяцам);
+// GET /api/orders/kpi — карточки показателей «сегодня / неделя / месяц / год».
 // Даты — календарные дни по Москве, строки 'YYYY-MM-DD'. Подключается из courier-bot.js рядом с остальными админскими маршрутами.
 
 const MAX_DAYS = 3660;                       // не больше ~10 лет за один запрос
@@ -48,6 +49,12 @@ function parseRange(query) {
 }
 
 function registerOrderStatsRoutes(app, { db, verifyAdmin }) {
+    // Карточки «сегодня / неделя / месяц / год» с мини-графиками
+    app.get('/api/orders/kpi', verifyAdmin, async (req, res) => {
+        try { res.json(await db.getKpi()); }
+        catch (e) { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }
+    });
+
     app.get('/api/orders/stats', verifyAdmin, async (req, res) => {
         try {
             const range = parseRange(req.query);
