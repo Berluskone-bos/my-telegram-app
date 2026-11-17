@@ -10,6 +10,7 @@ const { checkStopActive, CANCELLED_BUTTON, CANCELLED_BUTTON_OLD } = require('./c
 const { trackerEvent, hasTracker } = require('./tracker');
 const widgets = require('./widgets');
 const { createRouteService } = require('./route-service');
+const { registerOrderStatsRoutes } = require('./order-stats');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -1108,6 +1109,8 @@ function registerCourierRoutes(app) {
     app.get('/api/routes', verifyAdmin, async (req, res) => {
         try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
+
+    registerOrderStatsRoutes(app, { db, verifyAdmin });
 
     app.get('/api/orders', verifyAdmin, async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }

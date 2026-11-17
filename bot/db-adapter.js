@@ -30,6 +30,9 @@ function orderTransitionAllowed(from, to) {
     return true;
 }
 
+// Календарный день заказа по Москве (колонка created_at хранится без часового пояса в поясе сервера: в Neon это UTC)
+const MSK_DAY = "(created_at AT TIME ZONE current_setting('TimeZone') AT TIME ZONE 'Europe/Moscow')::date";
+
 class DBAdapter {
     constructor() {
         this.initialized = false;
@@ -322,6 +325,39 @@ class DBAdapter {
         const x = r.rows[0];
         return { orders: x.orders, revenue: Number(x.revenue), new: x.new_cnt, assembling: x.assembling, shipping: x.shipping,
                  delivered: x.delivered, cancelled: x.cancelled, date: x.date, updated: 'обновлено ' + x.clock };
+    }
+
+    // ───────────────────────────────────────────
+    // График заказов: по календарным дням Москвы (created_at — TIMESTAMP без пояса, см. getDaySummary)
+    // ───────────────────────────────────────────
+
+    // Даты 'YYYY-MM-DD' приходят строкой: тип date драйвер превращает в JS Date и сдвигает по часовому поясу сервера.
+    async getFirstOrderDate() {
+        const r = await pool.query(`SELECT TO_CHAR(MIN(${MSK_DAY}), 'YYYY-MM-DD') AS d FROM orders`);
+        return r.rows[0].d || null;
+    }
+
+    // Каждый день периода, включая дни без заказов. Отменённые считаются отдельно и в выручку не входят.
+    async getOrderSeries(from, to) {
+        const r = await pool.query(
+            `WITH days AS (SELECT d::date AS day FROM generate_series($1::date, $2::date, interval '1 day') d),
+                  o AS (SELECT ${MSK_DAY} AS day, status, total FROM orders WHERE ${MSK_DAY} BETWEEN $1::date AND $2::date)
+             SELECT TO_CHAR(days.day, 'YYYY-MM-DD') AS day,
+                    COUNT(o.day) FILTER (WHERE o.status <> 'CANCELLED')::int AS orders,
+                    COALESCE(SUM(o.total) FILTER (WHERE o.status <> 'CANCELLED'), 0)::float8 AS revenue,
+                    COUNT(o.day) FILTER (WHERE o.status = 'CANCELLED')::int AS cancelled
+               FROM days LEFT JOIN o ON o.day = days.day
+              GROUP BY days.day ORDER BY days.day`, [from, to]);
+        return r.rows;
+    }
+
+    async getOrderTotals(from, to) {
+        const r = await pool.query(
+            `SELECT COUNT(*) FILTER (WHERE status <> 'CANCELLED')::int AS orders,
+                    COALESCE(SUM(total) FILTER (WHERE status <> 'CANCELLED'), 0)::float8 AS revenue,
+                    COUNT(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled
+               FROM orders WHERE ${MSK_DAY} BETWEEN $1::date AND $2::date`, [from, to]);
+        return r.rows[0];
     }
 
     async updateStopPhoto(stopId, photoFileId) {
