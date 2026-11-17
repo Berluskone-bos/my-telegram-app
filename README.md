@@ -29,7 +29,7 @@ WEBHOOK_SECRET=случайная_строка_32_символа
 ADMIN_API_KEY=случайная_строка_32_символа
 COURIER_BOT_TOKEN=ваш_токен_курьер_бота
 ADMIN_BOT_TOKEN=ваш_токен_админ_бота
-DATABASE_URL=postgresql://user:pass@neon.tech/neondb?sslmode=require
+DATABASE_URL=postgresql://user:pass@host:5432/dbname   # на Railway это адрес postgres.railway.internal
 PORT=3000
 ```
 
@@ -70,7 +70,7 @@ python -m http.server 3000
 
 Откройте http://localhost:3000
 
-**База данных:** подключение к Neon (`DATABASE_URL` с `sslmode=require`); `db.js` поддерживает SSL для `railway` и `neon`. При локальном запуске без БД запустится, но команды с БД (`/orders`, `/routes`) не сработают — нужна работающая `DATABASE_URL`.
+**База данных:** подключение к PostgreSQL на Railway (`DATABASE_URL` указывает на `postgres.railway.internal`); `db.js` включает SSL для адресов с `railway` и `neon`. При локальном запуске без БД запустится, но команды с БД (`/orders`, `/routes`) не сработают — нужна работающая `DATABASE_URL`.
 
 ### 4. Настройте Mini App в Telegram
 
@@ -110,7 +110,7 @@ gulf-western-shop/
 │   ├── outbox.js, notify-queue.js # Очередь уведомлений с повторами
 │   ├── widgets.js, tracker.js, route-sheet.js, summary.js  # Интерактивные карточки Telegram
 │   ├── order-stats.js      # Данные графика заказов и карточек показателей в админке
-│   ├── db.js, db-adapter.js       # База Neon (PostgreSQL), миграции при старте
+│   ├── db.js, db-adapter.js       # База (PostgreSQL на Railway), миграции при старте
 │   └── package.json
 ├── docs/                   # PRD, архитектура, правила, дизайн, задачи, память проекта
 ├── test/                   # Автотесты (node --test)
