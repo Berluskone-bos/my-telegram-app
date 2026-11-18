@@ -24,11 +24,16 @@ function isTrustedAdmin(userId) { return userId != null && ADMIN_USER_IDS.includ
 const { escapeHtml } = require('./services/notifier');
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
+function errorCode(err) {
+    const code = err && (err.code || err.name);
+    return typeof code === 'string' ? code.slice(0, 40) : 'unknown';
+}
+
 const geocoder = new Geocoder(YANDEX_GEO_KEY);
 // Маршрут из нескольких заказов: порядок, время приезда, сообщения клиентам (см. route-service.js)
 const routeSvc = createRouteService({ db, geocoder: YANDEX_GEO_KEY ? geocoder : null, queue });
 // Очередь уведомлений: отправка с повторами (см. outbox.js). Запуск идемпотентный: можно вызывать из обоих модулей.
-db.init().then(() => queue.instance().start()).catch(e => console.error('[OUTBOX] запуск не удался:', String(e.message).slice(0, 150)));
+db.init().then(() => queue.instance().start()).catch(e => console.error('[OUTBOX] запуск не удался:', errorCode(e)));
 const notifier = new Notifier(process.env.BOT_TOKEN || '', COURIER_BOT_TOKEN, ADMIN_CHAT_ID, process.env.ADMIN_BOT_TOKEN || '');
 
 // ===== Безопасность =====
@@ -126,7 +131,7 @@ if (process.env.ADMIN_BOT_TOKEN) {
                 adminBot.sendMessage(query.message.chat.id, `Заказ ${order?.order_number || orderId} отменён. Клиенту и курьеру (если заказ был на маршруте) сообщения отправлены.`).catch(() => {});
                 // Сообщения клиенту и курьеру уже поставлены в очередь внутри отмены (см. cancel-flow.js)
             } catch (e) {
-                console.error('[ADMIN BOT] Cancel error:', e.message);
+                console.error('[ADMIN BOT] Cancel error:', errorCode(e));
                 adminBot.answerCallbackQuery(query.id, { text: 'Ошибка отмены' });
             }
         }
@@ -135,7 +140,7 @@ if (process.env.ADMIN_BOT_TOKEN) {
     adminBot.onText(/^\/summary(?:@[\w_]+)?(?:\s|$)/, async (msg) => {
         if (!isTrustedAdmin(msg.from?.id)) return;
         try { await summarySvc().send(); }
-        catch (e) { console.error('[СВОДКА]', e.message); adminBot.sendMessage(msg.chat.id, 'Не удалось собрать сводку.').catch(() => {}); }
+        catch (e) { console.error('[СВОДКА]', errorCode(e)); adminBot.sendMessage(msg.chat.id, 'Не удалось собрать сводку.').catch(() => {}); }
     });
     console.log('[OK] Админ-бот запущен (polling)');
 }
@@ -184,7 +189,7 @@ async function notifyAdminStep(routeId, stopId, step, query) {
             `Заказ: ${escapeHtml(stop.order_number || '')}\nАдрес: ${escapeHtml(stop.address || '')}` +
             (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
             null, `admin-step-${step}:${stopId}`);
-    } catch (e) { console.error('[DELIVER] admin notify error:', e.message); }
+    } catch (e) { console.error('[DELIVER] admin notify error:', errorCode(e)); }
 }
 
 function generateRouteNumber() {
@@ -708,7 +713,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         ];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
-        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' }).catch(() => {});
 
         // Обновляем статус маршрута
@@ -716,7 +721,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const route = await db.getRouteById(routeId);
             await db.updateRouteStatus(routeId, 'in_progress', route?.completed || 0, route?.failed || 0);
             console.log(`[DELIVER] Route ${routeId} -> in_progress`);
-        } catch (e) { console.error('[DELIVER] route update error:', e.message); }
+        } catch (e) { console.error('[DELIVER] route update error:', errorCode(e)); }
 
         await notifyAdminStep(routeId, stopId, 'accept', query);
         // Клиенту здесь ничего не отправляем: курьер только принял заказ со склада, он ещё не выехал.
@@ -731,7 +736,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         ];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
-        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: 'Вы в пути. Клиент уведомлён.' }).catch(() => {});
         await notifyAdminStep(routeId, stopId, 'enroute', query);
 
@@ -744,14 +749,14 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             try {
                 const r = await routeSvc.refreshEtas({ routeId, firstStopId: stopId, notifyNew: true });
                 ownSent = !!(r && r.sent.some(x => Number(x.stopId) === Number(stopId) && x.kind === 'own'));
-            } catch (e) { console.error('[DELIVER] расчёт времени приезда не удался:', e.message); }
+            } catch (e) { console.error('[DELIVER] расчёт времени приезда не удался:', errorCode(e)); }
             // карточка заказа у клиента (если есть) меняется без уведомления; обычный текст — только когда карточки нет
             const onCard = stop?.order_number && stop.status !== 'cancelled' ? await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute' }) : false;
             if (!ownSent && !onCard && stop?.client_chat_id && stop.status !== 'cancelled') {
                 queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`,
                     { dedupKey: `stop-enroute:${stopId}` });
             }
-        } catch (e) { console.error('[DELIVER] notify error:', e.message); }
+        } catch (e) { console.error('[DELIVER] notify error:', errorCode(e)); }
     }
 
     else if (action === 'arrived') {
@@ -761,7 +766,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         ];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
-        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: 'Клиент уведомлён. Подтвердите передачу заказа.' }).catch(() => {});
         await notifyAdminStep(routeId, stopId, 'arrived', query);
 
@@ -775,7 +780,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>\nКурьер у вас, встречайте заказ.`,
                     { dedupKey: `stop-arrived:${stopId}` });
             }
-        } catch (e) { console.error('[DELIVER] notify error:', e.message); }
+        } catch (e) { console.error('[DELIVER] notify error:', errorCode(e)); }
     }
 
     else if (action === 'done') {
@@ -784,7 +789,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         const finalButtons = [[{ text: 'Доставлено', callback_data: 'noop' }]];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, { chat_id: chatId, message_id: msgId });
-        } catch (e) { console.error('[DELIVER] edit error:', e.message); }
+        } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' }).catch(() => {});
 
         // Обновляем статусы в БД
@@ -808,10 +813,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 await db.updateRouteStatus(routeId, allDone ? 'completed' : route.status, newCompleted, route.failed || 0);
                 console.log(`[DELIVER] Route ${escapeHtml(route.route_number)} -> ${allDone ? 'completed' : route.status}`);
             }
-        } catch (e) { console.error('[DELIVER] db update error:', e.message, e.stack); }
+        } catch (e) { console.error('[DELIVER] db update error:', errorCode(e)); }
 
         await notifyAdminStep(routeId, stopId, 'done', query);
-        routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', e.message));
+        routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', errorCode(e)));
 
         // Уведомляем клиента + рейтинг
         try {
@@ -833,7 +838,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                     }, 3000);
                 }
             }
-        } catch (e) { console.error('[DELIVER] client notify error:', e.message); }
+        } catch (e) { console.error('[DELIVER] client notify error:', errorCode(e)); }
     }
 }
 
@@ -924,7 +929,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
     const newStatus = allDone ? 'completed' : (route.status === 'assigned' ? 'in_progress' : route.status);
 
     await db.updateRouteStatus(routeId, newStatus, newCompleted, newFailed);
-    routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', e.message));
+    routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', errorCode(e)));
 
     const statusText = status === 'delivered' ? 'Доставлено' : 'Не доставлено';
     if (callbackQueryId) {
@@ -1012,7 +1017,7 @@ async function setupCourierBotCommands() {
         ]);
         console.log('[OK] Команды курьер-бота установлены');
     } catch (e) {
-        console.error('[ОШИБКА] Настройка команд курьер-бота:', e.message);
+        console.error('[ОШИБКА] Настройка команд курьер-бота:', errorCode(e));
     }
 }
 
@@ -1039,7 +1044,7 @@ function registerCourierRoutes(app) {
         bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET }).then(() => {
             console.log(`[OK] Courier webhook set: ${webhookUrl}`);
         }).catch(e => {
-            console.error('[ОШИБКА] Courier webhook:', e.message);
+            console.error('[ОШИБКА] Courier webhook:', errorCode(e));
         });
     }
 
@@ -1434,7 +1439,7 @@ function registerCourierRoutes(app) {
                         }));
                     }
                 } catch (e) {
-                    console.warn('[ПРЕДУПРЕЖДЕНИЕ] Не удалось загрузить catalog.json:', e.message);
+                    console.warn('[ПРЕДУПРЕЖДЕНИЕ] Не удалось загрузить catalog.json:', errorCode(e));
                 }
             }
             res.json(catalog);
