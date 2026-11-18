@@ -300,6 +300,27 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            // Сначала читаем ссылку на заказ без блокировки, затем блокируем заказ и остановку
+            // в том же порядке, что и отмена заказа (orders -> route_stops), чтобы не создавать deadlock.
+            const candidateRes = await client.query('SELECT * FROM route_stops WHERE id = $1', [id]);
+            if (!candidateRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+            const candidate = candidateRes.rows[0];
+
+            let order = null;
+            if (candidate.order_id || candidate.order_number) {
+                const orderRes = await client.query(
+                    `SELECT * FROM orders
+                      WHERE (NULLIF($1::text, '') IS NOT NULL AND id::text = NULLIF($1::text, ''))
+                         OR (NULLIF($2::text, '') IS NOT NULL AND order_number = NULLIF($2::text, ''))
+                      ORDER BY CASE WHEN id::text = NULLIF($1::text, '') THEN 0 ELSE 1 END
+                      LIMIT 1 FOR UPDATE`,
+                    [candidate.order_id == null ? '' : String(candidate.order_id), candidate.order_number || '']);
+                order = orderRes.rows[0] || null;
+            }
+
             const stopRes = await client.query(
                 'SELECT * FROM route_stops WHERE id = $1 FOR UPDATE', [id]);
             if (!stopRes.rowCount) {
@@ -310,18 +331,6 @@ class DBAdapter {
             if (stop.status === 'cancelled') {
                 await client.query('ROLLBACK');
                 return { status: 'cancelled' };
-            }
-
-            let order = null;
-            if (stop.order_id || stop.order_number) {
-                const orderRes = await client.query(
-                    `SELECT * FROM orders
-                      WHERE (NULLIF($1::text, '') IS NOT NULL AND id::text = NULLIF($1::text, ''))
-                         OR (NULLIF($2::text, '') IS NOT NULL AND order_number = NULLIF($2::text, ''))
-                      ORDER BY CASE WHEN id::text = NULLIF($1::text, '') THEN 0 ELSE 1 END
-                      LIMIT 1 FOR UPDATE`,
-                    [stop.order_id == null ? '' : String(stop.order_id), stop.order_number || '']);
-                order = orderRes.rows[0] || null;
             }
 
             if (order?.status === 'CANCELLED') {
