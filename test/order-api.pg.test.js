@@ -27,7 +27,7 @@ test('заказ через API: сообщения клиенту и админ
     const token = '1:apitest';
     const child = spawn(process.execPath, ['-r', path.join(__dirname, 'fake-telegram-preload.js'), path.join(__dirname, '..', 'bot', 'bot.js')], {
         env: { ...process.env, PORT: String(port), DATABASE_URL: DB, BOT_TOKEN: token, WEB_APP_URL: 'https://x.y', WEBHOOK_URL: 'https://x.y',
-               WEBHOOK_SECRET: 's'.repeat(32), ADMIN_CHAT_ID: '4242', OUTBOX_DISABLED: '1', NODE_ENV: 'test', REQUIRE_INIT_DATA: 'true' },
+               WEBHOOK_SECRET: 's'.repeat(32), ADMIN_CHAT_ID: '4242', OUTBOX_DISABLED: '1', NODE_ENV: 'test' },
         stdio: ['ignore', 'pipe', 'pipe']
     });
     let log = ''; child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d);
@@ -51,6 +51,16 @@ test('заказ через API: сообщения клиенту и админ
         body: JSON.stringify({ items: [{ productId: pid, qty: 1 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5' })
     });
     assert.equal(missingAuth.status, 401, 'заказ без Telegram initData отклоняется');
+
+    const invalidAuth = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': 'user=%7B%22id%22%3A777005%7D&auth_date=1&hash=invalid' },
+        body: JSON.stringify({ items: [{ productId: pid, qty: 1 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5' })
+    });
+    assert.equal(invalidAuth.status, 401, 'заказ с неподписанными данными отклоняется');
+
+    const bulkDelete = await fetch(`http://127.0.0.1:${port}/api/orders`, { method: 'DELETE' });
+    assert.equal(bulkDelete.status, 404, 'массовое удаление заказов через публичный API отключено');
 
     const res = await fetch(endpoint, {
         method: 'POST',
