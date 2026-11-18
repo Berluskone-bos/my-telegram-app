@@ -545,7 +545,7 @@ bot.on('callback_query', async (query) => {
  try {
     const chatId = query.message.chat.id;
     const data = query.data;
-    console.log(`[CALLBACK] Received: data=${data}, chatId=${chatId}, from=${query.from?.id}`);
+    console.log('[CALLBACK] Получено действие курьера');
 
     // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
     const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_'];
@@ -558,7 +558,7 @@ bot.on('callback_query', async (query) => {
         const owns = me && me.is_active && rt && String(rt.courier_id) === String(me.id)
             && (sId === null || (rt.stops || []).some(s => s.id === sId));
         if (!owns) {
-            console.warn(`[SECURITY] Курьер ${query.from.id} без прав на маршрут ${rId}/остановку ${sId}`);
+            console.warn('[SECURITY] Отклонено действие без прав на маршрут');
             bot.answerCallbackQuery(query.id, { text: 'Нет доступа к этому маршруту' }).catch(() => {});
             return;
         }
@@ -667,8 +667,8 @@ bot.on('callback_query', async (query) => {
         return;
     }
  } catch (e) {
-    console.error('[ОШИБКА] Callback query:', e.message, e.stack);
-    try { bot.answerCallbackQuery(query.id, { text: `Ошибка: ${e.message}` }); } catch (_) {}
+    console.error('[ОШИБКА] Callback query:', e && (e.code || e.name) || 'unknown');
+    try { bot.answerCallbackQuery(query.id, { text: 'Не удалось обработать действие' }); } catch (_) {}
  }
 });
 } // end if (bot) callback_query
@@ -1030,7 +1030,7 @@ function registerCourierRoutes(app) {
         const webhookUrl = (process.env.WEBHOOK_URL || 'https://gulf-bot-production.up.railway.app').replace(/\/+$/, '') + webhookPath;  // WEBHOOK_URL — это база без пути
         
         app.post(webhookPath, verifyWebhookSecret, (req, res) => {
-            console.log('[COURIER WEBHOOK] Received update:', JSON.stringify(req.body).substring(0, 200));
+            // Содержимое Telegram update может включать личные данные — не пишем его в логи.
             bot.processUpdate(req.body);
             res.sendStatus(200);
         });
@@ -1087,7 +1087,7 @@ function registerCourierRoutes(app) {
                         try {
                             const geo = await geocoder.geocode(processed.address);
                             if (geo) { processed.lat = geo.lat; processed.lon = geo.lon; }
-                        } catch (e) { console.log(`Геокодирование не удалось: ${e.message}`); }
+                        } catch (e) { console.log('Геокодирование адреса не удалось'); }
                     }
                     if (processed.lat && processed.lon) {
                         processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
@@ -1288,14 +1288,6 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    // Удалить все заказы
-    app.delete('/api/orders', verifyAdmin, async (req, res) => {
-        try {
-            await db.deleteAllOrders();
-            res.json({ success: true });
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
-    });
-
     // Назначить курьера на заказ
     app.post('/api/orders/:id/assign', verifyAdmin, async (req, res) => {
         try {
@@ -1327,12 +1319,12 @@ function registerCourierRoutes(app) {
                     if (geo) {
                         lat = geo.lat;
                         lon = geo.lon;
-                        console.log(`[ГЕОКОДЕР] ${escapeHtml(order.address)} -> ${lat}, ${lon}`);
+                        console.log('[ГЕОКОДЕР] Координаты адреса получены');
                     } else {
-                        console.log(`[ГЕОКОДЕР] Адрес не найден: ${escapeHtml(order.address)}`);
+                        console.log('[ГЕОКОДЕР] Адрес не найден');
                     }
                 } catch (e) {
-                    console.error(`[ГЕОКОДЕР] Ошибка: ${e.message}`);
+                    console.error('[ГЕОКОДЕР] Ошибка запроса');
                 }
             } else {
                 console.log(`[ГЕОКОДЕР] Пропущен: address=${!!order.address}, key=${!!YANDEX_GEO_KEY}`);
@@ -1386,7 +1378,7 @@ function registerCourierRoutes(app) {
                         { text: 'Яндекс Карты', url: yandexUrl },
                         { text: '2GIS', url: gis2Url }
                     ]);
-                    console.log(`[MAP LINKS] Yandex: ${yandexUrl}`);
+                    console.log('[MAP LINKS] Ссылка навигации сформирована');
                 }
                 navButtons.push([
                     { text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }
