@@ -7,8 +7,18 @@ const pool = new Pool({
         ? { rejectUnauthorized: process.env.DB_SSL_STRICT === 'false' ? false : process.env.DATABASE_URL.includes('neon') }
         : false,
     max: 10,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000
+    idleTimeoutMillis: 30_000,        // простаивающее соединение закрываем до того, как его оборвёт сеть/прокси
+    connectionTimeoutMillis: 5_000,   // не ждём подключения дольше 5 с: лучше быстрый отказ и повтор, чем зависший заказ
+    keepAlive: true,                  // TCP keep-alive: обрыв «тихого» соединения обнаруживается быстро
+    keepAliveInitialDelayMillis: 10_000,
+    application_name: process.env.PG_APP_NAME || 'gulf-bot'   // видно в pg_stat_activity, помогает при разборе обрывов
+});
+
+// Пока соединение выдано из пула, пул не слушает его события. Обрыв связи (перезапуск базы, сеть)
+// приходит тогда событием 'error' на самом соединении, и без обработчика Node завершает процесс.
+// Постоянный обработчик на каждое соединение: обрыв превращается в обычную ошибку запроса, которую ловят вызывающие.
+pool.on('connect', (client) => {
+    client.on('error', (err) => console.warn('[pg] соединение оборвано:', err.message));
 });
 
 // Критично: без этого падение idle-клиента эмитит 'error' на пуле,
