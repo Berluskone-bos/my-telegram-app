@@ -29,6 +29,11 @@ const ADMIN_API_KEY   = process.env.ADMIN_API_KEY;
 const STATIC_DIR      = process.env.STATIC_DIR || path.join(__dirname, '..', 'public');
 const TRUST_CLIENT_PRICES = process.env.TRUST_CLIENT_PRICES === 'true';
 const INIT_DATA_TTL_SEC  = Number(process.env.INIT_DATA_TTL_SEC || 3600);
+
+if (TRUST_CLIENT_PRICES && process.env.NODE_ENV === 'production') {
+    console.error('[SECURITY] TRUST_CLIENT_PRICES запрещён в production: цены должны проверяться по базе данных.');
+    process.exit(1);
+}
 const TZ = 'Europe/Moscow';
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || [
