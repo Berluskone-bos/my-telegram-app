@@ -133,7 +133,7 @@ function sanitizeLog(str) {
         .replace(/[\u0000-\u001F\u007F]/g, '?')
         .replace(/\b\d{8,10}:[A-Za-z0-9_-]{35}\b/g, '[REDACTED_TELEGRAM_TOKEN]')
         .replace(/postgres(?:ql)?:\/\/[^@\s]+@/gi, 'postgres://[REDACTED]@')
-        .replace(/\b(?:\+7|8)[\s()\-]*\d{3}[\s()\-]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}\b/g, '[REDACTED_PHONE]')
+        .replace(/(?:\+7|8)[\s()\-]*\d{3}[\s()\-]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}/g, '[REDACTED_PHONE]')
         .slice(0, 500);
 }
 
