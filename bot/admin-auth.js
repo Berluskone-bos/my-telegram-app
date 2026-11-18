@@ -61,6 +61,10 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
     function noteFail(ip) {
         const now = Date.now();
         let f = fails.get(ip);
+        if (!f && fails.size >= 10_000) {
+            const oldestIp = fails.keys().next().value;
+            if (oldestIp !== undefined) fails.delete(oldestIp);
+        }
         if (!f || now - f.first > blockMs) f = { n: 0, first: now, until: 0 };
         f.n++;
         if (f.n >= maxFails) f.until = now + blockMs;
