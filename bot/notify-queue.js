@@ -32,7 +32,7 @@ function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = n
     if (buttons) payload.reply_markup = { inline_keyboard: buttons };
     const q = instance();
     return q.enqueue({ bot, payload, dedupKey, onSent }, db).catch(e => {
-        console.error('[OUTBOX] не поставлено в очередь:', String(e.message).slice(0, 150));
+        console.error('[OUTBOX] не поставлено в очередь:', String(e.code || e.name || 'unknown').slice(0, 40));
         return null;
     });
 }
@@ -58,7 +58,7 @@ function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText
             ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}) },
         widget: { kind, ref, state }, fallback: { method: 'sendMessage', payload: fbPayload }
     }, db).then(() => true).catch(e => {
-        console.error('[OUTBOX] карточка не поставлена в очередь:', String(e.message).slice(0, 150));
+        console.error('[OUTBOX] карточка не поставлена в очередь:', String(e.code || e.name || 'unknown').slice(0, 40));
         return false;
     });
 }
@@ -69,7 +69,7 @@ function editWidget(bot, kind, ref, chatData, { dependsOn = null, db = null } = 
         bot, method: 'editMessageWidgetData', payload: { chat_data: chatData },
         editRef: `${kind}:${ref}`, dependsOn
     }, db).catch(e => {
-        console.error('[OUTBOX] изменение карточки не поставлено в очередь:', String(e.message).slice(0, 150));
+        console.error('[OUTBOX] изменение карточки не поставлено в очередь:', String(e.code || e.name || 'unknown').slice(0, 40));
         return null;
     });
 }
