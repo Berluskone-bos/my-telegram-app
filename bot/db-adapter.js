@@ -291,6 +291,129 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Завершение доставки — одна транзакция: блокировка остановки/заказа,
+    // перевод заказа в COMPLETED, обновление маршрута и постановка уведомления в outbox.
+    // Повторный callback получает already и не создаёт второе уведомление.
+    async completeDeliveryStop(stopId) {
+        const id = Number(stopId);
+        if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Сначала читаем ссылку на заказ без блокировки, затем блокируем заказ и остановку
+            // в том же порядке, что и отмена заказа (orders -> route_stops), чтобы не создавать deadlock.
+            const candidateRes = await client.query('SELECT * FROM route_stops WHERE id = $1', [id]);
+            if (!candidateRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+            const candidate = candidateRes.rows[0];
+
+            let order = null;
+            if (candidate.order_id || candidate.order_number) {
+                const orderRes = await client.query(
+                    `SELECT * FROM orders
+                      WHERE (NULLIF($1::text, '') IS NOT NULL AND id::text = NULLIF($1::text, ''))
+                         OR (NULLIF($2::text, '') IS NOT NULL AND order_number = NULLIF($2::text, ''))
+                      ORDER BY CASE WHEN id::text = NULLIF($1::text, '') THEN 0 ELSE 1 END
+                      LIMIT 1 FOR UPDATE`,
+                    [candidate.order_id == null ? '' : String(candidate.order_id), candidate.order_number || '']);
+                order = orderRes.rows[0] || null;
+            }
+
+            const stopRes = await client.query(
+                'SELECT * FROM route_stops WHERE id = $1 FOR UPDATE', [id]);
+            if (!stopRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+            const stop = stopRes.rows[0];
+            if (stop.status === 'cancelled') {
+                await client.query('ROLLBACK');
+                return { status: 'cancelled' };
+            }
+
+            if (order?.status === 'CANCELLED') {
+                await client.query('ROLLBACK');
+                return { status: 'cancelled' };
+            }
+            if (order && order.status !== 'COMPLETED') {
+                if (!orderTransitionAllowed(order.status, 'COMPLETED')) {
+                    await client.query('ROLLBACK');
+                    return { status: 'forbidden' };
+                }
+                await client.query(
+                    "UPDATE orders SET status = 'COMPLETED', stock_deducted = false WHERE id = $1",
+                    [order.id]);
+                await this._grantReferralBonus(client, order);
+            }
+
+            if (stop.status === 'delivered') {
+                await this._refreshRouteCompletion(client, stop.route_id);
+                await client.query('COMMIT');
+                return { status: 'already', stop, orderId: order?.id || null };
+            }
+            if (!['pending', 'in_progress'].includes(stop.status)) {
+                await client.query('ROLLBACK');
+                return { status: 'forbidden' };
+            }
+
+            const updated = await client.query(
+                `UPDATE route_stops
+                    SET status = 'delivered',
+                        fail_reason = NULL,
+                        delivered_at = COALESCE(delivered_at, NOW())
+                  WHERE id = $1
+                  RETURNING *`, [id]);
+
+            await this._refreshRouteCompletion(client, stop.route_id);
+
+            if (stop.client_chat_id) {
+                const orderNumber = stop.order_number || order?.order_number || String(order?.id || id);
+                await enqueueNotice(client, {
+                    bot: 'client',
+                    dedupKey: `stop-delivered:${id}`,
+                    payload: {
+                        chat_id: String(stop.client_chat_id),
+                        text: `Заказ ${orderNumber}\\n\\nСтатус: Доставлен\\n\\nСпасибо за покупку!`
+                    }
+                });
+            }
+
+            await client.query('COMMIT');
+            return { status: 'completed', stop: updated.rows[0], orderId: order?.id || null };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
+    }
+
+    async _refreshRouteCompletion(client, routeId) {
+        const id = Number(routeId);
+        if (!Number.isInteger(id) || id <= 0) return;
+        // Блокировка маршрута сериализует обновления разных остановок одного маршрута.
+        await client.query('SELECT id FROM delivery_routes WHERE id = $1 FOR UPDATE', [id]);
+        const r = await client.query(
+            `SELECT
+                 COUNT(*) FILTER (WHERE status = 'delivered')::int AS completed,
+                 COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+                 COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress'))::int AS remaining
+               FROM route_stops WHERE route_id = $1`, [id]);
+        const stats = r.rows[0];
+        const status = Number(stats.remaining) === 0 ? 'completed' : 'in_progress';
+        await client.query(
+            `UPDATE delivery_routes
+                SET status = $1::varchar(32),
+                    completed = $2,
+                    failed = $3,
+                    started_at = CASE WHEN $1::varchar(32) = 'in_progress' THEN COALESCE(started_at, NOW()) ELSE started_at END,
+                    completed_at = CASE WHEN $1::varchar(32) = 'completed' THEN COALESCE(completed_at, NOW()) ELSE completed_at END
+              WHERE id = $4`,
+            [status, stats.completed, stats.failed, id]);
+    }
+
     // Расчётное время приезда на точку; told = true — это время только что сообщили клиенту
     async setStopEta(stopId, etaAt, told = false) {
         const id = Number(stopId);

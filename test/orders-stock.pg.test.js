@@ -63,7 +63,41 @@ test('склад: отмена и удаление заказов возвращ
 
     await mk(1, 'k5');
     assert.equal(await stock(), 4);
+    // Два последовательных callback «Доставлено»: один переход, одно уведомление, без нового списания.
+    const deliveredOrder = await mk(1, 'k6');
+    const routeId = (await pool.query(
+        "INSERT INTO delivery_routes(route_number, route_date, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, 'in_progress', 1) RETURNING id"
+    )).rows[0].id;
+    const stopId = (await pool.query(
+        `INSERT INTO route_stops(route_id, order_id, order_number, stop_number, address, status, client_chat_id)
+         VALUES ($1, $2, $3, 1, 'Test address', 'in_progress', 987654321) RETURNING id`,
+        [routeId, String(deliveredOrder.id), deliveredOrder.order_number]
+    )).rows[0].id;
+
+    const firstDone = await db.completeDeliveryStop(stopId);
+    const secondDone = await db.completeDeliveryStop(stopId);
+    assert.equal(firstDone.status, 'completed', 'первое нажатие завершает доставку');
+    assert.equal(secondDone.status, 'already', 'повторное нажатие распознаётся как повтор');
+    assert.equal(await stock(), 3, 'после двух done товар не списан повторно');
+    const deliveredState = (await pool.query(
+        'SELECT status, stock_deducted FROM orders WHERE id = $1', [deliveredOrder.id]
+    )).rows[0];
+    assert.equal(deliveredState.status, 'COMPLETED');
+    assert.equal(deliveredState.stock_deducted, false);
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [stopId])).rows[0].status, 'delivered');
+    const routeState = (await pool.query(
+        'SELECT status, completed FROM delivery_routes WHERE id = $1', [routeId]
+    )).rows[0];
+    assert.equal(routeState.status, 'completed');
+    assert.equal(routeState.completed, 1);
+    const noticeCount = (await pool.query(
+        'SELECT count(*)::int AS n FROM notification_outbox WHERE dedup_key = $1',
+        [`stop-delivered:${stopId}`]
+    )).rows[0].n;
+    assert.equal(noticeCount, 1, 'клиентское уведомление поставлено в outbox ровно один раз');
+    await pool.query('DELETE FROM notification_outbox WHERE dedup_key = $1', [`stop-delivered:${stopId}`]);
+
     await db.deleteAllOrders();
-    assert.equal(await stock(), 7, 'вернули активные k4 и k5, доставленные k2 и k2b не вернули');
+    assert.equal(await stock(), 6, 'вернули только активные k4 и k5; доставленные k2, k2b и k6 не вернули');
     assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);
 });
