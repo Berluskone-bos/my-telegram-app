@@ -28,7 +28,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             try {
                 const g = await geocoder.geocode(env.WAREHOUSE_ADDRESS);
                 if (g && g.lat && g.lon) return (warehouseCache = { lat: Number(g.lat), lon: Number(g.lon), source: 'address' });
-            } catch (e) { console.error('[ROUTE] Адрес склада не определён:', e.message); }
+            } catch (e) { console.error('[ROUTE] Не удалось определить координаты склада'); }
         }
         return DEFAULT_START;   // не кэшируем: после появления настройки подхватится сама
     }
@@ -68,7 +68,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             let lat = null, lon = null;
             if (geocoder && o.address) {
                 try { const g = await geocoder.geocode(o.address); if (g) { lat = g.lat; lon = g.lon; } }
-                catch (e) { console.error(`[ROUTE] Геокодер: ${e.message}`); }
+                catch (e) { console.error('[ROUTE] Не удалось определить координаты точки доставки'); }
             }
             stops.push({ order: o, id: o.id, lat, lon });
         }
