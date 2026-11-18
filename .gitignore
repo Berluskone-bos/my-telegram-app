@@ -1,9 +1,13 @@
 # Dependencies
 node_modules
 
-# Environment variables (contain secrets!)
+# Environment variables (contain secrets!). Keep only documented examples.
 .env
+.env.*
+!.env.example
 bot/.env
+bot/.env.*
+!bot/.env.example
 
 # OS files
 .DS_Store
