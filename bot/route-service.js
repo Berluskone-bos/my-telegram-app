@@ -169,7 +169,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
     async function refreshEtas({ routeId, firstStopId = null, from = null, notifyNew = true }) {
         const route = await db.getRouteById(routeId);
         if (!route) return null;
-        await queueRouteSheetEdit(poolOf(), routeId, { activeStopId: firstStopId, now: now() }).catch(e => console.error('[ROUTE] карточка маршрута не обновлена:', e.message));
+        await queueRouteSheetEdit(poolOf(), routeId, { activeStopId: firstStopId, now: now() }).catch(e => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
         const t = now();
         let pending = (route.stops || []).filter(s => ACTIVE.includes(s.status)).sort((a, b) => a.stop_number - b.stop_number);
         if (firstStopId) {
