@@ -54,7 +54,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 'INSERT INTO admin_audit (session, ip, action, method, path, status, detail) VALUES ($1,$2,$3,$4,$5,$6,$7)',
                 [sessionId || (req.admin && req.admin.session) || null, String(req.ip || '').slice(0, 64), action,
                  req.method, String(req.path || '').slice(0, 200), status || null, detail ? String(detail).slice(0, 300) : null]);
-        } catch (e) { console.error('[AUDIT] не записано:', String(e.message).slice(0, 120)); }
+        } catch (e) { console.error('[AUDIT] не записано:', String(e.code || e.name || 'unknown').slice(0, 40)); }
     }
 
     const blockedFor = (ip) => { const f = fails.get(ip); return f && f.until && f.until > Date.now() ? f.until - Date.now() : 0; };
@@ -107,7 +107,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             }
             return res.status(401).json({ error: 'Требуется вход', code: 'AUTH_REQUIRED' });
         } catch (e) {
-            console.error('[ADMIN AUTH]', String(e.message).slice(0, 150));
+            console.error('[ADMIN AUTH]', String(e.code || e.name || 'unknown').slice(0, 40));
             return res.status(500).json({ error: 'Internal error' });
         }
     }
@@ -117,7 +117,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             await pool.query('DELETE FROM admin_sessions WHERE expires_at < NOW() OR last_seen < NOW() - INTERVAL \'1 day\'');
             await pool.query('DELETE FROM admin_audit WHERE at < NOW() - INTERVAL \'365 days\'');
             await pool.query('DELETE FROM api_request_log WHERE created_at < NOW() - INTERVAL \'30 days\'').catch(() => {});
-        } catch (e) { console.error('[ADMIN AUTH] очистка:', String(e.message).slice(0, 120)); }
+        } catch (e) { console.error('[ADMIN AUTH] очистка:', String(e.code || e.name || 'unknown').slice(0, 40)); }
     }
 
     function registerRoutes(app) {
