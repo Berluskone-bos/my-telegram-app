@@ -53,8 +53,18 @@ const _pubBuckets = new Map();
 function publicLimiter(req, res, next) {
     const ip = req.ip || req.socket?.remoteAddress || 'unknown', now = Date.now();
     let b = _pubBuckets.get(ip);
-    if (!b || now > b.resetAt) { b = { count: 0, resetAt: now + 60_000 }; _pubBuckets.set(ip, b); }
-    if (++b.count > 30) return res.status(429).json({ error: 'Too many requests' });
+    if (!b || now > b.resetAt) {
+        if (!b && _pubBuckets.size >= 10_000) {
+            const oldestIp = _pubBuckets.keys().next().value;
+            if (oldestIp !== undefined) _pubBuckets.delete(oldestIp);
+        }
+        b = { count: 0, resetAt: now + 60_000 };
+        _pubBuckets.set(ip, b);
+    }
+    if (++b.count > 30) {
+        res.set('Retry-After', String(Math.max(1, Math.ceil((b.resetAt - now) / 1000))));
+        return res.status(429).json({ error: 'Too many requests' });
+    }
     next();
 }
 setInterval(() => { const n = Date.now(); for (const [k, v] of _pubBuckets) if (n > v.resetAt) _pubBuckets.delete(k); }, 60_000).unref();
