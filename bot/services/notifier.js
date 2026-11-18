@@ -63,7 +63,7 @@ class Notifier {
         const payload = { chat_id: chatId, text: text, parse_mode: 'HTML' };
         if (buttons) payload.reply_markup = { inline_keyboard: buttons };
         return this._call(botBase, 'sendMessage', payload).catch(e => {
-            console.error(`[NOTIFIER] Ошибка отправки chat_id=${chatId}: ${String(e.message).slice(0, 120)}`);
+            console.error('[NOTIFIER] Ошибка отправки сообщения');
             throw e;
         });
     }
@@ -83,7 +83,7 @@ class Notifier {
         text += `Статус: <b>${statusText}</b>\n`;
         if (details) text += `${escapeHtml(details)}\n`;
 
-        console.log(`[NOTIFIER] Отправка клиенту ${chatId}: ${escapeHtml(orderNumber)} -> ${statusText}`);
+        console.log(`[NOTIFIER] Уведомление по заказу ${escapeHtml(orderNumber)}: ${statusText}`);
         return this._send(this.clientBotBase, chatId, text);
     }
 
