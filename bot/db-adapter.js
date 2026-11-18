@@ -405,11 +405,11 @@ class DBAdapter {
         const status = Number(stats.remaining) === 0 ? 'completed' : 'in_progress';
         await client.query(
             `UPDATE delivery_routes
-                SET status = $1,
+                SET status = $1::varchar(32),
                     completed = $2,
                     failed = $3,
-                    started_at = CASE WHEN $1 = 'in_progress' THEN COALESCE(started_at, NOW()) ELSE started_at END,
-                    completed_at = CASE WHEN $1 = 'completed' THEN COALESCE(completed_at, NOW()) ELSE completed_at END
+                    started_at = CASE WHEN $1::varchar(32) = 'in_progress' THEN COALESCE(started_at, NOW()) ELSE started_at END,
+                    completed_at = CASE WHEN $1::varchar(32) = 'completed' THEN COALESCE(completed_at, NOW()) ELSE completed_at END
               WHERE id = $4`,
             [status, stats.completed, stats.failed, id]);
     }
