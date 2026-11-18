@@ -27,7 +27,6 @@ const WEBHOOK_PATH    = '/webhook/main';
 const WEBHOOK_SECRET  = process.env.WEBHOOK_SECRET;
 const ADMIN_API_KEY   = process.env.ADMIN_API_KEY;
 const STATIC_DIR      = process.env.STATIC_DIR || path.join(__dirname, '..', 'public');
-const REQUIRE_INIT_DATA = process.env.REQUIRE_INIT_DATA !== 'false';
 const TRUST_CLIENT_PRICES = process.env.TRUST_CLIENT_PRICES === 'true';
 const INIT_DATA_TTL_SEC  = Number(process.env.INIT_DATA_TTL_SEC || 3600);
 const TZ = 'Europe/Moscow';
@@ -125,7 +124,12 @@ function escapeHtml(str) {
 
 function sanitizeLog(str) {
     if (str === null || str === undefined) return '';
-    return String(str).replace(/[\u0000-\u001F\u007F]/g, '?').slice(0, 500);
+    return String(str)
+        .replace(/[\u0000-\u001F\u007F]/g, '?')
+        .replace(/\b\d{8,10}:[A-Za-z0-9_-]{35}\b/g, '[REDACTED_TELEGRAM_TOKEN]')
+        .replace(/postgres(?:ql)?:\/\/[^@\s]+@/gi, 'postgres://[REDACTED]@')
+        .replace(/\b(?:\+7|8)[\s()\-]*\d{3}[\s()\-]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}\b/g, '[REDACTED_PHONE]')
+        .slice(0, 500);
 }
 
 function safeEq(a, b) {
@@ -172,11 +176,17 @@ function rateLimit(max, windowMs) {
         const now = Date.now();
         let bucket = rateBuckets.get(ip);
         if (!bucket || now > bucket.resetAt) {
+            // Ограничиваем размер Map, чтобы запросы с большого числа IP не раздували память процесса.
+            if (!bucket && rateBuckets.size >= 10_000) {
+                const oldestIp = rateBuckets.keys().next().value;
+                if (oldestIp !== undefined) rateBuckets.delete(oldestIp);
+            }
             bucket = { count: 0, resetAt: now + windowMs };
             rateBuckets.set(ip, bucket);
         }
         bucket.count++;
         if (bucket.count > max) {
+            res.set('Retry-After', String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
             return res.status(429).json({ success: false, error: 'Too many requests' });
         }
         next();
@@ -900,8 +910,9 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         const initData = req.header('X-Telegram-Init-Data');
         const auth = verifyInitData(initData, token);
 
-        if (REQUIRE_INIT_DATA && !auth) {
-            console.warn('[API /order] 401: невалидный initData');
+        // Заказ разрешён только с действительной подписью Telegram. Обход через env-флаг запрещён.
+        if (!auth || !auth.user || !auth.user.id) {
+            console.warn('[API /order] 401: отсутствует или невалиден initData');
             return res.status(401).json({ success: false, error: 'Unauthorized' });
         }
 
@@ -918,12 +929,9 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid order: ' + v.error });
         }
 
-        if (auth && auth.user) {
-            v.data.userId = auth.user.id;
-            if (!v.data.userName) {
-                v.data.userName = [auth.user.first_name, auth.user.last_name].filter(Boolean).join(' ');
-            }
-        }
+        // Идентификатор и имя клиента берём только из подписанных Telegram initData.
+        v.data.userId = auth.user.id;
+        v.data.userName = telegramName(auth.user);
 
         // Идемпотентность: тот же заказ от того же клиента в течение 60 с (двойной тап, повтор после сбоя сети)
         const dedupKey = require('crypto').createHash('sha256')
@@ -1084,7 +1092,7 @@ db.init().then(async () => {
         console.log('═══════════════════════════════════════════');
         console.log('  БОТ ГОТОВ');
         console.log('═══════════════════════════════════════════');
-        console.log('  initData: ' + (REQUIRE_INIT_DATA ? `обязателен (TTL ${INIT_DATA_TTL_SEC}s)` : 'не проверяется'));
+        console.log('  initData: обязателен (TTL ' + INIT_DATA_TTL_SEC + 's)');
         console.log('  Цены: ' + (TRUST_CLIENT_PRICES ? 'от клиента (!)' : 'из БД'));
         console.log('  Rate-limit /api/order: 20/min');
         console.log('  Дедуп update_id: 10 мин');
