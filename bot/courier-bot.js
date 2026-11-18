@@ -72,10 +72,11 @@ if (COURIER_BOT_TOKEN) {
 // Админ-бот для обработки кнопок
 let adminBot;
 if (process.env.ADMIN_BOT_TOKEN) {
-    adminBot = new TelegramBot(process.env.ADMIN_BOT_TOKEN, { polling: true });
-    adminBot.on('polling_error', (e) => {
-        if (e.code !== 'ETELEGRAM') console.error('[ADMIN BOT] Polling error:', e.message);
-    });
+    // polling:false — опрос запускает poll-guard под замком в базе (только один экземпляр на всю базу, см. bot/poll-guard.js).
+    // Тайм-аут запроса: «тихо» умершее соединение закончится ошибкой, а не зависанием. family:4 — Railway не выпускает IPv6,
+    // без этого Node перебирает адреса и при сбое выдаёт непонятный AggregateError.
+    adminBot = new TelegramBot(process.env.ADMIN_BOT_TOKEN, { polling: false, request: { timeout: 30_000, family: 4 } });
+    adminBot.on('polling_error', () => { /* ошибки опроса пишет poll-guard (раз в минуту, с причиной и записью о восстановлении) */ });
     adminBot.on('callback_query', async (query) => {
         const data = query.data;
         // Только владелец админ-чата может подтверждать курьеров и отменять заказы
@@ -147,6 +148,14 @@ function summarySvc() {
     return _summary;
 }
 if (adminBot && ADMIN_CHAT_ID) summarySvc();      // после перезапуска карточка продолжает обновляться
+
+// Опрос Telegram админ-ботом (кнопки «Отменить», «Активировать курьера», команда /summary). ADMIN_POLLING=off — не опрашивать (тесты, второй сервис).
+let adminPolling = null;
+if (adminBot && process.env.ADMIN_POLLING !== 'off') {
+    adminPolling = require('./poll-guard').startGuardedPolling(adminBot, { name: 'ADMIN BOT', pool: require('./db').pool });
+}
+const getAdminPollingStatus = () => adminPolling ? adminPolling.status() : { name: 'ADMIN BOT', enabled: false };
+const stopAdminPolling = () => adminPolling ? adminPolling.stop() : Promise.resolve();
 
 // ====== Утилиты ======
 
@@ -1038,6 +1047,30 @@ function registerCourierRoutes(app) {
         res.json({ status: 'ok', bots: ['AutoPromoilBot', 'APCourier_Bot'], timestamp: new Date().toISOString() });
     });
 
+    // Состояние системы для владельца (вкладка «Журнал» в админке): связь с базой, очередь уведомлений админ-чату, опрос админ-бота.
+    app.get('/api/admin/system-status', verifyAdmin, async (req, res) => {
+        const out = { time: new Date().toISOString(), uptimeSec: Math.round(process.uptime()), db: { ok: false }, outbox: {}, adminPolling: getAdminPollingStatus() };
+        try {
+            const pool = require('./db').pool;
+            const t0 = Date.now();
+            await pool.query('SELECT 1');
+            out.db = { ok: true, pingMs: Date.now() - t0, pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount } };
+            const r = await pool.query(`SELECT status, COUNT(*)::int AS c FROM notification_outbox WHERE created_at > NOW() - INTERVAL '7 days' GROUP BY status`);
+            out.outbox = Object.fromEntries(r.rows.map(x => [x.status, x.c]));
+            const old = await pool.query(`SELECT COALESCE(EXTRACT(EPOCH FROM NOW() - MIN(created_at)), 0)::int AS age FROM notification_outbox WHERE status IN ('pending','sending')`);
+            out.outbox.oldestPendingSec = old.rows[0].age;
+            const lastAdmin = await pool.query(`SELECT sent_at, last_error FROM notification_outbox WHERE bot = 'admin' AND status = 'sent' ORDER BY sent_at DESC LIMIT 1`);
+            out.lastAdminNotificationAt = lastAdmin.rows[0] ? lastAdmin.rows[0].sent_at : null;
+            const fail = await pool.query(`SELECT created_at, last_error FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 1`);
+            out.lastFailed = fail.rows[0] ? { at: fail.rows[0].created_at, error: String(fail.rows[0].last_error || '').slice(0, 200) } : null;
+            const w = require('./widgets').widgetsPausedUntil();
+            out.widgetsPausedUntil = w > Date.now() ? new Date(w).toISOString() : null;
+        } catch (e) {
+            out.db = { ok: false, error: String(e.message).slice(0, 160) };
+        }
+        res.json(out);
+    });
+
     app.get('/api/couriers', verifyAdmin, async (req, res) => {
         try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
     });
@@ -1436,6 +1469,6 @@ function registerCourierRoutes(app) {
 }
 }
 
-module.exports = { registerCourierRoutes, verifyAdmin };
+module.exports = { registerCourierRoutes, verifyAdmin, getAdminPollingStatus, stopAdminPolling };
 
 console.log('APCourier_Bot module loaded');

@@ -613,9 +613,11 @@ async function saveOrderToDb(orderId, order) {
             payment_status: 'PENDING',
             buildNotifications: (row) => buildOrderNotifications(orderId, order, row)
         });
+        if (result && result.duplicate) return { duplicate: result.order_number, total: Number(result.total) };
         return result ? result.id : null;
     } catch (e) {
         console.error('[saveOrderToDb]', sanitizeLog(e.message));
+        if (e.transient || (db.isTransientDbError && db.isTransientDbError(e))) return 'DB_UNAVAILABLE';
         if (e.code === 'PROMO_EXHAUSTED') return 'PROMO_EXHAUSTED';
         if (e.code === 'OUT_OF_STOCK') return { outOfStock: e.product || '' };
         if (e.code === 'BONUS_INSUFFICIENT') return 'BONUS_INSUFFICIENT';
@@ -719,7 +721,7 @@ async function handleNewOrder(chatId, order) {
     const orderId = generateOrderId();
     const dbOrderId = await saveOrderToDb(orderId, order);
 
-    if (dbOrderId === null || typeof dbOrderId === 'object' || dbOrderId === 'PROMO_EXHAUSTED') {
+    if (dbOrderId === null || typeof dbOrderId === 'object' || ['PROMO_EXHAUSTED', 'BONUS_INSUFFICIENT', 'DB_UNAVAILABLE'].includes(dbOrderId)) {
         console.error('[handleNewOrder] Не сохранён в БД — клиенту честный отказ');
         await bot.sendMessage(chatId,
             'Не удалось сохранить заказ. Попробуйте ещё раз или свяжитесь с нами.'
@@ -759,8 +761,9 @@ app.use((req, res, next) => {
 if (fs.existsSync(STATIC_DIR)) {
     app.use(express.static(STATIC_DIR, { dotfiles: 'deny', index: false }));
     console.log('[OK] Статика из:', STATIC_DIR);
-} else {
-    console.warn('[ВНИМАНИЕ] STATIC_DIR не найден:', STATIC_DIR);
+} else if (process.env.STATIC_DIR) {
+    // Предупреждаем только если папку задали явно и она не найдена. Интерфейс отдаёт GitHub Pages, сервер статику не раздаёт.
+    console.warn('[ВНИМАНИЕ] STATIC_DIR задан, но не найден:', STATIC_DIR);
 }
 
 // №5 — CORS ДО express.json, чтобы 400/413 дошли до браузера с заголовками
@@ -908,7 +911,8 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         } catch (e) {
             // №14 — validateOrder бросает только при сбое БД, не при плохих данных
             console.error('[API /order] validate (инфраструктура):', sanitizeLog(e.message));
-            return res.status(503).json({ success: false, error: 'Service temporarily unavailable' });
+            res.set('Retry-After', '3');
+            return res.status(503).json({ success: false, error: 'Service temporarily unavailable', retry: true });
         }
         if (!v.ok) {
             return res.status(400).json({ success: false, error: 'Invalid order: ' + v.error });
@@ -938,6 +942,15 @@ app.post('/api/order', rateLimit(20, 60_000), async (req, res) => {
         }
         const orderId = generateOrderId();
         const dbOrderId = await saveOrderToDb(orderId, v.data);
+        if (dbOrderId && dbOrderId.duplicate) {
+            // параллельный повтор того же запроса: заказ уже создан соседним запросом
+            return res.json({ success: true, orderId: dbOrderId.duplicate, duplicate: true, total: dbOrderId.total });
+        }
+        if (dbOrderId === 'DB_UNAVAILABLE') {
+            // база временно недоступна: заказ не записан (или исход неизвестен и нет ключа) — клиент повторит с тем же ключом
+            res.set('Retry-After', '3');
+            return res.status(503).json({ success: false, error: 'db_unavailable', retry: true });
+        }
         if (dbOrderId && dbOrderId.outOfStock !== undefined) {
             return res.status(409).json({ success: false, error: 'out_of_stock', product: dbOrderId.outOfStock });
         }
@@ -1037,13 +1050,26 @@ db.init().then(async () => {
         console.log(`Веб-сервер: http://localhost:${PORT}`);
 
         const webhookUrl = WEBHOOK_BASE.replace(/\/+$/, '') + WEBHOOK_PATH;
-        try {
+        // Сеть до Telegram бывает недоступна секунды: повторяем с паузами (2, 4, 8, 16 с), и только потом просим перезапуск.
+        const setHook = async () => {
             // widget_query нужен для нажатий в карточках. Если Telegram не примет такой список — ставим вебхук как раньше.
             try {
                 await bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET, allowed_updates: JSON.stringify(['message', 'callback_query', 'widget_query']) });
             } catch (e1) {
+                if (/ETELEGRAM/.test(String(e1.code)) === false && !/400|Bad Request/i.test(String(e1.message))) throw e1;
                 console.warn('[ВНИМАНИЕ] webhook с widget_query не принят:', sanitizeLog(e1.message), '— ставлю без списка');
                 await bot.setWebHook(webhookUrl, { secret_token: WEBHOOK_SECRET });
+            }
+        };
+        try {
+            for (let attempt = 1; ; attempt++) {
+                try { await setHook(); break; }
+                catch (e) {
+                    if (attempt >= 5) throw e;
+                    const wait = 2000 * 2 ** (attempt - 1);
+                    console.warn(`[ВНИМАНИЕ] setWebHook не удался (попытка ${attempt}/5): ${sanitizeLog(e.message)} — повтор через ${wait / 1000} с`);
+                    await new Promise(r => setTimeout(r, wait));
+                }
             }
             console.log(`[OK] Webhook установлен: ${webhookUrl}`);
         } catch (e) {
@@ -1096,15 +1122,20 @@ process.on('uncaughtException', (err) => {
 });
 
 let shuttingDown = false;
+// Порядок остановки: перестаём принимать запросы → ждём текущие → останавливаем опрос админ-бота и очередь уведомлений →
+// закрываем соединения с базой (иначе PostgreSQL пишет «unexpected EOF» / «Connection reset by peer» при каждом деплое).
+async function closeResources() {
+    try { require('./notify-queue').instance().stop(); } catch { /* очередь не запускалась */ }
+    try { await require('./courier-bot').stopAdminPolling(); } catch { /* опрос не запускался */ }
+    try { await Promise.race([require('./db').pool.end(), new Promise(r => setTimeout(r, 3000))]); } catch { /* уже закрыт */ }
+}
 function shutdown(code) {
     if (shuttingDown) return;
     shuttingDown = true;
-    if (server) {
-        server.close(() => process.exit(code));
-        setTimeout(() => process.exit(code), 9000).unref();  // Railway drain ~10 с
-    } else {
-        process.exit(code);
-    }
+    setTimeout(() => process.exit(code), 9000).unref();  // Railway drain ~10 с
+    const finish = () => closeResources().finally(() => process.exit(code));
+    if (server) server.close(finish);
+    else finish();
 }
 
 process.on('SIGINT',  () => { console.log('\nSIGINT — остановка');  shutdown(0); });

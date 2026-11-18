@@ -735,6 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="tab-content" id="tab-audit">
         <div class="container">
             <div class="section">
+                <div class="section-header"><div class="section-title">Состояние системы</div></div>
+                <div class="section-body" id="sysStatus" style="padding:14px 18px;line-height:1.7">Загрузка...</div>
+            </div>
+            <div class="section">
                 <div class="section-header"><div class="section-title">Журнал действий администратора (последние 100)</div></div>
                 <div class="section-body">
                     <table>
@@ -1066,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!initial && view === 'delivery') loadDeliveryData();
             if (view === 'analytics') loadAnalytics();
-            if (view === 'audit') loadAudit();
+            if (view === 'audit') { loadAudit(); loadSystemStatus(); }
             applySearch();
             refreshPageSub();
         }
@@ -1098,6 +1102,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // совместимость со старыми вызовами
         function switchTab(name) { go(name === 'shop' ? 'orders' : name); }
+
+        async function loadSystemStatus() {
+            const box = document.getElementById('sysStatus');
+            const ago = (iso) => { if (!iso) return 'ещё не было'; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? 'только что' : m < 90 ? m + ' мин назад' : m < 2880 ? Math.round(m / 60) + ' ч назад' : Math.round(m / 1440) + ' дн назад'; };
+            const row = (ok, name, text) => `<div>${ok ? '✅' : '⚠️'} <b>${esc(name)}:</b> ${esc(text)}</div>`;
+            try {
+                const r = await fetch(`${ADMIN_API}/api/admin/system-status`);
+                if (!r.ok) { box.textContent = 'Не удалось получить состояние'; return; }
+                const s = await r.json(), o = s.outbox || {}, p = s.adminPolling || {};
+                const pend = (o.pending || 0) + (o.sending || 0);
+                let h = row(s.db.ok, 'База данных', s.db.ok ? `отвечает за ${s.db.pingMs} мс` : 'не отвечает ' + (s.db.error || ''));
+                h += row(pend === 0 || o.oldestPendingSec < 300, 'Очередь уведомлений', pend ? `ждут отправки: ${pend}, самое старое — ${o.oldestPendingSec} с` : 'пуста, всё отправлено');
+                h += row(!(o.failed > 0), 'Не доставлено за 7 дней', String(o.failed || 0) + (s.lastFailed ? ' (последнее: ' + s.lastFailed.error + ')' : ''));
+                h += row(true, 'Последнее уведомление в админ-чат', ago(s.lastAdminNotificationAt));
+                h += row(p.enabled === false || (p.holder && p.polling && p.errorsInRow === 0), 'Кнопки админ-бота (опрос Telegram)', p.enabled === false ? 'выключен' : !p.holder ? 'опрос ведёт другой экземпляр' : p.errorsInRow ? `ошибок подряд: ${p.errorsInRow} (${p.lastError || ''})` : `работает, последний успешный запрос ${ago(p.lastOkAt)}`);
+                if (s.widgetsPausedUntil) h += row(false, 'Карточки-виджеты', 'приостановлены до ' + new Date(s.widgetsPausedUntil).toLocaleString('ru-RU') + ' (уведомления идут обычным текстом)');
+                h += `<div style="opacity:.7;font-size:12px">Сервер работает ${Math.round(s.uptimeSec / 60)} мин</div>`;
+                box.innerHTML = h;
+            } catch (e) { box.textContent = 'Сервер недоступен'; }
+        }
 
         async function loadAudit() {
             const body = document.getElementById('auditBody');

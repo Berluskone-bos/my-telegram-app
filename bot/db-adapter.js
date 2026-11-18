@@ -33,6 +33,15 @@ function orderTransitionAllowed(from, to) {
 // Календарный день заказа по Москве (колонка created_at хранится без часового пояса в поясе сервера: в Neon это UTC)
 const MSK_DAY = "(created_at AT TIME ZONE current_setting('TimeZone') AT TIME ZONE 'Europe/Moscow')::date";
 
+// Временные сбои связи с PostgreSQL: перезапуск базы, обрыв сети/SSL, исчерпание соединений
+const TRANSIENT_CODES = new Set(['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN',
+    '57P01', '57P02', '57P03', '53300', '08000', '08001', '08003', '08004', '08006', '08007']);
+function isTransientDbError(e) {
+    if (!e) return false;
+    if (e.code && TRANSIENT_CODES.has(e.code)) return true;
+    return /Connection terminated|timeout exceeded when trying to connect|terminating connection|server closed the connection|SSL error|unexpected eof|ECONNRESET|Connection reset/i.test(String(e.message || ''));
+}
+
 class DBAdapter {
     constructor() {
         this.initialized = false;
@@ -444,8 +453,42 @@ class DBAdapter {
         return res.rows;
     }
 
+    // Заказ одной транзакцией + защита от сбоев связи и двойной отправки.
+    //  • 23505 по ключу операции (параллельный повтор того же запроса) → возвращаем уже созданный заказ, флаг duplicate.
+    //  • Обрыв связи: если до COMMIT — повторяем всю транзакцию заново (ничего не записано).
+    //    Если COMMIT уже отправлен, а ответа нет, исход неизвестен: с ключом повторяем (индекс по ключу не даст дубля),
+    //    без ключа — честно сообщаем, что заказ надо повторить (err.outcomeUnknown).
     async createOrder(order) {
+        const attempts = 3;
+        let lastErr;
+        for (let i = 0; i < attempts; i++) {
+            const state = { commitSent: false };
+            try {
+                return await this._createOrderOnce(order, state);
+            } catch (e) {
+                // 23505 при повторе: сработал индекс по ключу операции или по номеру заказа (повтор после обрыва использует тот же номер)
+                if (e && e.code === '23505' && order.idempotency_key && order.user_id
+                    && /orders_idempotency_key_idx|orders_order_number_key/.test(String(e.constraint || e.message || ''))) {
+                    const same = await pool.query('SELECT * FROM orders WHERE user_id = $1 AND idempotency_key = $2', [order.user_id, order.idempotency_key]);
+                    if (same.rows[0]) return Object.assign({}, same.rows[0], { duplicate: true });
+                }
+                if (!isTransientDbError(e)) throw e;
+                lastErr = e;
+                console.warn(`[db] createOrder: обрыв связи (попытка ${i + 1}/${attempts}${state.commitSent ? ', COMMIT уже отправлен' : ''}):`, String(e.message).slice(0, 120));
+                if (state.commitSent && !order.idempotency_key) { e.outcomeUnknown = true; e.transient = true; throw e; }
+                if (i < attempts - 1) await new Promise(r => setTimeout(r, 300 * (i + 1) ** 2));
+            }
+        }
+        lastErr.transient = true;
+        throw lastErr;
+    }
+
+    async _createOrderOnce(order, state) {
         const client = await pool.connect();
+        // Пока клиент выдан из пула, обрыв связи приходит событием 'error' на нём самом. Без обработчика Node завершает процесс.
+        let broken = null;
+        const onClientError = (err) => { broken = err; console.warn('[db] соединение оборвано во время заказа:', String(err.message).slice(0, 120)); };
+        client.on('error', onClientError);
         try {
             await client.query('BEGIN');
 
@@ -519,13 +562,16 @@ class DBAdapter {
                 await client.query('UPDATE orders SET stock_deducted = true WHERE id = $1', [res.rows[0].id]);
             }
 
+            state.commitSent = true;
             await client.query('COMMIT');
             return res.rows[0];
         } catch (e) {
-            await client.query('ROLLBACK').catch(() => {});
+            if (isTransientDbError(e) || broken) broken = broken || e;
+            else await client.query('ROLLBACK').catch(() => {});
             throw e;
         } finally {
-            client.release();
+            client.removeListener('error', onClientError);
+            client.release(broken ? true : undefined);   // оборванное соединение не возвращаем в пул
         }
     }
 
@@ -1079,3 +1125,4 @@ class DBAdapter {
 }
 
 module.exports = new DBAdapter();
+module.exports.isTransientDbError = isTransientDbError;
