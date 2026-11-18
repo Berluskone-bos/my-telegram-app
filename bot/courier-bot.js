@@ -1071,13 +1071,13 @@ function registerCourierRoutes(app) {
             const w = require('./widgets').widgetsPausedUntil();
             out.widgetsPausedUntil = w > Date.now() ? new Date(w).toISOString() : null;
         } catch (e) {
-            out.db = { ok: false, error: String(e.message).slice(0, 160) };
+            out.db = { ok: false, error: errorCode(e) };
         }
         res.json(out);
     });
 
     app.get('/api/couriers', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.post('/api/routes', verifyAdmin, async (req, res) => {
@@ -1110,7 +1110,7 @@ function registerCourierRoutes(app) {
                 stops: processedStops
             });
             res.json(route);
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.post('/api/routes/:id/assign', verifyAdmin, async (req, res) => {
@@ -1124,8 +1124,8 @@ function registerCourierRoutes(app) {
             bot.sendMessage(courier.telegram_id,
                 `<b>Новый маршрут!</b>\n\nМаршрут: ${escapeHtml(route.route_number)}\nДата: ${escapeHtml(route.route_date)}\nОстановок: ${(route.stops||[]).length}\n\nОтправьте /route для просмотра.`,
                 { parse_mode: 'HTML' }
-            ).then(() => res.json({ success: true })).catch(err => { console.error('[API]', err.message); res.json({ success: false, error: 'Internal error' }); });
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+            ).then(() => res.json({ success: true })).catch(err => { console.error('[API]', errorCode(err)); res.json({ success: false, error: 'Internal error' }); });
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // Собрать маршрут из нескольких заказов: система строит порядок и время, курьер получает маршрутный лист
@@ -1140,22 +1140,22 @@ function registerCourierRoutes(app) {
         } catch (e) {
             const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
             if (status) return res.status(status).json({ error: e.message });
-            console.error('[API /routes/build]', e.message); res.status(500).json({ error: 'Internal error' });
+            console.error('[API /routes/build]', errorCode(e)); res.status(500).json({ error: 'Internal error' });
         }
     });
 
     app.get('/api/routes', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     registerOrderStatsRoutes(app, { db, verifyAdmin });
 
     app.get('/api/orders', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/zones', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/geocode', verifyAdmin, async (req, res) => {
@@ -1164,7 +1164,7 @@ function registerCourierRoutes(app) {
         try {
             const result = await geocoder.geocode(address);
             res.json(result ? { found: true, ...result } : { found: false });
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/map-links', verifyAdmin, (req, res) => {
@@ -1189,18 +1189,18 @@ function registerCourierRoutes(app) {
             const optimized = RouteOptimizer.optimizeRoute(stops, start_lat || 59.9343, start_lon || 30.3351);
             const distance = RouteOptimizer.calcDistance(optimized, start_lat || 59.9343, start_lon || 30.3351);
             res.json({ route_number: route.route_number, stops: optimized, total_distance_km: distance });
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/dispatch/stats', verifyAdmin, async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
             res.json(await db.getDayStats(date));
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/dispatch/unassigned-orders', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/analytics', verifyAdmin, async (req, res) => {
@@ -1208,7 +1208,7 @@ function registerCourierRoutes(app) {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
             res.json(await db.getAnalytics(from, to));
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // ====== Admin: управление заказами ======
@@ -1290,7 +1290,7 @@ function registerCourierRoutes(app) {
             }
 
             res.json({ success: true });
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // Назначить курьера на заказ
@@ -1414,7 +1414,7 @@ function registerCourierRoutes(app) {
             }
 
             res.json({ success: true, route });
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // ====== Admin: управление товарами ======
@@ -1443,7 +1443,7 @@ function registerCourierRoutes(app) {
                 }
             }
             res.json(catalog);
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.post('/api/products', verifyAdmin, async (req, res) => {
@@ -1451,7 +1451,7 @@ function registerCourierRoutes(app) {
             let product = await db.createProduct(req.body);
             if (req.body.coming_soon) product = await db.updateProduct(product.id, { coming_soon: true });
             res.json(product);
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.put('/api/products/:id', verifyAdmin, async (req, res) => {
@@ -1461,7 +1461,7 @@ function registerCourierRoutes(app) {
             const product = await db.updateProduct(id, req.body || {});
             if (!product) return res.status(404).json({ error: 'not found' });
             res.json(product);
-        } catch (e) { { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 }
 }
