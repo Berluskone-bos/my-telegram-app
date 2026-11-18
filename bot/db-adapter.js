@@ -841,6 +841,30 @@ class DBAdapter {
         return this.getOrderById(orderId);
     }
 
+    // Внутренняя служебная очистка тестовых/временных данных.
+    // Публичный API массового удаления заказов отключён.
+    async deleteAllOrders() {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Незавершённые заказы с списанным остатком: возвращаем товар на склад до удаления.
+            // Доставленные и завершённые не трогаем: товар у покупателя.
+            const active = await client.query(
+                `SELECT id, items, stock_deducted FROM orders
+                  WHERE stock_deducted AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED') FOR UPDATE`);
+            for (const o of active.rows) await this._restoreStock(client, o);
+            await client.query('DELETE FROM route_stops');
+            await client.query('DELETE FROM delivery_routes');
+            await client.query('DELETE FROM orders');
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
+    }
+
     // ───────────────────────────────────────────
     // Промокоды
     // ───────────────────────────────────────────
