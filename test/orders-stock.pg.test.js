@@ -63,72 +63,41 @@ test('склад: отмена и удаление заказов возвращ
 
     await mk(1, 'k5');
     assert.equal(await stock(), 4);
-    await db.deleteAllOrders();
-    assert.equal(await stock(), 7, 'вернули активные k4 и k5, доставленные k2 и k2b не вернули');
-    assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);
-});
-
-test('доставка: два последовательных done завершают остановку, списание и уведомление только один раз', { skip }, async (t) => {
-    Object.assign(process.env, { DATABASE_URL: DB, WEBHOOK_SECRET: 's'.repeat(32), BOT_TOKEN: '1:x', WEB_APP_URL: 'https://x.y', WEBHOOK_URL: 'https://x.y' });
-    const { pool, initDB } = require('../bot/db');
-    const A = require('../bot/db-adapter');
-    const db = typeof A === 'function' ? new A(pool) : (A.default || A);
-    await initDB();
-
-    const pid = (await pool.query(
-        "INSERT INTO products(name, price, active, stock) VALUES ('T-delivery-idempotency', 1000, true, 10) RETURNING id"
+    // Два последовательных callback «Доставлено»: один переход, одно уведомление, без нового списания.
+    const deliveredOrder = await mk(1, 'k6');
+    const routeId = (await pool.query(
+        "INSERT INTO delivery_routes(route_number, route_date, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, 'in_progress', 1) RETURNING id"
     )).rows[0].id;
-    let routeId, stopId, orderId;
-    const suffix = Date.now().toString();
-    const orderNumber = 'AP-DONE-' + suffix;
-    const dedupKey = null;
-
-    t.after(async () => {
-        if (stopId) await pool.query('DELETE FROM route_stops WHERE id = $1', [stopId]);
-        if (routeId) await pool.query('DELETE FROM delivery_routes WHERE id = $1', [routeId]);
-        if (orderId) await pool.query('DELETE FROM orders WHERE id = $1', [orderId]);
-        await pool.query("DELETE FROM notification_outbox WHERE dedup_key LIKE 'stop-delivered:%' AND payload->>'chat_id' = '987654321'");
-        await pool.query('DELETE FROM products WHERE id = $1', [pid]);
-        await pool.end();
-    });
-
-    const order = await db.createOrder({
-        order_number: orderNumber, user_id: 987654321, user_name: 'Test', phone: '70000000000',
-        zone: 'spb', city: 'Test', street: 'Test', house: '1',
-        items: [{ productId: pid, qty: 2, name: 'T-delivery-idempotency' }],
-        subtotal: 2000, total: 2000, idempotency_key: 'done-' + suffix
-    });
-    orderId = order.id;
-    assert.equal((await pool.query('SELECT stock FROM products WHERE id = $1', [pid])).rows[0].stock, 8,
-        'товар списан один раз при создании заказа');
-
-    routeId = (await pool.query(
-        "INSERT INTO delivery_routes(route_number, route_date, status, total_orders) VALUES ($1, CURRENT_DATE, 'in_progress', 1) RETURNING id",
-        ['RL-D' + suffix.slice(-8)]
-    )).rows[0].id;
-    stopId = (await pool.query(
+    const stopId = (await pool.query(
         `INSERT INTO route_stops(route_id, order_id, order_number, stop_number, address, status, client_chat_id)
          VALUES ($1, $2, $3, 1, 'Test address', 'in_progress', 987654321) RETURNING id`,
-        [routeId, String(orderId), orderNumber]
+        [routeId, String(deliveredOrder.id), deliveredOrder.order_number]
     )).rows[0].id;
 
-    const first = await db.completeDeliveryStop(stopId);
-    const second = await db.completeDeliveryStop(stopId);
-
-    assert.equal(first.status, 'completed', 'первое нажатие завершает доставку');
-    assert.equal(second.status, 'already', 'второе нажатие распознаётся как повтор');
-    const orderState = (await pool.query(
-        'SELECT status, stock_deducted FROM orders WHERE id = $1', [orderId]
+    const firstDone = await db.completeDeliveryStop(stopId);
+    const secondDone = await db.completeDeliveryStop(stopId);
+    assert.equal(firstDone.status, 'completed', 'первое нажатие завершает доставку');
+    assert.equal(secondDone.status, 'already', 'повторное нажатие распознаётся как повтор');
+    assert.equal(await stock(), 3, 'после двух done товар не списан повторно');
+    const deliveredState = (await pool.query(
+        'SELECT status, stock_deducted FROM orders WHERE id = $1', [deliveredOrder.id]
     )).rows[0];
-    assert.equal(orderState.status, 'COMPLETED');
-    assert.equal(orderState.stock_deducted, false);
-    assert.equal((await pool.query('SELECT stock FROM products WHERE id = $1', [pid])).rows[0].stock, 8,
-        'при завершении и повторном done остаток не списывается повторно');
+    assert.equal(deliveredState.status, 'COMPLETED');
+    assert.equal(deliveredState.stock_deducted, false);
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [stopId])).rows[0].status, 'delivered');
-    assert.equal((await pool.query('SELECT status, completed FROM delivery_routes WHERE id = $1', [routeId])).rows[0].status, 'completed');
-    const notices = await pool.query(
-        "SELECT count(*)::int AS n FROM notification_outbox WHERE dedup_key = $1",
+    const routeState = (await pool.query(
+        'SELECT status, completed FROM delivery_routes WHERE id = $1', [routeId]
+    )).rows[0];
+    assert.equal(routeState.status, 'completed');
+    assert.equal(routeState.completed, 1);
+    const noticeCount = (await pool.query(
+        'SELECT count(*)::int AS n FROM notification_outbox WHERE dedup_key = $1',
         [`stop-delivered:${stopId}`]
-    );
-    assert.equal(notices.rows[0].n, 1, 'клиентское уведомление записано в outbox ровно один раз');
+    )).rows[0].n;
+    assert.equal(noticeCount, 1, 'клиентское уведомление поставлено в outbox ровно один раз');
+    await pool.query('DELETE FROM notification_outbox WHERE dedup_key = $1', [`stop-delivered:${stopId}`]);
+
+    await db.deleteAllOrders();
+    assert.equal(await stock(), 6, 'вернули только активные k4 и k5; доставленные k2, k2b и k6 не вернули');
+    assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);
 });
