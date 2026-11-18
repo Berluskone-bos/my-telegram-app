@@ -794,49 +794,52 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     }
 
     else if (action === 'done') {
-        // Доставлен → финал
-        console.log(`[DELIVER] DONE: starting DB updates for stopId=${stopId}`);
-        const finalButtons = [[{ text: 'Доставлено', callback_data: 'noop' }]];
+        // Сначала атомарно фиксируем доставку. Только первый callback получает status=completed.
+        let completion;
         try {
-            await bot.editMessageReplyMarkup({ inline_keyboard: finalButtons }, { chat_id: chatId, message_id: msgId });
+            completion = await db.completeDeliveryStop(stopId);
+        } catch (e) {
+            console.error('[DELIVER] completion transaction failed:', errorCode(e));
+            bot.answerCallbackQuery(query.id, { text: 'Не удалось завершить доставку. Повторите позже.', show_alert: true }).catch(() => {});
+            return;
+        }
+
+        if (completion.status !== 'completed') {
+            const messages = {
+                already: 'Доставка уже отмечена.',
+                cancelled: 'Заказ отменён. Доставку завершить нельзя.',
+                not_found: 'Остановка не найдена.',
+                forbidden: 'Нельзя завершить доставку в текущем статусе.'
+            };
+            bot.answerCallbackQuery(query.id, {
+                text: messages[completion.status] || 'Действие не выполнено.',
+                show_alert: completion.status !== 'already'
+            }).catch(() => {});
+            try {
+                await bot.editMessageReplyMarkup(
+                    { inline_keyboard: [[{ text: 'Доставлено', callback_data: 'noop' }]] },
+                    { chat_id: chatId, message_id: msgId });
+            } catch (e) { /* сообщение уже могло быть обновлено первым callback */ }
+            return;
+        }
+
+        try {
+            await bot.editMessageReplyMarkup(
+                { inline_keyboard: [[{ text: 'Доставлено', callback_data: 'noop' }]] },
+                { chat_id: chatId, message_id: msgId });
         } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' }).catch(() => {});
-
-        // Обновляем статусы в БД
-        try {
-            const stopUpdate = await db.updateStopStatus(stopId, 'delivered', '');
-            console.log(`[DELIVER] Stop updated:`, stopUpdate ? `id=${stopUpdate.id}, status=${stopUpdate.status}` : 'NULL');
-            const route = await db.getRouteById(routeId);
-            const stop = route?.stops?.find(s => parseInt(s.id) === stopId);
-            console.log(`[DELIVER] Route: ${route?.route_number}, stops=${route?.stops?.length}, stop found: ${!!stop}, order_id: ${stop?.order_id}`);
-            if (stop?.order_id) {
-                const st = await db.updateOrderStatus(parseInt(stop.order_id), 'COMPLETED');
-                console.log(`[DELIVER] Order ${stop.order_id} -> COMPLETED (${st})`);
-                if (st === 'CANCELLED_LOCKED' || st === 'TRANSITION_FORBIDDEN') console.warn(`[DELIVER] Заказ ${stop.order_id} не переведён в COMPLETED: ${st}`);
-            }
-            // Обновляем маршрут
-            if (route) {
-                const stops = route.stops || [];
-                const newCompleted = stops.filter(s => s.status === 'delivered').length;
-                const allDone = stops.every(s => s.id === stopId ? true : s.status !== 'pending');
-                console.log(`[DELIVER] Route update: completed=${newCompleted}, allDone=${allDone}`);
-                await db.updateRouteStatus(routeId, allDone ? 'completed' : route.status, newCompleted, route.failed || 0);
-                console.log(`[DELIVER] Route ${escapeHtml(route.route_number)} -> ${allDone ? 'completed' : route.status}`);
-            }
-        } catch (e) { console.error('[DELIVER] db update error:', errorCode(e)); }
 
         await notifyAdminStep(routeId, stopId, 'done', query);
         routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', errorCode(e)));
 
-        // Уведомляем клиента + рейтинг
+        // Клиентское уведомление уже записано в outbox в той же транзакции, что и доставка.
+        // Здесь обновляем карточку и, если её нет, один раз ставим отдельный запрос оценки.
         try {
             const route = await db.getRouteById(routeId);
-            const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
+            const stop = route?.stops?.find(s => parseInt(s.id) === stopId);
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
                 const onCard = await trackerEvent(trackerPool(), stop.order_number, { stage: 'delivered', eta: '', canRate: true }).catch(() => false);
-                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Доставлен</b>\n\nСпасибо за покупку!` +
-                    (onCard ? '\nОцените доставку звёздами в карточке заказа.' : ''));
-                // Рейтинг: есть карточка — звёзды в ней, иначе прежние кнопки
                 const courier = onCard ? null : (await db.getCouriers()).find(c => c.id === route?.courier_id);
                 if (courier) {
                     setTimeout(() => {
@@ -844,11 +847,14 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                             text: String(n),
                             callback_data: `rate_${courier.id}_o_${n}`
                         }))];
-                        queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', { buttons: rateButtons });
+                        queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', {
+                            buttons: rateButtons,
+                            dedupKey: `stop-rating:${stopId}`
+                        });
                     }, 3000);
                 }
             }
-        } catch (e) { console.error('[DELIVER] client notify error:', errorCode(e)); }
+        } catch (e) { console.error('[DELIVER] client card/rating update error:', errorCode(e)); }
     }
 }
 
