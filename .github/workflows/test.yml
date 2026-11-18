@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
+  security-events: write
 
 jobs:
   test:
@@ -30,13 +32,21 @@ jobs:
       TEST_DATABASE_URL: postgres://user:pass@localhost:5432/t
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - name: Установить зависимости
         run: npm ci
-      - name: Проверить синтаксис серверного кода
-        run: for f in bot/*.js; do node --check "$f"; done
+      - name: Проверить синтаксис всего серверного кода
+        run: find bot -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Проверить зависимости на уязвимости высокой и критической серьёзности
+        run: npm audit --omit=dev --audit-level=high
+      - name: Поиск секретов в изменениях и истории Git
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Автотесты (подпись Telegram, секреты, вход в админку, склад)
         run: npm test

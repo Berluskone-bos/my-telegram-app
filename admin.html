@@ -846,7 +846,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                         <select id="routeCourier" class="status-select" title="Курьер для маршрута"><option value="">-- курьер --</option></select>
                         <button class="btn btn-primary btn-sm" id="buildRouteBtn" onclick="buildRoute()">Собрать маршрут из выбранных</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteAllOrders()">Удалить все</button>
                         <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
                     </div>
                 </div>
@@ -1387,15 +1386,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadDeliveryData();
             } catch (e) { console.error('Build route error:', e); alert('Нет связи с сервером. Попробуйте ещё раз.'); }
             finally { btn.disabled = false; }
-        }
-
-        async function deleteAllOrders() {
-            if (!confirm('Удалить ВСЕ заказы? Это действие необратимо.')) return;
-            try {
-                await fetch(`${API_BASE}/api/orders`, { method: 'DELETE' });
-                loadShopOrders();
-                loadDeliveryData();
-            } catch (e) { console.error('Delete orders error:', e); }
         }
 
         async function showOrderDetail(id) {

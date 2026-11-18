@@ -27,7 +27,9 @@ test('в файлах нет адресов БД с настоящим паро�
     assert.deepEqual([...new Set(bad)], []);
 });
 
-test('в репозитории нет .env, логов и кэша Python', () => {
-    const bad = files.filter(f => /(^|\/)\.env$/.test(f) || /(^|\/)(bot-)?logs?\.txt$/i.test(f) || /\.log$/i.test(f) || /__pycache__|\.pyc$/.test(f));
-    assert.deepEqual(bad, []);
+test('в репозитории нет файлов окружения с секретами, логов и кэша Python', () => {
+    const envFiles = files.filter(f => /(^|\/)\.env(?:\..+)?$/.test(f) && !/(^|\/)\.env\.example$/.test(f));
+    const otherFiles = files.filter(f => /(^|\/)(bot-)?logs?\.txt$/i.test(f) || /\.log$/i.test(f) || /__pycache__|\.pyc$/.test(f));
+    assert.deepEqual(envFiles, [], 'найдены файлы окружения: ' + envFiles.join(', '));
+    assert.deepEqual(otherFiles, [], 'найдены логи или Python-кэш: ' + otherFiles.join(', '));
 });

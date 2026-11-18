@@ -841,6 +841,8 @@ class DBAdapter {
         return this.getOrderById(orderId);
     }
 
+    // Внутренняя служебная очистка тестовых/временных данных.
+    // Публичный API массового удаления заказов отключён.
     async deleteAllOrders() {
         const client = await pool.connect();
         try {

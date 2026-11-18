@@ -44,17 +44,36 @@ test('заказ через API: сообщения клиенту и админ
         if (i === 79) assert.fail('сервер не запустился:\n' + log.slice(-1500));
     }
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/order`, {
+    const endpoint = `http://127.0.0.1:${port}/api/order`;
+    const missingAuth = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ productId: pid, qty: 1 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5' })
+    });
+    assert.equal(missingAuth.status, 401, 'заказ без Telegram initData отклоняется');
+
+    const invalidAuth = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': 'user=%7B%22id%22%3A777005%7D&auth_date=1&hash=invalid' },
+        body: JSON.stringify({ items: [{ productId: pid, qty: 1 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5' })
+    });
+    assert.equal(invalidAuth.status, 401, 'заказ с неподписанными данными отклоняется');
+
+    const bulkDelete = await fetch(`http://127.0.0.1:${port}/api/orders`, { method: 'DELETE' });
+    assert.equal(bulkDelete.status, 404, 'массовое удаление заказов через публичный API отключено');
+
+    const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData(token, { id: 777005, first_name: 'Тест' }) },
-        body: JSON.stringify({ items: [{ productId: pid, qty: 2 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5, корп. 2, эт. 3', city: 'Санкт-Петербург', street: 'Тестовая',
+        body: JSON.stringify({ userName: 'Поддельное имя', items: [{ productId: pid, qty: 2 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5, корп. 2, эт. 3', city: 'Санкт-Петербург', street: 'Тестовая',
             house: '5', building: '2', structure: '4', floor: '3', zone: 'spb', deliveryType: 'delivery', payment: 'cash' })
     });
     const body = await res.json();
     assert.equal(res.status, 200, JSON.stringify(body) + '\n' + log.slice(-800));
     assert.match(body.orderId, /^AP-\d{12,14}$/);
 
-    const order = (await pool.query('SELECT id, building, floor FROM orders WHERE order_number = $1', [body.orderId])).rows[0];
+    const order = (await pool.query('SELECT id, user_name, building, floor FROM orders WHERE order_number = $1', [body.orderId])).rows[0];
+    assert.equal(order.user_name, 'Тест', 'имя заказа берётся из подписанного профиля Telegram, а не из тела запроса');
     assert.equal(order.building, '2'); assert.equal(order.floor, '3');
     const rows = (await pool.query('SELECT bot, status, payload FROM notification_outbox ORDER BY id')).rows;
     // клиенту: текст о заказе и сразу за ним карточка-трекер (виджет); админу: текст с кнопкой отмены
