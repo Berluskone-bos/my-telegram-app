@@ -72,7 +72,7 @@ test('маршрут из 4 заказов: порядок по времени �
     // курьеру: один маршрутный лист + 4 карточки с кнопкой «Принять»
     const toCourier = sent.filter(m => m.bot === 'courier');
     assert.equal(toCourier.length, 5);
-    assert.match(toCourier[0].text, /Маршрут RL-\d+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D — к 03:10/);
+    assert.match(toCourier[0].text, /Маршрут RL-[A-Z0-9-]+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D — к 03:10/);
     assert.match(toCourier[0].text, /живые пробки не учитываются/);
     assert.match(toCourier[1].text, /Точка 1 из 4/);
     assert.equal(toCourier[1].opts.buttons.at(-1)[0].callback_data, `deliver_${out.route.id}_${stops[0].id}_accept`);
@@ -123,4 +123,36 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.deepEqual(clientTexts().map(m => m.chat).sort(), [String(880101), String(880103)]);
     assert.ok(fetchCalls > 0);
     assert.equal((await db.completeDeliveryStop(stops[2].id)).status, 'completed', 'курьер может завершить доставку после старта маршрута');
+
+    // Параллельное назначение одного заказа не создаёт два активных маршрута.
+    const concurrentOrder = await mk('7', 'адрес A');
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) await db.updateOrderStatus(concurrentOrder.id, status);
+    const attempts = await Promise.allSettled([
+        svc.buildRoute({ orderIds: [concurrentOrder.id], courier }),
+        svc.buildRoute({ orderIds: [concurrentOrder.id], courier })
+    ]);
+    assert.equal(attempts.filter(x => x.status === 'fulfilled').length, 1);
+    assert.equal(attempts.filter(x => x.status === 'rejected').length, 1);
+    assert.equal(attempts.find(x => x.status === 'rejected').reason.code, 'CONFLICT');
+    const activeCount = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM route_stops WHERE order_id = $1 AND status IN ('pending','accepted','in_progress')`,
+        [String(concurrentOrder.id)]);
+    assert.equal(activeCount.rows[0].n, 1);
+
+    // Отменённая остановка исключается из ожидания общего старта.
+    const cancelA = await mk('8', 'адрес A'), cancelB = await mk('9', 'адрес B');
+    for (const o of [cancelA, cancelB]) {
+        await db.updateOrderStatus(o.id, 'CONFIRMED');
+        await db.updateOrderStatus(o.id, 'ASSEMBLING');
+        await db.updateOrderStatus(o.id, 'READY_FOR_SHIPMENT');
+    }
+    const cancelRoute = await svc.buildRoute({ orderIds: [cancelA.id, cancelB.id], courier });
+    const cancelStops = (await db.getRouteById(cancelRoute.route.id)).stops;
+    await db.updateOrderStatus(cancelB.id, 'CANCELLED');
+    assert.equal((await db.getRouteById(cancelRoute.route.id)).stops.find(s => s.order_number === cancelB.order_number).status, 'cancelled');
+    const remaining = cancelStops.find(s => s.order_number === cancelA.order_number);
+    assert.deepEqual(await db.startRouteIfAllAccepted(cancelRoute.route.id), { status: 'not_ready', waiting: 1 });
+    assert.equal((await db.acceptRouteStop(cancelRoute.route.id, remaining.id)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(cancelRoute.route.id)).status, 'started');
+    assert.equal((await db.getRouteById(cancelRoute.route.id)).stops.find(s => s.order_number === cancelB.order_number).status, 'cancelled');
 });
