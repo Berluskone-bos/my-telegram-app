@@ -5,30 +5,30 @@
     style.textContent = `
       .dashboard-wrap{display:grid;gap:18px}
       .dash-clocks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-      .dash-clock{background:var(--card,#fff);border:1px solid var(--line,#e7eaf0);border-radius:16px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+      .dash-clock{background:var(--white,#fff);border:1px solid var(--border,#e7eaf0);border-radius:16px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
       .dash-clock-label{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
       .dash-clock-time{font-size:clamp(22px,3vw,30px);font-weight:750;letter-spacing:-.04em;color:var(--navy,#101B4D);font-variant-numeric:tabular-nums}
       .dash-clock-date{font-size:12px;color:var(--muted);margin-top:3px}
       .dash-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-      .dash-kpi{background:var(--card,#fff);border:1px solid var(--line,#e7eaf0);border-radius:16px;padding:17px;min-width:0}
+      .dash-kpi{background:var(--white,#fff);border:1px solid var(--border,#e7eaf0);border-radius:16px;padding:17px;min-width:0}
       .dash-kpi-label{font-size:12px;color:var(--muted);font-weight:600}
-      .dash-kpi-value{font-size:clamp(23px,3vw,31px);font-weight:750;color:var(--ink,#25282B);letter-spacing:-.04em;margin-top:9px;overflow-wrap:anywhere}
+      .dash-kpi-value{font-size:clamp(23px,3vw,31px);font-weight:750;color:var(--text,#25282B);letter-spacing:-.04em;margin-top:9px;overflow-wrap:anywhere}
       .dash-kpi-note{font-size:12px;color:var(--muted);margin-top:5px}
       .dash-columns{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:16px}
-      .dash-panel{background:var(--card,#fff);border:1px solid var(--line,#e7eaf0);border-radius:16px;overflow:hidden;min-width:0}
-      .dash-panel-head{padding:16px 18px;border-bottom:1px solid var(--line,#e7eaf0);display:flex;align-items:center;justify-content:space-between;gap:10px}
-      .dash-panel-title{font-size:14px;font-weight:700;color:var(--ink,#25282B)}
+      .dash-panel{background:var(--white,#fff);border:1px solid var(--border,#e7eaf0);border-radius:16px;overflow:hidden;min-width:0}
+      .dash-panel-head{padding:16px 18px;border-bottom:1px solid var(--border,#e7eaf0);display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .dash-panel-title{font-size:14px;font-weight:700;color:var(--text,#25282B)}
       .dash-panel-body{padding:0 18px}
       .dash-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--line,#edf0f4)}
       .dash-row:last-child{border-bottom:0}
-      .dash-main{font-size:13px;font-weight:650;color:var(--ink,#25282B)}
+      .dash-main{font-size:13px;font-weight:650;color:var(--text,#25282B)}
       .dash-sub{font-size:11px;color:var(--muted);margin-top:4px}
-      .dash-value{font-size:13px;font-weight:700;white-space:nowrap;color:var(--ink,#25282B);text-align:right}
+      .dash-value{font-size:13px;font-weight:700;white-space:nowrap;color:var(--text,#25282B);text-align:right}
       .dash-pill{display:inline-flex;border-radius:20px;padding:4px 8px;font-size:10px;font-weight:700;background:rgba(0,175,199,.1);color:#007f91}
       .dash-empty{padding:22px 0;color:var(--muted);font-size:13px;text-align:center}
       .dash-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
       .dash-toolbar-date{font-size:13px;color:var(--muted)}
-      .dash-refresh{border:1px solid var(--line,#e7eaf0);background:var(--card,#fff);border-radius:10px;padding:8px 12px;font:600 12px Inter,sans-serif;cursor:pointer;color:var(--navy,#101B4D)}
+      .dash-refresh{border:1px solid var(--border,#e7eaf0);background:var(--white,#fff);border-radius:10px;padding:8px 12px;font:600 12px Inter,sans-serif;cursor:pointer;color:var(--navy,#101B4D)}
       .dash-refresh:hover{border-color:#00AFC7}
       .dash-error{padding:16px;border-radius:12px;background:rgba(220,60,60,.07);color:#a52b2b;font-size:13px}
       @media(max-width:900px){.dash-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-columns{grid-template-columns:1fr}}
