@@ -13,6 +13,7 @@ const { createRouteService } = require('./route-service');
 const { registerOrderStatsRoutes } = require('./order-stats');
 const { validateProductPayload } = require('./product-validation');
 const { requirePermission, requireOrderStatusPermission } = require('./admin-permissions');
+const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -1173,11 +1174,7 @@ function registerCourierRoutes(app) {
             const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
             const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
             const result = await db.getOrdersPage(page, limit);
-            result.items = result.items.map(order => {
-                const digits = String(order.phone || '').replace(/\D/g, '');
-                const maskedPhone = digits.length >= 4 ? digits.slice(0, 2) + '******' + digits.slice(-2) : '••••';
-                return { ...order, phone: maskedPhone, address: 'Адрес в карточке заказа' };
-            });
+            result.items = result.items.map(order => filterOrderListItem(order, req.admin && req.admin.role));
             res.set('Cache-Control', 'no-store');
             res.json(result);
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
@@ -1197,7 +1194,7 @@ function registerCourierRoutes(app) {
             const order = await db.getOrderById(id);
             if (!order) return res.status(404).json({ error: 'Order not found' });
             res.set('Cache-Control', 'no-store');
-            res.json(order);
+            res.json(filterOrderDetails(order, req.admin && req.admin.role));
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
