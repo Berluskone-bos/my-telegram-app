@@ -38,7 +38,13 @@ function requireAnyPermission(...permissions) {
     };
 }
 function requireOrderStatusPermission(req, res, next) {
-    const permission = req && req.body && req.body.status === 'ASSEMBLING' ? 'orders.fulfill' : 'orders.process';
+    const status = req && req.body && req.body.status;
+    if (['SHIPPING', 'DELIVERED', 'COMPLETED'].includes(status)) {
+        return function courierOnlyStatusGuard(_req, res) {
+            return res.status(403).json({ error: 'Этот статус подтверждается только курьером', code: 'COURIER_ONLY' });
+        }(req, res, next);
+    }
+    const permission = status === 'READY_FOR_SHIPMENT' ? 'orders.fulfill' : 'orders.process';
     return requirePermission(permission)(req, res, next);
 }
 module.exports = {
