@@ -1400,7 +1400,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const statusLabels = {
                     'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
-                    'SHIPPING': 'В доставке', 'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
+                    'READY_FOR_SHIPMENT': 'Готов к отправке', 'SHIPPING': 'В доставке',
+                    'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
                 };
                 const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
                     && !window.adminHasPermission('orders.process');
@@ -1418,9 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rows = orders.length === 0
                     ? '<tr><td colspan="8" class="empty">Нет заказов</td></tr>'
                     : orders.map(o => {
-                        const courierOptions = couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
                         const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
-                        const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
                         const courierName = getCourierForOrder(o.id);
                         const isCompleted = o.status === 'COMPLETED';
                         const checkmark = isCompleted
