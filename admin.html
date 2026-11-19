@@ -1935,7 +1935,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : customers.map(c => `<tr>
                         <td><strong>${esc(c.user_name || '-')}</strong></td>
                         <td>${esc(c.phone || '-')}</td>
-                        <td>${c.user_id ? 'ID: ' + esc(c.user_id) : '-'}</td>
+                        <td>-</td>
                         <td>${Number(c.orders) || 0}</td>
                         <td>${(Number(c.total) || 0).toLocaleString()} руб.</td>
                         <td>${fmtDate(c.last_date)}</td>
