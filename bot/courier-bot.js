@@ -707,6 +707,17 @@ async function handleStartRoute(chatId, routeId, user) {
         await routeSvc.refreshEtas({ routeId, notifyNew: true });
         const refreshed = await db.getRouteById(routeId);
         for (const stop of refreshed?.stops || []) {
+            if (stop.status === 'in_progress') {
+                const actionText = `<b>${escapeHtml(stop.order_number || 'Заказ')}</b>\n` +
+                    `Адрес: ${escapeHtml(stop.address || '—')}\n` +
+                    (stop.phone ? `Телефон: ${escapeHtml(stop.phone)}\n` : '') +
+                    (stop.comment ? `Комментарий: ${escapeHtml(stop.comment)}\n` : '') +
+                    '\nМаршрут начат. Когда будете выезжать к этому клиенту, нажмите «В пути».';
+                await bot.sendMessage(chatId, actionText, {
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard: buildNavButtons(refreshed, stop, 'enroute') }
+                });
+            }
             if (stop.client_chat_id && !stop.eta_told_at && stop.status !== 'cancelled') {
                 queue.notify('client', stop.client_chat_id,
                     `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер начал маршрут и доставит ваш заказ по очереди.`,
