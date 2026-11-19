@@ -22,7 +22,9 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
         }
 
         try {
-            const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
+            const role = req.admin && req.admin.role;
+            const canSeeSales = hasPermission(role, 'sales.view');
+            const canSeeCustomerNames = hasPermission(role, 'customers.view');
             const canSeeInventory = hasPermission(req.admin && req.admin.role, 'inventory.view') || hasPermission(req.admin && req.admin.role, 'products.view');
             const [summaryResult, productsResult, recentResult, lowStockResult] = await Promise.all([
                 pool.query(
@@ -78,6 +80,11 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                 ? await pool.query('SELECT COUNT(DISTINCT user_id)::int AS customers FROM orders WHERE user_id IS NOT NULL')
                 : { rows: [{ customers: null }] };
 
+            // Customer names are personal data. Only roles with customers.view receive them.
+            const recentOrders = canSeeCustomerNames
+                ? recentResult.rows
+                : recentResult.rows.map(({ customerName, ...order }) => order);
+
             res.set('Cache-Control', 'no-store');
             return res.json({
                 businessDate: summary.businessDate,
@@ -93,7 +100,7 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                     delivered: Number(summary.delivered || 0),
                     shipping: Number(summary.shipping || 0)
                 },
-                recentOrders: recentResult.rows,
+                recentOrders,
                 lowStockProducts: canSeeInventory ? lowStockResult.rows : []
             });
         } catch (error) {
