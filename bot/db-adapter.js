@@ -380,6 +380,62 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
+    async acceptRouteStop(routeId, stopId) {
+        const rid = Number(routeId), sid = Number(stopId);
+        if (!Number.isInteger(rid) || rid <= 0 || !Number.isInteger(sid) || sid <= 0) return { status: 'not_found' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
+            const stop = await client.query('SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [sid, rid]);
+            if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
+            if (stop.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { status: stop.rows[0].status === 'cancelled' ? 'cancelled' : 'forbidden' }; }
+            await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1", [sid]);
+            await client.query('COMMIT');
+            return { status: 'accepted' };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally { client.release(); }
+    }
+
+    // Общий старт разрешён только когда каждая неотменённая остановка принята.
+    // Блокировка маршрута сериализует одновременные нажатия и отмены/принятия.
+    async startRouteIfAllAccepted(routeId) {
+        const id = Number(routeId);
+        if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [id]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (route.rows[0].status === 'in_progress') { await client.query('COMMIT'); return { status: 'already' }; }
+            if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
+            const stops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number FOR UPDATE', [id]);
+            const active = stops.rows.filter(s => !['cancelled', 'delivered', 'failed'].includes(s.status));
+            if (!active.length) { await client.query('ROLLBACK'); return { status: 'empty' }; }
+            const waiting = active.filter(s => s.status !== 'accepted');
+            if (waiting.length) { await client.query('ROLLBACK'); return { status: 'not_ready', waiting: waiting.length }; }
+            await client.query("UPDATE route_stops SET status = 'in_progress' WHERE route_id = $1 AND status = 'accepted'", [id]);
+            await client.query(
+                `UPDATE orders o SET status = 'SHIPPING'
+                   FROM route_stops rs
+                  WHERE rs.route_id = $1 AND rs.order_id::text = o.id::text
+                    AND rs.status = 'in_progress' AND o.status = 'READY_FOR_SHIPMENT'`, [id]);
+            const updated = await client.query(
+                "UPDATE delivery_routes SET status = 'in_progress', started_at = COALESCE(started_at, NOW()) WHERE id = $1 RETURNING *", [id]);
+            await client.query('COMMIT');
+            return { status: 'started', route: updated.rows[0], stops: stops.rows };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally { client.release(); }
+    }
+
     async updateStopStatus(stopId, status, reason) {
         const id = Number(stopId);
         if (!Number.isInteger(id)) return null;
@@ -456,7 +512,7 @@ class DBAdapter {
                 await client.query('COMMIT');
                 return { status: 'already', stop, orderId: order?.id || null };
             }
-            if (!['pending', 'in_progress'].includes(stop.status)) {
+            if (!['pending', 'accepted', 'in_progress'].includes(stop.status)) {
                 await client.query('ROLLBACK');
                 return { status: 'forbidden' };
             }
@@ -502,7 +558,7 @@ class DBAdapter {
             `SELECT
                  COUNT(*) FILTER (WHERE status = 'delivered')::int AS completed,
                  COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
-                 COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress'))::int AS remaining
+                 COUNT(*) FILTER (WHERE status IN ('pending', 'accepted', 'in_progress'))::int AS remaining
                FROM route_stops WHERE route_id = $1`, [id]);
         const stats = r.rows[0];
         const status = Number(stats.remaining) === 0 ? 'completed' : 'in_progress';
