@@ -332,7 +332,7 @@ class DBAdapter {
             // Для построения маршрутного листа блокируем заказы до проверки активных остановок.
             // Это закрывает гонку: один заказ нельзя одновременно включить в два активных маршрута.
             if (route.enforceReadyOrders) {
-                const ids = [...new Set((route.stops || []).map(s => String(s.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+                const ids = [...new Set((route.stops || []).map(s => String(s.order_id || '')).filter(x => /^\d+$/.test(x)))];
                 if (!ids.length || ids.length !== (route.stops || []).length) {
                     throw Object.assign(new Error('В маршрут передан некорректный список заказов'), { code: 'BAD_REQUEST' });
                 }
