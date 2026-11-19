@@ -745,6 +745,27 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: accepted.status === 'already' ? 'Заказ уже принят' : 'Заказ принят. Примите остальные заказы маршрута.' }).catch(() => {});
         await notifyAdminStep(routeId, stopId, 'accept', query);
+
+        // Явно показываем курьеру кнопку общего старта маршрута после принятия всех активных заказов.
+        // Раньше «У клиента» появлялась сразу после принятия одной остановки, а кнопка старта
+        // оставалась только на отдельном экране /start — курьер попадал в тупик на маршруте из одной точки.
+        if (accepted.status === 'accepted') {
+            const latestRoute = await db.getRouteById(routeId);
+            const activeStops = (latestRoute?.stops || []).filter(s =>
+                !['cancelled', 'delivered', 'failed'].includes(s.status));
+            const waiting = activeStops.filter(s => s.status !== 'accepted' && s.status !== 'in_progress').length;
+            const acceptedCount = activeStops.length - waiting;
+            if (activeStops.length > 0 && waiting === 0 && latestRoute.status === 'assigned') {
+                await bot.sendMessage(chatId,
+                    `Все заказы маршрута ${latestRoute.route_number} приняты (${acceptedCount} из ${activeStops.length}). Можно выезжать.`,
+                    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[
+                        { text: 'Начать маршрут', callback_data: `startroute_${routeId}` }
+                    ]] } });
+            } else if (activeStops.length > 0) {
+                await bot.sendMessage(chatId,
+                    `Заказ принят. Принято ${acceptedCount} из ${activeStops.length}. Осталось принять: ${waiting}.`);
+            }
+        }
     }
 
     else if (action === 'enroute') {
