@@ -324,3 +324,10 @@
 - [x] PR #60 объединён: commit `1cd53900941066ea4002efff206ca3a080c1475c`.
 - [x] Railway production deployment `2dd6f6b3-3944-40af-aaeb-1366beb08f1b` — SUCCESS; `initDB()` завершилась сообщением «База данных инициализирована», PostgreSQL и приложение Online.
 - [ ] Проверить оценку в Telegram на тестовом заказе; продолжить динамический аудит остальных IDOR/BOLA маршрутов.
+
+## Production release — backfill старых оценок (19.11.2026)
+- [x] PR #62 merged: `0f33ebee39b0435fcc774876d4258ff46e871c0b`.
+- [x] CI run `44590195212` — SUCCESS: syntax, npm audit, Gitleaks и полный PostgreSQL-backed test suite.
+- [x] Railway deployment `16e919e2-a48b-4d58-870b-49cbe4e07f7d` — SUCCESS; `initDB()` завершилась успешно, production PostgreSQL и приложение Online.
+- [x] Backfill исторических оценок tracker-widget применён при старте; агрегаты `couriers.rating/rating_count` не менялись.
+- [ ] Выполнить ручной тест оценки в Telegram на тестовом заказе.
