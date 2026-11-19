@@ -2,23 +2,56 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { filterOrderListItem, filterOrderDetails } = require('../bot/admin-order-visibility');
-const order = {id:17,order_number:'AP-123',user_id:'777',user_name:'Иван',phone:'+79990000000',address:'СПб, Невский, 1',total:2500,status:'ASSEMBLING',delivery_type:'delivery',items:[{name:'Масло',qty:2}],payment:'cash',payment_status:'unpaid',comment:'Позвонить после 18:00',created_at:'2026-11-19T10:00:00.000Z'};
+
+const order = {
+    id:17, order_number:'AP-123', user_id:'777', user_name:'Иван',
+    phone:'+79990000000', address:'СПб, Невский, 1', total:2500,
+    status:'ASSEMBLING', delivery_type:'delivery',
+    items:[{name:'Масло',qty:2}], payment:'cash', payment_status:'unpaid',
+    comment:'Внутренняя заметка', created_at:'2026-11-19T10:00:00.000Z'
+};
+
+const OPERATOR_LIST_FIELDS = ['id','order_number','phone','total','status','delivery_type','created_at'];
+const OPERATOR_DETAIL_FIELDS = ['id','order_number','phone','address','items','total','status','delivery_type','created_at'];
+
+test('оператор в списке получает только поля, необходимые для обработки заказа',()=>{
+    const result=filterOrderListItem(order,'operator');
+    assert.deepEqual(Object.keys(result).sort(),OPERATOR_LIST_FIELDS.sort());
+    assert.equal(result.phone,order.phone);
+    for(const key of ['user_id','user_name','address','payment','payment_status','comment']) {
+        assert.equal(Object.hasOwn(result,key),false,key);
+    }
+});
+
+test('оператор в деталях получает телефон, адрес и состав заказа, но не лишние ПДн и внутренние поля',()=>{
+    const result=filterOrderDetails(order,'operator');
+    assert.deepEqual(Object.keys(result).sort(),OPERATOR_DETAIL_FIELDS.sort());
+    assert.equal(result.phone,order.phone);
+    assert.equal(result.address,order.address);
+    assert.deepEqual(result.items,order.items);
+    for(const key of ['user_id','user_name','payment','payment_status','comment']) {
+        assert.equal(Object.hasOwn(result,key),false,key);
+    }
+});
+
 test('кладовщик получает в списке только данные для комплектации',()=>{
- const result=filterOrderListItem(order,'warehouse');
- assert.deepEqual(Object.keys(result).sort(),['created_at','delivery_type','id','order_number','status','total'].sort());
- for(const key of ['user_id','user_name','phone','address','payment','comment']) assert.equal(Object.hasOwn(result,key),false,key);
+    const result=filterOrderListItem(order,'warehouse');
+    assert.deepEqual(Object.keys(result).sort(),['created_at','delivery_type','id','order_number','status','total'].sort());
+    for(const key of ['user_id','user_name','phone','address','payment','comment']) assert.equal(Object.hasOwn(result,key),false,key);
 });
+
 test('кладовщик видит состав заказа, но не персональные и платёжные данные',()=>{
- const result=filterOrderDetails(order,'warehouse');
- assert.deepEqual(result.items,order.items);
- for(const key of ['user_id','user_name','phone','address','payment','payment_status','comment']) assert.equal(Object.hasOwn(result,key),false,key);
+    const result=filterOrderDetails(order,'warehouse');
+    assert.deepEqual(result.items,order.items);
+    for(const key of ['user_id','user_name','phone','address','payment','payment_status','comment']) assert.equal(Object.hasOwn(result,key),false,key);
 });
-for(const role of ['admin','manager','operator']) test(role+' сохраняет телефон и адрес клиента',()=>{
- assert.equal(filterOrderListItem(order,role).phone,order.phone);
- assert.equal(filterOrderListItem(order,role).address,order.address);
- assert.equal(filterOrderDetails(order,role).phone,order.phone);
- assert.equal(filterOrderDetails(order,role).address,order.address);
+
+for(const role of ['admin','manager']) test(role+' сохраняет полный доступ к данным заказа',()=>{
+    assert.equal(filterOrderListItem(order,role),order);
+    assert.equal(filterOrderDetails(order,role),order);
 });
-test('неизвестная роль проходит штатную проверку прав и не меняет проекцию',()=>{
- assert.equal(filterOrderDetails(order,'unknown'),order);
+
+test('неизвестная роль не получает данные заказа (fail closed)',()=>{
+    assert.deepEqual(filterOrderListItem(order,'unknown'),{});
+    assert.deepEqual(filterOrderDetails(order,'unknown'),{});
 });
