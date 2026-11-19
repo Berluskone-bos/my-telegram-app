@@ -174,7 +174,7 @@ class DBAdapter {
                    FROM route_stops rs
                    JOIN delivery_routes dr ON dr.id = rs.route_id
                    JOIN LATERAL (
-                       SELECT o.user_id
+                       SELECT o.user_id, o.status AS order_status
                          FROM orders o
                         WHERE o.id = CASE
                             WHEN rs.order_id ~ '^[0-9]+$' THEN rs.order_id::bigint
@@ -201,6 +201,10 @@ class DBAdapter {
             }
             const row = found.rows[0];
             if (row.status !== 'delivered') {
+                await client.query('ROLLBACK');
+                return { status: 'not_delivered' };
+            }
+            if (!['DELIVERED', 'COMPLETED'].includes(row.order_status)) {
                 await client.query('ROLLBACK');
                 return { status: 'not_delivered' };
             }
@@ -237,6 +241,28 @@ class DBAdapter {
         } finally {
             client.release();
         }
+    }
+    // Оценка из карточки трекера: находим остановку по номеру заказа, затем используем ту же транзакционную проверку.
+    async rateCourierForOrder(orderNumber, telegramUserId, rating) {
+        const number = String(orderNumber == null ? '' : orderNumber).trim();
+        const userId = String(telegramUserId == null ? '' : telegramUserId);
+        const value = Number(rating);
+        if (!number || number.length > 32 || !/^[0-9]+$/.test(userId) ||
+            !Number.isInteger(value) || value < 1 || value > 5) return { status: 'invalid' };
+        const target = await pool.query(
+            `SELECT rs.id, dr.courier_id
+               FROM orders o
+               LEFT JOIN route_stops rs ON rs.order_number = o.order_number
+               LEFT JOIN delivery_routes dr ON dr.id = rs.route_id
+              WHERE o.order_number = $1 AND o.user_id = $2::bigint
+              ORDER BY rs.id DESC NULLS LAST
+              LIMIT 1`,
+            [number, userId]
+        );
+        if (!target.rowCount) return { status: 'not_allowed' };
+        const row = target.rows[0];
+        if (!row.id || !row.courier_id) return { status: 'no_courier' };
+        return this.rateCourierForStop(row.id, row.courier_id, userId, value);
     }
     // ───────────────────────────────────────────
     // Маршруты
