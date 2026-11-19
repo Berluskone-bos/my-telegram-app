@@ -154,8 +154,8 @@
     if (typeof VIEWS !== 'undefined') VIEWS.dashboard = { tab: 'dashboard', title: 'Обзор' };
     if (typeof go === 'function') {
         const hash = location.hash.slice(1);
-        if (hash === 'dashboard' || !hash) go('dashboard', { fromHash: true, initial: true });
+        if (hash === 'dashboard' || !hash) go('dashboard', { initial: true });
     }
     document.getElementById('dashBusinessDate') && (document.getElementById('dashBusinessDate').textContent = 'Сводка за сегодня по Москве');
-    window.setInterval(() => { if (location.hash === '#dashboard') window.loadAdminDashboard(); }, 60000);
+    window.setInterval(() => { if (document.getElementById('tab-dashboard')?.classList.contains('active')) window.loadAdminDashboard(); }, 60000);
 })();
