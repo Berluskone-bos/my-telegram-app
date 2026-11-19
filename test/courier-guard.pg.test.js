@@ -51,9 +51,9 @@ test('курьерский бот: кнопки отменённого зака�
     const mk = async (key) => {
         const o = await db.createOrder({ order_number: 'AP-' + key, user_id: 777004, user_name: 'К', name: 't', phone: '1', address: 'СПб, ул. Т, д. 1',
             zone: 'spb', city: 'c', street: 's', house: '1', items: [], subtotal: 1, total: 1, idempotency_key: key });
-        const route = await db.createRoute({ route_number: 'RL-' + key.slice(-3), route_date: '2026-11-14', courier_id: courier.id, status: 'assigned', total_orders: 1,
+        for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o.id, status), true);
+        const route = await db.createRoute({ route_number: 'RL-' + key.slice(-3), route_date: '2026-11-14', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
             stops: [{ order_id: String(o.id), order_number: o.order_number, address: o.address, phone: '1', client_name: 'К', client_chat_id: o.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
-        await db.updateOrderStatus(o.id, 'SHIPPING');
         return { o, route, stopId: route.stops[0].id };
     };
     const press = async (data) => {
@@ -102,6 +102,7 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${b.route.id}_${b.stopId}_accept`);
     assert.ok(!calls.some(c => c[0] === 'answerCallbackQuery' && c[2] && c[2].show_alert), 'предупреждения нет');
     assert.deepEqual(await clientTexts(), [], 'после «Принять» клиенту ничего не отправлено');
+    assert.equal((await db.startRouteIfAllAccepted(b.route.id)).status, 'started', 'маршрут запускается после принятия всех заказов');
     assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
