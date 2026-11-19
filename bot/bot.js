@@ -80,7 +80,6 @@ else                console.log('[OK] ADMIN_CHAT_ID: задан');
 if (!ADMIN_BOT_TOKEN) console.warn('[ВНИМАНИЕ] ADMIN_BOT_TOKEN не задан — уведомления пойдут через основной бот');
 else                  console.log('[OK] ADMIN_BOT_TOKEN: задан');
 
-if (!ADMIN_API_KEY) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY не задан — /api/webhook-info недоступен');
 
 // ─── Проверка контракта db-adapter ───
 const hasGetProduct   = typeof db.getProductById === 'function';
@@ -799,7 +798,7 @@ app.use((req, res, next) => {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Vary', 'Origin');
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data, X-Admin-Key, Idempotency-Key');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data, Idempotency-Key');
         res.header('Access-Control-Max-Age', '600');
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -831,8 +830,8 @@ try {
     });
     adminAuth.cleanup();
     setInterval(() => adminAuth.cleanup(), 6 * 3600e3).unref();
-    if (!ADMIN_API_KEY) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY не задан — админка отключена');
-    else if (ADMIN_API_KEY.length < 16) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY короче 16 символов — задайте длиннее');
+    if (!ADMIN_API_KEY) console.log('[INFO] ADMIN_API_KEY не задан — общий вход по ключу отключён; индивидуальные учётные записи сотрудников работают');
+    else if (ADMIN_API_KEY.length < 16) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY используется как резервный общий вход и короче 16 символов');
     console.log('[OK] Вход в админку подключён: /admin');
 } catch (e) {
     console.error('[ОШИБКА] Вход в админку не подключён:', sanitizeLog(e.message));
@@ -1044,16 +1043,11 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/webhook-info', rateLimit(5, 60_000), async (req, res) => {
-    if (!ADMIN_API_KEY) return res.status(503).json({ error: 'Admin API disabled' });
-    const key = req.header('X-Admin-Key');
-    if (!key || !safeEq(key, ADMIN_API_KEY)) return res.sendStatus(403);
-    try {
-        const info = await bot.getWebHookInfo();
-        res.json(info);
-    } catch (e) {
-        res.status(500).json({ error: sanitizeLog(e.message) });
-    }
+require('./webhook-info-route').registerWebhookInfoRoute(app, {
+    bot,
+    rateLimit,
+    verifyAdmin: require('./admin-auth').instance().verifyAdmin,
+    sanitizeLog
 });
 
 // Финальный обработчик ошибок Express

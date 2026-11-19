@@ -26,7 +26,7 @@ ADMIN_CHAT_ID=ваш_chat_id
 WEB_APP_URL=https://your-domain.com
 WEBHOOK_URL=https://your-domain.com/webhook
 WEBHOOK_SECRET=случайная_строка_32_символа
-ADMIN_API_KEY=случайная_строка_32_символа
+ADMIN_API_KEY=случайная_строка_32_символа   # необязательный резервный общий вход
 COURIER_BOT_TOKEN=ваш_токен_курьер_бота
 ADMIN_BOT_TOKEN=ваш_токен_админ_бота
 DATABASE_URL=postgresql://user:pass@host:5432/dbname   # на Railway это адрес postgres.railway.internal
@@ -34,9 +34,12 @@ PORT=3000
 ```
 
 **Безопасность (проверено):**
-- Админка открывается с сервера: `https://gulf-bot-production.up.railway.app/admin`. Вход по ключу `ADMIN_API_KEY` один раз; дальше сессия в HttpOnly-cookie (SameSite=Strict, 12 ч / 2 ч без действий), журнал действий — вкладка «Журнал». Ключ в браузере не хранится, заголовок `x-admin-key` не принимается
+- Админка открывается с сервера: `https://gulf-bot-production.up.railway.app/admin`. Сотрудники входят по индивидуальным логину и паролю; пароль хранится в виде scrypt-хеша, сессия — в HttpOnly-cookie (SameSite=Strict, 12 ч / 2 ч без действий). Администратор создаёт учётные записи и управляет ролями.
+- `ADMIN_API_KEY` — необязательный резервный общий вход на время перехода. После создания и проверки индивидуальной учётной записи администратора его можно удалить из Railway Variables.
+- `/api/webhook-info` и остальные служебные admin API используют серверную сессию и permission middleware; заголовок `X-Admin-Key` не принимается.
+- Роли: администратор, менеджер, оператор, кладовщик. Роль курьера не предусмотрена.
 - `courier-bot.js`: проверка секрета вебхука (`verifyWebhookSecret`); админские маршруты защищает `verifyAdmin` из `bot/admin-auth.js`
-- `.env.example`: добавлены `WEBHOOK_URL`, `WEBHOOK_SECRET`, `ADMIN_API_KEY`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`
+- `.env.example`: `ADMIN_API_KEY` необязателен и используется только для совместимого входа по старому ключу.
 - `TRUST_CLIENT_PRICES` по умолчанию `false` (цены из БД, не клиента)
 
 Чтобы узнать свой Chat ID:
