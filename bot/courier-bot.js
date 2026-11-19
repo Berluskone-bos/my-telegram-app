@@ -611,8 +611,8 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('startroute_')) {
         const routeId = parseInt(data.split('_')[1]);
-        handleStartRoute(chatId, routeId, query.from);
-        bot.answerCallbackQuery(query.id, { text: 'Маршрут начат!' });
+        await handleStartRoute(chatId, routeId, query.from);
+        bot.answerCallbackQuery(query.id).catch(() => {});
         return;
     }
 
