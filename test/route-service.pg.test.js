@@ -80,7 +80,19 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'при назначении маршрута клиент не получает сообщение о выезде');
     sent.length = 0;
 
-    // курьер нажал «В пути» по первой точке: ей — «везёт», остальным — «выехал, вы N-й, будет через…»
+    // Старт всего маршрута блокируется, пока не приняты все заказы.
+    assert.deepEqual(await db.startRouteIfAllAccepted(out.route.id), { status: 'not_ready', waiting: 4 });
+    assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id)).status, 'accepted');
+    assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id)).status, 'already', 'повторное принятие идемпотентно');
+    assert.deepEqual(await db.startRouteIfAllAccepted(out.route.id), { status: 'not_ready', waiting: 3 });
+    for (const stop of stops.slice(1)) assert.equal((await db.acceptRouteStop(out.route.id, stop.id)).status, 'accepted');
+    const starts = await Promise.all([db.startRouteIfAllAccepted(out.route.id), db.startRouteIfAllAccepted(out.route.id)]);
+    assert.deepEqual(starts.map(x => x.status).sort(), ['already', 'started'], 'конкурентный старт фиксируется один раз');
+    assert.equal((await db.getRouteById(out.route.id)).status, 'in_progress');
+    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
+    assert.ok((await db.getRouteById(out.route.id)).stops.every(s => s.status === 'in_progress'));
+
+    // После общего старта клиентам отправляются ETA-уведомления по всем заказам маршрута.
     clock.t = new Date('2026-11-15T00:02:00Z');
     let r = await svc.refreshEtas({ routeId: out.route.id, firstStopId: stops[0].id, notifyNew: true });
     const clientTexts = () => sent.filter(m => m.bot === 'client');
