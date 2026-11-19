@@ -24,10 +24,17 @@ function toDbValue(val) {
 // Статус, которого нет в списке (старые данные), считаем рабочим.
 function orderTransitionAllowed(from, to) {
     if (from === to) return true;
-    if (from === 'CANCELLED') return false;
-    if (from === 'DELIVERED') return to === 'COMPLETED' || to === 'CANCELLED';
-    if (from === 'COMPLETED') return to === 'CANCELLED';
-    return true;
+    const allowed = {
+        NEW: ['CONFIRMED', 'CANCELLED'],
+        CONFIRMED: ['ASSEMBLING', 'CANCELLED'],
+        ASSEMBLING: ['READY_FOR_SHIPMENT', 'CANCELLED'],
+        READY_FOR_SHIPMENT: ['CANCELLED'],
+        SHIPPING: ['CANCELLED'],
+        DELIVERED: ['COMPLETED', 'CANCELLED'],
+        COMPLETED: [],
+        CANCELLED: []
+    };
+    return Array.isArray(allowed[from]) && allowed[from].includes(to);
 }
 
 // Календарный день заказа по Москве (колонка created_at хранится без часового пояса в поясе сервера: в Neon это UTC)
