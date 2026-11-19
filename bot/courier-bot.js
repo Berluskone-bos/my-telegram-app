@@ -1302,6 +1302,9 @@ function registerCourierRoutes(app) {
                     'NEW': 'Новый',
                     'CONFIRMED': 'Подтверждён',
                     'ASSEMBLING': 'Сборка',
+                    'READY_FOR_SHIPMENT': 'Готов к отправке',
+                    'READY_FOR_PICKUP': 'Готов к выдаче',
+                    'PICKED_UP': 'Выдан клиенту',
                     'SHIPPING': 'В доставке',
                     'DELIVERED': 'Доставлен',
                     'COMPLETED': 'Выполнен',
@@ -1310,7 +1313,7 @@ function registerCourierRoutes(app) {
                 const label = statusLabels[status];
                 if (label) {
                     // Уведомление админу
-                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED'
+                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'PICKED_UP'
                         ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
                         : null;
                     notifyAdmin(
