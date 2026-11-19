@@ -123,6 +123,6 @@ PR #54 добавил индивидуальные учётные записи, 
 
 ## Оценка доставки (19.11.2026)
 - Кнопки оценки отправляются клиенту после завершения доставки. Callback имеет формат `rate_<courierId>_<routeStopId>_<rating>`.
-- `bot/courier-bot.js` не доверяет callback: `db.rateCourierForStop()` проверяет Telegram ID отправителя по `orders.user_id`, соответствие остановки назначенному курьеру и статус `route_stops.status = 'delivered'`.
+- `bot/bot.js` обрабатывает callback клиентского бота через строгий парсер `bot/delivery-rating.js` и вызывает `db.rateCourierForStop()` проверяет Telegram ID отправителя по `orders.user_id`, соответствие остановки назначенному курьеру и статус `route_stops.status = 'delivered'`.
 - `route_stops.client_rating` хранит оценку 1–5. Поле nullable, поэтому исторические доставки остаются без оценки. PostgreSQL-транзакция блокирует строку остановки и обновляет оценку и агрегат курьера один раз; повторная оценка не меняет рейтинг.
 - Идемпотентная миграция выполняется через `bot/db.js:initDB()`. Старый callback без ID остановки отклоняется.
