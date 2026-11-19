@@ -1596,10 +1596,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const label = warehouseOnly && nextStatus === 'READY_FOR_SHIPMENT' ? 'Подтвердить готовность' : (pickup && col.labelPickup ? col.labelPickup : col.label);
                 act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${nextStatus}" data-num="${num}">${esc(label)} →</button></div>`;
             }
-            if (showAssign) {
-                act += `<div class="bcard-act"><select class="status-select" style="flex:1" data-assign="${Number(o.id)}" aria-label="Курьер для заказа ${num}">
-                    <option value="">-- курьер --</option>${ctx.couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div>`;
-            }
             const who = courierName ? `Курьер: ${esc(courierName)}` : (pickup ? '' : '');
             return `<div class="bcard" style="--c:${color}" tabindex="0" data-id="${Number(o.id)}" data-status="${esc(o.status)}"${drag ? ' draggable="true"' : ''}>
                 <div class="bcard-top"><span class="bcard-num">${num}</span><span class="bcard-tag${pickup ? ' pickup' : ''}">${pickup ? 'Самовывоз' : 'Курьер'}</span></div>
