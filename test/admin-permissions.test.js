@@ -115,15 +115,22 @@ test('оператор начинает сборку, кладовщик под�
     }
 });
 
-test('кладовщик может начать комплектацию, но не выполнять другие переходы статуса', () => {
+test('кладовщик подтверждает готовность, но не переводит заказ в сборку или отмену', () => {
     let called = false;
     let status;
     const res = { status(code) { status = code; return this; }, json() { return this; } };
     requireOrderStatusPermission(
-        { admin: { role: 'warehouse' }, body: { status: 'ASSEMBLING' } },
+        { admin: { role: 'warehouse' }, body: { status: 'READY_FOR_SHIPMENT' } },
         res, () => { called = true; }
     );
     assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission(
+        { admin: { role: 'warehouse' }, body: { status: 'ASSEMBLING' } },
+        res, () => { called = true; }
+    );
+    assert.equal(called, false);
+    assert.equal(status, 403);
     called = false;
     requireOrderStatusPermission(
         { admin: { role: 'warehouse' }, body: { status: 'CANCELLED' } },
