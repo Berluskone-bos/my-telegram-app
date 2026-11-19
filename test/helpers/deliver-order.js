@@ -5,7 +5,7 @@
 // Используется в тестах бонусов/истории/склада, которым нужна готовая запись о доставке.
 let courierSequence = 0;
 
-async function deliverOrder(db, pool, order) {
+async function deliverOrder(db, pool, order, { keepRoute = false } = {}) {
     const courier = await db.createCourier({
         name: 'Тестовый курьер',
         phone: '1',
@@ -45,13 +45,13 @@ async function deliverOrder(db, pool, order) {
         if (!['started', 'already'].includes(started.status)) throw new Error('Не удалось начать маршрут: ' + started.status);
         const completed = await db.completeDeliveryStop(route.stops[0].id);
         if (!['completed', 'already'].includes(completed.status)) throw new Error('Не удалось завершить доставку: ' + completed.status);
-        return completed;
+        return { ...completed, route, stopId: route.stops[0].id, courierId: courier.id };
     } finally {
-        if (route?.id) {
+        if (route?.id && !keepRoute) {
             await pool.query('DELETE FROM route_stops WHERE route_id = $1', [route.id]);
             await pool.query('DELETE FROM delivery_routes WHERE id = $1', [route.id]);
         }
-        await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
+        if (!keepRoute) await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
     }
 }
 
