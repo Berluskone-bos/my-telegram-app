@@ -521,7 +521,7 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
                 password_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             CREATE UNIQUE INDEX IF NOT EXISTS admin_users_login_lower_uidx ON admin_users (LOWER(login));
-            ALTER TABLE admin_sessions ADD COLUMN IF NOT EXISTS staff_user_id BIGINT REFERENCES admin_users(id) ON DELETE SET NULL;
+            ALTER TABLE admin_sessions ADD COLUMN IF NOT EXISTS staff_user_id BIGINT REFERENCES admin_users(id) ON DELETE CASCADE;
             CREATE INDEX IF NOT EXISTS admin_sessions_staff_user_idx ON admin_sessions(staff_user_id);
             ALTER TABLE admin_audit ADD COLUMN IF NOT EXISTS actor_user_id BIGINT REFERENCES admin_users(id) ON DELETE SET NULL;
             ALTER TABLE admin_audit ADD COLUMN IF NOT EXISTS actor_role VARCHAR(20);

@@ -47,6 +47,7 @@ test('кладовщик видит товары и склад, работает
 test('неизвестная роль и некорректное разрешение закрыты по умолчанию', () => {
     assert.equal(hasPermission('courier', 'orders.view'), false);
     assert.equal(hasPermission('unknown', 'dashboard.view'), false);
+    assert.equal(hasPermission('toString', 'orders.view'), false);
     assert.equal(hasPermission('admin', ''), false);
     assert.equal(hasPermission('admin', null), false);
 });

@@ -124,7 +124,6 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 return res.status(503).json({ error: 'Старый вход отключён: ADMIN_API_KEY не задан' });
             }
             if (row.expired) return res.status(401).json({ error: 'Сессия истекла', code: 'AUTH_REQUIRED' });
-            await pool.query('UPDATE admin_sessions SET last_seen = NOW() WHERE token_hash = $1', [hashToken(token)]);
             req.admin = {
                 session: hashToken(token).slice(0, 8),
                 userId: row.user_id || null,
@@ -139,6 +138,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 return res.status(403).json({ error: 'Запрос отклонён: чужой источник' });
             }
             if (!isKnownRole(req.admin.role)) return res.status(403).json({ error: 'Недопустимая роль', code: 'FORBIDDEN' });
+            await pool.query('UPDATE admin_sessions SET last_seen = NOW() WHERE token_hash = $1', [hashToken(token)]);
             if (unsafe) res.on('finish', () => {
                 const detail = req.body && typeof req.body === 'object'
                     ? AUDIT_FIELDS.filter(k => req.body[k] !== undefined).map(k => k + '=' + String(req.body[k]).slice(0, 40)).join(' ')
@@ -219,7 +219,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         });
 
         app.post('/api/admin/logout', async (req, res) => {
-            if (req.headers.origin && !sameOrigin(req)) return res.status(403).json({ error: 'Запрос отклонён: чужой источник' });
+            if (!sameOrigin(req)) return res.status(403).json({ error: 'Запрос отклонён: чужой источник' });
             const token = anyCookie(req);
             if (token && /^[A-Za-z0-9_-]{43}$/.test(token)) {
                 const h = hashToken(token);

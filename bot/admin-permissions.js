@@ -14,7 +14,7 @@ function isKnownRole(role) {
     return Object.prototype.hasOwnProperty.call(ROLE_PERMISSIONS, role);
 }
 function hasPermission(role, permission) {
-    if (typeof permission !== 'string' || !permission.trim()) return false;
+    if (typeof permission !== 'string' || !permission.trim() || !isKnownRole(role)) return false;
     const permissions = ROLE_PERMISSIONS[role];
     return !!permissions && (permissions.includes('*') || permissions.includes(permission));
 }

@@ -2352,7 +2352,7 @@ const staffRoleNames = { admin:'Администратор', manager:'Менед
 async function loadStaffList() {
     const target = document.getElementById('staffList');
     try {
-        const r = await _fetch(ADMIN_API + '/api/admin/staff');
+        const r = await fetch(ADMIN_API + '/api/admin/staff');
         if (!r.ok) throw new Error('Не удалось загрузить сотрудников (' + r.status + ')');
         const rows = await r.json();
         if (!rows.length) { target.innerHTML = '<p>Сотрудников пока нет.</p>'; return; }
@@ -2377,7 +2377,7 @@ async function saveStaff(id) {
     if (!row) return;
     const body = { role: row.querySelector('.staff-role').value, isActive: row.querySelector('.staff-active').checked };
     try {
-        const r = await _fetch(ADMIN_API + '/api/admin/staff/' + id, {
+        const r = await fetch(ADMIN_API + '/api/admin/staff/' + id, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         const j = await r.json().catch(() => ({}));
@@ -2390,7 +2390,7 @@ async function resetStaffPassword(id) {
     const password = prompt('Введите новый пароль (не менее 12 символов):');
     if (password === null) return;
     try {
-        const r = await _fetch(ADMIN_API + '/api/admin/staff/' + id + '/password', {
+        const r = await fetch(ADMIN_API + '/api/admin/staff/' + id + '/password', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password })
         });
         const j = await r.json().catch(() => ({}));
@@ -2401,7 +2401,7 @@ async function resetStaffPassword(id) {
 async function revokeStaffSessions(id) {
     if (!confirm('Завершить все активные сессии этого сотрудника?')) return;
     try {
-        const r = await _fetch(ADMIN_API + '/api/admin/staff/' + id + '/revoke-sessions', { method: 'POST' });
+        const r = await fetch(ADMIN_API + '/api/admin/staff/' + id + '/revoke-sessions', { method: 'POST' });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.error || 'Не удалось завершить сессии');
         alert('Завершено сессий: ' + (j.revoked || 0));
@@ -2414,7 +2414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(form).entries());
         try {
-            const r = await _fetch(ADMIN_API + '/api/admin/staff', {
+            const r = await fetch(ADMIN_API + '/api/admin/staff', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
             });
             const j = await r.json().catch(() => ({}));
