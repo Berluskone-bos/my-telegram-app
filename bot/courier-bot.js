@@ -1168,7 +1168,37 @@ function registerCourierRoutes(app) {
     registerOrderStatsRoutes(app, { db, verifyAdmin });
 
     app.get('/api/orders', verifyAdmin, async (req, res) => {
-        try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+        try {
+            const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+            const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
+            const result = await db.getOrdersPage(page, limit);
+            result.items = result.items.map(order => {
+                const digits = String(order.phone || '').replace(/\\D/g, '');
+                const maskedPhone = digits.length >= 4 ? digits.slice(0, 2) + '******' + digits.slice(-2) : '••••';
+                const address = String(order.address || '');
+                return { ...order, phone: maskedPhone, address: address.length > 28 ? address.slice(0, 28) + '…' : address };
+            });
+            res.set('Cache-Control', 'no-store');
+            res.json(result);
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+    });
+
+    app.get('/api/orders/customers', verifyAdmin, async (req, res) => {
+        try {
+            res.set('Cache-Control', 'no-store');
+            res.json(await db.getOrderCustomers());
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+    });
+
+    app.get('/api/orders/:id', verifyAdmin, async (req, res) => {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        try {
+            const order = await db.getOrderById(id);
+            if (!order) return res.status(404).json({ error: 'Order not found' });
+            res.set('Cache-Control', 'no-store');
+            res.json(order);
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.get('/api/zones', verifyAdmin, async (req, res) => {
