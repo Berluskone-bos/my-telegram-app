@@ -1281,13 +1281,25 @@ document.addEventListener('DOMContentLoaded', () => {
             await Promise.all([loadShopOrders(), loadShopProducts(), loadShopCustomers(), loadOrderChart(), loadKpi()]);
         }
 
+        let shopOrdersPage = 1;
+        const SHOP_ORDERS_LIMIT = 50;
+        window.changeShopOrdersPage = delta => {
+            shopOrdersPage = Math.max(1, shopOrdersPage + delta);
+            loadShopOrders();
+        };
+
         async function loadShopOrders() {
             try {
-                const [orders, couriers, routes] = await Promise.all([
-                    fetch(`${API_BASE}/api/orders`).then(r => r.json()),
+                const [ordersResponse, couriers, routes] = await Promise.all([
+                    fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${SHOP_ORDERS_LIMIT}`),
                     fetch(`${API_BASE}/api/couriers`).then(r => r.json()),
                     fetch(`${API_BASE}/api/routes`).then(r => r.json())
                 ]);
+                if (!ordersResponse.ok) throw new Error('Не удалось загрузить заказы');
+                const pageData = await ordersResponse.json();
+                const orders = pageData.items || [];
+                const totalPages = Math.max(1, Math.ceil((pageData.total || 0) / SHOP_ORDERS_LIMIT));
+                if (shopOrdersPage > totalPages) { shopOrdersPage = totalPages; return loadShopOrders(); }
                 allCouriers = couriers;
                 document.getElementById('routeCourier').innerHTML = '<option value="">-- курьер --</option>' +
                     couriers.filter(c => c.is_active).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
@@ -1296,8 +1308,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
                     'SHIPPING': 'В доставке', 'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
                 };
-
-                // Находим курьера для каждого заказа через маршруты
                 function getCourierForOrder(orderId) {
                     for (const r of routes) {
                         const stops = r.stops || [];
@@ -1309,12 +1319,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return null;
                 }
 
-                document.getElementById('shopOrdersTable').innerHTML = orders.length === 0
+                const rows = orders.length === 0
                     ? '<tr><td colspan="8" class="empty">Нет заказов</td></tr>'
-                    : orders.slice(0, 50).map(o => {
-                        const courierOptions = couriers.map(c =>
-                            `<option value="${esc(c.id)}">${esc(c.name)}</option>`
-                        ).join('');
+                    : orders.map(o => {
+                        const courierOptions = couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
                         const showAssign = ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
                         const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
                         const courierName = getCourierForOrder(o.id);
@@ -1327,24 +1335,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         return `<tr${rowStyle}>
                             <td>${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" onclick="event.stopPropagation()">` : ''}</td>
                             <td>${checkmark}<strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
-                            <td>${esc(o.user_name || '-')}${o.phone ? '<br><small>' + esc(o.phone || '') + '</small>' : ''}</td>
-                            <td>${esc((o.address || '-').substring(0, 30))}${o.comment ? '<br><small style="color:var(--orange)">' + esc(o.comment.substring(0, 40)) + '</small>' : ''}</td>
+                            <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
+                            <td>${esc(o.address || '-')}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
-                            <td>
-                                <select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
-                                    ${Object.entries(statusLabels).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
-                                </select>
-                            </td>
-                            <td>
-                                ${showAssign ? `<select class="status-select" onclick="event.stopPropagation()" onchange="assignCourier(${o.id}, this.value)" ${autoAssign ? 'style="border-color:var(--orange)"' : ''}>
-                                    <option value="">-- курьер --</option>
-                                    ${courierOptions}
-                                    ${autoAssign ? `<option value="${couriers.filter(c=>c.is_active)[0].id}" selected>Назначить</option>` : ''}
-                                </select>` : (courierName ? `<strong>${esc(courierName)}</strong>` : '-')}
-                            </td>
+                            <td><select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
+                                ${Object.entries(statusLabels).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
+                            </select></td>
+                            <td>${showAssign ? `<select class="status-select" onclick="event.stopPropagation()" onchange="assignCourier(${o.id}, this.value)" ${autoAssign ? 'style="border-color:var(--orange)"' : ''}>
+                                <option value="">-- курьер --</option>${courierOptions}
+                                ${autoAssign ? `<option value="${couriers.filter(c=>c.is_active)[0].id}" selected>Назначить</option>` : ''}
+                            </select>` : (courierName ? `<strong>${esc(courierName)}</strong>` : '-')}</td>
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;
                     }).join('');
+                const pager = `<tr><td colspan="8" style="text-align:right;padding:12px">
+                    <button class="btn btn-outline btn-sm" onclick="changeShopOrdersPage(-1)" ${shopOrdersPage <= 1 ? 'disabled' : ''}>Назад</button>
+                    <span style="margin:0 12px">Страница ${shopOrdersPage} из ${totalPages} · Всего: ${pageData.total || 0}</span>
+                    <button class="btn btn-outline btn-sm" onclick="changeShopOrdersPage(1)" ${shopOrdersPage >= totalPages ? 'disabled' : ''}>Вперёд</button>
+                </td></tr>`;
+                document.getElementById('shopOrdersTable').innerHTML = rows + pager;
                 window._orders = orders;
                 renderBoard(orders, couriers, getCourierForOrder);
                 refreshPageSub();
@@ -1393,9 +1402,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function showOrderDetail(id) {
             try {
-                const orders = window._orders || await fetch(`${API_BASE}/api/orders`).then(r => r.json());
-                const o = orders.find(x => x.id === id);
-                if (!o) return;
+                const response = await fetch(`${API_BASE}/api/orders/${id}`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Не удалось загрузить заказ');
+                const o = await response.json();
                 const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
                 document.getElementById('orderModalTitle').textContent = 'Заказ ' + (o.order_number || 'AP-' + o.id);
                 document.getElementById('orderModalBody').innerHTML = `
@@ -1916,31 +1925,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function loadShopCustomers() {
             try {
-                const orders = await fetch(`${API_BASE}/api/orders`).then(r => r.json());
-                const customerMap = {};
-                orders.forEach(o => {
-                    const key = o.phone || o.user_name || o.user_id;
-                    if (!key) return;
-                    if (!customerMap[key]) {
-                        customerMap[key] = { name: o.user_name, phone: o.phone, user_id: o.user_id, orders: 0, total: 0, lastDate: o.created_at };
-                    }
-                    customerMap[key].orders++;
-                    customerMap[key].total += parseFloat(o.total) || 0;
-                    if (o.created_at > customerMap[key].lastDate) customerMap[key].lastDate = o.created_at;
-                });
-                const customers = Object.values(customerMap).sort((a, b) => b.lastDate - a.lastDate);
+                const response = await fetch(`${API_BASE}/api/orders/customers`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Не удалось загрузить клиентов');
+                const customers = await response.json();
                 document.getElementById('shopCustomersCount').textContent = customers.length;
                 refreshPageSub();
-
                 document.getElementById('shopCustomersTable').innerHTML = customers.length === 0
                     ? '<tr><td colspan="6" class="empty">Нет клиентов</td></tr>'
                     : customers.map(c => `<tr>
-                        <td><strong>${esc(c.name || '-')}</strong></td>
+                        <td><strong>${esc(c.user_name || '-')}</strong></td>
                         <td>${esc(c.phone || '-')}</td>
                         <td>${c.user_id ? 'ID: ' + esc(c.user_id) : '-'}</td>
-                        <td>${c.orders}</td>
-                        <td>${c.total.toLocaleString()} руб.</td>
-                        <td>${fmtDate(c.lastDate)}</td>
+                        <td>${Number(c.orders) || 0}</td>
+                        <td>${(Number(c.total) || 0).toLocaleString()} руб.</td>
+                        <td>${fmtDate(c.last_date)}</td>
                     </tr>`).join('');
             } catch (e) { console.error('Customers error:', e); }
         }
@@ -2061,7 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetch(`${API_BASE}/api/dispatch/stats?date=${today()}`).then(r => r.ok ? r.json() : null).catch(() => null),
                     fetch(`${API_BASE}/api/products`).then(r => r.ok ? r.json() : null).catch(() => null)
                 ]);
-                if (Array.isArray(orders)) menuData.orders = orders;
+                if (orders && Array.isArray(orders.items)) menuData.orders = orders.items;
                 menuData.stats = stats; menuData.products = Array.isArray(products) ? products : menuData.products;
                 const fresh = menuData.orders.filter(o => o.status === 'NEW').length;
                 setChip('orders', fresh ? fresh + ' нов.' : '', fresh > 0);
