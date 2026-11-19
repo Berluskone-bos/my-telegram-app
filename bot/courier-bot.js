@@ -697,8 +697,18 @@ async function handleStartRoute(chatId, routeId, user) {
         return;
     }
     bot.sendMessage(chatId, 'Маршрут начат! Клиенты получили уведомления. Удачи в доставке!');
-    try { await routeSvc.refreshEtas({ routeId, notifyNew: true }); }
-    catch (e) { console.error('[ROUTE] Не удалось отправить уведомления о старте:', errorCode(e)); }
+    try {
+        await routeSvc.refreshEtas({ routeId, notifyNew: true });
+        const refreshed = await db.getRouteById(routeId);
+        for (const stop of refreshed?.stops || []) {
+            if (stop.client_chat_id && !stop.eta_told_at && stop.status !== 'cancelled') {
+                queue.notify('client', stop.client_chat_id,
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\\n\\nСтатус: <b>Курьер выехал</b>\\nКурьер начал маршрут и доставит ваш заказ по очереди.`,
+                    { dedupKey: `route-start:${stop.id}` });
+                await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute' }).catch(() => false);
+            }
+        }
+    } catch (e) { console.error('[ROUTE] Не удалось отправить уведомления о старте:', errorCode(e)); }
     notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
 }
 
