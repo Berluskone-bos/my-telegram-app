@@ -616,8 +616,8 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('startroute_')) {
         const routeId = parseInt(data.split('_')[1]);
+        bot.answerCallbackQuery(query.id, { text: 'Проверяю готовность маршрута…' }).catch(() => {});
         await handleStartRoute(chatId, routeId, query.from);
-        bot.answerCallbackQuery(query.id).catch(() => {});
         return;
     }
 
@@ -1104,53 +1104,15 @@ function registerCourierRoutes(app) {
         try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
-        try {
-            const { courier_id, route_date, stops } = req.body;
-            const processedStops = [];
-            if (stops && stops.length > 0) {
-                for (let i = 0; i < stops.length; i++) {
-                    const stop = stops[i];
-                    const processed = { ...stop, stop_number: i + 1, status: 'pending' };
-                    if (!processed.lat && processed.address && YANDEX_GEO_KEY) {
-                        try {
-                            const geo = await geocoder.geocode(processed.address);
-                            if (geo) { processed.lat = geo.lat; processed.lon = geo.lon; }
-                        } catch (e) { console.log('Геокодирование адреса не удалось'); }
-                    }
-                    if (processed.lat && processed.lon) {
-                        processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
-                        processed.google_url = MapLinks.google(processed.lat, processed.lon);
-                        processed.gis2_url = MapLinks.gis2(processed.lat, processed.lon);
-                    }
-                    processedStops.push(processed);
-                }
-            }
-            const route = await db.createRoute({
-                route_number: generateRouteNumber(),
-                route_date: route_date || new Date().toISOString().split('T')[0],
-                courier_id, status: 'draft',
-                total_orders: processedStops.length,
-                stops: processedStops
-            });
-            res.json(route);
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
-    });
+    // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,
+    // который проверяет READY_FOR_SHIPMENT, исключает самовывоз и защищает от двойного назначения.
+    app.post('/api/routes', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
+        return res.status(410).json({ error: 'Используйте построение маршрутного листа через /api/routes/build' });
+    });;
 
-    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
-        try {
-            const route = await db.getRouteById(parseInt(req.params.id));
-            if (!route) return res.status(404).json({ error: 'Route not found' });
-            const couriers = await db.getCouriers();
-            const courier = couriers.find(c => c.id === route.courier_id);
-            if (!courier) return res.status(404).json({ error: 'Courier not found' });
-            await db.updateRouteStatus(route.id, 'assigned', route.completed || 0, route.failed || 0);
-            bot.sendMessage(courier.telegram_id,
-                `<b>Новый маршрут!</b>\n\nМаршрут: ${escapeHtml(route.route_number)}\nДата: ${escapeHtml(route.route_date)}\nОстановок: ${(route.stops||[]).length}\n\nОтправьте /route для просмотра.`,
-                { parse_mode: 'HTML' }
-            ).then(() => res.json({ success: true })).catch(err => { console.error('[API]', errorCode(err)); res.json({ success: false, error: 'Internal error' }); });
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
-    });
+    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
+        return res.status(410).json({ error: 'Повторное назначение маршрута отключено. Создайте маршрут через /api/routes/build' });
+    });;
 
     // Собрать маршрут из нескольких заказов: система строит порядок и время, курьер получает маршрутный лист
     app.post('/api/routes/build', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
