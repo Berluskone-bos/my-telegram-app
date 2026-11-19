@@ -161,7 +161,7 @@ class DBAdapter {
         const userId = String(telegramUserId == null ? '' : telegramUserId);
         if (!Number.isInteger(stop) || stop <= 0 ||
             !Number.isInteger(courier) || courier <= 0 ||
-            !/^\\d+$/.test(userId) ||
+            !/^[0-9]+$/.test(userId) ||
             !Number.isInteger(value) || value < 1 || value > 5) {
             return { status: 'invalid' };
         }
@@ -177,7 +177,67 @@ class DBAdapter {
                        SELECT o.user_id
                          FROM orders o
                         WHERE o.id = CASE
-                            WHEN rs.order_id ~ '^[0-9]+
+                            WHEN rs.order_id ~ '^[0-9]+$' THEN rs.order_id::bigint
+                            ELSE NULL
+                        END
+                           OR (rs.order_number IS NOT NULL AND o.order_number = rs.order_number)
+                        ORDER BY CASE
+                            WHEN o.id = CASE
+                                WHEN rs.order_id ~ '^[0-9]+$' THEN rs.order_id::bigint
+                                ELSE NULL
+                            END THEN 0 ELSE 1
+                        END
+                        LIMIT 1
+                   ) owner ON TRUE
+                  WHERE rs.id = $1 AND owner.user_id = $2::bigint
+                  FOR UPDATE OF rs`,
+                [stop, userId]
+            );
+
+            // Для чужого/несуществующего заказа одинаковый ответ: не раскрываем наличие заказа.
+            if (!found.rowCount || Number(found.rows[0].courier_id) !== courier) {
+                await client.query('ROLLBACK');
+                return { status: 'not_allowed' };
+            }
+            const row = found.rows[0];
+            if (row.status !== 'delivered') {
+                await client.query('ROLLBACK');
+                return { status: 'not_delivered' };
+            }
+            if (row.client_rating != null) {
+                await client.query('ROLLBACK');
+                return { status: 'already_rated' };
+            }
+
+            const saved = await client.query(
+                'UPDATE route_stops SET client_rating = $1 WHERE id = $2 AND client_rating IS NULL RETURNING id',
+                [value, stop]
+            );
+            if (!saved.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'already_rated' };
+            }
+            const updated = await client.query(
+                `UPDATE couriers
+                    SET rating = (rating::numeric * rating_count + $1) / (rating_count + 1),
+                        rating_count = rating_count + 1
+                  WHERE id = $2
+                  RETURNING id, rating, rating_count`,
+                [value, courier]
+            );
+            if (!updated.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_allowed' };
+            }
+            await client.query('COMMIT');
+            return { status: 'rated', courier: updated.rows[0] };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
+    }
     // ───────────────────────────────────────────
     // Маршруты
     // ───────────────────────────────────────────
