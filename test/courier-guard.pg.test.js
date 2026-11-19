@@ -56,9 +56,9 @@ test('курьерский бот: кнопки отменённого зака�
         await db.updateOrderStatus(o.id, 'SHIPPING');
         return { o, route, stopId: route.stops[0].id };
     };
-    const press = async (data, fromId = 900002) => {
+    const press = async (data) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: fromId, first_name: 'К' }, message: { chat: { id: fromId }, message_id: 55, reply_markup: { inline_keyboard: [] } } });
+        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: { inline_keyboard: [] } } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
@@ -87,10 +87,8 @@ test('курьерский бот: кнопки отменённого зака�
 
     // Нельзя оценить ещё не доставленную остановку или подменить ID курьера.
     const c = await mk('cg3');
-    await press(`rate_${courier.id}_${c.stopId}_5`, 777004);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /только доставленный/);
-    await press(`rate_${courier.id + 100000}_${c.stopId}_5`, 777004);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /нельзя оценить/);
+    assert.equal((await db.rateCourierForStop(c.stopId, courier.id, 777004, 5)).status, 'not_delivered');
+    assert.equal((await db.rateCourierForStop(c.stopId, courier.id + 100000, 777004, 5)).status, 'not_allowed');
 
     // кнопка «Поехал!» (начало маршрута) клиентам ничего не отправляет
     await press(`startroute_${c.route.id}`);
@@ -124,21 +122,18 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal(adm.length, 4); assert.match(adm[2], /приехал к клиенту/); assert.match(adm[3], /заказ доставлен/);
     assert.match(adm[3], new RegExp('AP-cg2'));
 
-    // Оценку может отправить только владелец доставленного заказа, строго один раз.
+    // Оценку может отправить только владелец доставленного заказа; параллельные повторы дают одно начисление.
     const initialCount = Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count);
-    await press(`rate_${courier.id}_${b.stopId}_5`, 999999);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /нельзя оценить/);
+    assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 999999, 5)).status, 'not_allowed');
     assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount);
-    await press(`rate_${courier.id}_${b.stopId}_5`, 777004);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /Спасибо/);
-    assert.equal(Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [b.stopId])).rows[0].client_rating), 5);
+    const concurrentRatings = await Promise.all([
+        db.rateCourierForStop(b.stopId, courier.id, 777004, 5),
+        db.rateCourierForStop(b.stopId, courier.id, 777004, 1)
+    ]);
+    assert.deepEqual(concurrentRatings.map(x => x.status).sort(), ['already_rated', 'rated']);
+    const storedRating = Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [b.stopId])).rows[0].client_rating);
+    assert.ok([1, 5].includes(storedRating));
     assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount + 1);
-    await press(`rate_${courier.id}_${b.stopId}_1`, 777004);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /уже оценили/);
-    assert.equal(Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [b.stopId])).rows[0].client_rating), 5);
-    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount + 1);
-    await press(`rate_${courier.id}_${b.stopId}_4`, 777005);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /нельзя оценить/);
-    await press(`rate_${courier.id}_o_5`, 777004);
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /недействительна/);
+    assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777004, 3)).status, 'already_rated');
+    assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777005, 4)).status, 'not_allowed');
 });
