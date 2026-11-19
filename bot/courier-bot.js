@@ -748,9 +748,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             bot.answerCallbackQuery(query.id, { text: 'Не удалось принять заказ: ' + accepted.status, show_alert: true }).catch(() => {});
             return;
         }
+        // До общего старта маршрута у принятого заказа не должно быть кнопки «У клиента».
+        // Действия доставки появятся отдельной карточкой после нажатия «Начать маршрут».
         const nextButtons = [
-            ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
-            [{ text: 'У клиента', callback_data: `deliver_${routeId}_${stopId}_arrived` }]
+            ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || [])
         ];
         try { await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId }); }
         catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
