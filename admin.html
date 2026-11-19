@@ -635,8 +635,8 @@ function applyAdminAccess(me) {
     if (staffButton) staffButton.style.display = has('staff.manage') ? '' : 'none';
     const routeCourier = document.getElementById('routeCourier');
     const buildRouteButton = document.getElementById('buildRouteBtn');
-    if (routeCourier) routeCourier.hidden = !has('settings.manage');
-    if (buildRouteButton) buildRouteButton.hidden = !has('settings.manage');
+    if (routeCourier) routeCourier.style.display = has('settings.manage') ? '' : 'none';
+    if (buildRouteButton) buildRouteButton.style.display = has('settings.manage') ? '' : 'none';
     const name = document.getElementById('adminDisplayName');
     const role = document.getElementById('adminRoleLabel');
     if (name) name.textContent = me.displayName || me.roleLabel || 'Сотрудник';
@@ -708,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     </aside>
 
-    <div id="staffModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(5,12,32,.72);align-items:center;justify-content:center;padding:16px;">
+    <div id="staffModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(5,12,32,.72);align-items:center;justify-content:center;padding:16px;">
         <div style="background:var(--panel,#fff);color:var(--text,#17213a);width:min(920px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;">
                 <div><h2 style="margin:0">Сотрудники</h2><p style="margin:6px 0 0;color:var(--muted,#667085)">Личные учётные записи и права доступа</p></div>
@@ -1334,6 +1334,7 @@ document.addEventListener('DOMContentLoaded', () => {
         async function loadAnalytics() {
             if (!window.adminHasPermission || !window.adminHasPermission('sales.view')) return;
             loadShopAnalytics();
+            if (!window.adminHasPermission('settings.manage')) return;
             try {
                 const a = await fetch(`${API_BASE}/api/analytics`).then(r => r.json());
                 const s = a.summary || {};

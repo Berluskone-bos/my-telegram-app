@@ -1250,7 +1250,7 @@ function registerCourierRoutes(app) {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/analytics', verifyAdmin, requirePermission('sales.view'), async (req, res) => {
+    app.get('/api/analytics', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
