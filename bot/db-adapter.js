@@ -31,7 +31,7 @@ function orderTransitionAllowed(from, to) {
         READY_FOR_SHIPMENT: ['CANCELLED'],
         SHIPPING: ['COMPLETED', 'CANCELLED'],
         DELIVERED: ['COMPLETED', 'CANCELLED'],
-        COMPLETED: [],
+        COMPLETED: ['CANCELLED'],
         CANCELLED: []
     };
     return Array.isArray(allowed[from]) && allowed[from].includes(to);
@@ -328,6 +328,31 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+
+            // Для построения маршрутного листа блокируем заказы до проверки активных остановок.
+            // Это закрывает гонку: один заказ нельзя одновременно включить в два активных маршрута.
+            if (route.enforceReadyOrders) {
+                const ids = [...new Set((route.stops || []).map(s => String(s.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+                if (!ids.length || ids.length !== (route.stops || []).length) {
+                    throw Object.assign(new Error('В маршрут передан некорректный список заказов'), { code: 'BAD_REQUEST' });
+                }
+                const locked = await client.query(
+                    'SELECT id, status, delivery_type FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE', [ids]);
+                if (locked.rowCount !== ids.length) {
+                    throw Object.assign(new Error('Один из заказов не найден'), { code: 'NOT_FOUND' });
+                }
+                const notReady = locked.rows.find(o => o.status !== 'READY_FOR_SHIPMENT' || o.delivery_type === 'pickup');
+                if (notReady) {
+                    throw Object.assign(new Error('Заказ не готов к курьерской отправке'), { code: 'CONFLICT' });
+                }
+                const assigned = await client.query(
+                    `SELECT order_id FROM route_stops
+                      WHERE order_id = ANY($1::text[]) AND status IN ('pending', 'accepted', 'in_progress')
+                      FOR UPDATE`, [ids]);
+                if (assigned.rowCount) {
+                    throw Object.assign(new Error('Один из заказов уже находится в активном маршруте'), { code: 'CONFLICT' });
+                }
+            }
 
             const routeRes = await client.query(
                 `INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance)
