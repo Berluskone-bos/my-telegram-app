@@ -27,8 +27,10 @@ function orderTransitionAllowed(from, to) {
     const allowed = {
         NEW: ['CONFIRMED', 'CANCELLED'],
         CONFIRMED: ['ASSEMBLING', 'CANCELLED'],
-        ASSEMBLING: ['READY_FOR_SHIPMENT', 'CANCELLED'],
+        ASSEMBLING: ['READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'CANCELLED'],
         READY_FOR_SHIPMENT: ['CANCELLED'],
+        READY_FOR_PICKUP: ['PICKED_UP', 'CANCELLED'],
+        PICKED_UP: [],
         SHIPPING: ['COMPLETED', 'CANCELLED'],
         DELIVERED: ['COMPLETED', 'CANCELLED'],
         COMPLETED: ['CANCELLED'],
@@ -961,7 +963,7 @@ class DBAdapter {
             // Товар доставлен: остаток больше не «наш», флаг снимаем — повторного возврата быть не может.
             await client.query(
                 `UPDATE orders SET status = $1::text,
-                        stock_deducted = CASE WHEN $1::text IN ('DELIVERED', 'COMPLETED') THEN false ELSE stock_deducted END
+                        stock_deducted = CASE WHEN $1::text IN ('DELIVERED', 'COMPLETED', 'PICKED_UP') THEN false ELSE stock_deducted END
                   WHERE id = $2`, [status, id]);
             if (status === 'CANCELLED') {
                 if (!['DELIVERED', 'COMPLETED'].includes(o.status)) await this._restoreStock(client, o);
@@ -972,7 +974,7 @@ class DBAdapter {
                 await queueCancelNotices(client, o);
                 await this._undoBonuses(client, o);
             }
-            if (status === 'DELIVERED' || status === 'COMPLETED') await this._grantReferralBonus(client, o);
+            if (status === 'DELIVERED' || status === 'COMPLETED' || status === 'PICKED_UP') await this._grantReferralBonus(client, o);
             await client.query('COMMIT');
             return true;
         } catch (e) {
