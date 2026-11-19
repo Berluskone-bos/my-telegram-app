@@ -56,6 +56,7 @@ test('маршрут из 4 заказов: порядок по времени �
     await assert.rejects(svc.buildRoute({ orderIds: [pickup.id], courier }), (e) => e.code === 'CONFLICT' && /самовывоз/.test(e.message));
     await db.updateOrderStatus(pickup.id, 'CONFIRMED');
     await db.updateOrderStatus(pickup.id, 'ASSEMBLING');
+    assert.equal(await db.updateOrderStatus(pickup.id, 'READY_FOR_SHIPMENT'), 'TRANSITION_FORBIDDEN', 'самовывоз нельзя перевести в курьерскую готовность');
     await db.updateOrderStatus(pickup.id, 'READY_FOR_PICKUP');
     assert.equal(await db.updateOrderStatus(pickup.id, 'PICKED_UP'), true);
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [pickup.id])).rows[0].status, 'PICKED_UP');
