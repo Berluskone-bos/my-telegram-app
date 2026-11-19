@@ -112,7 +112,7 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`startroute_${b.route.id}`);
     assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
     assert.equal((await adminTexts()).length, 2, 'админ получает отдельное уведомление о старте маршрута');
-    assert.match((await adminTexts())[1], /\\[МАРШРУТ\\].*начат курьером/i);
+    assert.match((await adminTexts())[1], /\[МАРШРУТ\].*начат курьером/i);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
