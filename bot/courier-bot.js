@@ -1264,7 +1264,7 @@ function registerCourierRoutes(app) {
     app.put('/api/orders/:id/status', verifyAdmin, requireOrderStatusPermission, async (req, res) => {
         try {
             const { status } = req.body;
-            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'CANCELLED'];
+            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
             const orderId = parseInt(req.params.id);
             const changed = await db.updateOrderStatus(orderId, status);
