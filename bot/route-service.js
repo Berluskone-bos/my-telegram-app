@@ -10,7 +10,7 @@ const { queueRouteSheetEdit, sheetKey } = require('./route-sheet');
 const poolOf = () => require('./db').pool;
 
 const DEFAULT_START = { lat: 59.9343, lon: 30.3351, source: 'default' };   // центр Санкт-Петербурга, пока склад не задан
-const ACTIVE = ['pending', 'in_progress'];
+const ACTIVE = ['pending', 'accepted', 'in_progress'];
 
 function createRouteService({ db, geocoder = null, queue, planner = defaultPlanner, env = process.env, now = () => new Date() }) {
     const serviceMin = () => Math.max(0, Number(env.SERVICE_MINUTES) || 5);
