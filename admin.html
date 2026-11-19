@@ -1419,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? '<tr><td colspan="8" class="empty">Нет заказов</td></tr>'
                     : orders.map(o => {
                         const courierOptions = couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-                        const showAssign = canDispatch && ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
+                        const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
                         const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
                         const courierName = getCourierForOrder(o.id);
                         const isCompleted = o.status === 'COMPLETED';
@@ -1583,17 +1583,17 @@ document.addEventListener('DOMContentLoaded', () => {
             try { items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []); } catch (e) { items = []; }
             const qty = items.reduce((s, i) => s + (Number(i.qty) || 1), 0);
             const courierName = ctx.courierOf(o.id);
-            const canDispatch = window.adminHasPermission && window.adminHasPermission('settings.manage');
+            const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
             const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
                 && !window.adminHasPermission('orders.process');
             const showAssign = canDispatch && ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
             const canBatch = showAssign && !pickup && !courierName;
-            const nextStatus = warehouseOnly ? (o.status === 'CONFIRMED' ? 'ASSEMBLING' : null) : (col && col.next);
+            const nextStatus = warehouseOnly ? (o.status === 'ASSEMBLING' ? 'READY_FOR_SHIPMENT' : null) : (col && col.next);
             const drag = !warehouseOnly && col && col.key !== 'DONE' && o.status !== 'CANCELLED';
             const color = col ? col.color : '#9ca3af';
             let act = '';
             if (col && nextStatus) {
-                const label = warehouseOnly && nextStatus === 'ASSEMBLING' ? 'В сборку' : (pickup && col.labelPickup ? col.labelPickup : col.label);
+                const label = warehouseOnly && nextStatus === 'READY_FOR_SHIPMENT' ? 'Подтвердить готовность' : (pickup && col.labelPickup ? col.labelPickup : col.label);
                 act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${nextStatus}" data-num="${num}">${esc(label)} →</button></div>`;
             }
             if (showAssign) {
