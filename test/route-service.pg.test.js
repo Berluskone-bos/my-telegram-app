@@ -54,6 +54,11 @@ test('маршрут из 4 заказов: порядок по времени �
     await assert.rejects(svc.buildRoute({ orderIds: [], courier }), (e) => e.code === 'BAD_REQUEST');
     const pickup = await mk('5', 'адрес A', { delivery_type: 'pickup' });
     await assert.rejects(svc.buildRoute({ orderIds: [pickup.id], courier }), (e) => e.code === 'CONFLICT' && /самовывоз/.test(e.message));
+    await db.updateOrderStatus(pickup.id, 'CONFIRMED');
+    await db.updateOrderStatus(pickup.id, 'ASSEMBLING');
+    await db.updateOrderStatus(pickup.id, 'READY_FOR_PICKUP');
+    assert.equal(await db.updateOrderStatus(pickup.id, 'PICKED_UP'), true);
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [pickup.id])).rows[0].status, 'PICKED_UP');
     const cancelled = await mk('6', 'адрес A'); await db.updateOrderStatus(cancelled.id, 'CANCELLED');
     await assert.rejects(svc.buildRoute({ orderIds: [cancelled.id], courier }), (e) => e.code === 'CONFLICT');
 
