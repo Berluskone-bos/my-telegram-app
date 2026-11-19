@@ -1062,7 +1062,7 @@ function registerCourierRoutes(app) {
     });
 
     // Состояние системы для владельца (вкладка «Журнал» в админке): связь с базой, очередь уведомлений админ-чату, опрос админ-бота.
-    app.get('/api/admin/system-status', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.get('/api/admin/system-status', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const out = { time: new Date().toISOString(), uptimeSec: Math.round(process.uptime()), db: { ok: false }, outbox: {}, adminPolling: getAdminPollingStatus() };
         try {
             const pool = require('./db').pool;
@@ -1188,11 +1188,11 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/zones', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.get('/api/zones', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/geocode', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.get('/api/geocode', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const address = req.query.address;
         if (!address) return res.status(400).json({ error: 'address required' });
         try {
@@ -1207,7 +1207,7 @@ function registerCourierRoutes(app) {
         res.json(MapLinks.all(address || '', parseFloat(lat), parseFloat(lon)));
     });
 
-    app.post('/api/map-links/route', verifyAdmin, requirePermission('settings.manage'), (req, res) => {
+    app.post('/api/map-links/route', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
         const { stops } = req.body;
         if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
         res.json(MapLinks.allRoute(stops));
@@ -1237,7 +1237,7 @@ function registerCourierRoutes(app) {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/analytics', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.get('/api/analytics', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
