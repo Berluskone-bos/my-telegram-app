@@ -1558,11 +1558,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const BOARD_COLS = [
             { key: 'NEW',        title: 'Новые',        st: ['NEW'],                    color: '#00AFC7', drop: 'NEW',        next: 'CONFIRMED',  label: 'Подтвердить' },
             { key: 'CONFIRMED',  title: 'Подтверждены', st: ['CONFIRMED'],              color: '#6366f1', drop: 'CONFIRMED',  next: 'ASSEMBLING', label: 'В сборку' },
-            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#ea580c', drop: 'ASSEMBLING', next: 'SHIPPING',   label: 'Отправить', labelPickup: 'Готов к выдаче' },
-            { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: 'DELIVERED',  label: 'Доставлен', labelPickup: 'Выдан клиенту' },
+            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#ea580c', drop: 'ASSEMBLING', next: 'READY_FOR_SHIPMENT', label: 'Готово к отправке', labelPickup: 'Готов к выдаче' },
+            { key: 'READY_FOR_SHIPMENT', title: 'Готовы к отправке', st: ['READY_FOR_SHIPMENT'], color: '#0d9488', drop: 'READY_FOR_SHIPMENT', next: null, label: 'Назначить маршрут' },
+            { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: null },
             { key: 'DONE',       title: 'Доставлены',   st: ['DELIVERED', 'COMPLETED'], color: '#16a34a', drop: 'DELIVERED',  limit: 15 }
         ];
-        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
+        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
         let dragId = null, dragFrom = null;
 
         function agoText(ts) {
