@@ -954,7 +954,7 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
             const cur = await client.query(
-                'SELECT id, status, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost FROM orders WHERE id = $1 FOR UPDATE', [id]);
+                'SELECT id, status, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost, delivery_type FROM orders WHERE id = $1 FOR UPDATE', [id]);
             if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
             const o = cur.rows[0];
             if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
