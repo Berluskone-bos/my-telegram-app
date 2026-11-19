@@ -44,6 +44,11 @@ test('маршрут из 4 заказов: порядок по времени �
     const mk = (key, addr, extra = {}) => db.createOrder({ order_number: 'AP-rs' + key, user_id: 880100 + Number(key), user_name: 'К' + key, phone: '1', address: addr,
         zone: 'spb', city: 'c', street: 's', house: '1', items: [], subtotal: 1, total: 100, idempotency_key: 'rs' + key, ...extra });
     const oA = await mk('1', 'адрес A'), oB = await mk('2', 'адрес B'), oC = await mk('3', 'адрес C'), oD = await mk('4', 'адрес D');
+    for (const o of [oA, oB, oC, oD]) {
+        await db.updateOrderStatus(o.id, 'CONFIRMED');
+        await db.updateOrderStatus(o.id, 'ASSEMBLING');
+        await db.updateOrderStatus(o.id, 'READY_FOR_SHIPMENT');
+    }
 
     // проверки отказов
     await assert.rejects(svc.buildRoute({ orderIds: [], courier }), (e) => e.code === 'BAD_REQUEST');
@@ -60,7 +65,7 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.ok(stops.every(s => s.eta_at), 'время приезда сохранено');
     // склад→D = 600 с (10 мин) после выезда в 03:00 UTC... время прибытия: 00:10, 00:25 (+5 мин остановка), 00:40, 00:55
     assert.deepEqual(stops.map(s => new Date(s.eta_at).toISOString().slice(11, 16)), ['00:10', '00:25', '00:40', '00:55']);
-    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
+    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     // повторно те же заказы нельзя
     await assert.rejects(svc.buildRoute({ orderIds: [oA.id], courier }), (e) => e.code === 'CONFLICT' && /уже назначен/.test(e.message));
 
@@ -72,7 +77,7 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.match(toCourier[1].text, /Точка 1 из 4/);
     assert.equal(toCourier[1].opts.buttons.at(-1)[0].callback_data, `deliver_${out.route.id}_${stops[0].id}_accept`);
     assert.ok(sent.some(m => m.bot === 'admin' && /назначен/.test(m.text)));
-    assert.equal(sent.filter(m => m.bot === 'client' && /Курьер назначен/.test(m.text)).length, 4);
+    assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'при назначении маршрута клиент не получает сообщение о выезде');
     sent.length = 0;
 
     // курьер нажал «В пути» по первой точке: ей — «везёт», остальным — «выехал, вы N-й, будет через…»
