@@ -456,34 +456,40 @@ bot.on('callback_query', async (query) => {
         const data = query.data;
         if (!data || typeof data !== 'string') return;
 
-        // ─── rate_<courierId>_<rating> ───
+        // Формат: rate_<courierId>_<routeStopId>_<rating>. Старые кнопки без stopId отклоняются.
         if (data.startsWith('rate_')) {
-            const parts = data.split('_');
-            const courierId = parseInt(parts[1], 10);
-            const rating    = parseInt(parts[parts.length - 1], 10);
-            if (!Number.isInteger(courierId) || courierId <= 0 ||
-                !Number.isInteger(rating) || rating < 1 || rating > 5) {
-                await bot.answerCallbackQuery(query.id, { text: 'Некорректная оценка' }).catch(() => {});
+            const match = /^rate_([0-9]+)_([0-9]+)_([1-5])$/.exec(data);
+            if (!match || !query.from || !query.from.id) {
+                await bot.answerCallbackQuery(query.id, { text: 'Кнопка оценки недействительна', show_alert: true }).catch(() => {});
                 return;
             }
+            const [, courierId, stopId, rating] = match;
+            let result;
             try {
-                const saved = await db.updateCourierRating(courierId, rating);
-                // === false — явный отказ; undefined считаем успехом
-                if (saved === false) {
-                    await bot.answerCallbackQuery(query.id, { text: 'Оценка не сохранена' }).catch(() => {});
-                    return;
-                }
+                result = await db.rateCourierForStop(stopId, courierId, query.from.id, rating);
             } catch (e) {
                 console.error('[rate_] db:', sanitizeLog(e.message));
                 await bot.answerCallbackQuery(query.id, { text: 'Ошибка сохранения' }).catch(() => {});
                 return;
             }
-            await bot.answerCallbackQuery(query.id, { text: `Спасибо за оценку ${rating}!` }).catch(() => {});
+            const messages = {
+                not_allowed: 'Эту доставку нельзя оценить с вашего аккаунта',
+                not_delivered: 'Оценить можно только доставленный заказ',
+                already_rated: 'Вы уже оценили эту доставку',
+                invalid: 'Некорректная оценка'
+            };
+            const message = result.status === 'rated' ? 'Спасибо за оценку!' : (messages[result.status] || 'Не удалось принять оценку');
+            await bot.answerCallbackQuery(query.id, {
+                text: message,
+                show_alert: result.status !== 'rated'
+            }).catch(() => {});
             if (query.message && query.message.chat) {
                 await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
                     chat_id: query.message.chat.id, message_id: query.message.message_id
                 }).catch(() => {});
-                await bot.sendMessage(query.message.chat.id, `Спасибо за оценку ${rating}/5!`).catch(() => {});
+                if (result.status === 'rated') {
+                    await bot.sendMessage(query.message.chat.id, 'Спасибо за оценку доставки!').catch(() => {});
+                }
             }
             return;
         }
