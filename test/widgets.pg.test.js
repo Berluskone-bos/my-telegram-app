@@ -40,6 +40,20 @@ test('виджеты: очередь, запасной вариант, трек�
         await q.enqueue(tracker.trackerItem({ chatId: user, orderNumber }));
         await q.processOnce();
     };
+    const deliverWithRoute = async (order, routeNumber, complete = true) => {
+        for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
+            assert.equal(await db.updateOrderStatus(order.id, status), true);
+        }
+        const route = await db.createRoute({ route_number: routeNumber, route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
+            stops: [{ order_id: String(order.id), order_number: order.order_number, address: order.address, phone: '1', client_name: 'К', client_chat_id: order.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
+        const stopId = route.stops[0].id;
+        if (complete) {
+            assert.equal((await db.acceptRouteStop(route.id, stopId)).status, 'accepted');
+            assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
+            assert.equal((await db.completeDeliveryStop(stopId)).status, 'completed');
+        }
+        return route;
+    };
 
     // ── 1. карточка уходит, номер сообщения запоминается; правка идёт молча на то же сообщение ──
     await mkOrder('wg1');
@@ -96,15 +110,14 @@ test('виджеты: очередь, запасной вариант, трек�
     const calls = [];
     const call = async (method, payload) => { calls.push({ method, payload }); return true; };
     const o3 = await mkOrder('wg3');
-    const route = await db.createRoute({ route_number: 'RL-wg3', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1,
-        stops: [{ order_id: String(o3.id), order_number: o3.order_number, address: o3.address, phone: '1', client_name: 'К', client_chat_id: o3.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
+    const route = await deliverWithRoute(o3, 'RL-wg3', false);
     const stopId = route.stops[0].id;
     await mkCard('AP-wg3'); const w3 = await store.get(pool, 'tracker', 'AP-wg3');
     const query = (data, from = 777101) => ({ id: 'q' + Math.random(), data, from: { id: from }, chat: { id: 777101 }, message_id: Number(w3.message_id) });
     assert.equal(await tracker.handleWidgetQuery(query('rate:5'), { pool, db, call }), 'not_delivered', 'пока не доставлен — оценить нельзя');
-    assert.equal(await db.updateOrderStatus(o3.id, 'SHIPPING'), true);
-    await db.updateStopStatus(stopId, 'delivered', '');
-    assert.equal(await db.updateOrderStatus(o3.id, 'DELIVERED'), true);
+    assert.equal((await db.acceptRouteStop(route.id, stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
+    assert.equal((await db.completeDeliveryStop(stopId)).status, 'completed');
     assert.equal(await tracker.handleWidgetQuery(query('rate:5', 999), { pool, db, call }), 'bad_chat', 'чужой пользователь');
     assert.equal(await tracker.handleWidgetQuery(query('rate:9'), { pool, db, call }), 'ignored', 'оценка вне 1–5');
     assert.equal(await tracker.handleWidgetQuery(query('drop table'), { pool, db, call }), 'ignored');
@@ -119,11 +132,7 @@ test('виджеты: очередь, запасной вариант, трек�
 
     // ── 5б. миграция старых оценок tracker-widget: не разрешать повторную оценку после релиза ──
     const legacyOrder = await mkOrder('wg3legacy');
-    const legacyRoute = await db.createRoute({ route_number: 'RL-wg3legacy', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1,
-        stops: [{ order_id: String(legacyOrder.id), order_number: legacyOrder.order_number, address: legacyOrder.address, phone: '1', client_name: 'К', client_chat_id: legacyOrder.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
-    await db.updateOrderStatus(legacyOrder.id, 'SHIPPING');
-    await db.updateStopStatus(legacyRoute.stops[0].id, 'delivered', '');
-    assert.equal(await db.updateOrderStatus(legacyOrder.id, 'DELIVERED'), true);
+    const legacyRoute = await deliverWithRoute(legacyOrder, 'RL-wg3legacy');
     await mkCard(legacyOrder.order_number);
     await pool.query(
         `UPDATE widget_messages SET state = state || '{"rating":3}'::jsonb WHERE kind = 'tracker' AND ref = $1`,
@@ -141,10 +150,10 @@ test('виджеты: очередь, запасной вариант, трек�
     // ── 6. отмена заказа: карточка «Отменён» и серая кнопка у курьера (с запасным вариантом) ──
     const o4 = await mkOrder('wg4');
     await mkCard('AP-wg4');
-    const route4 = await db.createRoute({ route_number: 'RL-wg4', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1,
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o4.id, status), true);
+    const route4 = await db.createRoute({ route_number: 'RL-wg4', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
         stops: [{ order_id: String(o4.id), order_number: o4.order_number, address: o4.address, phone: '1', client_name: 'К', client_chat_id: o4.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
     const st4 = route4.stops[0].id;
-    assert.equal(await db.updateOrderStatus(o4.id, 'SHIPPING'), true);
     await q.enqueue({ bot: 'courier', dedupKey: `assign:${st4}`, onSent: { stopId: st4 }, payload: { chat_id: '900101', text: 'Новый заказ' } });
     // маршрутная карточка уже есть
     await store.upsert(pool, 'route', route4.id, {}); await store.setMessage(pool, 'route', route4.id, '900101', 650);

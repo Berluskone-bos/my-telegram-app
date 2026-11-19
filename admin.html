@@ -1383,7 +1383,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function loadShopOrders() {
             try {
-                const canDispatch = window.adminHasPermission && window.adminHasPermission('settings.manage');
+                const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
+                const canFulfill = window.adminHasPermission && window.adminHasPermission('orders.fulfill');
                 const [ordersResponse, couriers, routes] = await Promise.all([
                     fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${SHOP_ORDERS_LIMIT}`),
                     canDispatch ? fetch(`${API_BASE}/api/couriers`).then(r => r.json()) : Promise.resolve([]),
@@ -1400,7 +1401,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const statusLabels = {
                     'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
-                    'SHIPPING': 'В доставке', 'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
+                    'READY_FOR_SHIPMENT': 'Готов к отправке', 'READY_FOR_PICKUP': 'Готов к выдаче', 'PICKED_UP': 'Выдан при самовывозе', 'SHIPPING': 'В доставке',
+                    'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
                 };
                 const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
                     && !window.adminHasPermission('orders.process');
@@ -1418,11 +1420,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rows = orders.length === 0
                     ? '<tr><td colspan="8" class="empty">Нет заказов</td></tr>'
                     : orders.map(o => {
-                        const courierOptions = couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-                        const showAssign = canDispatch && ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
-                        const autoAssign = showAssign && couriers.filter(c => c.is_active).length === 1;
+                        const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
                         const courierName = getCourierForOrder(o.id);
-                        const isCompleted = o.status === 'COMPLETED';
+                        const isCompleted = o.status === 'COMPLETED' || o.status === 'PICKED_UP';
                         const checkmark = isCompleted
                             ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M20 6L9 17l-5-5"/></svg>'
                             : '';
@@ -1435,12 +1435,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${esc(o.address || '-')}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
                             <td><select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
-                                ${(warehouseOnly ? Object.entries(statusLabels).filter(([k]) => k === o.status || (k === 'ASSEMBLING' && o.status === 'CONFIRMED')) : Object.entries(statusLabels)).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
+                ${Object.entries(statusLabels).filter(([k]) =>
+                                    k === o.status ||
+                                    (o.status === 'NEW' && k === 'CONFIRMED') ||
+                                    (o.status === 'CONFIRMED' && k === 'ASSEMBLING') ||
+                                    (o.status === 'ASSEMBLING' && canFulfill && k === (o.delivery_type === 'pickup' ? 'READY_FOR_PICKUP' : 'READY_FOR_SHIPMENT')) ||
+                                    (o.status === 'READY_FOR_PICKUP' && window.adminHasPermission && window.adminHasPermission('orders.process') && k === 'PICKED_UP') ||
+                                    (k === 'CANCELLED' && !['DELIVERED','COMPLETED','PICKED_UP','CANCELLED'].includes(o.status))
+                                ).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
                             </select></td>
-                            <td>${showAssign ? `<select class="status-select" onclick="event.stopPropagation()" onchange="assignCourier(${o.id}, this.value)" ${autoAssign ? 'style="border-color:var(--orange)"' : ''}>
-                                <option value="">-- курьер --</option>${courierOptions}
-                                ${autoAssign ? `<option value="${couriers.filter(c=>c.is_active)[0].id}" selected>Назначить</option>` : ''}
-                            </select>` : (courierName ? `<strong>${esc(courierName)}</strong>` : '-')}</td>
+                            <td>${courierName ? `<strong>${esc(courierName)}</strong>` : (showAssign ? 'Выберите заказ для маршрутного листа' : '-')}</td>
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;
                     }).join('');
@@ -1558,11 +1562,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const BOARD_COLS = [
             { key: 'NEW',        title: 'Новые',        st: ['NEW'],                    color: '#00AFC7', drop: 'NEW',        next: 'CONFIRMED',  label: 'Подтвердить' },
             { key: 'CONFIRMED',  title: 'Подтверждены', st: ['CONFIRMED'],              color: '#6366f1', drop: 'CONFIRMED',  next: 'ASSEMBLING', label: 'В сборку' },
-            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#ea580c', drop: 'ASSEMBLING', next: 'SHIPPING',   label: 'Отправить', labelPickup: 'Готов к выдаче' },
-            { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: 'DELIVERED',  label: 'Доставлен', labelPickup: 'Выдан клиенту' },
-            { key: 'DONE',       title: 'Доставлены',   st: ['DELIVERED', 'COMPLETED'], color: '#16a34a', drop: 'DELIVERED',  limit: 15 }
+            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#ea580c', drop: 'ASSEMBLING', next: 'READY_FOR_SHIPMENT', label: 'Готово к отправке', labelPickup: 'Готов к выдаче' },
+            { key: 'READY_FOR_SHIPMENT', title: 'Готовы к отправке', st: ['READY_FOR_SHIPMENT'], color: '#0d9488', drop: 'READY_FOR_SHIPMENT', next: null, label: 'Назначить маршрут' },
+            { key: 'READY_FOR_PICKUP', title: 'Готовы к выдаче', st: ['READY_FOR_PICKUP'], color: '#0d9488', drop: 'READY_FOR_PICKUP', next: 'PICKED_UP', label: 'Выдан клиенту' },
+            { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: null },
+            { key: 'DONE',       title: 'Доставлены / выданы', st: ['DELIVERED', 'COMPLETED', 'PICKED_UP'], color: '#16a34a', drop: 'DELIVERED',  limit: 15 }
         ];
-        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
+        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
         let dragId = null, dragFrom = null;
 
         function agoText(ts) {
@@ -1582,22 +1588,20 @@ document.addEventListener('DOMContentLoaded', () => {
             try { items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []); } catch (e) { items = []; }
             const qty = items.reduce((s, i) => s + (Number(i.qty) || 1), 0);
             const courierName = ctx.courierOf(o.id);
-            const canDispatch = window.adminHasPermission && window.adminHasPermission('settings.manage');
-            const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
-                && !window.adminHasPermission('orders.process');
-            const showAssign = canDispatch && ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
+            const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
+            const canFulfill = window.adminHasPermission && window.adminHasPermission('orders.fulfill');
+            const warehouseOnly = canFulfill && !(window.adminHasPermission && window.adminHasPermission('orders.process'));
+            const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
             const canBatch = showAssign && !pickup && !courierName;
-            const nextStatus = warehouseOnly ? (o.status === 'CONFIRMED' ? 'ASSEMBLING' : null) : (col && col.next);
+            const nextStatus = o.status === 'ASSEMBLING'
+                ? (canFulfill ? (pickup ? 'READY_FOR_PICKUP' : 'READY_FOR_SHIPMENT') : null)
+                : (o.status === 'READY_FOR_PICKUP' ? (window.adminHasPermission && window.adminHasPermission('orders.process') ? 'PICKED_UP' : null) : (col && col.next));
             const drag = !warehouseOnly && col && col.key !== 'DONE' && o.status !== 'CANCELLED';
             const color = col ? col.color : '#9ca3af';
             let act = '';
             if (col && nextStatus) {
-                const label = warehouseOnly && nextStatus === 'ASSEMBLING' ? 'В сборку' : (pickup && col.labelPickup ? col.labelPickup : col.label);
+                const label = warehouseOnly && ['READY_FOR_SHIPMENT', 'READY_FOR_PICKUP'].includes(nextStatus) ? (pickup ? 'Подтвердить готовность к выдаче' : 'Подтвердить готовность к отправке') : (pickup && col.labelPickup ? col.labelPickup : col.label);
                 act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${nextStatus}" data-num="${num}">${esc(label)} →</button></div>`;
-            }
-            if (showAssign) {
-                act += `<div class="bcard-act"><select class="status-select" style="flex:1" data-assign="${Number(o.id)}" aria-label="Курьер для заказа ${num}">
-                    <option value="">-- курьер --</option>${ctx.couriers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div>`;
             }
             const who = courierName ? `Курьер: ${esc(courierName)}` : (pickup ? '' : '');
             return `<div class="bcard" style="--c:${color}" tabindex="0" data-id="${Number(o.id)}" data-status="${esc(o.status)}"${drag ? ' draggable="true"' : ''}>
@@ -1607,7 +1611,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${o.comment ? `<div class="bcard-note">${esc(String(o.comment).substring(0, 60))}</div>` : ''}
                 ${who ? `<div class="bcard-line"><strong>${who}</strong></div>` : ''}
                 <div class="bcard-foot"><span class="bcard-sum">${rub(parseFloat(o.total) || 0)} руб.</span><span class="bcard-time">${qty ? qty + ' шт. · ' : ''}${esc(agoText(o.created_at))}</span></div>
-                ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен'}</div>` : ''}
+                ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'PICKED_UP' ? '✓ Выдан клиенту' : (o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен')}</div>` : ''}
                 ${act}
                 ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}"> в рейс</label>` : ''}
             </div>`;

@@ -11,6 +11,7 @@ test('склад: отмена и удаление заказов возвращ
     const { pool, initDB } = require('../bot/db');
     const A = require('../bot/db-adapter');
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
+    const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('T-oil', 1000, true, 10) RETURNING id")).rows[0].id;
@@ -31,7 +32,7 @@ test('склад: отмена и удаление заказов возвращ
 
     const o2 = await mk(2, 'k2');
     assert.equal(await stock(), 8);
-    await db.updateOrderStatus(o2.id, 'DELIVERED');
+    await deliverOrder(db, pool, o2);
     await db.updateOrderStatus(o2.id, 'CANCELLED');
     assert.equal(await stock(), 8, 'доставленный заказ остаток не возвращает');
 
@@ -39,18 +40,18 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await db.updateOrderStatus(o2.id, 'NEW'), 'CANCELLED_LOCKED', 'отменённый заказ закрыт');
     const o2b = await mk(1, 'k2b');
     assert.equal(await stock(), 7);
-    await db.updateOrderStatus(o2b.id, 'DELIVERED');
-    assert.equal(await db.updateOrderStatus(o2b.id, 'NEW'), 'TRANSITION_FORBIDDEN', 'DELIVERED -> NEW запрещено');
-    assert.equal(await db.updateOrderStatus(o2b.id, 'SHIPPING'), 'TRANSITION_FORBIDDEN', 'DELIVERED -> SHIPPING запрещено');
-    assert.equal(await db.updateOrderStatus(o2b.id, 'COMPLETED'), true, 'DELIVERED -> COMPLETED можно');
+    await deliverOrder(db, pool, o2b);
+    assert.equal(await db.updateOrderStatus(o2b.id, 'NEW'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> NEW запрещено');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'SHIPPING'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> SHIPPING запрещено');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'COMPLETED'), 'ALREADY', 'повторное завершение идемпотентно');
     assert.equal(await db.updateOrderStatus(o2b.id, 'ASSEMBLING'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> ASSEMBLING запрещено');
     assert.equal((await pool.query('SELECT stock_deducted FROM orders WHERE id = $1', [o2b.id])).rows[0].stock_deducted, false, 'флаг снят при доставке');
     assert.equal(await db.updateOrderStatus(o2b.id, 'CANCELLED'), true, 'поздний возврат денег допустим');
     assert.equal(await stock(), 7, 'товар не вернулся: он у покупателя');
-    // рабочие статусы двигаются в любую сторону
+    // Заказ отменяется на этапе подготовки к отправке; обратные переходы запрещены.
     const o2c = await mk(1, 'k2c');
     assert.equal(await stock(), 6);
-    for (const st of ['CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'ASSEMBLING', 'NEW']) assert.equal(await db.updateOrderStatus(o2c.id, st), true, st);
+    for (const st of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o2c.id, st), true, st);
     assert.equal(await db.updateOrderStatus(o2c.id, 'CANCELLED'), true);
     assert.equal(await stock(), 7, 'рабочий заказ при отмене вернул товар');
 
@@ -65,14 +66,20 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await stock(), 4);
     // Два последовательных callback «Доставлено»: один переход, одно уведомление, без нового списания.
     const deliveredOrder = await mk(1, 'k6');
+    const courier = await db.createCourier({ name: 'Склад-тест', phone: '1', telegram_id: 900099999, telegram_user: 'stock-test', vehicle_type: 'авто' });
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
+        assert.equal(await db.updateOrderStatus(deliveredOrder.id, status), true);
+    }
     const routeId = (await pool.query(
-        "INSERT INTO delivery_routes(route_number, route_date, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, 'in_progress', 1) RETURNING id"
+        `INSERT INTO delivery_routes(route_number, route_date, courier_id, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, $1, 'assigned', 1) RETURNING id`, [courier.id]
     )).rows[0].id;
     const stopId = (await pool.query(
         `INSERT INTO route_stops(route_id, order_id, order_number, stop_number, address, status, client_chat_id)
-         VALUES ($1, $2, $3, 1, 'Test address', 'in_progress', 987654321) RETURNING id`,
+         VALUES ($1, $2, $3, 1, 'Test address', 'pending', 987654321) RETURNING id`,
         [routeId, String(deliveredOrder.id), deliveredOrder.order_number]
     )).rows[0].id;
+    assert.equal((await db.acceptRouteStop(routeId, stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(routeId)).status, 'started');
 
     const firstDone = await db.completeDeliveryStop(stopId);
     const secondDone = await db.completeDeliveryStop(stopId);
@@ -97,6 +104,9 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(noticeCount, 1, 'клиентское уведомление поставлено в outbox ровно один раз');
     await pool.query('DELETE FROM notification_outbox WHERE dedup_key = $1', [`stop-delivered:${stopId}`]);
 
+    await pool.query('DELETE FROM route_stops WHERE route_id = $1', [routeId]);
+    await pool.query('DELETE FROM delivery_routes WHERE id = $1', [routeId]);
+    await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
     await db.deleteAllOrders();
     assert.equal(await stock(), 6, 'вернули только активные k4 и k5; доставленные k2, k2b и k6 не вернули');
     assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);

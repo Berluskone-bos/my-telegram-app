@@ -24,10 +24,19 @@ function toDbValue(val) {
 // Статус, которого нет в списке (старые данные), считаем рабочим.
 function orderTransitionAllowed(from, to) {
     if (from === to) return true;
-    if (from === 'CANCELLED') return false;
-    if (from === 'DELIVERED') return to === 'COMPLETED' || to === 'CANCELLED';
-    if (from === 'COMPLETED') return to === 'CANCELLED';
-    return true;
+    const allowed = {
+        NEW: ['CONFIRMED', 'CANCELLED'],
+        CONFIRMED: ['ASSEMBLING', 'CANCELLED'],
+        ASSEMBLING: ['READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'CANCELLED'],
+        READY_FOR_SHIPMENT: ['CANCELLED'],
+        READY_FOR_PICKUP: ['PICKED_UP', 'CANCELLED'],
+        PICKED_UP: [],
+        SHIPPING: ['COMPLETED', 'CANCELLED'],
+        DELIVERED: ['COMPLETED', 'CANCELLED'],
+        COMPLETED: ['CANCELLED'],
+        CANCELLED: []
+    };
+    return Array.isArray(allowed[from]) && allowed[from].includes(to);
 }
 
 // Календарный день заказа по Москве (колонка created_at хранится без часового пояса в поясе сервера: в Neon это UTC)
@@ -322,6 +331,31 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
 
+            // Для построения маршрутного листа блокируем заказы до проверки активных остановок.
+            // Это закрывает гонку: один заказ нельзя одновременно включить в два активных маршрута.
+            if (route.enforceReadyOrders) {
+                const ids = [...new Set((route.stops || []).map(s => String(s.order_id || '')).filter(x => /^\d+$/.test(x)))];
+                if (!ids.length || ids.length !== (route.stops || []).length) {
+                    throw Object.assign(new Error('В маршрут передан некорректный список заказов'), { code: 'BAD_REQUEST' });
+                }
+                const locked = await client.query(
+                    'SELECT id, status, delivery_type FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE', [ids]);
+                if (locked.rowCount !== ids.length) {
+                    throw Object.assign(new Error('Один из заказов не найден'), { code: 'NOT_FOUND' });
+                }
+                const notReady = locked.rows.find(o => o.status !== 'READY_FOR_SHIPMENT' || o.delivery_type === 'pickup');
+                if (notReady) {
+                    throw Object.assign(new Error('Заказ не готов к курьерской отправке'), { code: 'CONFLICT' });
+                }
+                const assigned = await client.query(
+                    `SELECT order_id FROM route_stops
+                      WHERE order_id = ANY($1::text[]) AND status IN ('pending', 'accepted', 'in_progress')
+                      FOR UPDATE`, [ids]);
+                if (assigned.rowCount) {
+                    throw Object.assign(new Error('Один из заказов уже находится в активном маршруте'), { code: 'CONFLICT' });
+                }
+            }
+
             const routeRes = await client.query(
                 `INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
@@ -371,6 +405,74 @@ class DBAdapter {
             [String(status), parseInt(completed) || 0, parseInt(failed) || 0, id]
         );
         return res.rows[0] || null;
+    }
+
+    // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
+    async acceptRouteStop(routeId, stopId) {
+        const rid = Number(routeId), sid = Number(stopId);
+        if (!Number.isInteger(rid) || rid <= 0 || !Number.isInteger(sid) || sid <= 0) return { status: 'not_found' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
+            const stop = await client.query('SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [sid, rid]);
+            if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
+            if (stop.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { status: stop.rows[0].status === 'cancelled' ? 'cancelled' : 'forbidden' }; }
+            await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1", [sid]);
+            await client.query('COMMIT');
+            return { status: 'accepted' };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally { client.release(); }
+    }
+
+    // Общий старт разрешён только когда каждая неотменённая остановка принята.
+    // Блокировка маршрута сериализует одновременные нажатия и отмены/принятия.
+    async startRouteIfAllAccepted(routeId) {
+        const id = Number(routeId);
+        if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Сначала блокируем связанные заказы в том же порядке, что и отмена заказа
+            // (orders -> route_stops), иначе параллельная отмена могла бы дать deadlock.
+            const refs = await client.query('SELECT order_id FROM route_stops WHERE route_id = $1', [id]);
+            const orderIds = [...new Set(refs.rows.map(x => String(x.order_id || '')).filter(x => /^\d+$/.test(x)))];
+            if (orderIds.length) {
+                await client.query('SELECT id FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE', [orderIds]);
+            }
+            const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [id]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (route.rows[0].status === 'in_progress') { await client.query('COMMIT'); return { status: 'already' }; }
+            if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
+            await client.query(
+                `UPDATE route_stops rs SET status = 'cancelled'
+                   FROM orders o
+                  WHERE rs.route_id = $1 AND rs.order_id::text = o.id::text
+                    AND o.status = 'CANCELLED' AND rs.status IN ('pending', 'accepted')`, [id]);
+            const stops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number FOR UPDATE', [id]);
+            const active = stops.rows.filter(s => !['cancelled', 'delivered', 'failed'].includes(s.status));
+            if (!active.length) { await client.query('ROLLBACK'); return { status: 'empty' }; }
+            const waiting = active.filter(s => s.status !== 'accepted');
+            if (waiting.length) { await client.query('ROLLBACK'); return { status: 'not_ready', waiting: waiting.length }; }
+            await client.query("UPDATE route_stops SET status = 'in_progress' WHERE route_id = $1 AND status = 'accepted'", [id]);
+            await client.query(
+                `UPDATE orders o SET status = 'SHIPPING'
+                   FROM route_stops rs
+                  WHERE rs.route_id = $1 AND rs.order_id::text = o.id::text
+                    AND rs.status = 'in_progress' AND o.status = 'READY_FOR_SHIPMENT'`, [id]);
+            const updated = await client.query(
+                "UPDATE delivery_routes SET status = 'in_progress', started_at = COALESCE(started_at, NOW()) WHERE id = $1 RETURNING *", [id]);
+            await client.query('COMMIT');
+            return { status: 'started', route: updated.rows[0], stops: stops.rows };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally { client.release(); }
     }
 
     async updateStopStatus(stopId, status, reason) {
@@ -449,7 +551,7 @@ class DBAdapter {
                 await client.query('COMMIT');
                 return { status: 'already', stop, orderId: order?.id || null };
             }
-            if (!['pending', 'in_progress'].includes(stop.status)) {
+            if (!['pending', 'accepted', 'in_progress'].includes(stop.status)) {
                 await client.query('ROLLBACK');
                 return { status: 'forbidden' };
             }
@@ -495,7 +597,7 @@ class DBAdapter {
             `SELECT
                  COUNT(*) FILTER (WHERE status = 'delivered')::int AS completed,
                  COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
-                 COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress'))::int AS remaining
+                 COUNT(*) FILTER (WHERE status IN ('pending', 'accepted', 'in_progress'))::int AS remaining
                FROM route_stops WHERE route_id = $1`, [id]);
         const stats = r.rows[0];
         const status = Number(stats.remaining) === 0 ? 'completed' : 'in_progress';
@@ -852,16 +954,21 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
             const cur = await client.query(
-                'SELECT id, status, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost FROM orders WHERE id = $1 FOR UPDATE', [id]);
+                'SELECT id, status, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost, delivery_type FROM orders WHERE id = $1 FOR UPDATE', [id]);
             if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
             const o = cur.rows[0];
             if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
             if (o.status === 'CANCELLED') { await client.query('ROLLBACK').catch(() => {}); return 'CANCELLED_LOCKED'; }
             if (!orderTransitionAllowed(o.status, status)) { await client.query('ROLLBACK').catch(() => {}); return 'TRANSITION_FORBIDDEN'; }
+            if ((status === 'READY_FOR_SHIPMENT' && o.delivery_type === 'pickup') ||
+                (['READY_FOR_PICKUP', 'PICKED_UP'].includes(status) && o.delivery_type !== 'pickup')) {
+                await client.query('ROLLBACK').catch(() => {});
+                return 'TRANSITION_FORBIDDEN';
+            }
             // Товар доставлен: остаток больше не «наш», флаг снимаем — повторного возврата быть не может.
             await client.query(
                 `UPDATE orders SET status = $1::text,
-                        stock_deducted = CASE WHEN $1::text IN ('DELIVERED', 'COMPLETED') THEN false ELSE stock_deducted END
+                        stock_deducted = CASE WHEN $1::text IN ('DELIVERED', 'COMPLETED', 'PICKED_UP') THEN false ELSE stock_deducted END
                   WHERE id = $2`, [status, id]);
             if (status === 'CANCELLED') {
                 if (!['DELIVERED', 'COMPLETED'].includes(o.status)) await this._restoreStock(client, o);
@@ -872,7 +979,7 @@ class DBAdapter {
                 await queueCancelNotices(client, o);
                 await this._undoBonuses(client, o);
             }
-            if (status === 'DELIVERED' || status === 'COMPLETED') await this._grantReferralBonus(client, o);
+            if (status === 'DELIVERED' || status === 'COMPLETED' || status === 'PICKED_UP') await this._grantReferralBonus(client, o);
             await client.query('COMMIT');
             return true;
         } catch (e) {

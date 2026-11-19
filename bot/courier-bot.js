@@ -580,7 +580,9 @@ bot.on('callback_query', async (query) => {
             bot.answerCallbackQuery(query.id, { text: 'Нет доступа к этому маршруту' }).catch(() => {});
             return;
         }
-        // Заказ отменили, пока сообщение висело у курьера: действие не выполняем, клиента не уведомляем, кнопки гасим
+        const isAccept = data.startsWith('deliver_') && data.endsWith('_accept');
+        // Сначала проверяем отмену: старые кнопки отменённого заказа должны сообщать об отмене,
+        // а не маскировать её предупреждением о незапущенном маршруте.
         if (sId !== null) {
             const chk = await checkStopActive(require('./db').pool, sId);
             if (!chk.active) {
@@ -591,6 +593,10 @@ bot.on('callback_query', async (query) => {
                 }
                 return;
             }
+        }
+        if (!isAccept && ['delivered_', 'quickdelivered_', 'failed_', 'failreason_'].some(a => data.startsWith(a)) && rt.status !== 'in_progress') {
+            bot.answerCallbackQuery(query.id, { text: 'Сначала необходимо начать весь маршрут', show_alert: true }).catch(() => {});
+            return;
         }
     }
 
@@ -611,8 +617,8 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('startroute_')) {
         const routeId = parseInt(data.split('_')[1]);
-        handleStartRoute(chatId, routeId, query.from);
-        bot.answerCallbackQuery(query.id, { text: 'Маршрут начат!' });
+        bot.answerCallbackQuery(query.id, { text: 'Проверяю готовность маршрута…' }).catch(() => {});
+        await handleStartRoute(chatId, routeId, query.from);
         return;
     }
 
@@ -683,18 +689,32 @@ bot.on('callback_query', async (query) => {
 async function handleStartRoute(chatId, routeId, user) {
     const route = await db.getRouteById(routeId);
     if (!route) return;
-
-    if (!(route.stops || []).some(s => s.status === 'pending')) {
-        bot.sendMessage(chatId, 'В маршруте не осталось активных заказов: все доставлены, не доставлены или отменены.');
+    const started = await db.startRouteIfAllAccepted(routeId);
+    if (started.status === 'not_ready') {
+        bot.sendMessage(chatId, `Сначала примите все заказы маршрута. Осталось принять: ${started.waiting}.`);
         return;
     }
-    await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
-
-    bot.sendMessage(chatId, 'Маршрут начат! Удачи в доставке!');
-
-    // Клиентам здесь ничего не отправляем: «курьер в пути» каждому уходит по кнопке «В пути» своей остановки
-    // (иначе клиент получил бы два сообщения о выезде).
-
+    if (started.status === 'already') {
+        bot.sendMessage(chatId, 'Этот маршрут уже начат.');
+        return;
+    }
+    if (started.status !== 'started') {
+        bot.sendMessage(chatId, 'Не удалось начать маршрут: нет активных заказов или маршрут недоступен.');
+        return;
+    }
+    bot.sendMessage(chatId, 'Маршрут начат! Клиенты получили уведомления. Удачи в доставке!');
+    try {
+        await routeSvc.refreshEtas({ routeId, notifyNew: true });
+        const refreshed = await db.getRouteById(routeId);
+        for (const stop of refreshed?.stops || []) {
+            if (stop.client_chat_id && !stop.eta_told_at && stop.status !== 'cancelled') {
+                queue.notify('client', stop.client_chat_id,
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер начал маршрут и доставит ваш заказ по очереди.`,
+                    { dedupKey: `route-start:${stop.id}` });
+                await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute' }).catch(() => false);
+            }
+        }
+    } catch (e) { console.error('[ROUTE] Не удалось отправить уведомления о старте:', errorCode(e)); }
     notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
 }
 
@@ -702,30 +722,29 @@ async function handleStartRoute(chatId, routeId, user) {
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     const msgId = query.message.message_id;
+    const currentRoute = await db.getRouteById(routeId);
+    if (!currentRoute) return;
+    if (action !== 'accept' && currentRoute.status !== 'in_progress') {
+        bot.answerCallbackQuery(query.id, { text: 'Сначала курьер должен начать весь маршрут', show_alert: true }).catch(() => {});
+        return;
+    }
     stopId = parseInt(stopId); // Гарантируем что stopId — число
     console.log(`[DELIVER] action=${action}, routeId=${routeId}, stopId=${stopId} (type: ${typeof stopId})`);
 
     if (action === 'accept') {
-        // Принять → В пути
+        const accepted = await db.acceptRouteStop(routeId, stopId);
+        if (!['accepted', 'already'].includes(accepted.status)) {
+            bot.answerCallbackQuery(query.id, { text: 'Не удалось принять заказ: ' + accepted.status, show_alert: true }).catch(() => {});
+            return;
+        }
         const nextButtons = [
             ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
-            [{ text: 'В пути', callback_data: `deliver_${routeId}_${stopId}_enroute` }]
+            [{ text: 'У клиента', callback_data: `deliver_${routeId}_${stopId}_arrived` }]
         ];
-        try {
-            await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
-        } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
-        bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' }).catch(() => {});
-
-        // Обновляем статус маршрута
-        try {
-            const route = await db.getRouteById(routeId);
-            await db.updateRouteStatus(routeId, 'in_progress', route?.completed || 0, route?.failed || 0);
-            console.log(`[DELIVER] Route ${routeId} -> in_progress`);
-        } catch (e) { console.error('[DELIVER] route update error:', errorCode(e)); }
-
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId }); }
+        catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
+        bot.answerCallbackQuery(query.id, { text: accepted.status === 'already' ? 'Заказ уже принят' : 'Заказ принят. Примите остальные заказы маршрута.' }).catch(() => {});
         await notifyAdminStep(routeId, stopId, 'accept', query);
-        // Клиенту здесь ничего не отправляем: курьер только принял заказ со склада, он ещё не выехал.
-        // Сообщение «курьер везёт ваш заказ» уйдёт, когда курьер нажмёт «В пути».
     }
 
     else if (action === 'enroute') {
@@ -1082,60 +1101,22 @@ function registerCourierRoutes(app) {
         res.json(out);
     });
 
-    app.get('/api/couriers', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/couriers', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
-        try {
-            const { courier_id, route_date, stops } = req.body;
-            const processedStops = [];
-            if (stops && stops.length > 0) {
-                for (let i = 0; i < stops.length; i++) {
-                    const stop = stops[i];
-                    const processed = { ...stop, stop_number: i + 1, status: 'pending' };
-                    if (!processed.lat && processed.address && YANDEX_GEO_KEY) {
-                        try {
-                            const geo = await geocoder.geocode(processed.address);
-                            if (geo) { processed.lat = geo.lat; processed.lon = geo.lon; }
-                        } catch (e) { console.log('Геокодирование адреса не удалось'); }
-                    }
-                    if (processed.lat && processed.lon) {
-                        processed.yandex_url = MapLinks.yandex(processed.address, processed.lat, processed.lon);
-                        processed.google_url = MapLinks.google(processed.lat, processed.lon);
-                        processed.gis2_url = MapLinks.gis2(processed.lat, processed.lon);
-                    }
-                    processedStops.push(processed);
-                }
-            }
-            const route = await db.createRoute({
-                route_number: generateRouteNumber(),
-                route_date: route_date || new Date().toISOString().split('T')[0],
-                courier_id, status: 'draft',
-                total_orders: processedStops.length,
-                stops: processedStops
-            });
-            res.json(route);
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
-    });
+    // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,
+    // который проверяет READY_FOR_SHIPMENT, исключает самовывоз и защищает от двойного назначения.
+    app.post('/api/routes', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
+        return res.status(410).json({ error: 'Используйте построение маршрутного листа через /api/routes/build' });
+    });;
 
-    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
-        try {
-            const route = await db.getRouteById(parseInt(req.params.id));
-            if (!route) return res.status(404).json({ error: 'Route not found' });
-            const couriers = await db.getCouriers();
-            const courier = couriers.find(c => c.id === route.courier_id);
-            if (!courier) return res.status(404).json({ error: 'Courier not found' });
-            await db.updateRouteStatus(route.id, 'assigned', route.completed || 0, route.failed || 0);
-            bot.sendMessage(courier.telegram_id,
-                `<b>Новый маршрут!</b>\n\nМаршрут: ${escapeHtml(route.route_number)}\nДата: ${escapeHtml(route.route_date)}\nОстановок: ${(route.stops||[]).length}\n\nОтправьте /route для просмотра.`,
-                { parse_mode: 'HTML' }
-            ).then(() => res.json({ success: true })).catch(err => { console.error('[API]', errorCode(err)); res.json({ success: false, error: 'Internal error' }); });
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
-    });
+    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
+        return res.status(410).json({ error: 'Повторное назначение маршрута отключено. Создайте маршрут через /api/routes/build' });
+    });;
 
     // Собрать маршрут из нескольких заказов: система строит порядок и время, курьер получает маршрутный лист
-    app.post('/api/routes/build', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/routes/build', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const { order_ids, courier_id } = req.body || {};
             const courier = (await db.getCouriers()).find(c => c.id === parseInt(courier_id));
@@ -1150,7 +1131,7 @@ function registerCourierRoutes(app) {
         }
     });
 
-    app.get('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/routes', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
@@ -1204,13 +1185,13 @@ function registerCourierRoutes(app) {
         res.json(MapLinks.all(address || '', parseFloat(lat), parseFloat(lon)));
     });
 
-    app.post('/api/map-links/route', verifyAdmin, requirePermission('settings.manage'), (req, res) => {
+    app.post('/api/map-links/route', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
         const { stops } = req.body;
         if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
         res.json(MapLinks.allRoute(stops));
     });
 
-    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -1223,14 +1204,14 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/stats', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/dispatch/stats', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
             res.json(await db.getDayStats(date));
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
@@ -1246,7 +1227,7 @@ function registerCourierRoutes(app) {
     app.put('/api/orders/:id/status', verifyAdmin, requireOrderStatusPermission, async (req, res) => {
         try {
             const { status } = req.body;
-            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
+            const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
             const orderId = parseInt(req.params.id);
             const changed = await db.updateOrderStatus(orderId, status);
@@ -1284,6 +1265,9 @@ function registerCourierRoutes(app) {
                     'NEW': 'Новый',
                     'CONFIRMED': 'Подтверждён',
                     'ASSEMBLING': 'Сборка',
+                    'READY_FOR_SHIPMENT': 'Готов к отправке',
+                    'READY_FOR_PICKUP': 'Готов к выдаче',
+                    'PICKED_UP': 'Выдан клиенту',
                     'SHIPPING': 'В доставке',
                     'DELIVERED': 'Доставлен',
                     'COMPLETED': 'Выполнен',
@@ -1292,7 +1276,7 @@ function registerCourierRoutes(app) {
                 const label = statusLabels[status];
                 if (label) {
                     // Уведомление админу
-                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED'
+                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'PICKED_UP'
                         ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
                         : null;
                     notifyAdmin(
@@ -1308,12 +1292,17 @@ function registerCourierRoutes(app) {
                     // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
                     if (order.user_id && status !== 'CANCELLED') {
                         // промежуточные статусы — молча в карточку заказа; «доставлен/выполнен» — ещё и сообщением (уведомление на телефон)
-                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered' };
+                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered', READY_FOR_PICKUP: 'accepted', PICKED_UP: 'delivered' };
                         const finalSt = status === 'DELIVERED' || status === 'COMPLETED';
+                        const pickupNotice = status === 'READY_FOR_PICKUP' || status === 'PICKED_UP';
                         const onCard = stageMap[status]
-                            ? await trackerEvent(trackerPool(), order.order_number, { stage: stageMap[status], ...(finalSt ? { eta: '', canRate: true } : {}) }).catch(() => false)
+                            ? await trackerEvent(trackerPool(), order.order_number, {
+                                stage: stageMap[status],
+                                ...(finalSt ? { eta: '', canRate: true } : {}),
+                                ...(status === 'PICKED_UP' ? { eta: '', canRate: false } : {})
+                            }).catch(() => false)
                             : false;
-                        if (!onCard || finalSt) {
+                        if (!onCard || finalSt || pickupNotice) {
                             queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`);
                         }
                     }
@@ -1325,128 +1314,29 @@ function registerCourierRoutes(app) {
     });
 
     // Назначить курьера на заказ
-    app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    // Совместимый endpoint одиночного назначения: использует тот же маршрутный процесс, что и пакетная отправка.
+    app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+        const orderId = Number(req.params.id);
+        if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный номер заказа' });
         try {
-            const orderId = parseInt(req.params.id);
-            let { courier_id } = req.body;
-
-            const order = await db.getOrderByNumber(orderId);
-            if (!order) return res.status(404).json({ error: 'Order not found' });
-            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
-                return res.status(409).json({ error: 'Заказ уже отменён или доставлен, курьеру его назначить нельзя' });
+            let courierId = Number(req.body && req.body.courier_id);
+            const couriers = await db.getCouriers();
+            if (!courierId) {
+                const active = couriers.filter(x => x.is_active);
+                if (active.length === 1) courierId = Number(active[0].id);
+                else return res.status(400).json({ error: 'Выберите курьера' });
             }
-
-            // Автоназначение если курьер один
-            if (!courier_id) {
-                const allCouriers = await db.getCouriers();
-                const active = allCouriers.filter(c => c.is_active);
-                if (active.length === 1) courier_id = active[0].id;
-                else return res.status(400).json({ error: 'courier_id required' });
-            }
-
-            const courier = (await db.getCouriers()).find(c => c.id === courier_id);
-            if (!courier) return res.status(404).json({ error: 'Courier not found' });
-
-            // Геокодируем адрес
-            let lat = null, lon = null;
-            if (order.address && YANDEX_GEO_KEY) {
-                try {
-                    const geo = await geocoder.geocode(order.address);
-                    if (geo) {
-                        lat = geo.lat;
-                        lon = geo.lon;
-                        console.log('[ГЕОКОДЕР] Координаты адреса получены');
-                    } else {
-                        console.log('[ГЕОКОДЕР] Адрес не найден');
-                    }
-                } catch (e) {
-                    console.error('[ГЕОКОДЕР] Ошибка запроса');
-                }
-            } else {
-                console.log(`[ГЕОКОДЕР] Пропущен: address=${!!order.address}, key=${!!YANDEX_GEO_KEY}`);
-            }
-
-            // Создаём маршрут из заказа
-            const route = await db.createRoute({
-                route_number: 'RL-' + String(Date.now()).slice(-4),
-                route_date: new Date().toISOString().split('T')[0],
-                courier_id: courier_id,
-                status: 'assigned',
-                total_orders: 1,
-                stops: [{
-                    order_id: String(order.id),
-                    order_number: order.order_number,
-                    address: order.address || '',
-                    city: order.city || '',
-                    street: order.street || '',
-                    house: order.house || '',
-                    lat: lat,
-                    lon: lon,
-                    phone: order.phone || '',
-                    client_name: order.user_name || '',
-                    client_chat_id: order.user_id || null,
-                    amount_to_pay: order.payment === 'cash' ? order.total : 0,
-                    payment_status: order.payment === 'cash' ? 'pending' : 'paid',
-                    status: 'pending',
-                    comment: order.comment || ''
-                }]
-            });
-
-            // Обновляем статус заказа
-            await db.updateOrderStatus(orderId, 'SHIPPING');
-
-            // Уведомляем курьера через курьерский бот
-            if (courier.telegram_id) {
-                const stopId = route.stops && route.stops[0] ? route.stops[0].id : 0;
-                const msgText =
-                    `<b>Новый заказ!</b>\n\n` +
-                    `Заказ: ${escapeHtml(order.order_number)}\n` +
-                    `Адрес: ${escapeHtml(order.address)}\n` +
-                    `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
-                    (order.comment ? `Комментарий: ${escapeHtml(order.comment)}\n` : '') +
-                    `\nНажмите "Принять" для начала доставки.`;
-
-                const navButtons = [];
-                if (lat && lon) {
-                    const yandexUrl = MapLinks.yandex(order.address, lat, lon);
-                    const gis2Url = MapLinks.gis2(lat, lon);
-                    navButtons.push([
-                        { text: 'Яндекс Карты', url: yandexUrl },
-                        { text: '2GIS', url: gis2Url }
-                    ]);
-                    console.log('[MAP LINKS] Ссылка навигации сформирована');
-                }
-                navButtons.push([
-                    { text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }
-                ]);
-
-                // Через очередь: при сбое Telegram сообщение повторится; id сообщения запоминаем,
-                // чтобы при отмене заказа погасить на нём кнопки (см. cancel-flow.js)
-                queue.notify('courier', courier.telegram_id, msgText, {
-                    buttons: navButtons, dedupKey: `assign:${stopId}`, onSent: { stopId }
-                });
-            }
-
-            // Уведомление в админ-бот о назначении курьера
-            notifyAdmin(
-                `<b>Курьер назначен</b>\n\n` +
-                `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
-                `Клиент: ${escapeHtml(order.user_name || '-')}\n` +
-                `Адрес: ${escapeHtml(order.address || '-')}\n` +
-                `Курьер: ${escapeHtml(courier.name)}\n` +
-                `Маршрут: ${escapeHtml(route.route_number)}`,
-                [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
-            );
-
-            // Уведомление клиенту о назначении курьера
-            if (order.user_id) {
-                const onCard = await trackerEvent(trackerPool(), order.order_number, { stage: 'shipping', courier: courier.name }).catch(() => false);
-                if (!onCard) queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
-            }
-
-            res.json({ success: true, route });
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
-    });
+            const courier = couriers.find(x => Number(x.id) === courierId && x.is_active);
+            if (!courier) return res.status(404).json({ error: 'Активный курьер не найден' });
+            const out = await routeSvc.buildRoute({ orderIds: [orderId], courier, notifyAdmin: notifyAdmin });
+            return res.json({ success: true, route: out.route, plan: out.plan, sequence: out.sequence });
+        } catch (e) {
+            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
+            if (status) return res.status(status).json({ error: e.message });
+            console.error('[API /orders/assign]', errorCode(e));
+            return res.status(500).json({ error: 'Internal error' });
+        }
+    });;
 
     // ====== Admin: управление товарами ======
     app.get('/api/products', verifyAdmin, requirePermission('products.view'), async (req, res) => {

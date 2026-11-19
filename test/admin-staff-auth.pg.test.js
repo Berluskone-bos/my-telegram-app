@@ -104,7 +104,7 @@ test('сотрудники: индивидуальный вход, роли, о�
     assert.equal((await call('/api/admin/staff', { cookie: operatorCookie })).status, 403);
     assert.equal((await call('/api/test/customers', { cookie: operatorCookie })).status, 403);
 
-    // Кладовщик может отправить заказ в сборку, но не менять остальные статусы.
+    // Оператор запускает сборку; Кладовщик подтверждает готовность к отправке.
     const warehouseCreate = await create(adminCookie, {
         login: 'warehouse.one', displayName: 'Кладовщик', password: 'Warehouse-Password-2026!', role: 'warehouse'
     });
@@ -114,7 +114,8 @@ test('сотрудники: индивидуальный вход, роли, о�
         method: 'POST', body: { login: 'warehouse.one', password: 'Warehouse-Password-2026!' }, ip: '10.10.10.3'
     });
     const warehouseCookie = cookieOf(loginWarehouse);
-    assert.equal((await call('/api/test/order-status', { method: 'PUT', cookie: warehouseCookie, body: { status: 'ASSEMBLING' } })).status, 200);
+    assert.equal((await call('/api/test/order-status', { method: 'PUT', cookie: operatorCookie, body: { status: 'ASSEMBLING' } })).status, 200);
+    assert.equal((await call('/api/test/order-status', { method: 'PUT', cookie: warehouseCookie, body: { status: 'READY_FOR_SHIPMENT' } })).status, 200);
     assert.equal((await call('/api/test/order-status', { method: 'PUT', cookie: warehouseCookie, body: { status: 'CANCELLED' } })).status, 403);
 
     // Смена роли немедленно отзывает старую сессию; новая роль действует после повторного входа.

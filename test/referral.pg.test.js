@@ -25,6 +25,7 @@ test('бонусы и рефералы: начисление, списание, 
     const { pool, initDB } = require('../bot/db');
     const A = require('../bot/db-adapter');
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
+    const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
     const INV = 880001, FR = 880002;           // приглашающий и друг
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('R-oil', 1000, true, 1000) RETURNING id")).rows[0].id;
@@ -46,7 +47,7 @@ test('бонусы и рефералы: начисление, списание, 
 
     // приглашающий должен существовать как клиент: у него есть свой заказ и телефон
     const own = await mk(INV, '+79990001111', 1000);
-    await db.updateOrderStatus(own.id, 'DELIVERED');
+    await deliverOrder(db, pool, own);
     assert.equal(await db.getBonusBalance(INV), 0, 'свой заказ без кода бонуса не даёт');
 
     // проверка кода
@@ -59,16 +60,16 @@ test('бонусы и рефералы: начисление, списание, 
     const small = await mk(FR, '+79990002222', 6000, { referrer_id: INV, referral_code: `REF-${INV}` });
     const big = await mk(FR, '+79990002222', 6500, { referrer_id: INV, referral_code: `REF-${INV}` });
     assert.equal(await db.getBonusBalance(INV), 0, 'до доставки бонуса нет');
-    await db.updateOrderStatus(small.id, 'DELIVERED');
+    await deliverOrder(db, pool, small);
     assert.equal(await db.getBonusBalance(INV), 0, '6000 — не больше порога');
-    await db.updateOrderStatus(big.id, 'DELIVERED');
+    await deliverOrder(db, pool, big);
     assert.equal(await db.getBonusBalance(INV), 200);
     await db.updateOrderStatus(big.id, 'COMPLETED');
     assert.equal(await db.getBonusBalance(INV), 200, 'повторного начисления нет');
 
     // доставка в сумму товаров не входит
     const withDelivery = await mk(FR, '+79990002222', 6300, { referrer_id: INV, delivery_cost: 500 });
-    await db.updateOrderStatus(withDelivery.id, 'DELIVERED');
+    await deliverOrder(db, pool, withDelivery);
     assert.equal(await db.getBonusBalance(INV), 200, 'товары 5800 — бонуса нет');
 
     // отмена заказа после доставки аннулирует бонус, повторная отмена ничего не меняет
@@ -80,8 +81,8 @@ test('бонусы и рефералы: начисление, списание, 
     // списание: баланс 400, заказ на 1000 → не больше 20 % = 200
     const g1 = await mk(FR, '+79990002222', 7000, { referrer_id: INV });
     const g2 = await mk(FR, '+79990002222', 7000, { referrer_id: INV });
-    await db.updateOrderStatus(g1.id, 'DELIVERED');
-    await db.updateOrderStatus(g2.id, 'DELIVERED');
+    await deliverOrder(db, pool, g1);
+    await deliverOrder(db, pool, g2);
     assert.equal(await db.getBonusBalance(INV), 400);
     const s = await db.getSettings();
     assert.equal(bonusToSpend({ goodsTotal: 1000, balance: 400, maxSharePct: s.bonus_max_share_pct, wantUse: true }), 200);

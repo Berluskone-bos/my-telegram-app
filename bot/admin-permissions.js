@@ -3,7 +3,7 @@
 const ROLE_PERMISSIONS = Object.freeze({
     admin: Object.freeze(['*']),
     manager: Object.freeze(['dashboard.view','orders.view','orders.process','customers.view','sales.view']),
-    operator: Object.freeze(['dashboard.view','orders.view','orders.process']),
+    operator: Object.freeze(['dashboard.view','orders.view','orders.process','routes.manage']),
     warehouse: Object.freeze(['dashboard.view','orders.view','orders.fulfill','products.view','inventory.view','inventory.manage'])
 });
 const ROLE_LABELS = Object.freeze({
@@ -38,7 +38,11 @@ function requireAnyPermission(...permissions) {
     };
 }
 function requireOrderStatusPermission(req, res, next) {
-    const permission = req && req.body && req.body.status === 'ASSEMBLING' ? 'orders.fulfill' : 'orders.process';
+    const status = req && req.body && req.body.status;
+    if (['SHIPPING', 'DELIVERED', 'COMPLETED'].includes(status)) {
+        return res.status(403).json({ error: 'Этот статус подтверждается только курьером', code: 'COURIER_ONLY' });
+    }
+    const permission = ['READY_FOR_SHIPMENT', 'READY_FOR_PICKUP'].includes(status) ? 'orders.fulfill' : 'orders.process';
     return requirePermission(permission)(req, res, next);
 }
 module.exports = {

@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 // Маршрут из нескольких заказов: сборка, рассылка курьеру, время приезда клиентам.
 // Зависимости передаются снаружи (база, геокодер, очередь сообщений, планировщик) — так модуль проверяется тестами.
 const defaultPlanner = require('./services/route-planner');
@@ -10,7 +11,7 @@ const { queueRouteSheetEdit, sheetKey } = require('./route-sheet');
 const poolOf = () => require('./db').pool;
 
 const DEFAULT_START = { lat: 59.9343, lon: 30.3351, source: 'default' };   // центр Санкт-Петербурга, пока склад не задан
-const ACTIVE = ['pending', 'in_progress'];
+const ACTIVE = ['pending', 'accepted', 'in_progress'];
 
 function createRouteService({ db, geocoder = null, queue, planner = defaultPlanner, env = process.env, now = () => new Date() }) {
     const serviceMin = () => Math.max(0, Number(env.SERVICE_MINUTES) || 5);
@@ -55,8 +56,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         for (const id of ids) {
             const o = await db.getOrderByNumber(id);
             if (!o) throw fail('NOT_FOUND', `Заказ ${id} не найден`);
-            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(o.status)) throw fail('CONFLICT', `Заказ ${o.order_number} уже отменён или доставлен`);
             if (o.delivery_type === 'pickup') throw fail('CONFLICT', `Заказ ${o.order_number} — самовывоз, курьер не нужен`);
+            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(o.status)) throw fail('CONFLICT', `Заказ ${o.order_number} уже отменён или доставлен`);
+            if (o.status !== 'READY_FOR_SHIPMENT') throw fail('CONFLICT', `Заказ ${o.order_number} ещё не готов к отправке (статус: ${o.status})`);
             const busy = await activeStopFor(o.order_number);
             if (busy) throw fail('CONFLICT', `Заказ ${o.order_number} уже назначен курьеру (маршрут ${busy})`);
             orders.push(o);
@@ -79,9 +81,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const sequence = placed.concat(plan.unplaced.map(s => ({ ...s, etaAt: null })));
 
         const route = await db.createRoute({
-            route_number: 'RL-' + String(Date.now()).slice(-4),
+            route_number: 'RL-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase(),
             route_date: now().toISOString().split('T')[0],
-            courier_id: courier.id, status: 'assigned', total_orders: sequence.length,
+            courier_id: courier.id, status: 'assigned', total_orders: sequence.length, enforceReadyOrders: true,
             stops: sequence.map((s, i) => {
                 const o = s.order;
                 return {
@@ -94,7 +96,6 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 };
             })
         });
-        for (const o of orders) await db.updateOrderStatus(o.id, 'SHIPPING');
 
         const approx = plan.source === 'estimate' ? ' (оценка по прямой: сервис дорог недоступен)' : '';
         const startNote = start.source === 'default' ? '\n⚠ Склад не задан в настройках: старт принят за центр города.' : '';
@@ -142,13 +143,6 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             notifyAdmin(
                 `<b>Маршрут ${escapeHtml(route.route_number)} назначен</b>\nКурьер: ${escapeHtml(courier.name)}\n` +
                 `Точек: ${n}${plan.ordered.length ? `, в пути около ${plan.totalMin} мин` : ''}${approx}\n\n${list}${startNote}`);
-        }
-        for (const s of sequence) {
-            const o = s.order;
-            if (o.user_id) {
-                const onCard = await trackerEvent(poolOf(), o.order_number, { stage: 'shipping', courier: courier.name }).catch(() => false);
-                if (!onCard) queue.notify('client', o.user_id, `<b>Заказ ${escapeHtml(o.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
-            }
         }
         return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: start.source }, sequence: sequence.map(s => s.order.order_number) };
     }
@@ -198,7 +192,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     { dedupKey: `eta:${stop.id}:${kind}:${clock}` });
                 sent.push({ stopId: stop.id, kind });
                 // то же время — в карточку заказа клиента (без уведомления; текст выше его и так даёт)
-                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, ...(kind === 'own' ? { stage: 'enroute' } : {}) }).catch(() => {});
+                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
             }
         }
         // точки без координат остаются без времени; сообщение «курьер в пути» их клиентам отправляет обработчик кнопки

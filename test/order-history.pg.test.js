@@ -23,6 +23,7 @@ test('история заказов клиента: только свои зак
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
     const { verifyInitData } = require('../bot/telegram-auth');
     const { registerOrderHistoryRoutes } = require('../bot/order-history-routes');
+    const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('H-oil', 500, true, 100) RETURNING id")).rows[0].id;
@@ -43,7 +44,7 @@ test('история заказов клиента: только свои зак
 
     const U1 = initDataFor(111), U2 = initDataFor(222);
     const a1 = await mk(111, 'h1'), a2 = await mk(111, 'h2', 2); const b1 = await mk(222, 'h3');
-    await db.updateOrderStatus(a1.id, 'DELIVERED');
+    await deliverOrder(db, pool, a1);
 
     // без входа и с подделкой — 401
     assert.equal((await api('/api/orders/my')).status, 401);
@@ -55,7 +56,7 @@ test('история заказов клиента: только свои зак
     assert.deepEqual(r1.orders.map(o => o.orderNumber), ['AP-h2', 'AP-h1']);
     assert.equal(r1.orders[0].items[0].qty, 2);
     assert.deepEqual(r1.orders[0].items[0], { id: pid, name: 'H-oil', volume: '4 л', price: 500, qty: 2 });
-    assert.equal(r1.orders[1].status, 'DELIVERED');
+    assert.equal(r1.orders[1].status, 'COMPLETED');
     const raw = JSON.stringify(r1);
     assert.ok(!raw.includes('+7999') && !raw.includes('секретный') && !raw.includes('AP-h3'), 'чужие или личные данные в ответе');
     const r2 = await (await api('/api/orders/my', { as: U2 })).json();

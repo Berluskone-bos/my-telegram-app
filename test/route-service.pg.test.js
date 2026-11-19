@@ -44,11 +44,22 @@ test('маршрут из 4 заказов: порядок по времени �
     const mk = (key, addr, extra = {}) => db.createOrder({ order_number: 'AP-rs' + key, user_id: 880100 + Number(key), user_name: 'К' + key, phone: '1', address: addr,
         zone: 'spb', city: 'c', street: 's', house: '1', items: [], subtotal: 1, total: 100, idempotency_key: 'rs' + key, ...extra });
     const oA = await mk('1', 'адрес A'), oB = await mk('2', 'адрес B'), oC = await mk('3', 'адрес C'), oD = await mk('4', 'адрес D');
+    for (const o of [oA, oB, oC, oD]) {
+        await db.updateOrderStatus(o.id, 'CONFIRMED');
+        await db.updateOrderStatus(o.id, 'ASSEMBLING');
+        await db.updateOrderStatus(o.id, 'READY_FOR_SHIPMENT');
+    }
 
     // проверки отказов
     await assert.rejects(svc.buildRoute({ orderIds: [], courier }), (e) => e.code === 'BAD_REQUEST');
     const pickup = await mk('5', 'адрес A', { delivery_type: 'pickup' });
     await assert.rejects(svc.buildRoute({ orderIds: [pickup.id], courier }), (e) => e.code === 'CONFLICT' && /самовывоз/.test(e.message));
+    await db.updateOrderStatus(pickup.id, 'CONFIRMED');
+    await db.updateOrderStatus(pickup.id, 'ASSEMBLING');
+    assert.equal(await db.updateOrderStatus(pickup.id, 'READY_FOR_SHIPMENT'), 'TRANSITION_FORBIDDEN', 'самовывоз нельзя перевести в курьерскую готовность');
+    await db.updateOrderStatus(pickup.id, 'READY_FOR_PICKUP');
+    assert.equal(await db.updateOrderStatus(pickup.id, 'PICKED_UP'), true);
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [pickup.id])).rows[0].status, 'PICKED_UP');
     const cancelled = await mk('6', 'адрес A'); await db.updateOrderStatus(cancelled.id, 'CANCELLED');
     await assert.rejects(svc.buildRoute({ orderIds: [cancelled.id], courier }), (e) => e.code === 'CONFLICT');
 
@@ -60,22 +71,34 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.ok(stops.every(s => s.eta_at), 'время приезда сохранено');
     // склад→D = 600 с (10 мин) после выезда в 03:00 UTC... время прибытия: 00:10, 00:25 (+5 мин остановка), 00:40, 00:55
     assert.deepEqual(stops.map(s => new Date(s.eta_at).toISOString().slice(11, 16)), ['00:10', '00:25', '00:40', '00:55']);
-    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
+    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     // повторно те же заказы нельзя
     await assert.rejects(svc.buildRoute({ orderIds: [oA.id], courier }), (e) => e.code === 'CONFLICT' && /уже назначен/.test(e.message));
 
     // курьеру: один маршрутный лист + 4 карточки с кнопкой «Принять»
     const toCourier = sent.filter(m => m.bot === 'courier');
     assert.equal(toCourier.length, 5);
-    assert.match(toCourier[0].text, /Маршрут RL-\d+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D — к 03:10/);
+    assert.match(toCourier[0].text, /Маршрут RL-[A-Z0-9-]+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D — к 03:10/);
     assert.match(toCourier[0].text, /живые пробки не учитываются/);
     assert.match(toCourier[1].text, /Точка 1 из 4/);
     assert.equal(toCourier[1].opts.buttons.at(-1)[0].callback_data, `deliver_${out.route.id}_${stops[0].id}_accept`);
     assert.ok(sent.some(m => m.bot === 'admin' && /назначен/.test(m.text)));
-    assert.equal(sent.filter(m => m.bot === 'client' && /Курьер назначен/.test(m.text)).length, 4);
+    assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'при назначении маршрута клиент не получает сообщение о выезде');
     sent.length = 0;
 
-    // курьер нажал «В пути» по первой точке: ей — «везёт», остальным — «выехал, вы N-й, будет через…»
+    // Старт всего маршрута блокируется, пока не приняты все заказы.
+    assert.deepEqual(await db.startRouteIfAllAccepted(out.route.id), { status: 'not_ready', waiting: 4 });
+    assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id)).status, 'accepted');
+    assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id)).status, 'already', 'повторное принятие идемпотентно');
+    assert.deepEqual(await db.startRouteIfAllAccepted(out.route.id), { status: 'not_ready', waiting: 3 });
+    for (const stop of stops.slice(1)) assert.equal((await db.acceptRouteStop(out.route.id, stop.id)).status, 'accepted');
+    const starts = await Promise.all([db.startRouteIfAllAccepted(out.route.id), db.startRouteIfAllAccepted(out.route.id)]);
+    assert.deepEqual(starts.map(x => x.status).sort(), ['already', 'started'], 'конкурентный старт фиксируется один раз');
+    assert.equal((await db.getRouteById(out.route.id)).status, 'in_progress');
+    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
+    assert.ok((await db.getRouteById(out.route.id)).stops.every(s => s.status === 'in_progress'));
+
+    // После общего старта клиентам отправляются ETA-уведомления по всем заказам маршрута.
     clock.t = new Date('2026-11-15T00:02:00Z');
     let r = await svc.refreshEtas({ routeId: out.route.id, firstStopId: stops[0].id, notifyNew: true });
     const clientTexts = () => sent.filter(m => m.bot === 'client');
@@ -105,4 +128,37 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.ok(clientTexts().every(m => /уточнено/.test(m.text)));
     assert.deepEqual(clientTexts().map(m => m.chat).sort(), [String(880101), String(880103)]);
     assert.ok(fetchCalls > 0);
+    assert.equal((await db.completeDeliveryStop(stops[2].id)).status, 'completed', 'курьер может завершить доставку после старта маршрута');
+
+    // Параллельное назначение одного заказа не создаёт два активных маршрута.
+    const concurrentOrder = await mk('7', 'адрес A');
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) await db.updateOrderStatus(concurrentOrder.id, status);
+    const attempts = await Promise.allSettled([
+        svc.buildRoute({ orderIds: [concurrentOrder.id], courier }),
+        svc.buildRoute({ orderIds: [concurrentOrder.id], courier })
+    ]);
+    assert.equal(attempts.filter(x => x.status === 'fulfilled').length, 1);
+    assert.equal(attempts.filter(x => x.status === 'rejected').length, 1);
+    assert.equal(attempts.find(x => x.status === 'rejected').reason.code, 'CONFLICT');
+    const activeCount = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM route_stops WHERE order_id = $1 AND status IN ('pending','accepted','in_progress')`,
+        [String(concurrentOrder.id)]);
+    assert.equal(activeCount.rows[0].n, 1);
+
+    // Отменённая остановка исключается из ожидания общего старта.
+    const cancelA = await mk('8', 'адрес A'), cancelB = await mk('9', 'адрес B');
+    for (const o of [cancelA, cancelB]) {
+        await db.updateOrderStatus(o.id, 'CONFIRMED');
+        await db.updateOrderStatus(o.id, 'ASSEMBLING');
+        await db.updateOrderStatus(o.id, 'READY_FOR_SHIPMENT');
+    }
+    const cancelRoute = await svc.buildRoute({ orderIds: [cancelA.id, cancelB.id], courier });
+    const cancelStops = (await db.getRouteById(cancelRoute.route.id)).stops;
+    await db.updateOrderStatus(cancelB.id, 'CANCELLED');
+    assert.equal((await db.getRouteById(cancelRoute.route.id)).stops.find(s => s.order_number === cancelB.order_number).status, 'cancelled');
+    const remaining = cancelStops.find(s => s.order_number === cancelA.order_number);
+    assert.deepEqual(await db.startRouteIfAllAccepted(cancelRoute.route.id), { status: 'not_ready', waiting: 1 });
+    assert.equal((await db.acceptRouteStop(cancelRoute.route.id, remaining.id)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(cancelRoute.route.id)).status, 'started');
+    assert.equal((await db.getRouteById(cancelRoute.route.id)).stops.find(s => s.order_number === cancelB.order_number).status, 'cancelled');
 });

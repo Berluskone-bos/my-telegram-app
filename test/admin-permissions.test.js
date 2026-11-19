@@ -27,7 +27,7 @@ test('менеджер имеет доступ к клиентам, заказа
 });
 
 test('оператор обрабатывает заказы, но не получает доступ к клиентской базе, продажам и складу', () => {
-    for (const permission of ['dashboard.view', 'orders.view', 'orders.process']) {
+    for (const permission of ['dashboard.view', 'orders.view', 'orders.process', 'routes.manage']) {
         assert.equal(hasPermission('operator', permission), true, permission);
     }
     for (const permission of ['customers.view', 'sales.view', 'inventory.manage', 'staff.manage']) {
@@ -93,15 +93,53 @@ test('requireAnyPermission пропускает роль с одним из ра
     assert.equal(called, true);
 });
 
-test('кладовщик может начать комплектацию, но не выполнять другие переходы статуса', () => {
+test('оператор начинает сборку, кладовщик подтверждает готовность, доставку подтверждает только курьер', () => {
+    let called = false;
+    const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+    requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'ASSEMBLING' } }, res, () => { called = true; });
+    assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'READY_FOR_SHIPMENT' } }, res, () => { called = true; });
+    assert.equal(called, false);
+    assert.equal(res.code, 403);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'PICKED_UP' } }, res, () => { called = true; });
+    assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'warehouse' }, body: { status: 'READY_FOR_SHIPMENT' } }, res, () => { called = true; });
+    assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'warehouse' }, body: { status: 'READY_FOR_PICKUP' } }, res, () => { called = true; });
+    assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'READY_FOR_PICKUP' } }, res, () => { called = true; });
+    assert.equal(called, false);
+    for (const status of ['SHIPPING', 'DELIVERED', 'COMPLETED']) {
+        called = false;
+        const denied = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+        requireOrderStatusPermission({ admin: { role: 'admin' }, body: { status } }, denied, () => { called = true; });
+        assert.equal(called, false, status);
+        assert.equal(denied.code, 403, status);
+        assert.equal(denied.body.code, 'COURIER_ONLY', status);
+    }
+});
+
+test('кладовщик подтверждает готовность, но не переводит заказ в сборку или отмену', () => {
     let called = false;
     let status;
     const res = { status(code) { status = code; return this; }, json() { return this; } };
     requireOrderStatusPermission(
-        { admin: { role: 'warehouse' }, body: { status: 'ASSEMBLING' } },
+        { admin: { role: 'warehouse' }, body: { status: 'READY_FOR_SHIPMENT' } },
         res, () => { called = true; }
     );
     assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission(
+        { admin: { role: 'warehouse' }, body: { status: 'ASSEMBLING' } },
+        res, () => { called = true; }
+    );
+    assert.equal(called, false);
+    assert.equal(status, 403);
     called = false;
     requireOrderStatusPermission(
         { admin: { role: 'warehouse' }, body: { status: 'CANCELLED' } },
