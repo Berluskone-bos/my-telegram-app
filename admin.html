@@ -1586,7 +1586,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
             const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
                 && !window.adminHasPermission('orders.process');
-            const showAssign = canDispatch && ['CONFIRMED', 'ASSEMBLING'].includes(o.status);
+            const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
             const canBatch = showAssign && !pickup && !courierName;
             const nextStatus = warehouseOnly ? (o.status === 'ASSEMBLING' ? 'READY_FOR_SHIPMENT' : null) : (col && col.next);
             const drag = !warehouseOnly && col && col.key !== 'DONE' && o.status !== 'CANCELLED';
