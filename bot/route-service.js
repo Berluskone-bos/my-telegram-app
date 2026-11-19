@@ -55,8 +55,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         for (const id of ids) {
             const o = await db.getOrderByNumber(id);
             if (!o) throw fail('NOT_FOUND', `Заказ ${id} не найден`);
-            if (o.status !== 'READY_FOR_SHIPMENT') throw fail('CONFLICT', `Заказ ${o.order_number} ещё не готов к отправке (статус: ${o.status})`);
             if (o.delivery_type === 'pickup') throw fail('CONFLICT', `Заказ ${o.order_number} — самовывоз, курьер не нужен`);
+            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(o.status)) throw fail('CONFLICT', `Заказ ${o.order_number} уже отменён или доставлен`);
+            if (o.status !== 'READY_FOR_SHIPMENT') throw fail('CONFLICT', `Заказ ${o.order_number} ещё не готов к отправке (статус: ${o.status})`);
             const busy = await activeStopFor(o.order_number);
             if (busy) throw fail('CONFLICT', `Заказ ${o.order_number} уже назначен курьеру (маршрут ${busy})`);
             orders.push(o);
