@@ -1329,12 +1329,17 @@ function registerCourierRoutes(app) {
                     // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
                     if (order.user_id && status !== 'CANCELLED') {
                         // промежуточные статусы — молча в карточку заказа; «доставлен/выполнен» — ещё и сообщением (уведомление на телефон)
-                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered' };
+                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered', READY_FOR_PICKUP: 'accepted', PICKED_UP: 'delivered' };
                         const finalSt = status === 'DELIVERED' || status === 'COMPLETED';
+                        const pickupNotice = status === 'READY_FOR_PICKUP' || status === 'PICKED_UP';
                         const onCard = stageMap[status]
-                            ? await trackerEvent(trackerPool(), order.order_number, { stage: stageMap[status], ...(finalSt ? { eta: '', canRate: true } : {}) }).catch(() => false)
+                            ? await trackerEvent(trackerPool(), order.order_number, {
+                                stage: stageMap[status],
+                                ...(finalSt ? { eta: '', canRate: true } : {}),
+                                ...(status === 'PICKED_UP' ? { eta: '', canRate: false } : {})
+                            }).catch(() => false)
                             : false;
-                        if (!onCard || finalSt) {
+                        if (!onCard || finalSt || pickupNotice) {
                             queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`);
                         }
                     }
