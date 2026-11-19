@@ -28,7 +28,7 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
         const r = await pool.query('SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [id(req.params.id)]);
         res.json(r.rows.map(x => x.approval));
     }));
-    app.put('/api/products/:id/approvals', verifyAdmin, requirePermission('inventory.manage'), wrap(async (req, res) => {
+    app.put('/api/products/:id/approvals', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => {
         const pid = id(req.params.id);
         const list = [...new Set((Array.isArray(req.body && req.body.approvals) ? req.body.approvals : [])
             .map(s => String(s).trim().slice(0, 100)).filter(Boolean))].slice(0, 80);

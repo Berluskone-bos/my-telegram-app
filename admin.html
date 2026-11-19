@@ -637,6 +637,8 @@ function applyAdminAccess(me) {
     const buildRouteButton = document.getElementById('buildRouteBtn');
     if (routeCourier) routeCourier.style.display = has('settings.manage') ? '' : 'none';
     if (buildRouteButton) buildRouteButton.style.display = has('settings.manage') ? '' : 'none';
+    const approvalsGroup = document.getElementById('productApprovalsGroup');
+    if (approvalsGroup) approvalsGroup.style.display = has('settings.manage') ? '' : 'none';
     const name = document.getElementById('adminDisplayName');
     const role = document.getElementById('adminRoleLabel');
     if (name) name.textContent = me.displayName || me.roleLabel || 'Сотрудник';
@@ -1095,7 +1097,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <label class="form-label">URL изображения</label>
                         <input class="form-input" name="image" placeholder="img/oils/...">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" id="productApprovalsGroup">
                         <label class="form-label">Допуски и одобрения (через запятую)</label>
                         <textarea class="form-textarea" name="approvals" rows="2" placeholder="VW 504 00, VW 502 00, MB 229.51, ACEA C3, API SP"></textarea>
                         <small>Только то, что напечатано на этикетке или в сертификате. По ним магазин подбирает масло под машину.</small>
@@ -2096,9 +2098,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (res.ok) {
                     const saved = await res.json().catch(() => ({}));
                     const pid = editId || saved.id;
-                    if (pid) {
+                    if (pid && window.adminHasPermission && window.adminHasPermission('settings.manage')) {
                         const list = form.approvals.value.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
-                        await fetch(`${API_BASE}/api/products/${pid}/approvals`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approvals: list }) });
+                        const approvalsResponse = await fetch(API_BASE + '/api/products/' + pid + '/approvals', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approvals: list }) });
+                        if (!approvalsResponse.ok) throw new Error('Не удалось сохранить допуски товара');
                     }
                     closeModal('productModal');
                     form.reset();
