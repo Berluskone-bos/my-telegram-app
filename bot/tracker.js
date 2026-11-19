@@ -59,23 +59,25 @@ async function handleWidgetQuery(q, { pool, db, call }) {
     if (!w) { await answer('old'); return 'no_tracker'; }
     const order = (await pool.query('SELECT user_id, status FROM orders WHERE order_number = $1', [w.ref])).rows[0];
     if (!order || String(order.user_id) !== String(fromId) || !['DELIVERED', 'COMPLETED'].includes(order.status)) { await answer('wait'); return 'not_delivered'; }
-    const courierId = await db.courierIdForOrder(w.ref);
-    if (!courierId) { await answer('no'); return 'no_courier'; }
-    // одна оценка на заказ: помечаем и только потом пишем в рейтинг курьера
-    const mark = await pool.query(
-        `UPDATE widget_messages SET state = state || $2::jsonb, updated_at = NOW()
-          WHERE kind = 'tracker' AND ref = $1 AND NOT (state ? 'rating') RETURNING state`, [w.ref, JSON.stringify({ rating })]);
-    if (!mark.rowCount) { await answer('done'); return 'already_rated'; }
-    const saved = await db.updateCourierRating(courierId, rating);
-    if (saved === false) {
-        await pool.query(`UPDATE widget_messages SET state = state - 'rating' WHERE kind = 'tracker' AND ref = $1`, [w.ref]);
+    const saved = await db.rateCourierForOrder(w.ref, fromId, rating);
+    if (saved.status === 'not_allowed') { await answer('no'); return 'bad_chat'; }
+    if (saved.status === 'no_courier') { await answer('no'); return 'no_courier'; }
+    if (saved.status === 'not_delivered') { await answer('wait'); return 'not_delivered'; }
+    if (saved.status === 'invalid') { await answer('?'); return 'ignored'; }
+    if (saved.status !== 'rated' && saved.status !== 'already_rated') {
         await answer('fail'); return 'not_saved';
     }
-    const card = widgets.trackerWidget(w.ref, mark.rows[0].state);
-    await answer('ok');
+    // Состояние карточки — только отображение. Единственный источник защиты от дублей — route_stops.client_rating.
+    const ratingToShow = saved.status === 'rated' ? rating : Number(saved.rating);
+    const mark = await pool.query(
+        `UPDATE widget_messages SET state = state || $2::jsonb, updated_at = NOW()
+          WHERE kind = 'tracker' AND ref = $1 RETURNING state`,
+        [w.ref, JSON.stringify({ rating: ratingToShow, canRate: false })]);
+    const card = widgets.trackerWidget(w.ref, mark.rows[0]?.state || { rating: ratingToShow, canRate: false });
+    await answer(saved.status === 'rated' ? 'ok' : 'done');
     await call('editMessageWidgetData', { chat_id: chatId, message_id: messageId, chat_data: card.chat_data }).catch(e =>
         console.error('[ВИДЖЕТ] не удалось показать оценку в карточке:', String(e.message).slice(0, 150)));
-    return 'rated';
+    return saved.status === 'rated' ? 'rated' : 'already_rated';
 }
 
 module.exports = { trackerItem, trackerEvent, hasTracker, handleWidgetQuery, widgetKey };
