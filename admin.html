@@ -1422,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : orders.map(o => {
                         const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
                         const courierName = getCourierForOrder(o.id);
-                        const isCompleted = o.status === 'COMPLETED';
+                        const isCompleted = o.status === 'COMPLETED' || o.status === 'PICKED_UP';
                         const checkmark = isCompleted
                             ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M20 6L9 17l-5-5"/></svg>'
                             : '';
