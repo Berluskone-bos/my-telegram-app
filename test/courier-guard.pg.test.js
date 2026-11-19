@@ -56,9 +56,9 @@ test('курьерский бот: кнопки отменённого зака�
         await db.updateOrderStatus(o.id, 'SHIPPING');
         return { o, route, stopId: route.stops[0].id };
     };
-    const press = async (data) => {
+    const press = async (data, fromId = 900002) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: { inline_keyboard: [] } } });
+        await handlers.callback_query({ id: 'q1', data, from: { id: fromId, first_name: 'К' }, message: { chat: { id: fromId }, message_id: 55, reply_markup: { inline_keyboard: [] } } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
@@ -123,4 +123,22 @@ test('курьерский бот: кнопки отменённого зака�
     const adm = await adminTexts();
     assert.equal(adm.length, 4); assert.match(adm[2], /приехал к клиенту/); assert.match(adm[3], /заказ доставлен/);
     assert.match(adm[3], new RegExp('AP-cg2'));
+
+    // Оценку может отправить только владелец доставленного заказа, строго один раз.
+    const initialCount = Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count);
+    await press(`rate_${courier.id}_${b.stopId}_5`, 999999);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /нельзя оценить/);
+    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount);
+    await press(`rate_${courier.id}_${b.stopId}_5`, 777004);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /Спасибо/);
+    assert.equal(Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [b.stopId])).rows[0].client_rating), 5);
+    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount + 1);
+    await press(`rate_${courier.id}_${b.stopId}_1`, 777004);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /уже оценили/);
+    assert.equal(Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [b.stopId])).rows[0].client_rating), 5);
+    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount + 1);
+    await press(`rate_${courier.id}_${b.stopId}_4`, 777005);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /нельзя оценить/);
+    await press(`rate_${courier.id}_o_5`, 777004);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /недействительна/);
 });
