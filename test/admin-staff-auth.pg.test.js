@@ -67,6 +67,19 @@ test('сотрудники: индивидуальный вход, роли, о�
     assert.ok(owner.id);
     assert.equal((await pool.query('SELECT password_hash FROM admin_users WHERE id=$1', [owner.id])).rows[0].password_hash.includes('Owner-Password-2026!'), false);
 
+    // Индивидуальная учётная запись продолжает работать независимо от старого ADMIN_API_KEY.
+    const savedAdminKey = process.env.ADMIN_API_KEY;
+    process.env.ADMIN_API_KEY = '';
+    const ownerLogin = await call('/api/admin/login', {
+        method: 'POST', body: { login: 'owner.admin', password: 'Owner-Password-2026!' }, ip: '10.10.10.9'
+    });
+    assert.equal(ownerLogin.status, 200);
+    const ownerCookie = cookieOf(ownerLogin);
+    const ownerMe = await (await call('/api/admin/me', { cookie: ownerCookie })).json();
+    assert.equal(ownerMe.role, 'admin');
+    assert.equal(ownerMe.legacy, false);
+    process.env.ADMIN_API_KEY = savedAdminKey;
+
     // Неизвестные роли (в том числе courier) нельзя записать.
     assert.equal((await create(adminCookie, {
         login: 'courier.one', displayName: 'Не добавлять', password: 'Courier-Password-2026!', role: 'courier'
@@ -137,6 +150,9 @@ test('сотрудники: индивидуальный вход, роли, о�
     });
     assert.equal(deactivated.status, 200);
     assert.equal((await call('/api/admin/me', { cookie: warehouseCookie })).status, 401);
+    assert.equal((await call('/api/admin/login', {
+        method: 'POST', body: { login: 'warehouse.one', password: 'Warehouse-Password-2026!' }, ip: '10.10.10.6'
+    })).status, 401, 'отключённый сотрудник не может войти заново');
 
     const audit = (await pool.query('SELECT action, actor_role FROM admin_audit ORDER BY id')).rows;
     assert.ok(audit.some(row => row.action === 'staff_created' && row.actor_role === 'admin'));
