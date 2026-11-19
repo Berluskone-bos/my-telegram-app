@@ -40,16 +40,18 @@ test('виджеты: очередь, запасной вариант, трек�
         await q.enqueue(tracker.trackerItem({ chatId: user, orderNumber }));
         await q.processOnce();
     };
-    const deliverWithRoute = async (order, routeNumber) => {
+    const deliverWithRoute = async (order, routeNumber, complete = true) => {
         for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
             assert.equal(await db.updateOrderStatus(order.id, status), true);
         }
         const route = await db.createRoute({ route_number: routeNumber, route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
             stops: [{ order_id: String(order.id), order_number: order.order_number, address: order.address, phone: '1', client_name: 'К', client_chat_id: order.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
         const stopId = route.stops[0].id;
-        assert.equal((await db.acceptRouteStop(route.id, stopId)).status, 'accepted');
-        assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
-        assert.equal((await db.completeDeliveryStop(stopId)).status, 'completed');
+        if (complete) {
+            assert.equal((await db.acceptRouteStop(route.id, stopId)).status, 'accepted');
+            assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
+            assert.equal((await db.completeDeliveryStop(stopId)).status, 'completed');
+        }
         return route;
     };
 
@@ -108,11 +110,14 @@ test('виджеты: очередь, запасной вариант, трек�
     const calls = [];
     const call = async (method, payload) => { calls.push({ method, payload }); return true; };
     const o3 = await mkOrder('wg3');
-    const route = await deliverWithRoute(o3, 'RL-wg3');
+    const route = await deliverWithRoute(o3, 'RL-wg3', false);
     const stopId = route.stops[0].id;
     await mkCard('AP-wg3'); const w3 = await store.get(pool, 'tracker', 'AP-wg3');
     const query = (data, from = 777101) => ({ id: 'q' + Math.random(), data, from: { id: from }, chat: { id: 777101 }, message_id: Number(w3.message_id) });
     assert.equal(await tracker.handleWidgetQuery(query('rate:5'), { pool, db, call }), 'not_delivered', 'пока не доставлен — оценить нельзя');
+    assert.equal((await db.acceptRouteStop(route.id, stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
+    assert.equal((await db.completeDeliveryStop(stopId)).status, 'completed');
     assert.equal(await tracker.handleWidgetQuery(query('rate:5', 999), { pool, db, call }), 'bad_chat', 'чужой пользователь');
     assert.equal(await tracker.handleWidgetQuery(query('rate:9'), { pool, db, call }), 'ignored', 'оценка вне 1–5');
     assert.equal(await tracker.handleWidgetQuery(query('drop table'), { pool, db, call }), 'ignored');
