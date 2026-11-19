@@ -580,6 +580,11 @@ bot.on('callback_query', async (query) => {
             bot.answerCallbackQuery(query.id, { text: 'Нет доступа к этому маршруту' }).catch(() => {});
             return;
         }
+        const isAccept = data.startsWith('deliver_') && data.endsWith('_accept');
+        if (!isAccept && ['delivered_', 'quickdelivered_', 'failed_', 'failreason_'].some(a => data.startsWith(a)) && rt.status !== 'in_progress') {
+            bot.answerCallbackQuery(query.id, { text: 'Сначала необходимо начать весь маршрут', show_alert: true }).catch(() => {});
+            return;
+        }
         // Заказ отменили, пока сообщение висело у курьера: действие не выполняем, клиента не уведомляем, кнопки гасим
         if (sId !== null) {
             const chk = await checkStopActive(require('./db').pool, sId);
@@ -703,7 +708,7 @@ async function handleStartRoute(chatId, routeId, user) {
         for (const stop of refreshed?.stops || []) {
             if (stop.client_chat_id && !stop.eta_told_at && stop.status !== 'cancelled') {
                 queue.notify('client', stop.client_chat_id,
-                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\\n\\nСтатус: <b>Курьер выехал</b>\\nКурьер начал маршрут и доставит ваш заказ по очереди.`,
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер начал маршрут и доставит ваш заказ по очереди.`,
                     { dedupKey: `route-start:${stop.id}` });
                 await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute' }).catch(() => false);
             }
@@ -733,7 +738,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         }
         const nextButtons = [
             ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
-            [{ text: '✓ Заказ принят', callback_data: 'noop' }]
+            [{ text: 'У клиента', callback_data: `deliver_${routeId}_${stopId}_arrived` }]
         ];
         try { await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId }); }
         catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
@@ -1099,7 +1104,7 @@ function registerCourierRoutes(app) {
         try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.post('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const { courier_id, route_date, stops } = req.body;
             const processedStops = [];
@@ -1132,7 +1137,7 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
