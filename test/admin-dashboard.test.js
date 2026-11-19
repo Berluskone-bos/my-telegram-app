@@ -12,10 +12,10 @@ test('validDate accepts only real YYYY-MM-DD dates', () => {
 });
 
 test('dashboard route rejects malformed date before querying database', async () => {
-    let handler;
-    const app = { get(path, auth, fn) { assert.equal(path, '/api/admin/dashboard'); handler = fn; } };
+    let handlers;
+    const app = { get(path, ...fns) { assert.equal(path, '/api/admin/dashboard'); handlers = fns; } };
     const pool = { query() { throw new Error('database must not be queried'); } };
-    registerAdminDashboardRoutes(app, { pool, verifyAdmin(_req, _res, next) { next(); } });
+    registerAdminDashboardRoutes(app, { pool, verifyAdmin(req, _res, next) { req.admin = { role: 'admin' }; next(); } });
 
     let statusCode = 200;
     let body;
@@ -23,7 +23,8 @@ test('dashboard route rejects malformed date before querying database', async ()
         status(code) { statusCode = code; return this; },
         json(value) { body = value; return this; }
     };
-    await handler({ query: { date: '2026-02-30' } }, res);
+    const req = { query: { date: '2026-02-30' }, admin: null };
+    await new Promise((resolve, reject) => handlers[0](req, res, err => err ? reject(err) : handlers[1](req, res, () => Promise.resolve(handlers[2](req, res)).then(resolve, reject))));
     assert.equal(statusCode, 400);
     assert.match(body.error, /YYYY-MM-DD/);
 });

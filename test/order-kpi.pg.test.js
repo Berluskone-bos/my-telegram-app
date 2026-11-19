@@ -54,7 +54,7 @@ test('карточки показателей: период до этого мо
     // маршрут: только администратор, ответ — те же четыре периода
     const app = express();
     let allowed = true;
-    registerOrderStatsRoutes(app, { db, verifyAdmin: (req, res, next) => allowed ? next() : res.status(401).json({ error: 'no' }) });
+    registerOrderStatsRoutes(app, { db, verifyAdmin: (req, res, next) => { if (!allowed) return res.status(401).json({ error: 'no' }); req.admin = { role: 'admin' }; return next(); } });
     const server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
     t.after(() => server.close());
     const url = `http://127.0.0.1:${server.address().port}/api/orders/kpi`;

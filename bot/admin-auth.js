@@ -107,9 +107,11 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 return res.status(401).json({ error: 'Требуется вход', code: 'AUTH_REQUIRED' });
             }
             const found = await pool.query(
-                'SELECT s.role AS legacy_role, s.staff_user_id, u.id AS user_id, u.login, u.display_name, u.role AS user_role, u.is_active ' +
+                'SELECT s.role AS legacy_role, s.staff_user_id, s.expires_at, s.last_seen, ' +
+                'u.id AS user_id, u.login, u.display_name, u.role AS user_role, u.is_active, ' +
+                '(s.expires_at <= NOW() OR s.last_seen <= NOW() - ($2::text || \' milliseconds\')::interval) AS expired ' +
                 'FROM admin_sessions s LEFT JOIN admin_users u ON u.id = s.staff_user_id ' +
-                'WHERE s.token_hash = $1 AND s.expires_at > NOW() AND s.last_seen > NOW() - ($2::text || \' milliseconds\')::interval LIMIT 1',
+                'WHERE s.token_hash = $1 LIMIT 1',
                 [hashToken(token), String(idleMs)]
             );
             if (!found.rowCount) return res.status(401).json({ error: 'Требуется вход', code: 'AUTH_REQUIRED' });
@@ -121,6 +123,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             if (!row.staff_user_id && typeof getKey === 'function' && !getKey()) {
                 return res.status(503).json({ error: 'Старый вход отключён: ADMIN_API_KEY не задан' });
             }
+            if (row.expired) return res.status(401).json({ error: 'Сессия истекла', code: 'AUTH_REQUIRED' });
             await pool.query('UPDATE admin_sessions SET last_seen = NOW() WHERE token_hash = $1', [hashToken(token)]);
             req.admin = {
                 session: hashToken(token).slice(0, 8),
