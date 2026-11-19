@@ -184,7 +184,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                     const found = LOGIN_RE.test(login)
                         ? await pool.query('SELECT id, login, display_name, password_hash, role, is_active FROM admin_users WHERE LOWER(login) = LOWER($1) LIMIT 1', [login])
                         : { rowCount: 0, rows: [] };
-                    const valid = found.rowCount && found.rows[0].is_active === true
+                    const valid = password.length >= PASSWORD_MIN && password.length <= 128 && found.rowCount && found.rows[0].is_active === true
                         ? await verifyPassword(password, found.rows[0].password_hash) : false;
                     if (!valid) {
                         noteFail(ip);
@@ -220,6 +220,19 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             const token = anyCookie(req);
             if (token && /^[A-Za-z0-9_-]{43}$/.test(token)) {
                 const h = hashToken(token);
+                const actor = await pool.query(
+                    'SELECT s.staff_user_id, s.role AS legacy_role, u.login, u.display_name, u.role AS user_role ' +
+                    'FROM admin_sessions s LEFT JOIN admin_users u ON u.id = s.staff_user_id WHERE s.token_hash = $1 LIMIT 1',
+                    [h]
+                );
+                if (actor.rowCount) {
+                    const a = actor.rows[0];
+                    req.admin = {
+                        session: h.slice(0, 8), userId: a.staff_user_id || null,
+                        login: a.login || null, displayName: a.display_name || 'Администратор',
+                        role: a.user_role || a.legacy_role || 'admin', legacy: !a.staff_user_id
+                    };
+                }
                 const r = await pool.query('DELETE FROM admin_sessions WHERE token_hash = $1', [h]);
                 if (r.rowCount) await audit(req, 'logout', 200, null, h.slice(0, 8));
             }
