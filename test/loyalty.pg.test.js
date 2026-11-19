@@ -33,6 +33,7 @@ test('скидка по обороту: уровни, только достав�
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
     const { verifyInitData } = require('../bot/telegram-auth');
     const { registerLoyaltyRoutes } = require('../bot/loyalty-routes');
+    const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('L-oil', 1, true, 1000) RETURNING id")).rows[0].id;
@@ -51,7 +52,9 @@ test('скидка по обороту: уровни, только достав�
     const order = async (uid, goods, status, delivery = 0) => {
         n++; const o = await db.createOrder({ order_number: 'AP-L' + n, user_id: uid, user_name: 'T', phone: '1', address: 'a', zone: 'spb', city: 'c', street: 's', house: '1',
             items: [{ productId: pid, qty: 1, name: 'x', price: goods }], subtotal: goods, total: goods + delivery, delivery_cost: delivery, idempotency_key: 'L' + n });
-        if (status !== 'NEW') await db.updateOrderStatus(o.id, status);
+        if (status === 'DELIVERED' || status === 'COMPLETED') await deliverOrder(db, pool, o);
+        else if (status === 'SHIPPING') await pool.query("UPDATE orders SET status = 'SHIPPING' WHERE id = $1", [o.id]);
+        else if (status !== 'NEW') await db.updateOrderStatus(o.id, status);
         return o;
     };
 
