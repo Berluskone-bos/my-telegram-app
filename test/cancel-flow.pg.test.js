@@ -32,11 +32,16 @@ test('отмена заказа: курьер получает сообщени�
     const mkOrder = (key) => db.createOrder({ order_number: 'AP-' + key, user_id: 777002, user_name: 'Клиент', name: 't', phone: '1', address: 'СПб, ул. Тестовая, д. 1',
         zone: 'spb', city: 'c', street: 's', house: '1', items: [], subtotal: 100, total: 100, idempotency_key: key });
     const assign = async (order, withMessageSent) => {
-        const route = await db.createRoute({ route_number: 'RL-' + order.order_number.slice(-4), route_date: '2026-11-14', courier_id: courier.id, status: 'assigned', total_orders: 1,
+        const current = (await pool.query('SELECT status FROM orders WHERE id = $1', [order.id])).rows[0].status;
+        if (current === 'NEW') assert.equal(await db.updateOrderStatus(order.id, 'CONFIRMED'), true);
+        const afterConfirm = (await pool.query('SELECT status FROM orders WHERE id = $1', [order.id])).rows[0].status;
+        if (afterConfirm === 'CONFIRMED') assert.equal(await db.updateOrderStatus(order.id, 'ASSEMBLING'), true);
+        const afterAssembly = (await pool.query('SELECT status FROM orders WHERE id = $1', [order.id])).rows[0].status;
+        if (afterAssembly === 'ASSEMBLING') assert.equal(await db.updateOrderStatus(order.id, 'READY_FOR_SHIPMENT'), true);
+        const route = await db.createRoute({ route_number: 'RL-' + order.order_number.slice(-4), route_date: '2026-11-14', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
             stops: [{ order_id: String(order.id), order_number: order.order_number, address: order.address, phone: '1', client_name: 'Клиент', client_chat_id: order.user_id,
                 amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
         const stopId = route.stops[0].id;
-        assert.equal(await db.updateOrderStatus(order.id, 'SHIPPING'), true);
         await q.enqueue({ bot: 'courier', dedupKey: `assign:${stopId}`, onSent: { stopId },
             payload: { chat_id: '900001', text: 'Новый заказ', reply_markup: { inline_keyboard: [[{ text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }]] } } });
         if (withMessageSent) await q.processOnce();
