@@ -672,32 +672,16 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data.startsWith('rate_')) {
-        // Формат: rate_<courierId>_<routeStopId>_<rating>. Старые кнопки без stopId отклоняются.
-        const match = /^rate_([0-9]+)_([0-9]+)_([1-5])$/.exec(data);
-        if (!match || !query.from || !query.from.id) {
-            bot.answerCallbackQuery(query.id, { text: 'Кнопка оценки недействительна', show_alert: true }).catch(() => {});
-            return;
-        }
-        const [, courierId, stopId, rating] = match;
-        const result = await db.rateCourierForStop(stopId, courierId, query.from.id, rating);
-        const messages = {
-            not_allowed: 'Эту доставку нельзя оценить с вашего аккаунта',
-            not_delivered: 'Оценить можно только доставленный заказ',
-            already_rated: 'Вы уже оценили эту доставку',
-            invalid: 'Некорректная оценка'
-        };
-        const message = result.status === 'rated' ? 'Спасибо за оценку!' : (messages[result.status] || 'Не удалось принять оценку');
-        bot.answerCallbackQuery(query.id, {
-            text: message,
-            show_alert: result.status !== 'rated'
-        }).catch(() => {});
-        if (query.message) {
-            bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
-                chat_id: chatId,
-                message_id: query.message.message_id
-            }).catch(() => {});
-        }
-        if (result.status === 'rated') bot.sendMessage(chatId, 'Спасибо за оценку доставки!');
+        const parts = data.split('_');
+        const courierId = parseInt(parts[1]);
+        const rating = parseInt(parts[3]);
+        await db.updateCourierRating(courierId, rating);
+        bot.answerCallbackQuery(query.id, { text: `Спасибо за оценку ${rating}!` });
+        bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+            chat_id: chatId,
+            message_id: query.message.message_id
+        });
+        bot.sendMessage(chatId, `Спасибо за оценку ${rating}/5!`);
         return;
     }
  } catch (e) {
