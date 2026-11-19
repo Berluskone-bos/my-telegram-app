@@ -66,14 +66,19 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await stock(), 4);
     // Два последовательных callback «Доставлено»: один переход, одно уведомление, без нового списания.
     const deliveredOrder = await mk(1, 'k6');
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
+        assert.equal(await db.updateOrderStatus(deliveredOrder.id, status), true);
+    }
     const routeId = (await pool.query(
-        "INSERT INTO delivery_routes(route_number, route_date, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, 'in_progress', 1) RETURNING id"
+        "INSERT INTO delivery_routes(route_number, route_date, courier_id, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, (SELECT id FROM couriers ORDER BY id DESC LIMIT 1), 'assigned', 1) RETURNING id"
     )).rows[0].id;
     const stopId = (await pool.query(
         `INSERT INTO route_stops(route_id, order_id, order_number, stop_number, address, status, client_chat_id)
-         VALUES ($1, $2, $3, 1, 'Test address', 'in_progress', 987654321) RETURNING id`,
+         VALUES ($1, $2, $3, 1, 'Test address', 'pending', 987654321) RETURNING id`,
         [routeId, String(deliveredOrder.id), deliveredOrder.order_number]
     )).rows[0].id;
+    assert.equal((await db.acceptRouteStop(routeId, stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(routeId)).status, 'started');
 
     const firstDone = await db.completeDeliveryStop(stopId);
     const secondDone = await db.completeDeliveryStop(stopId);
