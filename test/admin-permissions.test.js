@@ -27,7 +27,7 @@ test('менеджер имеет доступ к клиентам, заказа
 });
 
 test('оператор обрабатывает заказы, но не получает доступ к клиентской базе, продажам и складу', () => {
-    for (const permission of ['dashboard.view', 'orders.view', 'orders.process']) {
+    for (const permission of ['dashboard.view', 'orders.view', 'orders.process', 'routes.manage']) {
         assert.equal(hasPermission('operator', permission), true, permission);
     }
     for (const permission of ['customers.view', 'sales.view', 'inventory.manage', 'staff.manage']) {
