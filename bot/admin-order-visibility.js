@@ -4,7 +4,7 @@ const OPERATOR_LIST_FIELDS = Object.freeze([
     'id', 'order_number', 'phone', 'total', 'status', 'delivery_type', 'created_at'
 ]);
 const OPERATOR_DETAIL_FIELDS = Object.freeze([
-    'id', 'order_number', 'phone', 'address', 'items', 'total',
+    'id', 'order_number', 'phone', 'address', 'items', 'total', 'payment', 'comment',
     'status', 'delivery_type', 'created_at'
 ]);
 const WAREHOUSE_LIST_FIELDS = Object.freeze(['id','order_number','total','status','delivery_type','created_at']);
