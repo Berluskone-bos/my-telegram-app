@@ -106,6 +106,13 @@ test('курьерский бот: кнопки отменённого зака�
         c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
     assert.ok(startPrompt, 'после принятия единственного заказа курьеру показана кнопка общего старта маршрута');
     assert.match(startPrompt[2], /Все заказы маршрута .* приняты/);
+    const acceptedCard = calls.find(c => c[0] === 'editMessageReplyMarkup');
+    assert.ok(acceptedCard, 'карточка принятого заказа обновлена');
+    assert.equal(
+        acceptedCard[1].inline_keyboard.flat().some(button => /_arrived$/.test(button.callback_data || '')),
+        false,
+        'до общего старта у принятого заказа нет преждевременной кнопки «У клиента»'
+    );
     assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
 
     // Курьер запускает маршрут из того же чата, не переходя на отдельный экран.
