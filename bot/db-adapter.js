@@ -571,6 +571,35 @@ class DBAdapter {
     // Заказы
     // ───────────────────────────────────────────
 
+    async getOrdersPage(page = 1, limit = 50) {
+        const safePage = Math.max(1, Math.min(100000, Number.parseInt(page, 10) || 1));
+        const safeLimit = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 50));
+        const offset = (safePage - 1) * safeLimit;
+        const [count, rows] = await Promise.all([
+            pool.query('SELECT COUNT(*)::int AS total FROM orders'),
+            pool.query(
+                `SELECT id, order_number, user_name, phone, total, status, delivery_type, created_at
+                   FROM orders ORDER BY id DESC LIMIT $1 OFFSET $2`,
+                [safeLimit, offset]
+            )
+        ]);
+        return { items: rows.rows, total: count.rows[0].total, page: safePage, limit: safeLimit };
+    }
+
+    async getOrderCustomers() {
+        const res = await pool.query(
+            `SELECT MAX(user_name) AS user_name, phone,
+                    COUNT(*)::int AS orders, COALESCE(SUM(total), 0)::float8 AS total,
+                    MAX(created_at) AS last_date
+               FROM orders
+              WHERE phone IS NOT NULL AND phone <> ''
+              GROUP BY phone
+              ORDER BY last_date DESC
+              LIMIT 5000`
+        );
+        return res.rows;
+    }
+
     async getOrders() {
         const res = await pool.query('SELECT * FROM orders ORDER BY id DESC');
         return res.rows;
