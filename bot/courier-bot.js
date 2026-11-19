@@ -1338,128 +1338,29 @@ function registerCourierRoutes(app) {
     });
 
     // Назначить курьера на заказ
+    // Совместимый endpoint одиночного назначения: использует тот же маршрутный процесс, что и пакетная отправка.
     app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+        const orderId = Number(req.params.id);
+        if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный номер заказа' });
         try {
-            const orderId = parseInt(req.params.id);
-            let { courier_id } = req.body;
-
-            const order = await db.getOrderByNumber(orderId);
-            if (!order) return res.status(404).json({ error: 'Order not found' });
-            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
-                return res.status(409).json({ error: 'Заказ уже отменён или доставлен, курьеру его назначить нельзя' });
+            let courierId = Number(req.body && req.body.courier_id);
+            const couriers = await db.getCouriers();
+            if (!courierId) {
+                const active = couriers.filter(x => x.is_active);
+                if (active.length === 1) courierId = Number(active[0].id);
+                else return res.status(400).json({ error: 'Выберите курьера' });
             }
-
-            // Автоназначение если курьер один
-            if (!courier_id) {
-                const allCouriers = await db.getCouriers();
-                const active = allCouriers.filter(c => c.is_active);
-                if (active.length === 1) courier_id = active[0].id;
-                else return res.status(400).json({ error: 'courier_id required' });
-            }
-
-            const courier = (await db.getCouriers()).find(c => c.id === courier_id);
-            if (!courier) return res.status(404).json({ error: 'Courier not found' });
-
-            // Геокодируем адрес
-            let lat = null, lon = null;
-            if (order.address && YANDEX_GEO_KEY) {
-                try {
-                    const geo = await geocoder.geocode(order.address);
-                    if (geo) {
-                        lat = geo.lat;
-                        lon = geo.lon;
-                        console.log('[ГЕОКОДЕР] Координаты адреса получены');
-                    } else {
-                        console.log('[ГЕОКОДЕР] Адрес не найден');
-                    }
-                } catch (e) {
-                    console.error('[ГЕОКОДЕР] Ошибка запроса');
-                }
-            } else {
-                console.log(`[ГЕОКОДЕР] Пропущен: address=${!!order.address}, key=${!!YANDEX_GEO_KEY}`);
-            }
-
-            // Создаём маршрут из заказа
-            const route = await db.createRoute({
-                route_number: 'RL-' + String(Date.now()).slice(-4),
-                route_date: new Date().toISOString().split('T')[0],
-                courier_id: courier_id,
-                status: 'assigned',
-                total_orders: 1,
-                stops: [{
-                    order_id: String(order.id),
-                    order_number: order.order_number,
-                    address: order.address || '',
-                    city: order.city || '',
-                    street: order.street || '',
-                    house: order.house || '',
-                    lat: lat,
-                    lon: lon,
-                    phone: order.phone || '',
-                    client_name: order.user_name || '',
-                    client_chat_id: order.user_id || null,
-                    amount_to_pay: order.payment === 'cash' ? order.total : 0,
-                    payment_status: order.payment === 'cash' ? 'pending' : 'paid',
-                    status: 'pending',
-                    comment: order.comment || ''
-                }]
-            });
-
-            // Обновляем статус заказа
-            await db.updateOrderStatus(orderId, 'SHIPPING');
-
-            // Уведомляем курьера через курьерский бот
-            if (courier.telegram_id) {
-                const stopId = route.stops && route.stops[0] ? route.stops[0].id : 0;
-                const msgText =
-                    `<b>Новый заказ!</b>\n\n` +
-                    `Заказ: ${escapeHtml(order.order_number)}\n` +
-                    `Адрес: ${escapeHtml(order.address)}\n` +
-                    `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
-                    (order.comment ? `Комментарий: ${escapeHtml(order.comment)}\n` : '') +
-                    `\nНажмите "Принять" для начала доставки.`;
-
-                const navButtons = [];
-                if (lat && lon) {
-                    const yandexUrl = MapLinks.yandex(order.address, lat, lon);
-                    const gis2Url = MapLinks.gis2(lat, lon);
-                    navButtons.push([
-                        { text: 'Яндекс Карты', url: yandexUrl },
-                        { text: '2GIS', url: gis2Url }
-                    ]);
-                    console.log('[MAP LINKS] Ссылка навигации сформирована');
-                }
-                navButtons.push([
-                    { text: 'Принять заказ', callback_data: `deliver_${route.id}_${stopId}_accept` }
-                ]);
-
-                // Через очередь: при сбое Telegram сообщение повторится; id сообщения запоминаем,
-                // чтобы при отмене заказа погасить на нём кнопки (см. cancel-flow.js)
-                queue.notify('courier', courier.telegram_id, msgText, {
-                    buttons: navButtons, dedupKey: `assign:${stopId}`, onSent: { stopId }
-                });
-            }
-
-            // Уведомление в админ-бот о назначении курьера
-            notifyAdmin(
-                `<b>Курьер назначен</b>\n\n` +
-                `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
-                `Клиент: ${escapeHtml(order.user_name || '-')}\n` +
-                `Адрес: ${escapeHtml(order.address || '-')}\n` +
-                `Курьер: ${escapeHtml(courier.name)}\n` +
-                `Маршрут: ${escapeHtml(route.route_number)}`,
-                [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
-            );
-
-            // Уведомление клиенту о назначении курьера
-            if (order.user_id) {
-                const onCard = await trackerEvent(trackerPool(), order.order_number, { stage: 'shipping', courier: courier.name }).catch(() => false);
-                if (!onCard) queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
-            }
-
-            res.json({ success: true, route });
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
-    });
+            const courier = couriers.find(x => Number(x.id) === courierId && x.is_active);
+            if (!courier) return res.status(404).json({ error: 'Активный курьер не найден' });
+            const out = await routeSvc.buildRoute({ orderIds: [orderId], courier, notifyAdmin: notifyAdmin });
+            return res.json({ success: true, route: out.route, plan: out.plan, sequence: out.sequence });
+        } catch (e) {
+            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
+            if (status) return res.status(status).json({ error: e.message });
+            console.error('[API /orders/assign]', errorCode(e));
+            return res.status(500).json({ error: 'Internal error' });
+        }
+    });;
 
     // ====== Admin: управление товарами ======
     app.get('/api/products', verifyAdmin, requirePermission('products.view'), async (req, res) => {
