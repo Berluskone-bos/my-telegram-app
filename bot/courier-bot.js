@@ -683,18 +683,22 @@ bot.on('callback_query', async (query) => {
 async function handleStartRoute(chatId, routeId, user) {
     const route = await db.getRouteById(routeId);
     if (!route) return;
-
-    if (!(route.stops || []).some(s => s.status === 'pending')) {
-        bot.sendMessage(chatId, 'В маршруте не осталось активных заказов: все доставлены, не доставлены или отменены.');
+    const started = await db.startRouteIfAllAccepted(routeId);
+    if (started.status === 'not_ready') {
+        bot.sendMessage(chatId, `Сначала примите все заказы маршрута. Осталось принять: ${started.waiting}.`);
         return;
     }
-    await db.updateRouteStatus(routeId, 'in_progress', route.completed || 0, route.failed || 0);
-
-    bot.sendMessage(chatId, 'Маршрут начат! Удачи в доставке!');
-
-    // Клиентам здесь ничего не отправляем: «курьер в пути» каждому уходит по кнопке «В пути» своей остановки
-    // (иначе клиент получил бы два сообщения о выезде).
-
+    if (started.status === 'already') {
+        bot.sendMessage(chatId, 'Этот маршрут уже начат.');
+        return;
+    }
+    if (started.status !== 'started') {
+        bot.sendMessage(chatId, 'Не удалось начать маршрут: нет активных заказов или маршрут недоступен.');
+        return;
+    }
+    bot.sendMessage(chatId, 'Маршрут начат! Клиенты получили уведомления. Удачи в доставке!');
+    try { await routeSvc.refreshEtas({ routeId, notifyNew: true }); }
+    catch (e) { console.error('[ROUTE] Не удалось отправить уведомления о старте:', errorCode(e)); }
     notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
 }
 
@@ -702,30 +706,29 @@ async function handleStartRoute(chatId, routeId, user) {
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     const msgId = query.message.message_id;
+    const currentRoute = await db.getRouteById(routeId);
+    if (!currentRoute) return;
+    if (action !== 'accept' && currentRoute.status !== 'in_progress') {
+        bot.answerCallbackQuery(query.id, { text: 'Сначала курьер должен начать весь маршрут', show_alert: true }).catch(() => {});
+        return;
+    }
     stopId = parseInt(stopId); // Гарантируем что stopId — число
     console.log(`[DELIVER] action=${action}, routeId=${routeId}, stopId=${stopId} (type: ${typeof stopId})`);
 
     if (action === 'accept') {
-        // Принять → В пути
+        const accepted = await db.acceptRouteStop(routeId, stopId);
+        if (!['accepted', 'already'].includes(accepted.status)) {
+            bot.answerCallbackQuery(query.id, { text: 'Не удалось принять заказ: ' + accepted.status, show_alert: true }).catch(() => {});
+            return;
+        }
         const nextButtons = [
             ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
-            [{ text: 'В пути', callback_data: `deliver_${routeId}_${stopId}_enroute` }]
+            [{ text: '✓ Заказ принят', callback_data: 'noop' }]
         ];
-        try {
-            await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
-        } catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
-        bot.answerCallbackQuery(query.id, { text: 'Заказ принят!' }).catch(() => {});
-
-        // Обновляем статус маршрута
-        try {
-            const route = await db.getRouteById(routeId);
-            await db.updateRouteStatus(routeId, 'in_progress', route?.completed || 0, route?.failed || 0);
-            console.log(`[DELIVER] Route ${routeId} -> in_progress`);
-        } catch (e) { console.error('[DELIVER] route update error:', errorCode(e)); }
-
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId }); }
+        catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
+        bot.answerCallbackQuery(query.id, { text: accepted.status === 'already' ? 'Заказ уже принят' : 'Заказ принят. Примите остальные заказы маршрута.' }).catch(() => {});
         await notifyAdminStep(routeId, stopId, 'accept', query);
-        // Клиенту здесь ничего не отправляем: курьер только принял заказ со склада, он ещё не выехал.
-        // Сообщение «курьер везёт ваш заказ» уйдёт, когда курьер нажмёт «В пути».
     }
 
     else if (action === 'enroute') {
