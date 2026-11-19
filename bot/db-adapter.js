@@ -414,7 +414,7 @@ class DBAdapter {
             // Сначала блокируем связанные заказы в том же порядке, что и отмена заказа
             // (orders -> route_stops), иначе параллельная отмена могла бы дать deadlock.
             const refs = await client.query('SELECT order_id FROM route_stops WHERE route_id = $1', [id]);
-            const orderIds = [...new Set(refs.rows.map(x => String(x.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+            const orderIds = [...new Set(refs.rows.map(x => String(x.order_id || '')).filter(x => /^\d+$/.test(x)))];
             if (orderIds.length) {
                 await client.query('SELECT id FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE', [orderIds]);
             }
@@ -422,6 +422,11 @@ class DBAdapter {
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (route.rows[0].status === 'in_progress') { await client.query('COMMIT'); return { status: 'already' }; }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
+            await client.query(
+                `UPDATE route_stops rs SET status = 'cancelled'
+                   FROM orders o
+                  WHERE rs.route_id = $1 AND rs.order_id::text = o.id::text
+                    AND o.status = 'CANCELLED' AND rs.status IN ('pending', 'accepted')`, [id]);
             const stops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number FOR UPDATE', [id]);
             const active = stops.rows.filter(s => !['cancelled', 'delivered', 'failed'].includes(s.status));
             if (!active.length) { await client.query('ROLLBACK'); return { status: 'empty' }; }
