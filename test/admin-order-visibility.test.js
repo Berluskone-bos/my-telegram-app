@@ -12,7 +12,7 @@ const order = {
 };
 
 const OPERATOR_LIST_FIELDS = ['id','order_number','phone','total','status','delivery_type','created_at'];
-const OPERATOR_DETAIL_FIELDS = ['id','order_number','phone','address','items','total','status','delivery_type','created_at'];
+const OPERATOR_DETAIL_FIELDS = ['id','order_number','phone','address','items','total','payment','comment','status','delivery_type','created_at'];
 
 test('оператор в списке получает только поля, необходимые для обработки заказа',()=>{
     const result=filterOrderListItem(order,'operator');
@@ -29,7 +29,9 @@ test('оператор в деталях получает телефон, адр
     assert.equal(result.phone,order.phone);
     assert.equal(result.address,order.address);
     assert.deepEqual(result.items,order.items);
-    for(const key of ['user_id','user_name','payment','payment_status','comment']) {
+    assert.equal(result.payment,order.payment);
+    assert.equal(result.comment,order.comment);
+    for(const key of ['user_id','user_name','payment_status']) {
         assert.equal(Object.hasOwn(result,key),false,key);
     }
 });
