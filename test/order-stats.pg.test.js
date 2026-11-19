@@ -18,7 +18,7 @@ test('график заказов: дни без заказов, отмены о
 
     const app = express(); app.use(express.json());
     let allowed = true;
-    registerOrderStatsRoutes(app, { db, verifyAdmin: (req, res, next) => allowed ? next() : res.status(401).json({ error: 'no' }) });
+    registerOrderStatsRoutes(app, { db, verifyAdmin: (req, res, next) => { if (!allowed) return res.status(401).json({ error: 'no' }); req.admin = { role: 'admin' }; return next(); } });
     const server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
     t.after(async () => { server.close(); await pool.query('DELETE FROM orders'); await pool.end(); });
     const get = (q) => fetch(`http://127.0.0.1:${server.address().port}/api/orders/stats?${q}`);

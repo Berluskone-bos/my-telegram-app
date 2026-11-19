@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ROLE_PERMISSIONS, ROLE_LABELS, isKnownRole, hasPermission, requirePermission } = require('../bot/admin-permissions');
+const { ROLE_PERMISSIONS, ROLE_LABELS, isKnownRole, hasPermission, requirePermission, requireAnyPermission, requireOrderStatusPermission } = require('../bot/admin-permissions');
 
 test('определены только четыре согласованные роли', () => {
     assert.deepEqual(Object.keys(ROLE_PERMISSIONS).sort(), ['admin', 'manager', 'operator', 'warehouse']);
@@ -47,6 +47,7 @@ test('кладовщик видит товары и склад, работает
 test('неизвестная роль и некорректное разрешение закрыты по умолчанию', () => {
     assert.equal(hasPermission('courier', 'orders.view'), false);
     assert.equal(hasPermission('unknown', 'dashboard.view'), false);
+    assert.equal(hasPermission('toString', 'orders.view'), false);
     assert.equal(hasPermission('admin', ''), false);
     assert.equal(hasPermission('admin', null), false);
 });
@@ -81,4 +82,31 @@ test('middleware не допускает доступ при отсутстви�
 
 test('middleware требует явно заданное разрешение', () => {
     assert.throws(() => requirePermission(''), TypeError);
+});
+
+
+test('requireAnyPermission пропускает роль с одним из разрешений', () => {
+    let called = false;
+    requireAnyPermission('customers.view', 'orders.view')(
+        { admin: { role: 'operator' } }, {}, () => { called = true; }
+    );
+    assert.equal(called, true);
+});
+
+test('кладовщик может начать комплектацию, но не выполнять другие переходы статуса', () => {
+    let called = false;
+    let status;
+    const res = { status(code) { status = code; return this; }, json() { return this; } };
+    requireOrderStatusPermission(
+        { admin: { role: 'warehouse' }, body: { status: 'ASSEMBLING' } },
+        res, () => { called = true; }
+    );
+    assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission(
+        { admin: { role: 'warehouse' }, body: { status: 'CANCELLED' } },
+        res, () => { called = true; }
+    );
+    assert.equal(called, false);
+    assert.equal(status, 403);
 });

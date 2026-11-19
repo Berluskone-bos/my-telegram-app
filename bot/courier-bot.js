@@ -12,6 +12,7 @@ const widgets = require('./widgets');
 const { createRouteService } = require('./route-service');
 const { registerOrderStatsRoutes } = require('./order-stats');
 const { validateProductPayload } = require('./product-validation');
+const { requirePermission, requireOrderStatusPermission } = require('./admin-permissions');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -1070,7 +1071,7 @@ function registerCourierRoutes(app) {
     });
 
     // Состояние системы для владельца (вкладка «Журнал» в админке): связь с базой, очередь уведомлений админ-чату, опрос админ-бота.
-    app.get('/api/admin/system-status', verifyAdmin, async (req, res) => {
+    app.get('/api/admin/system-status', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const out = { time: new Date().toISOString(), uptimeSec: Math.round(process.uptime()), db: { ok: false }, outbox: {}, adminPolling: getAdminPollingStatus() };
         try {
             const pool = require('./db').pool;
@@ -1093,11 +1094,11 @@ function registerCourierRoutes(app) {
         res.json(out);
     });
 
-    app.get('/api/couriers', verifyAdmin, async (req, res) => {
+    app.get('/api/couriers', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes', verifyAdmin, async (req, res) => {
+    app.post('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const { courier_id, route_date, stops } = req.body;
             const processedStops = [];
@@ -1130,7 +1131,7 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes/:id/assign', verifyAdmin, async (req, res) => {
+    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -1146,7 +1147,7 @@ function registerCourierRoutes(app) {
     });
 
     // Собрать маршрут из нескольких заказов: система строит порядок и время, курьер получает маршрутный лист
-    app.post('/api/routes/build', verifyAdmin, async (req, res) => {
+    app.post('/api/routes/build', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const { order_ids, courier_id } = req.body || {};
             const courier = (await db.getCouriers()).find(c => c.id === parseInt(courier_id));
@@ -1161,13 +1162,13 @@ function registerCourierRoutes(app) {
         }
     });
 
-    app.get('/api/routes', verifyAdmin, async (req, res) => {
+    app.get('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     registerOrderStatsRoutes(app, { db, verifyAdmin });
 
-    app.get('/api/orders', verifyAdmin, async (req, res) => {
+    app.get('/api/orders', verifyAdmin, requirePermission('orders.view'), async (req, res) => {
         try {
             const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
             const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
@@ -1182,14 +1183,14 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/orders/customers', verifyAdmin, async (req, res) => {
+    app.get('/api/orders/customers', verifyAdmin, requirePermission('customers.view'), async (req, res) => {
         try {
             res.set('Cache-Control', 'no-store');
             res.json(await db.getOrderCustomers());
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/orders/:id', verifyAdmin, async (req, res) => {
+    app.get('/api/orders/:id', verifyAdmin, requirePermission('orders.view'), async (req, res) => {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         try {
@@ -1200,11 +1201,11 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/zones', verifyAdmin, async (req, res) => {
+    app.get('/api/zones', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/geocode', verifyAdmin, async (req, res) => {
+    app.get('/api/geocode', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const address = req.query.address;
         if (!address) return res.status(400).json({ error: 'address required' });
         try {
@@ -1213,19 +1214,19 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/map-links', verifyAdmin, (req, res) => {
+    app.get('/api/map-links', verifyAdmin, requirePermission('settings.manage'), (req, res) => {
         const { address, lat, lon } = req.query;
         if (!address && (!lat || !lon)) return res.status(400).json({ error: 'address or lat/lon required' });
         res.json(MapLinks.all(address || '', parseFloat(lat), parseFloat(lon)));
     });
 
-    app.post('/api/map-links/route', verifyAdmin, (req, res) => {
+    app.post('/api/map-links/route', verifyAdmin, requirePermission('settings.manage'), (req, res) => {
         const { stops } = req.body;
         if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
         res.json(MapLinks.allRoute(stops));
     });
 
-    app.post('/api/routes/:id/optimize', verifyAdmin, async (req, res) => {
+    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -1238,18 +1239,18 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/stats', verifyAdmin, async (req, res) => {
+    app.get('/api/dispatch/stats', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
             res.json(await db.getDayStats(date));
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/unassigned-orders', verifyAdmin, async (req, res) => {
+    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/analytics', verifyAdmin, async (req, res) => {
+    app.get('/api/analytics', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
@@ -1258,7 +1259,7 @@ function registerCourierRoutes(app) {
     });
 
     // ====== Admin: управление заказами ======
-    app.put('/api/orders/:id/status', verifyAdmin, async (req, res) => {
+    app.put('/api/orders/:id/status', verifyAdmin, requireOrderStatusPermission, async (req, res) => {
         try {
             const { status } = req.body;
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
@@ -1340,7 +1341,7 @@ function registerCourierRoutes(app) {
     });
 
     // Назначить курьера на заказ
-    app.post('/api/orders/:id/assign', verifyAdmin, async (req, res) => {
+    app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const orderId = parseInt(req.params.id);
             let { courier_id } = req.body;
@@ -1464,7 +1465,7 @@ function registerCourierRoutes(app) {
     });
 
     // ====== Admin: управление товарами ======
-    app.get('/api/products', verifyAdmin, async (req, res) => {
+    app.get('/api/products', verifyAdmin, requirePermission('products.view'), async (req, res) => {
         try {
             let catalog = await db.getAllProducts();
             // Если БД пуста — подгружаем из catalog.json (например, при локальном запуске без БД)
@@ -1492,7 +1493,7 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/products', verifyAdmin, async (req, res) => {
+    app.post('/api/products', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
         const validated = validateProductPayload(req.body);
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
@@ -1502,7 +1503,7 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.put('/api/products/:id', verifyAdmin, async (req, res) => {
+    app.put('/api/products/:id', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateProductPayload(req.body, { partial: true });

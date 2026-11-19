@@ -8,18 +8,22 @@ function validDate(value) {
     return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
 
+const { requirePermission, hasPermission } = require('./admin-permissions');
+
 function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
     if (!app || !pool || typeof pool.query !== 'function' || typeof verifyAdmin !== 'function') {
         throw new TypeError('registerAdminDashboardRoutes requires app, pool and verifyAdmin');
     }
 
-    app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
+    app.get('/api/admin/dashboard', verifyAdmin, requirePermission('dashboard.view'), async (req, res) => {
         const requestedDate = req.query.date;
         if (requestedDate !== undefined && !validDate(requestedDate)) {
             return res.status(400).json({ error: 'Некорректная дата. Ожидается YYYY-MM-DD.' });
         }
 
         try {
+            const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
+            const canSeeInventory = hasPermission(req.admin && req.admin.role, 'inventory.view') || hasPermission(req.admin && req.admin.role, 'products.view');
             const [summaryResult, productsResult, recentResult, lowStockResult] = await Promise.all([
                 pool.query(
                     `WITH d AS (
@@ -37,14 +41,14 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                       GROUP BY d.day`,
                     [requestedDate || null]
                 ),
-                pool.query(
+                canSeeInventory ? pool.query(
                     `SELECT COUNT(*) FILTER (WHERE active = TRUE)::int AS products,
                             COUNT(*) FILTER (
                                 WHERE active = TRUE
                                   AND COALESCE(stock, 0) <= COALESCE(min_stock, 3)
                             )::int AS "lowStockCount"
                        FROM products`
-                ),
+                ) : Promise.resolve({ rows: [{}] }),
                 pool.query(
                     `WITH d AS (
                         SELECT COALESCE($1::date, (NOW() AT TIME ZONE 'Europe/Moscow')::date) AS day
@@ -58,21 +62,21 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                       ORDER BY o.id DESC LIMIT 8`,
                     [requestedDate || null]
                 ),
-                pool.query(
+                canSeeInventory ? pool.query(
                     `SELECT id, brand, name, viscosity, volume, stock, min_stock AS "minStock", image
                        FROM products
                       WHERE active = TRUE
                         AND COALESCE(stock, 0) <= COALESCE(min_stock, 3)
                       ORDER BY COALESCE(stock, 0) ASC, name ASC
                       LIMIT 8`
-                )
+                ) : Promise.resolve({ rows: [] })
             ]);
 
             const summary = summaryResult.rows[0] || {};
             const products = productsResult.rows[0] || {};
-            const customersResult = await pool.query(
-                'SELECT COUNT(DISTINCT user_id)::int AS customers FROM orders WHERE user_id IS NOT NULL'
-            );
+            const customersResult = canSeeSales
+                ? await pool.query('SELECT COUNT(DISTINCT user_id)::int AS customers FROM orders WHERE user_id IS NOT NULL')
+                : { rows: [{ customers: null }] };
 
             res.set('Cache-Control', 'no-store');
             return res.json({
@@ -81,16 +85,16 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                     orders: Number(summary.orders || 0),
                     newOrders: Number(summary.newOrders || 0),
                     activeOrders: Number(summary.activeOrders || 0),
-                    revenue: Number(summary.revenue || 0),
-                    products: Number(products.products || 0),
-                    customers: Number(customersResult.rows[0]?.customers || 0),
-                    lowStockCount: Number(products.lowStockCount || 0),
+                    revenue: canSeeSales ? Number(summary.revenue || 0) : null,
+                    products: canSeeInventory ? Number(products.products || 0) : null,
+                    customers: canSeeSales ? Number(customersResult.rows[0]?.customers || 0) : null,
+                    lowStockCount: canSeeInventory ? Number(products.lowStockCount || 0) : null,
                     cancelled: Number(summary.cancelled || 0),
                     delivered: Number(summary.delivered || 0),
                     shipping: Number(summary.shipping || 0)
                 },
                 recentOrders: recentResult.rows,
-                lowStockProducts: lowStockResult.rows
+                lowStockProducts: canSeeInventory ? lowStockResult.rows : []
             });
         } catch (error) {
             console.error('[ADMIN DASHBOARD]', error && error.message ? error.message : 'unknown error');

@@ -1,6 +1,7 @@
 // Подбор масла по VIN и по марке/модели. Все запросы к PartsAPI идут через кэш в БД.
 const pa = require('./partsapi-cache');
 const oc = require('./oil-catalog');
+const { requirePermission } = require('./admin-permissions');
 
 function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     const limit = rateLimit(30, 60_000);
@@ -20,14 +21,14 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     app.get('/api/oil/models', limit, wrap(async (req, res) => { res.json(await oc.listModels(pool, id(req.query.make_id))); }));
     app.get('/api/oil/cars', limit, wrap(async (req, res) => { res.json(await oc.listTypes(pool, id(req.query.model_id))); }));
     app.get('/api/oil/by-car', limit, wrap(async (req, res) => { res.json(await oc.selectionByType(pool, id(req.query.car_id))); }));
-    app.get('/api/oil/usage', verifyAdmin, wrap(async (req, res) => { res.json(await pa.requestsToday(pool)); }));
+    app.get('/api/oil/usage', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => { res.json(await pa.requestsToday(pool)); }));
 
     // Допуски товара (админка): список и замена
-    app.get('/api/products/:id/approvals', verifyAdmin, wrap(async (req, res) => {
+    app.get('/api/products/:id/approvals', verifyAdmin, requirePermission('products.view'), wrap(async (req, res) => {
         const r = await pool.query('SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [id(req.params.id)]);
         res.json(r.rows.map(x => x.approval));
     }));
-    app.put('/api/products/:id/approvals', verifyAdmin, wrap(async (req, res) => {
+    app.put('/api/products/:id/approvals', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => {
         const pid = id(req.params.id);
         const list = [...new Set((Array.isArray(req.body && req.body.approvals) ? req.body.approvals : [])
             .map(s => String(s).trim().slice(0, 100)).filter(Boolean))].slice(0, 80);

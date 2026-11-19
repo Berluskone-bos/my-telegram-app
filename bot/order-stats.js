@@ -4,6 +4,8 @@
 // GET /api/analytics/shop — топ товаров и способы получения за период.
 // Даты — календарные дни по Москве, строки 'YYYY-MM-DD'. Подключается из courier-bot.js рядом с остальными админскими маршрутами.
 
+const { requirePermission } = require('./admin-permissions');
+
 const MAX_DAYS = 3660;                       // не больше ~10 лет за один запрос
 const DAY_MS = 86400000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -51,7 +53,7 @@ function parseRange(query) {
 
 function registerOrderStatsRoutes(app, { db, verifyAdmin }) {
     // Аналитика магазина за период: GET /api/analytics/shop?from&to или ?period=all (с первого заказа до сегодня)
-    app.get('/api/analytics/shop', verifyAdmin, async (req, res) => {
+    app.get('/api/analytics/shop', verifyAdmin, requirePermission('sales.view'), async (req, res) => {
         try {
             let from, to;
             if (req.query.period === 'all') {
@@ -67,12 +69,12 @@ function registerOrderStatsRoutes(app, { db, verifyAdmin }) {
     });
 
     // Карточки «сегодня / неделя / месяц / год» с мини-графиками
-    app.get('/api/orders/kpi', verifyAdmin, async (req, res) => {
+    app.get('/api/orders/kpi', verifyAdmin, requirePermission('sales.view'), async (req, res) => {
         try { res.json(await db.getKpi()); }
         catch (e) { console.error('[API]', e.message); res.status(500).json({ error: 'Internal error' }); }
     });
 
-    app.get('/api/orders/stats', verifyAdmin, async (req, res) => {
+    app.get('/api/orders/stats', verifyAdmin, requirePermission('sales.view'), async (req, res) => {
         try {
             const range = parseRange(req.query);
             if (range.error) return res.status(400).json({ error: range.error });
