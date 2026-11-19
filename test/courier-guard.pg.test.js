@@ -111,6 +111,8 @@ test('курьерский бот: кнопки отменённого зака�
     // Курьер запускает маршрут из того же чата, не переходя на отдельный экран.
     await press(`startroute_${b.route.id}`);
     assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
+    assert.equal((await adminTexts()).length, 2, 'админ получает отдельное уведомление о старте маршрута');
+    assert.match((await adminTexts())[1], /маршрут .* начат курьером/i);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
@@ -118,7 +120,8 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal(texts.length, 1); assert.match(texts[0], /Курьер в пути/); assert.match(texts[0], /везёт ваш заказ/);
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);   // повторное нажатие не дублирует сообщение
     assert.equal((await clientTexts()).length, 1, 'дубля нет');
-    assert.equal((await adminTexts()).length, 2, 'админу «выехал» один раз'); assert.match((await adminTexts())[1], /выехал к клиенту/);
+    assert.equal((await adminTexts()).length, 3, 'уведомление админу о выезде не дублируется; отдельно учитывается старт маршрута');
+    assert.match((await adminTexts())[2], /выехал к клиенту/);
 
     await press(`deliver_${b.route.id}_${b.stopId}_arrived`);
     texts = await clientTexts();
@@ -128,8 +131,10 @@ test('курьерский бот: кнопки отменённого зака�
     texts = await clientTexts();
     assert.ok(texts.length >= 3); assert.match(texts[2], /Доставлен/);
     const adm = await adminTexts();
-    assert.equal(adm.length, 4); assert.match(adm[2], /приехал к клиенту/); assert.match(adm[3], /заказ доставлен/);
-    assert.match(adm[3], new RegExp('AP-cg2'));
+    assert.equal(adm.length, 5);
+    assert.match(adm[3], /приехал к клиенту/);
+    assert.match(adm[4], /заказ доставлен/);
+    assert.match(adm[4], new RegExp('AP-cg2'));
 
     // Оценку может отправить только владелец доставленного заказа; параллельные повторы дают одно начисление.
     const initialCount = Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count);
