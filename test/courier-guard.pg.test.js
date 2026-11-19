@@ -85,8 +85,14 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [a.stopId])).rows[0].status, 'cancelled', 'остановка не перезаписана');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [a.o.id])).rows[0].status, 'CANCELLED');
 
-    // кнопка «Поехал!» (начало маршрута) клиентам ничего не отправляет
+    // Нельзя оценить ещё не доставленную остановку или подменить ID курьера.
     const c = await mk('cg3');
+    await press(`rate_${courier.id}_${c.stopId}_5`, 777004);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /только доставленный/);
+    await press(`rate_${courier.id + 100000}_${c.stopId}_5`, 777004);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /нельзя оценить/);
+
+    // кнопка «Поехал!» (начало маршрута) клиентам ничего не отправляет
     await press(`startroute_${c.route.id}`);
     assert.deepEqual(await clientTexts(), [], '«Поехал!» клиенту сообщений не шлёт');
     await pool.query('DELETE FROM notification_outbox');
