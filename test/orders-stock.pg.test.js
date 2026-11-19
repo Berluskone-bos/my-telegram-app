@@ -48,10 +48,10 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal((await pool.query('SELECT stock_deducted FROM orders WHERE id = $1', [o2b.id])).rows[0].stock_deducted, false, 'флаг снят при доставке');
     assert.equal(await db.updateOrderStatus(o2b.id, 'CANCELLED'), true, 'поздний возврат денег допустим');
     assert.equal(await stock(), 7, 'товар не вернулся: он у покупателя');
-    // рабочие статусы двигаются в любую сторону
+    // Заказ отменяется на этапе подготовки к отправке; обратные переходы запрещены.
     const o2c = await mk(1, 'k2c');
     assert.equal(await stock(), 6);
-    for (const st of ['CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'ASSEMBLING', 'NEW']) assert.equal(await db.updateOrderStatus(o2c.id, st), true, st);
+    for (const st of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o2c.id, st), true, st);
     assert.equal(await db.updateOrderStatus(o2c.id, 'CANCELLED'), true);
     assert.equal(await stock(), 7, 'рабочий заказ при отмене вернул товар');
 
