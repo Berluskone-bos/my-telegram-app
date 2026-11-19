@@ -93,6 +93,28 @@ test('requireAnyPermission пропускает роль с одним из ра
     assert.equal(called, true);
 });
 
+test('оператор начинает сборку, кладовщик подтверждает готовность, доставку подтверждает только курьер', () => {
+    let called = false;
+    const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+    requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'ASSEMBLING' } }, res, () => { called = true; });
+    assert.equal(called, true);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'READY_FOR_SHIPMENT' } }, res, () => { called = true; });
+    assert.equal(called, false);
+    assert.equal(res.code, 403);
+    called = false;
+    requireOrderStatusPermission({ admin: { role: 'warehouse' }, body: { status: 'READY_FOR_SHIPMENT' } }, res, () => { called = true; });
+    assert.equal(called, true);
+    for (const status of ['SHIPPING', 'DELIVERED', 'COMPLETED']) {
+        called = false;
+        const denied = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+        requireOrderStatusPermission({ admin: { role: 'admin' }, body: { status } }, denied, () => { called = true; });
+        assert.equal(called, false, status);
+        assert.equal(denied.code, 403, status);
+        assert.equal(denied.body.code, 'COURIER_ONLY', status);
+    }
+});
+
 test('кладовщик может начать комплектацию, но не выполнять другие переходы статуса', () => {
     let called = false;
     let status;
