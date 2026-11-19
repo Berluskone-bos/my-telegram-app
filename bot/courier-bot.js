@@ -581,11 +581,8 @@ bot.on('callback_query', async (query) => {
             return;
         }
         const isAccept = data.startsWith('deliver_') && data.endsWith('_accept');
-        if (!isAccept && ['delivered_', 'quickdelivered_', 'failed_', 'failreason_'].some(a => data.startsWith(a)) && rt.status !== 'in_progress') {
-            bot.answerCallbackQuery(query.id, { text: 'Сначала необходимо начать весь маршрут', show_alert: true }).catch(() => {});
-            return;
-        }
-        // Заказ отменили, пока сообщение висело у курьера: действие не выполняем, клиента не уведомляем, кнопки гасим
+        // Сначала проверяем отмену: старые кнопки отменённого заказа должны сообщать об отмене,
+        // а не маскировать её предупреждением о незапущенном маршруте.
         if (sId !== null) {
             const chk = await checkStopActive(require('./db').pool, sId);
             if (!chk.active) {
@@ -596,6 +593,10 @@ bot.on('callback_query', async (query) => {
                 }
                 return;
             }
+        }
+        if (!isAccept && ['delivered_', 'quickdelivered_', 'failed_', 'failreason_'].some(a => data.startsWith(a)) && rt.status !== 'in_progress') {
+            bot.answerCallbackQuery(query.id, { text: 'Сначала необходимо начать весь маршрут', show_alert: true }).catch(() => {});
+            return;
         }
     }
 
