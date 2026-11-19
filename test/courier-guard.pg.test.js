@@ -102,8 +102,16 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${b.route.id}_${b.stopId}_accept`);
     assert.ok(!calls.some(c => c[0] === 'answerCallbackQuery' && c[2] && c[2].show_alert), 'предупреждения нет');
     assert.deepEqual(await clientTexts(), [], 'после «Принять» клиенту ничего не отправлено');
-    assert.equal((await db.startRouteIfAllAccepted(b.route.id)).status, 'started', 'маршрут запускается после принятия всех заказов');
+    const startPrompt = calls.find(c => c[0] === 'sendMessage' &&
+        c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
+    assert.ok(startPrompt, 'после принятия единственного заказа курьеру показана кнопка общего старта маршрута');
+    assert.match(startPrompt[2], /Все заказы маршрута .* приняты/);
     assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
+
+    // Курьер запускает маршрут из того же чата, не переходя на отдельный экран.
+    await press(`startroute_${b.route.id}`);
+    assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
+    await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
     let texts = await clientTexts();
