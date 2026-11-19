@@ -170,7 +170,7 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
             const found = await client.query(
-                `SELECT rs.id, rs.status, rs.client_rating, dr.courier_id
+                `SELECT rs.id, rs.status, rs.client_rating, dr.courier_id, owner.order_status
                    FROM route_stops rs
                    JOIN delivery_routes dr ON dr.id = rs.route_id
                    JOIN LATERAL (
