@@ -80,9 +80,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const sequence = placed.concat(plan.unplaced.map(s => ({ ...s, etaAt: null })));
 
         const route = await db.createRoute({
-            route_number: 'RL-' + String(Date.now()).slice(-4),
+            route_number: 'RL-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase(),
             route_date: now().toISOString().split('T')[0],
-            courier_id: courier.id, status: 'assigned', total_orders: sequence.length,
+            courier_id: courier.id, status: 'assigned', total_orders: sequence.length, enforceReadyOrders: true,
             stops: sequence.map((s, i) => {
                 const o = s.order;
                 return {
