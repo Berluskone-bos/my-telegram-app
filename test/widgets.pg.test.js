@@ -117,6 +117,27 @@ test('виджеты: очередь, запасной вариант, трек�
     const after = (await pool.query('SELECT rating, rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0];
     assert.equal(Number(after.rating_count), before + 1, 'в рейтинг курьера попала ровно одна оценка');
 
+    // ── 5б. миграция старых оценок tracker-widget: не разрешать повторную оценку после релиза ──
+    const legacyOrder = await mkOrder('wg3legacy');
+    const legacyRoute = await db.createRoute({ route_number: 'RL-wg3legacy', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1,
+        stops: [{ order_id: String(legacyOrder.id), order_number: legacyOrder.order_number, address: legacyOrder.address, phone: '1', client_name: 'К', client_chat_id: legacyOrder.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
+    await db.updateOrderStatus(legacyOrder.id, 'SHIPPING');
+    await db.updateStopStatus(legacyRoute.stops[0].id, 'delivered', '');
+    assert.equal(await db.updateOrderStatus(legacyOrder.id, 'DELIVERED'), true);
+    await mkCard(legacyOrder.order_number);
+    await pool.query(
+        `UPDATE widget_messages SET state = state || '{"rating":3}'::jsonb WHERE kind = 'tracker' AND ref = $1`,
+        [legacyOrder.order_number]
+    );
+    await initDB(); // повторный запуск безопасен и выполняет backfill
+    assert.equal(Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [legacyRoute.stops[0].id])).rows[0].client_rating), 3);
+    assert.equal((await store.get(pool, 'tracker', legacyOrder.order_number)).state.canRate, false);
+    const legacyWidget = await store.get(pool, 'tracker', legacyOrder.order_number);
+    const legacyQuery = { id: 'q-legacy', data: 'rate:5', from: { id: legacyOrder.user_id }, chat: { id: legacyOrder.user_id }, message_id: Number(legacyWidget.message_id) };
+    const beforeLegacyRetry = Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count);
+    assert.equal(await tracker.handleWidgetQuery(legacyQuery, { pool, db, call }), 'already_rated');
+    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), beforeLegacyRetry);
+
     // ── 6. отмена заказа: карточка «Отменён» и серая кнопка у курьера (с запасным вариантом) ──
     const o4 = await mkOrder('wg4');
     await mkCard('AP-wg4');

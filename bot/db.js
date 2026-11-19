@@ -259,6 +259,29 @@ async function initDB() {
             ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS edit_ref TEXT;
         `);
 
+        // Старый tracker-widget сохранял факт оценки в widget_messages.state, но не в route_stops.
+        // Переносим только достоверные оценки доставленных заказов, чтобы после релиза их нельзя было выставить повторно.
+        await client.query(`
+            UPDATE route_stops rs
+               SET client_rating = (wm.state->>'rating')::smallint
+              FROM widget_messages wm
+              JOIN orders o ON o.order_number = wm.ref
+             WHERE wm.kind = 'tracker'
+               AND rs.order_number = wm.ref
+               AND rs.status = 'delivered'
+               AND rs.client_rating IS NULL
+               AND o.status IN ('DELIVERED', 'COMPLETED')
+               AND wm.state ? 'rating'
+               AND wm.state->>'rating' ~ '^[1-5]$';
+
+            UPDATE widget_messages
+               SET state = state || '{"canRate": false}'::jsonb,
+                   updated_at = NOW()
+             WHERE kind = 'tracker'
+               AND state ? 'rating'
+               AND state->>'rating' ~ '^[1-5]$'
+               AND state->>'canRate' IS DISTINCT FROM 'false';
+        `);
         await client.query(`
             ALTER TABLE customer_profiles
                 ADD COLUMN IF NOT EXISTS building VARCHAR(20) NOT NULL DEFAULT '',
