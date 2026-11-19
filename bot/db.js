@@ -237,6 +237,10 @@ async function initDB() {
             ALTER TABLE route_stops
                 ADD COLUMN IF NOT EXISTS eta_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS eta_told_at TIMESTAMPTZ;
+
+        // Оценка доставки: один клиент может оценить каждую остановку только один раз.
+        // NULL сохраняет совместимость со всеми историческими доставками.
+        await client.query(`ALTER TABLE route_stops ADD COLUMN IF NOT EXISTS client_rating SMALLINT CHECK (client_rating BETWEEN 1 AND 5)`);
         `);
 
         // ─── Интерактивные карточки Telegram (виджеты, см. widgets.js): где лежит сообщение и что на нём показано ───
