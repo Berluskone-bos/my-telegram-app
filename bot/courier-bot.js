@@ -673,7 +673,7 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('rate_')) {
         // Формат: rate_<courierId>_<routeStopId>_<rating>. Старые кнопки без stopId отклоняются.
-        const match = /^rate_(\\d+)_(\\d+)_([1-5])$/.exec(data);
+        const match = /^rate_([0-9]+)_([0-9]+)_([1-5])$/.exec(data);
         if (!match || !query.from || !query.from.id) {
             bot.answerCallbackQuery(query.id, { text: 'Кнопка оценки недействительна', show_alert: true }).catch(() => {});
             return;
