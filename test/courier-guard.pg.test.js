@@ -106,13 +106,24 @@ test('курьерский бот: кнопки отменённого зака�
         c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
     assert.ok(startPrompt, 'после принятия единственного заказа курьеру показана кнопка общего старта маршрута');
     assert.match(startPrompt[2], /Все заказы маршрута .* приняты/);
+    const acceptedCard = calls.find(c => c[0] === 'editMessageReplyMarkup');
+    assert.ok(acceptedCard, 'карточка принятого заказа обновлена');
+    assert.equal(
+        acceptedCard[1].inline_keyboard.flat().some(button => /_arrived$/.test(button.callback_data || '')),
+        false,
+        'до общего старта у принятого заказа нет преждевременной кнопки «У клиента»'
+    );
     assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
 
     // Курьер запускает маршрут из того же чата, не переходя на отдельный экран.
     await press(`startroute_${b.route.id}`);
     assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
     assert.equal((await adminTexts()).length, 2, 'админ получает отдельное уведомление о старте маршрута');
-    assert.match((await adminTexts())[1], /\[МАРШРУТ\].*начат курьером/i);
+    assert.ok((await adminTexts())[1].startsWith('[МАРШРУТ]') && /начат курьером/i.test((await adminTexts())[1]));
+    const enroutePrompt = calls.find(c => c[0] === 'sendMessage' &&
+        c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
+    assert.ok(enroutePrompt, 'после общего старта курьер получает отдельную карточку заказа с кнопкой «В пути»');
+    assert.match(enroutePrompt[2], /Адрес:/);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);

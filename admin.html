@@ -635,8 +635,8 @@ function applyAdminAccess(me) {
     if (staffButton) staffButton.style.display = has('staff.manage') ? '' : 'none';
     const routeCourier = document.getElementById('routeCourier');
     const buildRouteButton = document.getElementById('buildRouteBtn');
-    if (routeCourier) routeCourier.style.display = has('settings.manage') ? '' : 'none';
-    if (buildRouteButton) buildRouteButton.style.display = has('settings.manage') ? '' : 'none';
+    if (routeCourier) routeCourier.style.display = has('routes.manage') ? '' : 'none';
+    if (buildRouteButton) buildRouteButton.style.display = has('routes.manage') ? '' : 'none';
     const approvalsGroup = document.getElementById('productApprovalsGroup');
     if (approvalsGroup) approvalsGroup.style.display = has('settings.manage') ? '' : 'none';
     const name = document.getElementById('adminDisplayName');
