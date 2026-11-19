@@ -814,6 +814,10 @@ try {
     // Вход в админку (/admin, /api/admin/*): сессии и журнал действий
     const adminAuth = require('./admin-auth').instance();
     adminAuth.registerRoutes(app);
+    require('./admin-dashboard').registerAdminDashboardRoutes(app, {
+        pool: require('./db').pool,
+        verifyAdmin: adminAuth.verifyAdmin
+    });
     adminAuth.cleanup();
     setInterval(() => adminAuth.cleanup(), 6 * 3600e3).unref();
     if (!ADMIN_API_KEY) console.warn('[ВНИМАНИЕ] ADMIN_API_KEY не задан — админка отключена');

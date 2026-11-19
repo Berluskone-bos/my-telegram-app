@@ -1036,6 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // ====== Разделы (боковое меню) ======
         // Каждый пункт меню — отдельная страница. Магазин состоит из трёх: Заказы, Товары, Клиенты.
         const VIEWS = {
+            dashboard: { tab: 'dashboard', title: 'Обзор' },
             orders:    { tab: 'shop', title: 'Заказы' },
             delivery:  { tab: 'delivery', title: 'Доставка' },
             products:  { tab: 'shop', title: 'Товары' },
@@ -1043,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
             analytics: { tab: 'analytics', title: 'Аналитика' },
             audit:     { tab: 'audit', title: 'Журнал' }
         };
-        let currentView = 'delivery', shopLoaded = false;
+        let currentView = 'dashboard', shopLoaded = false;
 
         function go(view, { fromHash = false, initial = false } = {}) {
             const v = VIEWS[view]; if (!v) return;
@@ -1067,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (view === 'products') loadShopProducts();
                 else loadShopCustomers();
             }
+            if (view === 'dashboard' && typeof window.loadAdminDashboard === 'function') window.loadAdminDashboard();
             if (!initial && view === 'delivery') loadDeliveryData();
             if (view === 'analytics') loadAnalytics();
             if (view === 'audit') { loadAudit(); loadSystemStatus(); }
@@ -1080,6 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!el) return;
             const num = id => parseInt((document.getElementById(id) || {}).textContent, 10);
             let t = '';
+            if (currentView === 'dashboard') t = 'Общая сводка бизнеса';
             if (currentView === 'orders') {
                 const list = window._orders || [];
                 if (shopLoaded && window._orders) {
@@ -2227,5 +2230,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(loadDeliveryData, 30000);
         { const h = location.hash.slice(1); go(VIEWS[h] ? h : 'delivery', { fromHash: true, initial: true }); }   // открыть раздел из адреса (#orders) или «Доставку»
     </script>
+    <script src="js/admin-dashboard.js" defer></script>
 </body>
 </html>
