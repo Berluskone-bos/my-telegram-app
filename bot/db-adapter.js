@@ -210,7 +210,7 @@ class DBAdapter {
             }
             if (row.client_rating != null) {
                 await client.query('ROLLBACK');
-                return { status: 'already_rated' };
+                return { status: 'already_rated', rating: Number(row.client_rating) };
             }
 
             const saved = await client.query(
