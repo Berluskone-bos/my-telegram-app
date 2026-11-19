@@ -3,7 +3,7 @@
 const ROLE_PERMISSIONS = Object.freeze({
     admin: Object.freeze(['*']),
     manager: Object.freeze(['dashboard.view','orders.view','orders.process','customers.view','sales.view']),
-    operator: Object.freeze(['dashboard.view','orders.view','orders.process']),
+    operator: Object.freeze(['dashboard.view','orders.view','orders.process','routes.manage']),
     warehouse: Object.freeze(['dashboard.view','orders.view','orders.fulfill','products.view','inventory.view','inventory.manage'])
 });
 const ROLE_LABELS = Object.freeze({
