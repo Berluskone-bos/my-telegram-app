@@ -309,6 +309,7 @@
 - [x] Добавлены позитивные и негативные unit-тесты для четырёх ролей и неизвестной роли.
 - [x] Локально в изолированной копии: `node --check bot/admin-order-visibility.js` и `node --test test/admin-order-visibility.test.js` — 7/7 passed.
 - [x] Проверен diff; создан PR #59: https://github.com/Berluskone-bos/my-telegram-app/pull/59.
-- [ ] Дождаться полного CI: `npm test`, синтаксические проверки, `npm audit --omit=dev --audit-level=high` и Gitleaks.
+- [x] Первый CI выявил проблему подготовки диапазона Gitleaks (`Invalid revision range`, parent первого PR-коммита не разрешился; не обнаружение секрета). Добавлено явное `git fetch` базовой ветки PR перед сканированием.
+- [ ] Дождаться повторного полного CI: `npm test`, синтаксические проверки, `npm audit --omit=dev --audit-level=high` и Gitleaks.
 - [ ] После merge и деплоя проверить `GET /api/orders` и `GET /api/orders/:id` под оператором: нет `user_name`, `user_id`, платёжных полей и комментариев; телефон/адрес присутствуют в деталях.
 - [ ] Не считать IDOR/BOLA аудит завершённым: отдельно проверить матрицу доступа к операциям изменения заказов и объектам.
