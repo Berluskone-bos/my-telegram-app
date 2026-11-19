@@ -1173,7 +1173,7 @@ function registerCourierRoutes(app) {
             const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
             const result = await db.getOrdersPage(page, limit);
             result.items = result.items.map(order => {
-                const digits = String(order.phone || '').replace(/\\D/g, '');
+                const digits = String(order.phone || '').replace(/\D/g, '');
                 const maskedPhone = digits.length >= 4 ? digits.slice(0, 2) + '******' + digits.slice(-2) : '••••';
                 return { ...order, phone: maskedPhone, address: 'Адрес в карточке заказа' };
             });
