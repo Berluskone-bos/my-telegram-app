@@ -55,7 +55,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         for (const id of ids) {
             const o = await db.getOrderByNumber(id);
             if (!o) throw fail('NOT_FOUND', `Заказ ${id} не найден`);
-            if (['CANCELLED', 'DELIVERED', 'COMPLETED'].includes(o.status)) throw fail('CONFLICT', `Заказ ${o.order_number} уже отменён или доставлен`);
+            if (o.status !== 'READY_FOR_SHIPMENT') throw fail('CONFLICT', `Заказ ${o.order_number} ещё не готов к отправке (статус: ${o.status})`);
             if (o.delivery_type === 'pickup') throw fail('CONFLICT', `Заказ ${o.order_number} — самовывоз, курьер не нужен`);
             const busy = await activeStopFor(o.order_number);
             if (busy) throw fail('CONFLICT', `Заказ ${o.order_number} уже назначен курьеру (маршрут ${busy})`);
@@ -94,7 +94,6 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 };
             })
         });
-        for (const o of orders) await db.updateOrderStatus(o.id, 'SHIPPING');
 
         const approx = plan.source === 'estimate' ? ' (оценка по прямой: сервис дорог недоступен)' : '';
         const startNote = start.source === 'default' ? '\n⚠ Склад не задан в настройках: старт принят за центр города.' : '';
@@ -142,13 +141,6 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             notifyAdmin(
                 `<b>Маршрут ${escapeHtml(route.route_number)} назначен</b>\nКурьер: ${escapeHtml(courier.name)}\n` +
                 `Точек: ${n}${plan.ordered.length ? `, в пути около ${plan.totalMin} мин` : ''}${approx}\n\n${list}${startNote}`);
-        }
-        for (const s of sequence) {
-            const o = s.order;
-            if (o.user_id) {
-                const onCard = await trackerEvent(poolOf(), o.order_number, { stage: 'shipping', courier: courier.name }).catch(() => false);
-                if (!onCard) queue.notify('client', o.user_id, `<b>Заказ ${escapeHtml(o.order_number)}</b>\n\nСтатус: <b>Курьер назначен</b>\nКурьер: ${escapeHtml(courier.name)}`);
-            }
         }
         return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: start.source }, sequence: sequence.map(s => s.order.order_number) };
     }
