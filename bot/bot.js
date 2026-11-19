@@ -772,15 +772,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// Админ-панель: публикуем только два необходимых файла, не открывая корень репозитория.
-// Доступ к данным по-прежнему защищён серверной сессией через /api/admin/*.
-app.get('/admin', (req, res) => res.redirect(302, '/admin.html'));
-app.get('/admin.html', (req, res, next) => {
-    res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(path.join(__dirname, '..', 'admin.html'), err => {
-        if (err && !res.headersSent) next(err);
-    });
-});
+// Единая точка входа в админку — /admin из admin-auth.js.
+// Старый URL /admin.html перенаправляется на защищённый обработчик страницы,
+// который устанавливает отдельные CSP, X-Frame-Options и X-Robots-Tag.
+app.get('/admin.html', (req, res) => res.redirect(302, '/admin'));
 app.get('/js/admin-dashboard.js', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(__dirname, '..', 'js', 'admin-dashboard.js'), err => {
