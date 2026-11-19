@@ -22,6 +22,7 @@ test('рефералы через API: код друга, баланс, спис
     const { pool, initDB } = require('../bot/db');
     const A = require('../bot/db-adapter');
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
+    const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
     const INV = 880011, FR = 880012;
     const clean = async () => {
@@ -78,7 +79,7 @@ test('рефералы через API: код друга, баланс, спис
     assert.equal(String(row.referrer_id), String(INV));
 
     // доставка — бонус приглашающему
-    await db.updateOrderStatus(row.id, 'DELIVERED');
+    await deliverOrder(db, pool, await db.getOrderById(row.id));
     const b1 = await (await fetch(`http://127.0.0.1:${port}/api/bonuses`, { headers: hdr(INV) })).json();
     assert.equal(b1.balance, 200); assert.equal(b1.invitedOrders, 1);
 
