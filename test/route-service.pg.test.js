@@ -91,6 +91,7 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.equal((await db.getRouteById(out.route.id)).status, 'in_progress');
     for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
     assert.ok((await db.getRouteById(out.route.id)).stops.every(s => s.status === 'in_progress'));
+    assert.equal((await db.completeDeliveryStop(stops[0].id)).status, 'completed', 'курьер может завершить доставку после старта маршрута');
 
     // После общего старта клиентам отправляются ETA-уведомления по всем заказам маршрута.
     clock.t = new Date('2026-11-15T00:02:00Z');
