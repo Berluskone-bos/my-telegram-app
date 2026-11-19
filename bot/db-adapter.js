@@ -578,7 +578,7 @@ class DBAdapter {
         const [count, rows] = await Promise.all([
             pool.query('SELECT COUNT(*)::int AS total FROM orders'),
             pool.query(
-                `SELECT id, order_number, user_name, phone, address, total, status, delivery_type, created_at
+                `SELECT id, order_number, user_name, phone, total, status, delivery_type, created_at
                    FROM orders ORDER BY id DESC LIMIT $1 OFFSET $2`,
                 [safeLimit, offset]
             )
@@ -588,7 +588,7 @@ class DBAdapter {
 
     async getOrderCustomers() {
         const res = await pool.query(
-            `SELECT MAX(user_name) AS user_name, phone, MAX(user_id) AS user_id,
+            `SELECT MAX(user_name) AS user_name, phone,
                     COUNT(*)::int AS orders, COALESCE(SUM(total), 0)::float8 AS total,
                     MAX(created_at) AS last_date
                FROM orders
