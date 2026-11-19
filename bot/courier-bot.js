@@ -1119,7 +1119,7 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/routes/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -1135,7 +1135,7 @@ function registerCourierRoutes(app) {
     });
 
     // Собрать маршрут из нескольких заказов: система строит порядок и время, курьер получает маршрутный лист
-    app.post('/api/routes/build', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/routes/build', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const { order_ids, courier_id } = req.body || {};
             const courier = (await db.getCouriers()).find(c => c.id === parseInt(courier_id));
@@ -1150,7 +1150,7 @@ function registerCourierRoutes(app) {
         }
     });
 
-    app.get('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/routes', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
@@ -1210,7 +1210,7 @@ function registerCourierRoutes(app) {
         res.json(MapLinks.allRoute(stops));
     });
 
-    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
