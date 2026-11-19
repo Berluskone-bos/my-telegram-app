@@ -1171,7 +1171,7 @@ class DBAdapter {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
             [p.brand, p.category, p.name, p.full_name || p.name, p.series, p.sku,
              p.viscosity, p.oil_type, p.volume, p.api_std || p.api, p.acea, p.ilsac,
-             p.price, p.old_price ?? null, p.stock || 0, p.min_stock || 3,
+             p.price, p.old_price ?? null, p.stock ?? 0, p.min_stock ?? 3,
              p.image || p.main_image, p.description ?? null,
              toDbValue(p.specs || {}),        // если уже строка — не двойное кодирование
              p.active !== false, p.is_new || false, p.is_popular || false]

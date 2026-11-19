@@ -11,6 +11,7 @@ const { trackerEvent, hasTracker } = require('./tracker');
 const widgets = require('./widgets');
 const { createRouteService } = require('./route-service');
 const { registerOrderStatsRoutes } = require('./order-stats');
+const { validateProductPayload } = require('./product-validation');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -1463,18 +1464,22 @@ function registerCourierRoutes(app) {
     });
 
     app.post('/api/products', verifyAdmin, async (req, res) => {
+        const validated = validateProductPayload(req.body);
+        if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
-            let product = await db.createProduct(req.body);
-            if (req.body.coming_soon) product = await db.updateProduct(product.id, { coming_soon: true });
-            res.json(product);
+            let product = await db.createProduct(validated.data);
+            if (validated.data.coming_soon === true) product = await db.updateProduct(product.id, { coming_soon: true });
+            res.status(201).json(product);
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     app.put('/api/products/:id', verifyAdmin, async (req, res) => {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        const validated = validateProductPayload(req.body, { partial: true });
+        if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
-            const id = Number(req.params.id);
-            if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
-            const product = await db.updateProduct(id, req.body || {});
+            const product = await db.updateProduct(id, validated.data);
             if (!product) return res.status(404).json({ error: 'not found' });
             res.json(product);
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
