@@ -506,6 +506,26 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
             ON CONFLICT (zone_code) DO NOTHING;
         `);
 
+
+        // ─── Учётные записи сотрудников и привязка серверных сессий ───
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id BIGSERIAL PRIMARY KEY,
+                login VARCHAR(64) NOT NULL,
+                display_name VARCHAR(100) NOT NULL,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(20) NOT NULL CHECK (role IN ('admin','manager','operator','warehouse')),
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                password_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS admin_users_login_lower_uidx ON admin_users (LOWER(login));
+            ALTER TABLE admin_sessions ADD COLUMN IF NOT EXISTS staff_user_id BIGINT REFERENCES admin_users(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS admin_sessions_staff_user_idx ON admin_sessions(staff_user_id);
+            ALTER TABLE admin_audit ADD COLUMN IF NOT EXISTS actor_user_id BIGINT REFERENCES admin_users(id) ON DELETE SET NULL;
+            ALTER TABLE admin_audit ADD COLUMN IF NOT EXISTS actor_role VARCHAR(20);
+        `);
         console.log('[OK] База данных инициализирована');
     } catch (e) {
         console.error('[ОШИБКА] Инициализация БД:', e.message);

@@ -572,36 +572,88 @@
 <body>
 <div id="adminAuth" style="position:fixed;inset:0;z-index:9999;background:#101B4D;display:flex;align-items:center;justify-content:center;flex-direction:column;">
     <h2 style="color:#fff;font-family:Montserrat,sans-serif;font-size:24px;margin-bottom:24px;">АВТОПРОМОЙЛ — Админ</h2>
-    <input id="adminPass" type="password" placeholder="Ключ администратора" autocomplete="off" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
+    <input id="adminLoginName" type="text" placeholder="Логин сотрудника (для старого входа оставить пустым)" autocomplete="username" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
+    <input id="adminPass" type="password" placeholder="Пароль или старый ключ администратора" autocomplete="current-password" style="padding:12px 20px;font-size:16px;border-radius:8px;border:none;width:280px;margin-bottom:12px;" />
     <button onclick="adminLogin()" style="padding:12px 28px;font-size:16px;border-radius:8px;border:none;background:#00AFC7;color:#fff;cursor:pointer;">Войти</button>
-    <p style="color:#88A0B8;font-size:12px;margin-top:16px;">Ключ проверяет сервер и в браузере не сохраняется. Сессия закрывается после 2 часов без действий.</p>
+    <p style="color:#88A0B8;font-size:12px;margin-top:16px;max-width:340px;text-align:center;">Сотрудники входят по индивидуальному логину и паролю. Владелец может временно использовать прежний ключ, оставив поле логина пустым. Сессия закрывается после 2 часов без действий.</p>
 </div>
 <script>
-// Вход: ключ вводится один раз, сервер выдаёт сессию в HttpOnly-cookie. В браузере ключ не хранится.
+// Авторизация: индивидуальный логин/пароль; старый ключ остаётся временным способом входа владельца.
 if (location.hostname.endsWith('github.io')) location.replace('https://gulf-bot-production.up.railway.app/admin');
 const ADMIN_API = window.location.origin;
 const _fetch = window.fetch.bind(window);
+window._adminSession = null;
 function showAuth() { document.getElementById('adminAuth').style.display = 'flex'; }
-window.fetch = async (url, opts) => {          // сессия закончилась — снова показываем окно входа
+window.fetch = async (url, opts) => {
     const r = await _fetch(url, opts);
     if (r.status === 401 && typeof url === 'string' && url.startsWith(ADMIN_API) && !url.includes('/api/admin/login')) showAuth();
     return r;
 };
 async function adminLogin() {
-    const key = document.getElementById('adminPass').value;
+    const login = document.getElementById('adminLoginName').value.trim();
+    const secret = document.getElementById('adminPass').value;
+    const body = login ? { login: login, password: secret } : { key: secret };
     try {
-        const r = await _fetch(ADMIN_API + '/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
-        if (r.ok) { document.getElementById('adminPass').value = ''; location.reload(); return; }
+        const r = await _fetch(ADMIN_API + '/api/admin/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (r.ok) {
+            document.getElementById('adminPass').value = '';
+            document.getElementById('adminLoginName').value = '';
+            location.reload();
+            return;
+        }
         const j = await r.json().catch(() => ({}));
         alert(j.error || 'Не удалось войти');
     } catch (e) { alert('Сервер недоступен, попробуйте позже'); }
 }
-async function adminLogout() { try { await _fetch(ADMIN_API + '/api/admin/logout', { method: 'POST' }); } catch (e) {} location.reload(); }
+async function adminLogout() {
+    try { await _fetch(ADMIN_API + '/api/admin/logout', { method: 'POST' }); } catch (e) {}
+    location.reload();
+}
+function applyAdminAccess(me) {
+    window._adminSession = me;
+    const permissions = Array.isArray(me.permissions) ? me.permissions : [];
+    const has = p => permissions.includes('*') || permissions.includes(p);
+    const rules = {
+        delivery: has('settings.manage'),
+        orders: has('orders.view'),
+        products: has('products.view'),
+        customers: has('customers.view'),
+        analytics: has('sales.view'),
+        audit: has('staff.manage')
+    };
+    document.querySelectorAll('.nav-item[data-view]').forEach(el => {
+        const view = el.getAttribute('data-view');
+        if (Object.prototype.hasOwnProperty.call(rules, view)) el.style.display = rules[view] ? '' : 'none';
+    });
+    const staffButton = document.getElementById('staffManageBtn');
+    if (staffButton) staffButton.style.display = has('staff.manage') ? '' : 'none';
+    const name = document.getElementById('adminDisplayName');
+    const role = document.getElementById('adminRoleLabel');
+    if (name) name.textContent = me.displayName || me.roleLabel || 'Сотрудник';
+    if (role) role.textContent = me.roleLabel || '';
+    const active = document.querySelector('.nav-item.active[data-view]');
+    if (active && rules[active.getAttribute('data-view')] === false) {
+        const start = rules.delivery ? 'delivery' : (rules.products ? 'products' : 'orders');
+        if (typeof window.go === 'function') window.go(start);
+    }
+}
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('adminPass').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+    const login = document.getElementById('adminLoginName');
+    const pass = document.getElementById('adminPass');
+    [login, pass].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); }));
 });
 (async () => {
-    try { const r = await _fetch(ADMIN_API + '/api/admin/me'); if (r.ok) document.getElementById('adminAuth').style.display = 'none'; } catch (e) {}
+    try {
+        const r = await _fetch(ADMIN_API + '/api/admin/me');
+        if (r.ok) {
+            const me = await r.json();
+            document.getElementById('adminAuth').style.display = 'none';
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => applyAdminAccess(me), { once: true });
+            else applyAdminAccess(me);
+        }
+    } catch (e) {}
 })();
 </script>
     <div class="shell" id="shell" data-collapsed="0" data-open="0">
@@ -636,12 +688,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span><span class="lbl">Журнал</span><span class="chip" data-chip="audit"></span>
             </button>
         </nav>
+            <div class="nav-sep"></div>
+            <button class="nav-item" id="staffManageBtn" type="button" onclick="openStaffModal()" style="display:none" title="Сотрудники">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="lbl">Сотрудники</span>
+            </button>
         <div class="me">
             <div class="me-ava" aria-hidden="true">А</div>
-            <div class="me-text"><b>Администратор</b><span>ИП Гаврилов И. В.</span></div>
+            <div class="me-text"><b id="adminDisplayName">Администратор</b><span id="adminRoleLabel">ИП Гаврилов И. В.</span></div>
             <button class="me-out" onclick="adminLogout()" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></button>
         </div>
     </aside>
+
+    <div id="staffModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(5,12,32,.72);align-items:center;justify-content:center;padding:16px;">
+        <div style="background:var(--panel,#fff);color:var(--text,#17213a);width:min(920px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;">
+                <div><h2 style="margin:0">Сотрудники</h2><p style="margin:6px 0 0;color:var(--muted,#667085)">Личные учётные записи и права доступа</p></div>
+                <button type="button" onclick="closeStaffModal()" style="border:0;background:transparent;font-size:28px;cursor:pointer" aria-label="Закрыть">×</button>
+            </div>
+            <form id="staffCreateForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;padding:14px;border:1px solid var(--line,#d8deea);border-radius:12px;margin-bottom:18px;">
+                <label>Имя сотрудника<input name="displayName" required maxlength="100" placeholder="Иван Иванов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
+                <label>Логин<input name="login" required minlength="3" maxlength="64" pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="ivanov" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
+                <label>Роль<select name="role" required style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"><option value="manager">Менеджер</option><option value="operator">Оператор</option><option value="warehouse">Кладовщик</option><option value="admin">Администратор</option></select></label>
+                <label>Пароль<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="Не менее 12 символов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
+                <button type="submit" style="padding:11px 14px;border:0;border-radius:8px;background:#00AFC7;color:#fff;font-weight:700;cursor:pointer">Создать сотрудника</button>
+            </form>
+            <div id="staffList" style="display:grid;gap:10px"><p>Загрузка списка…</p></div>
+            <p style="font-size:12px;color:var(--muted,#667085);margin:16px 0 0">Пароль хранится только в виде криптографического хеша. Изменение роли, логина, статуса или пароля отзывает действующие сессии сотрудника.</p>
+        </div>
+    </div>
     <div class="scrim" onclick="closeDrawer()"></div>
     <div class="fly" id="fly" role="tooltip"></div>
     <main class="main">
@@ -2227,6 +2301,102 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAnalytics();
         setInterval(loadDeliveryData, 30000);
         { const h = location.hash.slice(1); go(VIEWS[h] ? h : 'delivery', { fromHash: true, initial: true }); }   // открыть раздел из адреса (#orders) или «Доставку»
+    </script>
+    <script>
+
+async function openStaffModal() {
+    const modal = document.getElementById('staffModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    await loadStaffList();
+}
+function closeStaffModal() {
+    const modal = document.getElementById('staffModal');
+    if (modal) modal.style.display = 'none';
+}
+function staffEsc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+}
+const staffRoleNames = { admin:'Администратор', manager:'Менеджер', operator:'Оператор', warehouse:'Кладовщик' };
+async function loadStaffList() {
+    const target = document.getElementById('staffList');
+    try {
+        const r = await _fetch(ADMIN_API + '/api/admin/staff');
+        if (!r.ok) throw new Error('Не удалось загрузить сотрудников (' + r.status + ')');
+        const rows = await r.json();
+        if (!rows.length) { target.innerHTML = '<p>Сотрудников пока нет.</p>'; return; }
+        target.innerHTML = rows.map(user => {
+            const roleOptions = Object.keys(staffRoleNames).map(role =>
+                '<option value="' + role + '"' + (user.role === role ? ' selected' : '') + '>' + staffRoleNames[role] + '</option>'
+            ).join('');
+            return '<div data-staff-id="' + Number(user.id) + '" style="border:1px solid var(--line,#d8deea);border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;align-items:center">' +
+                '<div><b>' + staffEsc(user.displayName) + '</b><div style="font-size:12px;color:var(--muted,#667085)">@' + staffEsc(user.login) + ' · ID ' + Number(user.id) + '</div></div>' +
+                '<label>Роль<select class="staff-role" style="width:100%;padding:8px;border:1px solid #ccd3df;border-radius:7px">' + roleOptions + '</select></label>' +
+                '<label style="display:flex;gap:7px;align-items:center"><input class="staff-active" type="checkbox"' + (user.isActive ? ' checked' : '') + '> Активен</label>' +
+                '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+                '<button type="button" onclick="saveStaff(' + Number(user.id) + ')" style="padding:8px 10px;border:0;border-radius:7px;background:#00AFC7;color:#fff;cursor:pointer">Сохранить</button>' +
+                '<button type="button" onclick="resetStaffPassword(' + Number(user.id) + ')" style="padding:8px 10px;border:1px solid #ccd3df;border-radius:7px;background:transparent;cursor:pointer">Пароль</button>' +
+                '<button type="button" onclick="revokeStaffSessions(' + Number(user.id) + ')" style="padding:8px 10px;border:1px solid #ccd3df;border-radius:7px;background:transparent;cursor:pointer">Завершить сессии</button>' +
+                '</div></div>';
+        }).join('');
+    } catch (e) { target.innerHTML = '<p style="color:#b42318">' + staffEsc(e.message) + '</p>'; }
+}
+async function saveStaff(id) {
+    const row = document.querySelector('[data-staff-id="' + id + '"]');
+    if (!row) return;
+    const body = { role: row.querySelector('.staff-role').value, isActive: row.querySelector('.staff-active').checked };
+    try {
+        const r = await _fetch(ADMIN_API + '/api/admin/staff/' + id, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Не удалось сохранить');
+        alert('Изменения сохранены. Сессии сотрудника завершены.');
+        await loadStaffList();
+    } catch (e) { alert(e.message); }
+}
+async function resetStaffPassword(id) {
+    const password = prompt('Введите новый пароль (не менее 12 символов):');
+    if (password === null) return;
+    try {
+        const r = await _fetch(ADMIN_API + '/api/admin/staff/' + id + '/password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Не удалось изменить пароль');
+        alert('Пароль изменён. Все сессии сотрудника завершены.');
+    } catch (e) { alert(e.message); }
+}
+async function revokeStaffSessions(id) {
+    if (!confirm('Завершить все активные сессии этого сотрудника?')) return;
+    try {
+        const r = await _fetch(ADMIN_API + '/api/admin/staff/' + id + '/revoke-sessions', { method: 'POST' });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Не удалось завершить сессии');
+        alert('Завершено сессий: ' + (j.revoked || 0));
+        await loadStaffList();
+    } catch (e) { alert(e.message); }
+}
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('staffCreateForm');
+    if (form) form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(form).entries());
+        try {
+            const r = await _fetch(ADMIN_API + '/api/admin/staff', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.error || 'Не удалось создать сотрудника');
+            form.reset();
+            alert('Сотрудник создан.');
+            await loadStaffList();
+        } catch (err) { alert(err.message); }
+    });
+});
+
     </script>
     <script src="js/admin-dashboard.js" defer></script>
 </body>

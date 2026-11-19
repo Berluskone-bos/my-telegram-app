@@ -8,12 +8,14 @@ function validDate(value) {
     return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
 
+const { requirePermission, hasPermission } = require('./admin-permissions');
+
 function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
     if (!app || !pool || typeof pool.query !== 'function' || typeof verifyAdmin !== 'function') {
         throw new TypeError('registerAdminDashboardRoutes requires app, pool and verifyAdmin');
     }
 
-    app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
+    app.get('/api/admin/dashboard', verifyAdmin, requirePermission('dashboard.view'), async (req, res) => {
         const requestedDate = req.query.date;
         if (requestedDate !== undefined && !validDate(requestedDate)) {
             return res.status(400).json({ error: 'Некорректная дата. Ожидается YYYY-MM-DD.' });
@@ -70,9 +72,10 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
 
             const summary = summaryResult.rows[0] || {};
             const products = productsResult.rows[0] || {};
-            const customersResult = await pool.query(
-                'SELECT COUNT(DISTINCT user_id)::int AS customers FROM orders WHERE user_id IS NOT NULL'
-            );
+            const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
+            const customersResult = canSeeSales
+                ? await pool.query('SELECT COUNT(DISTINCT user_id)::int AS customers FROM orders WHERE user_id IS NOT NULL')
+                : { rows: [{ customers: null }] };
 
             res.set('Cache-Control', 'no-store');
             return res.json({
@@ -81,9 +84,9 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                     orders: Number(summary.orders || 0),
                     newOrders: Number(summary.newOrders || 0),
                     activeOrders: Number(summary.activeOrders || 0),
-                    revenue: Number(summary.revenue || 0),
+                    revenue: canSeeSales ? Number(summary.revenue || 0) : null,
                     products: Number(products.products || 0),
-                    customers: Number(customersResult.rows[0]?.customers || 0),
+                    customers: canSeeSales ? Number(customersResult.rows[0]?.customers || 0) : null,
                     lowStockCount: Number(products.lowStockCount || 0),
                     cancelled: Number(summary.cancelled || 0),
                     delivered: Number(summary.delivered || 0),
