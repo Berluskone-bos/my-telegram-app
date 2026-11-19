@@ -145,10 +145,10 @@ test('виджеты: очередь, запасной вариант, трек�
     // ── 6. отмена заказа: карточка «Отменён» и серая кнопка у курьера (с запасным вариантом) ──
     const o4 = await mkOrder('wg4');
     await mkCard('AP-wg4');
-    const route4 = await db.createRoute({ route_number: 'RL-wg4', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1,
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o4.id, status), true);
+    const route4 = await db.createRoute({ route_number: 'RL-wg4', route_date: '2026-11-15', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
         stops: [{ order_id: String(o4.id), order_number: o4.order_number, address: o4.address, phone: '1', client_name: 'К', client_chat_id: o4.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
     const st4 = route4.stops[0].id;
-    assert.equal(await db.updateOrderStatus(o4.id, 'SHIPPING'), true);
     await q.enqueue({ bot: 'courier', dedupKey: `assign:${st4}`, onSent: { stopId: st4 }, payload: { chat_id: '900101', text: 'Новый заказ' } });
     // маршрутная карточка уже есть
     await store.upsert(pool, 'route', route4.id, {}); await store.setMessage(pool, 'route', route4.id, '900101', 650);
