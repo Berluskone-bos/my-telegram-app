@@ -16,7 +16,7 @@
         ├──► Яндекс.Геокодер (адреса), ссылки на карты, оптимизация маршрута (bot/services/)
         └──► [ ЭКВАЙРИНГ, КАССА 54-ФЗ, «ЧЕСТНЫЙ ЗНАК» ]  — НЕ СДЕЛАНО
 
-[ admin.html на GitHub Pages ] ──► Railway (/api/*, заголовок x-admin-key)
+[ admin.html на GitHub Pages ] ──► Railway (/api/*, индивидуальная сессия сотрудника)
 ```
 
 ## Стек
@@ -24,9 +24,9 @@
 |---|---|
 | Фронтенд | HTML5, CSS3, чистый JS (модули `Products`, `Cart`, `Favorites`, `Profile`, `App`), Telegram WebApp API. Каталог: `data/catalog.json` (фолбэк и витрина) |
 | Бэкенд | Node.js, Express, `pg`, `node-telegram-bot-api` 0.67 (с `overrides` для безопасных `form-data`, `qs`, `tough-cookie`, `uuid`) |
-| База | PostgreSQL на Railway (служба `Postgres`, том 500 МБ, внутренний адрес `postgres.railway.internal`). Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals` и таблицы кэша подбора масла |
+| База | PostgreSQL на Railway (служба `Postgres`, том 500 МБ, внутренний адрес `postgres.railway.internal`). Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals`, `admin_users`, `admin_sessions` и таблицы кэша подбора масла |
 | Хостинг | Фронт — GitHub Pages (workflow `deploy-pages.yml`). Бэкенд — Railway (`Procfile`). |
-| Секреты (Railway Variables) | `BOT_TOKEN`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`, `ADMIN_API_KEY`, `WEBHOOK_URL` (база без пути), `WEBHOOK_SECRET`, `DATABASE_URL`, `YANDEX_GEO_KEY`, `PARTSAPI_KEY_VINDECODE`, `PARTSAPI_KEY_GETFILLVOLUMES`, `PARTSAPI_KEY_TODOPUSK`, `PARTSAPI_KEY_GETMAKES`, `PARTSAPI_KEY_GETMODELS`, `PARTSAPI_KEY_GETCARS`; опц. `WAREHOUSE_ADDRESS` (или `WAREHOUSE_LAT` + `WAREHOUSE_LON`) — склад, откуда курьер стартует; `SERVICE_MINUTES` (время на выдачу заказа, по умолчанию 5), `ETA_UPDATE_MINUTES` (порог пересылки времени клиенту, 15), `OSRM_URL` (сервис дорог, по умолчанию публичный router.project-osrm.org), `WIDGETS_ENABLED` (0 — выключить интерактивные карточки, по умолчанию включены), `PARTSAPI_DAILY_LIMIT`, `ADMIN_USER_IDS`, `ALLOWED_ORIGINS`, `DB_SSL_STRICT`, `INIT_DATA_TTL_SEC` |
+| Секреты (Railway Variables) | `BOT_TOKEN`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`, `WEBHOOK_URL` (база без пути), `WEBHOOK_SECRET`, `DATABASE_URL`, `YANDEX_GEO_KEY`, `PARTSAPI_KEY_VINDECODE`, `PARTSAPI_KEY_GETFILLVOLUMES`, `PARTSAPI_KEY_TODOPUSK`, `PARTSAPI_KEY_GETMAKES`, `PARTSAPI_KEY_GETMODELS`, `PARTSAPI_KEY_GETCARS`; опц. `WAREHOUSE_ADDRESS` (или `WAREHOUSE_LAT` + `WAREHOUSE_LON`) — склад, откуда курьер стартует; `SERVICE_MINUTES` (время на выдачу заказа, по умолчанию 5), `ETA_UPDATE_MINUTES` (порог пересылки времени клиенту, 15), `OSRM_URL` (сервис дорог, по умолчанию публичный router.project-osrm.org), `WIDGETS_ENABLED` (0 — выключить интерактивные карточки, по умолчанию включены), `PARTSAPI_DAILY_LIMIT`, `ADMIN_USER_IDS`, `ALLOWED_ORIGINS`, `DB_SSL_STRICT`, `INIT_DATA_TTL_SEC` |
 
 ## Заказ (как работает сейчас)
 1. Клиент оформляет заказ в Mini App → `POST /api/order` с `X-Telegram-Init-Data`.
@@ -95,3 +95,27 @@ toMakes (id марки) → toModels (brandId) → toTypes (modelId) → typeId
 - Остановка: `bot.js shutdown()` закрывает очередь, опрос и пул.
 - Копии: `backup/` (Cron-служба Railway → зашифрованный дамп в S3 в РФ), см. `docs/BACKUP.md`. Копии Railway недоступны на тарифе Hobby.
 - Персональные данные: `docs/PERSONAL_DATA.md`.
+
+
+## Админ-панель: индивидуальная авторизация и роли (актуально на 19.11.2026)
+
+Админ-панель расположена в `admin.html` (GitHub Pages); защищённые API обслуживает Railway/Express. Общий `ADMIN_API_KEY` удалён владельцем из production Railway Variables; вход по этому ключу больше не является рабочей схемой. Сотрудники входят по индивидуальным логину и паролю. Пароли хранятся в виде хешей scrypt; сервер выдаёт сессию, а защищённые маршруты проверяют сессию и разрешение на сервере.
+
+Роли и границы доступа:
+| Роль | Доступ |
+|---|---|
+| Администратор | Полный доступ, включая управление сотрудниками и настройками |
+| Менеджер | Обзор, заказы и обработка, клиенты, продажи/аналитика |
+| Оператор | Обзор, просмотр и обработка заказов |
+| Кладовщик | Обзор, заказы в пределах складских задач, товары и остатки; без клиентских персональных данных |
+
+Права проверяются серверным middleware на API; скрытие вкладок в интерфейсе не считается защитой. Для заказов действует отдельная фильтрация данных: администратор и менеджер с `customers.view` видят имя клиента; оператор получает необходимые для обработки телефон и адрес; кладовщик не получает имя, телефон, адрес, Telegram user_id, платёжные данные и комментарии. Для `GET /api/admin/dashboard` имена последних заказчиков также исключаются для ролей без `customers.view` (PR #57).
+
+PR #54 добавил индивидуальные учётные записи, роли, серверные разрешения и управление сотрудниками/сессиями; PR #55 перевёл `/api/webhook-info` на сессию и `settings.manage`; PR #56 добавил ролевую фильтрацию персональных данных заказов; PR #57 исправил выдачу имени клиента в обзорной панели. См. `MEMORY.md` и `TASKS.md`.
+
+Ограничения и оставшиеся меры безопасности после аудита:
+- Защита от перебора паролей пока основана на локальном в памяти процесса счётчике; она не общая для нескольких экземпляров и сбрасывается после рестарта. Нужен централизованный rate limit и ограничение на учётную запись.
+- Проверить `Cache-Control: no-store` на всех защищённых GET API, возвращающих персональные/служебные данные.
+- Удалить оставшийся неиспользуемый legacy-код авторизации через `ADMIN_API_KEY` из репозитория после отдельной проверки всех ссылок.
+- CSP содержит `'unsafe-inline'`; рассмотреть nonce/hash и проверить совместимость.
+- Провести динамическое тестирование всех API на IDOR/BOLA и матрицу ролей. Статический просмотр не доказывает отсутствие всех обходов.
