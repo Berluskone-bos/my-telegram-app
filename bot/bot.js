@@ -772,6 +772,22 @@ app.use((req, res, next) => {
     next();
 });
 
+// Админ-панель: публикуем только два необходимых файла, не открывая корень репозитория.
+// Доступ к данным по-прежнему защищён серверной сессией через /api/admin/*.
+app.get('/admin', (req, res) => res.redirect(302, '/admin.html'));
+app.get('/admin.html', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(path.join(__dirname, '..', 'admin.html'), err => {
+        if (err && !res.headersSent) next(err);
+    });
+});
+app.get('/js/admin-dashboard.js', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(__dirname, '..', 'js', 'admin-dashboard.js'), err => {
+        if (err && !res.headersSent) next(err);
+    });
+});
+
 // Статика
 if (fs.existsSync(STATIC_DIR)) {
     app.use(express.static(STATIC_DIR, { dotfiles: 'deny', index: false }));
