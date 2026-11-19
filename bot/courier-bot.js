@@ -671,19 +671,6 @@ bot.on('callback_query', async (query) => {
         return;
     }
 
-    if (data.startsWith('rate_')) {
-        const parts = data.split('_');
-        const courierId = parseInt(parts[1]);
-        const rating = parseInt(parts[3]);
-        await db.updateCourierRating(courierId, rating);
-        bot.answerCallbackQuery(query.id, { text: `Спасибо за оценку ${rating}!` });
-        bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
-            chat_id: chatId,
-            message_id: query.message.message_id
-        });
-        bot.sendMessage(chatId, `Спасибо за оценку ${rating}/5!`);
-        return;
-    }
  } catch (e) {
     console.error('[ОШИБКА] Callback query:', e && (e.code || e.name) || 'unknown');
     try { bot.answerCallbackQuery(query.id, { text: 'Не удалось обработать действие' }); } catch (_) {}
@@ -848,7 +835,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                     setTimeout(() => {
                         const rateButtons = [[1,2,3,4,5].map(n => ({
                             text: String(n),
-                            callback_data: `rate_${courier.id}_o_${n}`
+                            callback_data: `rate_${courier.id}_${stop.id}_${n}`
                         }))];
                         queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', {
                             buttons: rateButtons,

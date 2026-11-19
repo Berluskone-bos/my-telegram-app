@@ -152,22 +152,118 @@ class DBAdapter {
         return res.rows[0];
     }
 
-    async updateCourierRating(courierId, rating) {
-        const id = Number(courierId);
-        const r = Number(rating);
-        if (!Number.isInteger(id) || !Number.isInteger(r) || r < 1 || r > 5) return false;
+    // Оценка разрешена только владельцу заказа после доставки и только один раз.
+    // Блокировка route_stops сериализует повторные/параллельные нажатия.
+    async rateCourierForStop(stopId, courierId, telegramUserId, rating) {
+        const stop = Number(stopId);
+        const courier = Number(courierId);
+        const value = Number(rating);
+        const userId = String(telegramUserId == null ? '' : telegramUserId);
+        if (!Number.isInteger(stop) || stop <= 0 ||
+            !Number.isInteger(courier) || courier <= 0 ||
+            !/^[0-9]+$/.test(userId) ||
+            !Number.isInteger(value) || value < 1 || value > 5) {
+            return { status: 'invalid' };
+        }
 
-        const res = await pool.query(
-            `UPDATE couriers
-                SET rating = (rating::numeric * rating_count + $1) / (rating_count + 1),
-                    rating_count = rating_count + 1
-              WHERE id = $2 RETURNING *`,
-            [r, id]
-        );
-        // Контракт с bot.js: false = промах, объект = успех.
-        return res.rows[0] || false;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const found = await client.query(
+                `SELECT rs.id, rs.status, rs.client_rating, dr.courier_id, owner.order_status
+                   FROM route_stops rs
+                   JOIN delivery_routes dr ON dr.id = rs.route_id
+                   JOIN LATERAL (
+                       SELECT o.user_id, o.status AS order_status
+                         FROM orders o
+                        WHERE o.id = CASE
+                            WHEN rs.order_id ~ '^[0-9]+$' THEN rs.order_id::bigint
+                            ELSE NULL
+                        END
+                           OR (rs.order_number IS NOT NULL AND o.order_number = rs.order_number)
+                        ORDER BY CASE
+                            WHEN o.id = CASE
+                                WHEN rs.order_id ~ '^[0-9]+$' THEN rs.order_id::bigint
+                                ELSE NULL
+                            END THEN 0 ELSE 1
+                        END
+                        LIMIT 1
+                   ) owner ON TRUE
+                  WHERE rs.id = $1 AND owner.user_id = $2::bigint
+                  FOR UPDATE OF rs`,
+                [stop, userId]
+            );
+
+            // Для чужого/несуществующего заказа одинаковый ответ: не раскрываем наличие заказа.
+            if (!found.rowCount || Number(found.rows[0].courier_id) !== courier) {
+                await client.query('ROLLBACK');
+                return { status: 'not_allowed' };
+            }
+            const row = found.rows[0];
+            if (row.status !== 'delivered') {
+                await client.query('ROLLBACK');
+                return { status: 'not_delivered' };
+            }
+            if (!['DELIVERED', 'COMPLETED'].includes(row.order_status)) {
+                await client.query('ROLLBACK');
+                return { status: 'not_delivered' };
+            }
+            if (row.client_rating != null) {
+                await client.query('ROLLBACK');
+                return { status: 'already_rated', rating: Number(row.client_rating) };
+            }
+
+            const saved = await client.query(
+                'UPDATE route_stops SET client_rating = $1 WHERE id = $2 AND client_rating IS NULL RETURNING id',
+                [value, stop]
+            );
+            if (!saved.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'already_rated' };
+            }
+            const updated = await client.query(
+                `UPDATE couriers
+                    SET rating = (rating::numeric * rating_count + $1) / (rating_count + 1),
+                        rating_count = rating_count + 1
+                  WHERE id = $2
+                  RETURNING id, rating, rating_count`,
+                [value, courier]
+            );
+            if (!updated.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_allowed' };
+            }
+            await client.query('COMMIT');
+            return { status: 'rated', courier: updated.rows[0] };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
-
+    // Оценка из карточки трекера: находим остановку по номеру заказа, затем используем ту же транзакционную проверку.
+    async rateCourierForOrder(orderNumber, telegramUserId, rating) {
+        const number = String(orderNumber == null ? '' : orderNumber).trim();
+        const userId = String(telegramUserId == null ? '' : telegramUserId);
+        const value = Number(rating);
+        if (!number || number.length > 32 || !/^[0-9]+$/.test(userId) ||
+            !Number.isInteger(value) || value < 1 || value > 5) return { status: 'invalid' };
+        const target = await pool.query(
+            `SELECT rs.id, dr.courier_id
+               FROM orders o
+               LEFT JOIN route_stops rs ON rs.order_number = o.order_number
+               LEFT JOIN delivery_routes dr ON dr.id = rs.route_id
+              WHERE o.order_number = $1 AND o.user_id = $2::bigint
+              ORDER BY rs.id DESC NULLS LAST
+              LIMIT 1`,
+            [number, userId]
+        );
+        if (!target.rowCount) return { status: 'not_allowed' };
+        const row = target.rows[0];
+        if (!row.id || !row.courier_id) return { status: 'no_courier' };
+        return this.rateCourierForStop(row.id, row.courier_id, userId, value);
+    }
     // ───────────────────────────────────────────
     // Маршруты
     // ───────────────────────────────────────────

@@ -85,8 +85,12 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [a.stopId])).rows[0].status, 'cancelled', 'остановка не перезаписана');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [a.o.id])).rows[0].status, 'CANCELLED');
 
-    // кнопка «Поехал!» (начало маршрута) клиентам ничего не отправляет
+    // Нельзя оценить ещё не доставленную остановку или подменить ID курьера.
     const c = await mk('cg3');
+    assert.equal((await db.rateCourierForStop(c.stopId, courier.id, 777004, 5)).status, 'not_delivered');
+    assert.equal((await db.rateCourierForStop(c.stopId, courier.id + 100000, 777004, 5)).status, 'not_allowed');
+
+    // кнопка «Поехал!» (начало маршрута) клиентам ничего не отправляет
     await press(`startroute_${c.route.id}`);
     assert.deepEqual(await clientTexts(), [], '«Поехал!» клиенту сообщений не шлёт');
     await pool.query('DELETE FROM notification_outbox');
@@ -117,4 +121,19 @@ test('курьерский бот: кнопки отменённого зака�
     const adm = await adminTexts();
     assert.equal(adm.length, 4); assert.match(adm[2], /приехал к клиенту/); assert.match(adm[3], /заказ доставлен/);
     assert.match(adm[3], new RegExp('AP-cg2'));
+
+    // Оценку может отправить только владелец доставленного заказа; параллельные повторы дают одно начисление.
+    const initialCount = Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count);
+    assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 999999, 5)).status, 'not_allowed');
+    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount);
+    const concurrentRatings = await Promise.all([
+        db.rateCourierForStop(b.stopId, courier.id, 777004, 5),
+        db.rateCourierForStop(b.stopId, courier.id, 777004, 1)
+    ]);
+    assert.deepEqual(concurrentRatings.map(x => x.status).sort(), ['already_rated', 'rated']);
+    const storedRating = Number((await pool.query('SELECT client_rating FROM route_stops WHERE id = $1', [b.stopId])).rows[0].client_rating);
+    assert.ok([1, 5].includes(storedRating));
+    assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount + 1);
+    assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777004, 3)).status, 'already_rated');
+    assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777005, 4)).status, 'not_allowed');
 });
