@@ -11,6 +11,7 @@ test('склад: отмена и удаление заказов возвращ
     const { pool, initDB } = require('../bot/db');
     const A = require('../bot/db-adapter');
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
+    const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('T-oil', 1000, true, 10) RETURNING id")).rows[0].id;
@@ -31,7 +32,7 @@ test('склад: отмена и удаление заказов возвращ
 
     const o2 = await mk(2, 'k2');
     assert.equal(await stock(), 8);
-    await db.updateOrderStatus(o2.id, 'DELIVERED');
+    await deliverOrder(db, pool, o2);
     await db.updateOrderStatus(o2.id, 'CANCELLED');
     assert.equal(await stock(), 8, 'доставленный заказ остаток не возвращает');
 
@@ -39,10 +40,10 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await db.updateOrderStatus(o2.id, 'NEW'), 'CANCELLED_LOCKED', 'отменённый заказ закрыт');
     const o2b = await mk(1, 'k2b');
     assert.equal(await stock(), 7);
-    await db.updateOrderStatus(o2b.id, 'DELIVERED');
-    assert.equal(await db.updateOrderStatus(o2b.id, 'NEW'), 'TRANSITION_FORBIDDEN', 'DELIVERED -> NEW запрещено');
-    assert.equal(await db.updateOrderStatus(o2b.id, 'SHIPPING'), 'TRANSITION_FORBIDDEN', 'DELIVERED -> SHIPPING запрещено');
-    assert.equal(await db.updateOrderStatus(o2b.id, 'COMPLETED'), true, 'DELIVERED -> COMPLETED можно');
+    await deliverOrder(db, pool, o2b);
+    assert.equal(await db.updateOrderStatus(o2b.id, 'NEW'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> NEW запрещено');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'SHIPPING'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> SHIPPING запрещено');
+    assert.equal(await db.updateOrderStatus(o2b.id, 'COMPLETED'), 'ALREADY', 'повторное завершение идемпотентно');
     assert.equal(await db.updateOrderStatus(o2b.id, 'ASSEMBLING'), 'TRANSITION_FORBIDDEN', 'COMPLETED -> ASSEMBLING запрещено');
     assert.equal((await pool.query('SELECT stock_deducted FROM orders WHERE id = $1', [o2b.id])).rows[0].stock_deducted, false, 'флаг снят при доставке');
     assert.equal(await db.updateOrderStatus(o2b.id, 'CANCELLED'), true, 'поздний возврат денег допустим');
