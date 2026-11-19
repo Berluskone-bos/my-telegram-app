@@ -191,7 +191,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     { dedupKey: `eta:${stop.id}:${kind}:${clock}` });
                 sent.push({ stopId: stop.id, kind });
                 // то же время — в карточку заказа клиента (без уведомления; текст выше его и так даёт)
-                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, { stage: 'enroute' } }).catch(() => {});
+                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
             }
         }
         // точки без координат остаются без времени; сообщение «курьер в пути» их клиентам отправляет обработчик кнопки
