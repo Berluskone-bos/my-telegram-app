@@ -1439,10 +1439,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     : Object.entries(statusLabels).filter(([k]) => k === o.status || (o.status === 'NEW' && k === 'CONFIRMED') || (o.status === 'CONFIRMED' && k === 'ASSEMBLING') || (k === 'CANCELLED' && !['DELIVERED','COMPLETED','CANCELLED'].includes(o.status))))
                                     .map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
                             </select></td>
-                            <td>${showAssign ? `<select class="status-select" onclick="event.stopPropagation()" onchange="assignCourier(${o.id}, this.value)" ${autoAssign ? 'style="border-color:var(--orange)"' : ''}>
-                                <option value="">-- курьер --</option>${courierOptions}
-                                ${autoAssign ? `<option value="${couriers.filter(c=>c.is_active)[0].id}" selected>Назначить</option>` : ''}
-                            </select>` : (courierName ? `<strong>${esc(courierName)}</strong>` : '-')}</td>
+                            <td>${courierName ? `<strong>${esc(courierName)}</strong>` : (showAssign ? 'Выберите заказ для маршрутного листа' : '-')}</td>
                             <td>${fmtDate(o.created_at)}</td>
                         </tr>`;
                     }).join('');
