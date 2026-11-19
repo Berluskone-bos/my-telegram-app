@@ -960,6 +960,11 @@ class DBAdapter {
             if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
             if (o.status === 'CANCELLED') { await client.query('ROLLBACK').catch(() => {}); return 'CANCELLED_LOCKED'; }
             if (!orderTransitionAllowed(o.status, status)) { await client.query('ROLLBACK').catch(() => {}); return 'TRANSITION_FORBIDDEN'; }
+            if ((status === 'READY_FOR_SHIPMENT' && o.delivery_type === 'pickup') ||
+                (['READY_FOR_PICKUP', 'PICKED_UP'].includes(status) && o.delivery_type !== 'pickup')) {
+                await client.query('ROLLBACK').catch(() => {});
+                return 'TRANSITION_FORBIDDEN';
+            }
             // Товар доставлен: остаток больше не «наш», флаг снимаем — повторного возврата быть не может.
             await client.query(
                 `UPDATE orders SET status = $1::text,
