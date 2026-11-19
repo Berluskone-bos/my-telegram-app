@@ -7,6 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
 const db = require('./db-adapter');
+const { parseDeliveryRatingCallback } = require('./delivery-rating');
 
 // ═══════════════════════════════════════════
 // КОНФИГ
@@ -458,12 +459,12 @@ bot.on('callback_query', async (query) => {
 
         // Формат: rate_<courierId>_<routeStopId>_<rating>. Старые кнопки без stopId отклоняются.
         if (data.startsWith('rate_')) {
-            const match = /^rate_([0-9]+)_([0-9]+)_([1-5])$/.exec(data);
-            if (!match || !query.from || !query.from.id) {
+            const parsed = parseDeliveryRatingCallback(data);
+            if (!parsed || !query.from || !query.from.id) {
                 await bot.answerCallbackQuery(query.id, { text: 'Кнопка оценки недействительна', show_alert: true }).catch(() => {});
                 return;
             }
-            const [, courierId, stopId, rating] = match;
+            const { courierId, stopId, rating } = parsed;
             let result;
             try {
                 result = await db.rateCourierForStop(stopId, courierId, query.from.id, rating);
