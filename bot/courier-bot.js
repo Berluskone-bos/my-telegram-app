@@ -1175,8 +1175,7 @@ function registerCourierRoutes(app) {
             result.items = result.items.map(order => {
                 const digits = String(order.phone || '').replace(/\\D/g, '');
                 const maskedPhone = digits.length >= 4 ? digits.slice(0, 2) + '******' + digits.slice(-2) : '••••';
-                const address = String(order.address || '');
-                return { ...order, phone: maskedPhone, address: address.length > 28 ? address.slice(0, 28) + '…' : address };
+                return { ...order, phone: maskedPhone, address: 'Адрес в карточке заказа' };
             });
             res.set('Cache-Control', 'no-store');
             res.json(result);
