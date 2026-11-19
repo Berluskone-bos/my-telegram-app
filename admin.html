@@ -1435,7 +1435,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${esc(o.address || '-')}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
                             <td><select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
-                                ${(warehouseOnly ? Object.entries(statusLabels).filter(([k]) => k === o.status || (k === 'ASSEMBLING' && o.status === 'CONFIRMED')) : Object.entries(statusLabels)).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
+                                ${(warehouseOnly
+                                    ? Object.entries(statusLabels).filter(([k]) => k === o.status || (k === 'READY_FOR_SHIPMENT' && o.status === 'ASSEMBLING'))
+                                    : Object.entries(statusLabels).filter(([k]) => k === o.status || (o.status === 'NEW' && k === 'CONFIRMED') || (o.status === 'CONFIRMED' && k === 'ASSEMBLING') || (k === 'CANCELLED' && !['DELIVERED','COMPLETED','CANCELLED'].includes(o.status))))
+                                    .map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
                             </select></td>
                             <td>${showAssign ? `<select class="status-select" onclick="event.stopPropagation()" onchange="assignCourier(${o.id}, this.value)" ${autoAssign ? 'style="border-color:var(--orange)"' : ''}>
                                 <option value="">-- курьер --</option>${courierOptions}
