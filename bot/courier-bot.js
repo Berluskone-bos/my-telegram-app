@@ -1062,7 +1062,7 @@ function registerCourierRoutes(app) {
     });
 
     // Состояние системы для владельца (вкладка «Журнал» в админке): связь с базой, очередь уведомлений админ-чату, опрос админ-бота.
-    app.get('/api/admin/system-status', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/admin/system-status', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         const out = { time: new Date().toISOString(), uptimeSec: Math.round(process.uptime()), db: { ok: false }, outbox: {}, adminPolling: getAdminPollingStatus() };
         try {
             const pool = require('./db').pool;
@@ -1085,11 +1085,11 @@ function registerCourierRoutes(app) {
         res.json(out);
     });
 
-    app.get('/api/couriers', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/couriers', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/routes', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/routes', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const { courier_id, route_date, stops } = req.body;
             const processedStops = [];
@@ -1188,11 +1188,11 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/zones', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/zones', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getZones()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/geocode', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/geocode', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         const address = req.query.address;
         if (!address) return res.status(400).json({ error: 'address required' });
         try {
@@ -1226,18 +1226,18 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/stats', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/dispatch/stats', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
             res.json(await db.getDayStats(date));
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/analytics', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.get('/api/analytics', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const from = req.query.date_from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const to = req.query.date_to || new Date().toISOString().split('T')[0];
@@ -1328,7 +1328,7 @@ function registerCourierRoutes(app) {
     });
 
     // Назначить курьера на заказ
-    app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+    app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const orderId = parseInt(req.params.id);
             let { courier_id } = req.body;
