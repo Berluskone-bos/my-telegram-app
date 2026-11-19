@@ -66,11 +66,12 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await stock(), 4);
     // Два последовательных callback «Доставлено»: один переход, одно уведомление, без нового списания.
     const deliveredOrder = await mk(1, 'k6');
+    const courier = await db.createCourier({ name: 'Склад-тест', phone: '1', telegram_id: 900099999, telegram_user: 'stock-test', vehicle_type: 'авто' });
     for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
         assert.equal(await db.updateOrderStatus(deliveredOrder.id, status), true);
     }
     const routeId = (await pool.query(
-        "INSERT INTO delivery_routes(route_number, route_date, courier_id, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, (SELECT id FROM couriers ORDER BY id DESC LIMIT 1), 'assigned', 1) RETURNING id"
+        `INSERT INTO delivery_routes(route_number, route_date, courier_id, status, total_orders) VALUES ('RL-DONE-TEST', CURRENT_DATE, $1, 'assigned', 1) RETURNING id`, [courier.id]
     )).rows[0].id;
     const stopId = (await pool.query(
         `INSERT INTO route_stops(route_id, order_id, order_number, stop_number, address, status, client_chat_id)
@@ -103,6 +104,9 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(noticeCount, 1, 'клиентское уведомление поставлено в outbox ровно один раз');
     await pool.query('DELETE FROM notification_outbox WHERE dedup_key = $1', [`stop-delivered:${stopId}`]);
 
+    await pool.query('DELETE FROM route_stops WHERE route_id = $1', [routeId]);
+    await pool.query('DELETE FROM delivery_routes WHERE id = $1', [routeId]);
+    await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
     await db.deleteAllOrders();
     assert.equal(await stock(), 6, 'вернули только активные k4 и k5; доставленные k2, k2b и k6 не вернули');
     assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);
