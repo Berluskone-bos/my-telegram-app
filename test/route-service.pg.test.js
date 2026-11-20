@@ -17,11 +17,11 @@ test('маршрут из 4 заказов: порядок по времени �
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
     await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-rs%'");
 
-    // Только четыре адреса доставок. Фиктивной точки склада в матрице нет; выгодный открытый путь D, B, A, C.
+    // Только четыре адреса доставок. Фиктивной точки склада в матрице нет; один из кратчайших открытых путей (при равенстве — C, A, B, D).
     const coords = { 'адрес A': [59.90, 30.30], 'адрес B': [59.91, 30.31], 'адрес C': [59.92, 30.32], 'адрес D': [59.93, 30.33] };
     const geocoder = { geocode: async (addr) => ({ lat: coords[addr][0], lon: coords[addr][1] }) };
     let fetchCalls = 0;
-    // «Дорога»: вдоль неё точки стоят в порядке склад, D, B, A, C; время в пути = 600 с на каждый участок между соседними
+    // «Дорога»: вдоль неё точки стоят в порядке D, B, A, C; время в пути = 600 с на каждый участок между соседними
     const along = { '59.93': 0, '59.91': 1, '59.9': 2, '59.92': 3 };
     const planner = { ...realPlanner, planRoute: (o) => realPlanner.planRoute({ ...o, fetchImpl: async (url) => {
         fetchCalls++;
@@ -65,9 +65,9 @@ test('маршрут из 4 заказов: порядок по времени �
 
     // сборка маршрута
     const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: (x) => sent.push({ bot: 'admin', text: x }) });
-    assert.deepEqual(out.sequence, ['AP-rs4', 'AP-rs2', 'AP-rs1', 'AP-rs3'], 'порядок по времени в пути, а не по порядку заказов');
+    assert.deepEqual(out.sequence, ['AP-rs3', 'AP-rs1', 'AP-rs2', 'AP-rs4'], 'при равной стоимости допустим любой кратчайший открытый путь; выбран C, A, B, D');
     const stops = (await db.getRouteById(out.route.id)).stops;
-    assert.deepEqual(stops.map(s => [s.stop_number, s.order_number]), [[1, 'AP-rs4'], [2, 'AP-rs2'], [3, 'AP-rs1'], [4, 'AP-rs3']]);
+    assert.deepEqual(stops.map(s => [s.stop_number, s.order_number]), [[1, 'AP-rs3'], [2, 'AP-rs1'], [3, 'AP-rs2'], [4, 'AP-rs4']]);
     assert.equal(stops[0].eta_at, null, 'первая точка не получает ETA от несуществующего склада');
     // Первая ETA неизвестна без GPS; следующие рассчитываются между клиентскими адресами.
     assert.deepEqual(stops.slice(1).map(s => new Date(s.eta_at).toISOString().slice(11, 16)), ['00:15', '00:30', '00:45']);
@@ -78,7 +78,7 @@ test('маршрут из 4 заказов: порядок по времени �
     // курьеру: один маршрутный лист + 4 карточки с кнопкой «Принять»
     const toCourier = sent.filter(m => m.bot === 'courier');
     assert.equal(toCourier.length, 5);
-    assert.match(toCourier[0].text, /Маршрут RL-[A-Z0-9-]+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D/); assert.doesNotMatch(toCourier[0].text, /AP-rs4 — адрес D — к/);
+    assert.match(toCourier[0].text, /Маршрут RL-[A-Z0-9-]+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs3 — адрес C/); assert.doesNotMatch(toCourier[0].text, /AP-rs3 — адрес C — к/);
     assert.match(toCourier[0].text, /живые пробки не учитываются/);
     assert.match(toCourier[1].text, /Точка 1 из 4/);
     assert.equal(toCourier[1].opts.buttons.at(-1)[0].callback_data, `deliver_${out.route.id}_${stops[0].id}_accept`);
@@ -104,9 +104,9 @@ test('маршрут из 4 заказов: порядок по времени �
     const clientTexts = () => sent.filter(m => m.bot === 'client');
     assert.equal(clientTexts().length, 4);
     const toUser = (n) => clientTexts().find(m => m.chat === String(880100 + n)).text;
-    assert.match(toUser(4), /Курьер в пути/); assert.match(toUser(4), /Время прибытия уточним после определения фактического местоположения/);
-    assert.match(toUser(2), /Курьер выехал/); assert.match(toUser(2), /2-й из 4/); assert.match(toUser(2), /через ~15 мин/);
-    assert.match(toUser(1), /3-й из 4/); assert.match(toUser(1), /через ~30 мин/); assert.match(toUser(3), /4-й из 4/); assert.match(toUser(3), /через ~45 мин/);
+    assert.match(toUser(3), /Курьер в пути/); assert.match(toUser(3), /Время прибытия уточним после определения фактического местоположения/);
+    assert.match(toUser(1), /Курьер выехал/); assert.match(toUser(1), /2-й из 4/); assert.match(toUser(1), /через ~15 мин/);
+    assert.match(toUser(2), /3-й из 4/); assert.match(toUser(2), /через ~30 мин/); assert.match(toUser(4), /4-й из 4/); assert.match(toUser(4), /через ~45 мин/);
     sent.length = 0;
 
     // повторное нажатие и пересчёт без сдвига ничего не отправляют
@@ -126,7 +126,7 @@ test('маршрут из 4 заказов: порядок по времени �
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
     assert.equal(clientTexts().length, 2, 'сдвиг больше 15 минут — обновление двум оставшимся');
     assert.ok(clientTexts().every(m => /уточнено/.test(m.text)));
-    assert.deepEqual(clientTexts().map(m => m.chat).sort(), [String(880101), String(880103)]);
+    assert.deepEqual(clientTexts().map(m => m.chat).sort(), [String(880102), String(880104)]);
     assert.ok(fetchCalls > 0);
     assert.equal((await db.completeDeliveryStop(stops[2].id)).status, 'completed', 'курьер может завершить доставку после старта маршрута');
 
