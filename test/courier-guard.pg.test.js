@@ -265,7 +265,8 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok(!nextAfterFailure[1].inline_keyboard.flat().some(b =>
         b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[0].id}_enroute`),
         'недоставленная точка больше не активна');
-    assert.equal(Number((await db.getDayStats('2026-11-14')).failed), 1, 'статистика админ-панели учитывает недоставку');
+    assert.equal(Number((await pool.query('SELECT failed FROM delivery_routes WHERE id = $1', [failedRoute.id])).rows[0].failed), 1, 'счётчик недоставки маршрута обновлён');
+    assert.ok(Number((await db.getDayStats('2026-11-14')).failed) >= 1, 'общая статистика учитывает недоставку (в ней также могут быть отменённые остановки)');
     assert.ok((await adminTexts()).some(t => /Не доставлено/.test(t) && /Не отвечает на звонки/.test(t)),
         'админ получает статус и причину недоставки');
     assert.ok((await clientTexts()).some(t => /не доставлен/.test(t) && /Не отвечает на звонки/.test(t)),

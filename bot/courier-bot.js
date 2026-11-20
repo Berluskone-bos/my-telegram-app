@@ -664,7 +664,7 @@ bot.on('callback_query', async (query) => {
         const stopId = parseInt(parts[2]);
         const reason = parts.slice(3).join('_');
         const originMessageId = query.message?.reply_to_message?.message_id || null;
-        handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason, originMessageId);
+        await handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason, originMessageId);
         return;
     }
 
@@ -1061,7 +1061,9 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
                 }, { chat_id: chatId, message_id: routeMessageId });
             } catch (e) { console.error('[ROUTE] Не удалось открыть следующую точку после недоставки:', errorCode(e)); }
         }
-        routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени после недоставки не удался:', errorCode(e)));
+        try {
+            await routeSvc.refreshEtas({ routeId, notifyNew: false });
+        } catch (e) { console.error('[DELIVER] пересчёт времени после недоставки не удался:', errorCode(e)); }
 
         const safeReason = String(reason || 'Не указана').slice(0, 300);
         if (callbackQueryId) {
@@ -1069,13 +1071,13 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
                 text: failure.status === 'already' ? 'Недоставка уже отмечена.' : 'Недоставка сохранена. Открыта следующая точка.'
             }).catch(() => {});
         }
-        bot.sendMessage(chatId,
+        await bot.sendMessage(chatId,
             `Не доставлено: ${escapeHtml(stop.order_number || '')}\nАдрес: ${escapeHtml(stop.address)}\nПричина: ${escapeHtml(safeReason)}`);
         if (failure.status === 'failed') {
-            notifyAdmin(`[ДОСТАВКА] ${escapeHtml(route.route_number)} | Не доставлено\nАдрес: ${escapeHtml(stop.address)}${stop.order_number ? '\nЗаказ: ' + escapeHtml(stop.order_number) : ''}\nПричина: ${escapeHtml(safeReason)}`);
+            await notifyAdmin(`[ДОСТАВКА] ${escapeHtml(route.route_number)} | Не доставлено\nАдрес: ${escapeHtml(stop.address)}${stop.order_number ? '\nЗаказ: ' + escapeHtml(stop.order_number) : ''}\nПричина: ${escapeHtml(safeReason)}`);
             if (stop.client_chat_id) {
                 await trackerEvent(trackerPool(), stop.order_number, { stage: 'failed', eta: '' }).catch(() => {});
-                queue.notify('client', stop.client_chat_id,
+                await queue.notify('client', stop.client_chat_id,
                     `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>не доставлен</b>.\nПричина: ${escapeHtml(safeReason)}`,
                     { dedupKey: `stop-failed:${stopId}` });
             }

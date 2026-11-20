@@ -40,12 +40,11 @@ class MapLinks {
         return url;
     }
 
-    // Актуальный deeplink 2GIS: пустая точка A — старт с текущей геопозиции.
-    // Каждая следующая пара координат — адрес доставки, порядок lon,lat.
+    // 2GIS: пустая начальная точка означает старт от текущего местоположения.
     static gis2Route(stops) {
-        if (!Array.isArray(stops) || stops.length === 0) return 'https://2gis.ru/directions/tab/car';
-        const destinations = stops.map(s => `${s.lon},${s.lat}`).join('|');
-        return `https://2gis.ru/directions/points/|${destinations}`;
+        if (!Array.isArray(stops) || stops.length === 0) return 'https://2gis.ru/';
+        const destinations = stops.map(s => `${s.lon},${s.lat}`).join('~');
+        return `https://2gis.ru/directions/tab/car?r=~${destinations}`;
     }
 
     // Все три навигатора для одной точки
