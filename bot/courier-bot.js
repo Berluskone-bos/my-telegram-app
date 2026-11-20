@@ -846,15 +846,22 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-            let ownSent = false;
             try {
-                const r = await routeSvc.refreshEtas({ routeId, firstStopId: stopId, notifyNew: false });
-                ownSent = !!(r && r.sent.some(x => Number(x.stopId) === Number(stopId) && x.kind === 'own'));
-            } catch (e) { console.error('[DELIVER] расчёт времени приезда не удался:', errorCode(e)); }
-            // карточка заказа у клиента (если есть) меняется без уведомления; обычный текст — только когда карточки нет
-            const onCard = stop?.order_number && stop.status !== 'cancelled' ? await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute' }) : false;
-            if (!ownSent && !onCard && stop?.client_chat_id && stop.status !== 'cancelled') {
-                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ.`,
+                // Обновляем только внутренние ориентиры курьера; ETA клиенту не отправляем.
+                await routeSvc.refreshEtas({ routeId, firstStopId: stopId });
+            } catch (e) { console.error('[DELIVER] обновление маршрутного листа не удалось:', errorCode(e)); }
+            const courier = await db.getCourierByTelegramId(query.from.id);
+            const courierPhone = String(courier?.phone || '').trim();
+            if (stop?.order_number && stop.status !== 'cancelled') {
+                // Карточка заказа обновляется без ETA, а отдельное сообщение сообщает только о выезде.
+                await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute', eta: '', courier: courier?.name || '' }).catch(() => {});
+            }
+            if (stop?.client_chat_id && stop.status !== 'cancelled') {
+                const contact = courierPhone
+                    ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courier?.name || '')}: ${escapeHtml(courierPhone)}.`
+                    : 'Телефон курьера пока не указан. Для уточнения времени прибытия свяжитесь с нами.';
+                queue.notify('client', stop.client_chat_id,
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер везёт ваш заказ.\n${contact}`,
                     { dedupKey: `stop-enroute:${stopId}` });
             }
         } catch (e) { console.error('[DELIVER] notify error:', errorCode(e)); }

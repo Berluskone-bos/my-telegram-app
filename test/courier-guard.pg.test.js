@@ -56,7 +56,7 @@ test('курьерский бот: кнопки отменённого зака�
 
     await pool.query('DELETE FROM notification_outbox');
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
-    const courier = await db.createCourier({ name: 'Курьер-гард', phone: '1', telegram_id: 900002, telegram_user: 'g', vehicle_type: 'авто' });
+    const courier = await db.createCourier({ name: 'Курьер-гард', phone: '+7 999 000-00-00', telegram_id: 900002, telegram_user: 'g', vehicle_type: 'авто' });
     t.after(async () => {
         await pool.query('DELETE FROM notification_outbox');
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
@@ -146,7 +146,10 @@ test('курьерский бот: кнопки отменённого зака�
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
     let texts = await clientTexts();
-    assert.equal(texts.length, 1); assert.match(texts[0], /Курьер в пути/); assert.match(texts[0], /везёт ваш заказ/);
+    assert.equal(texts.length, 1); assert.match(texts[0], /Курьер выехал/); assert.match(texts[0], /везёт ваш заказ/);
+    assert.match(texts[0], /Для уточнения времени прибытия позвоните курьеру/);
+    assert.match(texts[0], /\+7 999 000-00-00/);
+    assert.doesNotMatch(texts[0], /ориентировочно|через ~|около \d{1,2}:\d{2}/i);
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);   // повторное нажатие не дублирует сообщение
     assert.equal((await clientTexts()).length, 1, 'дубля нет');
     assert.equal((await adminTexts()).length, 3, 'уведомление админу о выезде не дублируется; отдельно учитывается старт маршрута');
@@ -243,7 +246,7 @@ test('курьерский бот: кнопки отменённого зака�
 
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`);
     multiClientTexts = await clientTexts();
-    assert.ok(multiClientTexts.some(t => /AP-cg_multi_2/.test(t) && /Курьер в пути/.test(t)),
+    assert.ok(multiClientTexts.some(t => /AP-cg_multi_2/.test(t) && /Курьер выехал/.test(t)),
         'второй клиент получает уведомление только после завершения первой доставки');
     assert.ok(!multiClientTexts.some(t => /AP-cg_multi_3/.test(t)),
         'третий клиент не уведомляется до завершения второй доставки');
@@ -309,6 +312,6 @@ test('курьерский бот: кнопки отменённого зака�
         'клиент получает уведомление о неудачной попытке, без сообщения о доставке');
 
     await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, fallbackCard[3].reply_markup);
-    assert.ok((await clientTexts()).some(t => /AP-cg_failed_2/.test(t) && /Курьер в пути/.test(t)),
+    assert.ok((await clientTexts()).some(t => /AP-cg_failed_2/.test(t) && /Курьер выехал/.test(t)),
         'следующий клиент получает уведомление только после закрытия предыдущей остановки');
 });
