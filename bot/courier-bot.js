@@ -663,7 +663,8 @@ bot.on('callback_query', async (query) => {
         const routeId = parseInt(parts[1]);
         const stopId = parseInt(parts[2]);
         const reason = parts.slice(3).join('_');
-        const originMessageId = query.message?.reply_to_message?.message_id || null;
+        // Callback приходит из самого сообщения с выбором причины; reply_to_message Telegram не гарантирует.
+        const originMessageId = query.message?.message_id || null;
         await handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason, originMessageId);
         return;
     }
@@ -1061,29 +1062,32 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         const nextControls = buildRouteControls(
             refreshedRoute, remaining, remaining[0] || null, remaining.length ? 'enroute' : null
         );
+        const remainingText = remaining.map((s, index) =>
+            `${index + 1}. <b>${escapeHtml(s.order_number || 'Заказ')}</b> — ${escapeHtml(s.address || 'Адрес не указан')}`
+        ).join('\n');
+        const fallbackText = remaining.length
+            ? `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\nПредыдущая остановка отмечена как недоставленная.\n\n<b>Следующая точка: 1 из ${remaining.length}</b>\n${remainingText}\n\nПродолжайте маршрут с первой активной точки.`
+            : `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\nВсе остановки завершены. Активных точек больше нет.`;
         let controlsUpdated = false;
         if (routeMessageId) {
             try {
-                await bot.editMessageReplyMarkup(
-                    { inline_keyboard: nextControls },
-                    { chat_id: chatId, message_id: routeMessageId }
-                );
+                // Редактируем именно сообщение с выбранной причиной: оно гарантированно
+                // является callback message, в отличие от необязательного reply_to_message.
+                await bot.editMessageText(fallbackText, {
+                    chat_id: chatId,
+                    message_id: routeMessageId,
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard: nextControls }
+                });
                 controlsUpdated = true;
             } catch (e) {
-                // Telegram может отклонить редактирование старого reply-сообщения.
-                // Не оставляем курьера без следующего действия — отправим новую карточку.
-                console.error('[ROUTE] Не удалось обновить исходную карточку после недоставки:', errorCode(e));
+                // Если Telegram не разрешил изменить prompt, отправляем новую карточку.
+                console.error('[ROUTE] Не удалось обновить карточку после недоставки:', errorCode(e));
             }
         }
 
         let fallbackSent = false;
         if (!controlsUpdated) {
-            const remainingText = remaining.map((s, index) =>
-                `${index + 1}. <b>${escapeHtml(s.order_number || 'Заказ')}</b> — ${escapeHtml(s.address || 'Адрес не указан')}`
-            ).join('\n');
-            const fallbackText = remaining.length
-                ? `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\nПредыдущая остановка отмечена как недоставленная.\n\n<b>Следующая точка: 1 из ${remaining.length}</b>\n${remainingText}\n\nПродолжайте маршрут с первой активной точки.`
-                : `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\nВсе остановки завершены. Активных точек больше нет.`;
             try {
                 await bot.sendMessage(chatId, fallbackText, {
                     parse_mode: 'HTML',
@@ -1094,6 +1098,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
                 console.error('[ROUTE] Не удалось отправить резервную карточку маршрута:', errorCode(e));
             }
         }
+
         try {
             await routeSvc.refreshEtas({ routeId, notifyNew: false });
         } catch (e) { console.error('[DELIVER] пересчёт времени после недоставки не удался:', errorCode(e)); }
