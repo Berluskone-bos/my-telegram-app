@@ -140,7 +140,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
     // Пересчитать время приезда по остановкам маршрута и сообщить клиентам.
     //   firstStopId — курьер выехал к этой точке («В пути»): её клиенту — «везёт ваш заказ» с временем;
     //                 остальным, кому ещё не писали, — «курьер выехал, вы N-й, будет через…»
-    //   from — где курьер сейчас ({lat, lon}); без него — склад
+    //   from — фактическая геопозиция курьера ({lat, lon}); без неё первая ETA неизвестна
     //   notifyNew — false: только обновить тем, кому время уже называли (после доставки/недоставки)
     async function refreshEtas({ routeId, firstStopId = null, from = null, notifyNew = true }) {
         const route = await db.getRouteById(routeId);
@@ -165,16 +165,16 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             let kind = null;
             if (firstStopId && Number(stop.id) === Number(firstStopId)) kind = 'own';
             else if (!told && notifyNew) kind = 'first';
-            else if (told && Math.abs(p.etaAt - told) / 60e3 > thresholdMin()) kind = 'update';
-            await db.setStopEta(stop.id, p.etaAt, !!kind && !!stop.client_chat_id);
+            else if (told && p.etaAt && Math.abs(p.etaAt - told) / 60e3 > thresholdMin()) kind = 'update';
+            await db.setStopEta(stop.id, p.etaAt, !!kind && !!stop.client_chat_id && !!p.etaAt);
             if (kind && stop.client_chat_id) {
                 const pos = pending.findIndex(s => Number(s.id) === Number(stop.id)) + 1;
-                const clock = planner.formatEta(p.etaAt, t).clock;
+                const clock = p.etaAt ? planner.formatEta(p.etaAt, t).clock : 'no-eta';
                 queue.notify('client', stop.client_chat_id, etaClientText(stop, p.etaAt, kind, pos, pending.length),
                     { dedupKey: `eta:${stop.id}:${kind}:${clock}` });
                 sent.push({ stopId: stop.id, kind });
                 // то же время — в карточку заказа клиента (без уведомления; текст выше его и так даёт)
-                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
+                if (p.etaAt) await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
             }
         }
         // точки без координат остаются без времени; сообщение «курьер в пути» их клиентам отправляет обработчик кнопки
