@@ -354,3 +354,5 @@
 - Исправление: при отсутствии исходного message_id либо ошибке `editMessageReplyMarkup` отправлять новую маршрутную карточку с первой оставшейся активной остановкой и кнопками навигации/«В пути»/«Не доставлено». Серверный guard и транзакция `failDeliveryStop` остаются без изменений.
 - Добавлен регрессионный PostgreSQL integration test: принудительно отклонить редактирование Telegram-карточки и проверить, что курьеру отправлена новая карточка с кнопкой второго заказа, а первая точка исключена.
 - Production и рабочая PostgreSQL не менялись. CI и ручной smoke test исправления ожидаются.
+
+- CI update: GitHub Actions run `44724345317` (run #269) completed `success`; syntax checks, npm audit, secret scanning, and all automated tests passed, including the new Telegram edit-failure regression. PR #69 is open; no merge or production deployment has occurred. Real Telegram smoke test remains pending after an approved deployment.
