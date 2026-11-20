@@ -852,14 +852,13 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             } catch (e) { console.error('[DELIVER] обновление маршрутного листа не удалось:', errorCode(e)); }
             const courier = await db.getCourierByTelegramId(query.from.id);
             const courierPhone = String(courier?.phone || '').trim();
-            const phoneLink = courierPhone.replace(/[^0-9+]/g, '');
             if (stop?.order_number && stop.status !== 'cancelled') {
                 // Карточка заказа обновляется без ETA, а отдельное сообщение сообщает только о выезде.
                 await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute', eta: '', courier: courier?.name || '' }).catch(() => {});
             }
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
                 const contact = courierPhone && phoneLink
-                    ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courier?.name || '')}: <a href="tel:${escapeHtml(phoneLink)}">${escapeHtml(courierPhone)}</a>.`
+                    ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courier?.name || '')}: ${escapeHtml(courierPhone)}.`
                     : 'Телефон курьера пока не указан. Для уточнения времени прибытия свяжитесь с нами.';
                 queue.notify('client', stop.client_chat_id,
                     `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер везёт ваш заказ.\n${contact}`,
