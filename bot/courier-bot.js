@@ -857,7 +857,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 await trackerEvent(trackerPool(), stop.order_number, { stage: 'enroute', eta: '', courier: courier?.name || '' }).catch(() => {});
             }
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
-                const contact = courierPhone && phoneLink
+                const contact = courierPhone
                     ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courier?.name || '')}: ${escapeHtml(courierPhone)}.`
                     : 'Телефон курьера пока не указан. Для уточнения времени прибытия свяжитесь с нами.';
                 queue.notify('client', stop.client_chat_id,
