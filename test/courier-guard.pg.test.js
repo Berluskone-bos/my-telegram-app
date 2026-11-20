@@ -56,9 +56,9 @@ test('курьерский бот: кнопки отменённого зака�
             stops: [{ order_id: String(o.id), order_number: o.order_number, address: o.address, phone: '1', client_name: 'К', client_chat_id: o.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
         return { o, route, stopId: route.stops[0].id };
     };
-    const press = async (data) => {
+    const press = async (data, replyMarkup = { inline_keyboard: [] }) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: { inline_keyboard: [] } } });
+        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
@@ -122,7 +122,7 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok((await adminTexts())[1].startsWith('[МАРШРУТ]') && /начат курьером/i.test((await adminTexts())[1]));
     const enroutePrompt = calls.find(c => c[0] === 'sendMessage' &&
         c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
-    assert.ok(enroutePrompt, 'после общего старта курьер получает отдельную карточку заказа с кнопкой «В пути»');
+    assert.ok(enroutePrompt, 'после общего старта курьер получает карточку с кнопкой «В пути»');
     assert.match(enroutePrompt[2], /Адрес:/);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
@@ -161,4 +161,60 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal(Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count), initialCount + 1);
     assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777004, 3)).status, 'already_rated');
     assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777005, 4)).status, 'not_allowed');
+
+    // Маршрут из трёх заказов: одна карта со всеми точками и строго последовательные клиентские статусы.
+    await pool.query('DELETE FROM notification_outbox');
+    const multiOrders = [];
+    for (let i = 1; i <= 3; i++) {
+        const key = `cg_multi_${i}`;
+        const o = await db.createOrder({ order_number: 'AP-' + key, user_id: 777010 + i, user_name: 'К', name: 't', phone: '1',
+            address: `СПб, адрес ${i}`, zone: 'spb', city: 'c', street: 's', house: String(i), items: [], subtotal: 1, total: 1, idempotency_key: key });
+        for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o.id, status), true);
+        multiOrders.push(o);
+    }
+    const multiRoute = await db.createRoute({
+        route_number: 'RL-CGMULTI', route_date: '2026-11-14', courier_id: courier.id, status: 'assigned',
+        total_orders: 3, enforceReadyOrders: true,
+        stops: multiOrders.map((o, i) => ({
+            order_id: String(o.id), order_number: o.order_number, stop_number: i + 1,
+            address: o.address, lat: 59.93 + i * 0.01, lon: 30.33 + i * 0.01,
+            phone: '1', client_name: 'К', client_chat_id: o.user_id,
+            amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: ''
+        }))
+    });
+    for (const st of multiRoute.stops) await press(`deliver_${multiRoute.id}_${st.id}_accept`);
+    await press(`startroute_${multiRoute.id}`);
+    const routeCard = calls.filter(c => c[0] === 'sendMessage');
+    assert.equal(routeCard.length, 1, 'после старта отправляется одно сообщение с единым маршрутом');
+    const routeText = routeCard[0][2];
+    assert.match(routeText, /1\. <b>AP-cg_multi_1/);
+    assert.match(routeText, /2\. <b>AP-cg_multi_2/);
+    assert.match(routeText, /3\. <b>AP-cg_multi_3/);
+    const routeKeyboard = routeCard[0][3].reply_markup.inline_keyboard;
+    const mapButtons = routeKeyboard.flat().filter(x => x.url);
+    assert.equal(mapButtons.length, 2, 'одна карточка содержит ссылки на общий маршрут в навигаторах');
+    assert.match(mapButtons[0].url, /59\.93,30\.33~59\.94,30\.34~59\.95,30\.35/);
+    assert.ok(routeKeyboard.flat().some(x => x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[0].id}_enroute`));
+    assert.deepEqual(await clientTexts(), [], 'при старте маршрута ни один клиент не получает преждевременное «Курьер в пути»');
+
+    await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_enroute`, { inline_keyboard: routeKeyboard });
+    let multiClientTexts = await clientTexts();
+    assert.equal(multiClientTexts.length, 1, 'после «В пути» уведомляется только первый клиент');
+    assert.match(multiClientTexts[0], /AP-cg_multi_1/);
+    await press(`deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`, { inline_keyboard: routeKeyboard });
+    assert.equal((await clientTexts()).length, 1, 'нельзя начать вторую точку до завершения первой');
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /предыдущую доставку/);
+
+    await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_arrived`, { inline_keyboard: routeKeyboard });
+    await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_done`, { inline_keyboard: routeKeyboard });
+    const nextKeyboardCall = calls.find(c => c[0] === 'editMessageReplyMarkup');
+    assert.ok(nextKeyboardCall?.[1]?.inline_keyboard?.flat().some(x =>
+        x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`),
+        'после завершения первой доставки в той же карточке открывается вторая точка');
+    assert.equal((await clientTexts()).length, 3, 'первый клиент получает «В пути», «У клиента», «Доставлен»; второй пока не уведомлён');
+
+    await press(`deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`);
+    multiClientTexts = await clientTexts();
+    assert.equal(multiClientTexts.length, 4, 'второй клиент получает уведомление только после завершения первой доставки');
+    assert.match(multiClientTexts[3], /AP-cg_multi_2/);
 });
