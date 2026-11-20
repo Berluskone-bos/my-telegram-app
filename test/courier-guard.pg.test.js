@@ -216,8 +216,10 @@ test('курьерский бот: кнопки отменённого зака�
 
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`);
     multiClientTexts = await clientTexts();
-    assert.equal(multiClientTexts.length, 4, 'второй клиент получает уведомление только после завершения первой доставки');
-    assert.match(multiClientTexts[3], /AP-cg_multi_2/);
+    assert.ok(multiClientTexts.some(t => /AP-cg_multi_2/.test(t) && /Курьер в пути/.test(t)),
+        'второй клиент получает уведомление только после завершения первой доставки');
+    assert.ok(!multiClientTexts.some(t => /AP-cg_multi_3/.test(t)),
+        'третий клиент не уведомляется до завершения второй доставки');
 
     // Недоставка первой из трёх точек должна закрыть только остановку, а не весь маршрут.
     await pool.query('DELETE FROM notification_outbox');
