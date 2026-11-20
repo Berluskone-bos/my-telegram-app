@@ -207,7 +207,7 @@ test('курьерский бот: кнопки отменённого зака�
 
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_arrived`, { inline_keyboard: routeKeyboard });
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_done`, { inline_keyboard: routeKeyboard });
-    const nextKeyboardCall = calls.find(c => c[0] === 'editMessageReplyMarkup');
+    const nextKeyboardCall = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1);
     assert.ok(nextKeyboardCall?.[1]?.inline_keyboard?.flat().some(x =>
         x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`),
         'после завершения первой доставки в той же карточке открывается вторая точка');
