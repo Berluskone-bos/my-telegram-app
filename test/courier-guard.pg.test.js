@@ -123,7 +123,8 @@ test('курьерский бот: кнопки отменённого зака�
     const enroutePrompt = calls.find(c => c[0] === 'sendMessage' &&
         c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
     assert.ok(enroutePrompt, 'после общего старта курьер получает карточку с кнопкой «В пути»');
-    assert.match(enroutePrompt[2], /Адрес:/);
+    assert.match(enroutePrompt[2], /AP-cg2/);
+    assert.match(enroutePrompt[2], /СПб, ул\. Т/);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
