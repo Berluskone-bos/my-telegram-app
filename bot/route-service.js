@@ -129,23 +129,12 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: 'current-location' }, sequence: sequence.map(s => s.order.order_number) };
     }
 
-    const etaClientText = (stop, eta, kind, position, total) => {
-        const head = `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\n`;
-        const when = eta ? planner.formatEta(eta, now()).text : null;
-        if (kind === 'own') return head + (when ? `Статус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ и будет у вас ${when}.` : `Статус: <b>Курьер в пути</b>\nКурьер начал маршрут. Время прибытия уточним после определения фактического местоположения.`);
-        if (kind === 'first') return head + (when ? `Статус: <b>Курьер выехал</b>\nВаш заказ — ${position}-й из ${total} по маршруту курьера. Ориентировочно курьер будет у вас ${when}.\nВремя приблизительное; если оно заметно изменится, мы напишем.` : `Статус: <b>Курьер выехал</b>\nВаш заказ — ${position}-й из ${total} по маршруту курьера. Время прибытия уточним после первой остановки.`);
-        return head + `Время приезда курьера уточнено: курьер будет у вас ${when}.`;
-    };
-
-    // Пересчитать время приезда по остановкам маршрута и сообщить клиентам.
-    //   firstStopId — курьер выехал к этой точке («В пути»): её клиенту — «везёт ваш заказ» с временем;
-    //                 остальным, кому ещё не писали, — «курьер выехал, вы N-й, будет через…»
-    //   from — фактическая геопозиция курьера ({lat, lon}); без неё первая ETA неизвестна
-    //   notifyNew — false: только обновить тем, кому время уже называли (после доставки/недоставки)
-    async function refreshEtas({ routeId, firstStopId = null, from = null, notifyNew = true }) {
+    // Пересчитать внутренние ориентиры для маршрутного листа курьера.
+    // Расчётное время не отправляем клиентам: оно не учитывает фактические пробки и задержки.
+    async function refreshEtas({ routeId, firstStopId = null, from = null }) {
         const route = await db.getRouteById(routeId);
         if (!route) return null;
-        await queueRouteSheetEdit(poolOf(), routeId, { activeStopId: firstStopId, now: now() }).catch(e => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
+        await queueRouteSheetEdit(poolOf(), routeId, { activeStopId: firstStopId, now: now() }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
         const t = now();
         let pending = (route.stops || []).filter(s => ACTIVE.includes(s.status)).sort((a, b) => a.stop_number - b.stop_number);
         if (firstStopId) {
@@ -153,32 +142,16 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             if (f) pending = [f, ...pending.filter(s => s !== f)];
         }
         if (!pending.length) return null;
-        // Если GPS не передан, используем последнюю завершённую точку; для первой остановки старта нет.
         const done = (route.stops || []).filter(s => ['delivered', 'failed'].includes(s.status) && planner.hasCoords(s))
             .sort((a, b) => b.stop_number - a.stop_number)[0];
         const start = from || (done ? { lat: Number(done.lat), lon: Number(done.lon) } : null);
         const plan = await planner.planRoute({ start, stops: pending, departAt: t, serviceMin: serviceMin(), keepOrder: true });
-        const sent = [];
         for (const p of plan.ordered) {
             const stop = pending.find(s => Number(s.id) === Number(p.id));
-            const told = stop.eta_told_at ? new Date(stop.eta_told_at) : null;
-            let kind = null;
-            if (firstStopId && Number(stop.id) === Number(firstStopId)) kind = 'own';
-            else if (!told && notifyNew) kind = 'first';
-            else if (told && p.etaAt && Math.abs(p.etaAt - told) / 60e3 > thresholdMin()) kind = 'update';
-            await db.setStopEta(stop.id, p.etaAt, !!kind && !!stop.client_chat_id && !!p.etaAt);
-            if (kind && stop.client_chat_id) {
-                const pos = pending.findIndex(s => Number(s.id) === Number(stop.id)) + 1;
-                const clock = p.etaAt ? planner.formatEta(p.etaAt, t).clock : 'no-eta';
-                queue.notify('client', stop.client_chat_id, etaClientText(stop, p.etaAt, kind, pos, pending.length),
-                    { dedupKey: `eta:${stop.id}:${kind}:${clock}` });
-                sent.push({ stopId: stop.id, kind });
-                // то же время — в карточку заказа клиента (без уведомления; текст выше его и так даёт)
-                if (p.etaAt) await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
-            }
+            // ETA остаётся только внутренним ориентиром курьера; клиентам не сообщается.
+            await db.setStopEta(stop.id, p.etaAt, false);
         }
-        // точки без координат остаются без времени; сообщение «курьер в пути» их клиентам отправляет обработчик кнопки
-        return { plan, sent };
+        return { plan, sent: [] };
     }
 
     return { buildRoute, refreshEtas };
