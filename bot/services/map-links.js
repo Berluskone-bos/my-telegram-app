@@ -21,30 +21,31 @@ class MapLinks {
         return `https://2gis.ru/geo/${lon},${lat}`;
     }
 
-    // Маршрут через несколько точек в Яндекс.Карты
+    // Маршрут начинается от текущего местоположения пользователя.
+    // Первая координата — уже точка доставки, а не фиктивная точка отправления.
     static yandexRoute(stops) {
-        const rtext = stops.map(s => `${s.lat},${s.lon}`).join('~');
-        return `https://yandex.ru/maps/?rtext=${rtext}&rtt=auto`;
+        if (!Array.isArray(stops) || stops.length === 0) return 'https://yandex.ru/maps/';
+        const destinations = stops.map(s => `${s.lat},${s.lon}`).join('~');
+        return `https://yandex.ru/maps/?rtext=~${destinations}&rtt=auto`;
     }
 
-    // Маршрут через несколько точек в Google Maps
+    // Google Maps без origin использует текущее местоположение устройства.
+    // Все адреса клиентов сохраняются: промежуточные — waypoints, последний — destination.
     static googleRoute(stops) {
-        if (stops.length < 2) {
-            return MapLinks.google(stops[0].lat, stops[0].lon);
-        }
-        const origin = `${stops[0].lat},${stops[0].lon}`;
+        if (!Array.isArray(stops) || stops.length === 0) return 'https://www.google.com/maps/';
         const destination = `${stops[stops.length - 1].lat},${stops[stops.length - 1].lon}`;
-        const waypoints = stops.slice(1, -1).map(s => `${s.lat},${s.lon}`).join('|');
-
-        let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
-        if (waypoints) url += `&waypoints=${waypoints}`;
+        const waypoints = stops.slice(0, -1).map(s => `${s.lat},${s.lon}`);
+        let url = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+        if (waypoints.length) url += `&waypoints=${encodeURIComponent(waypoints.join('|'))}`;
         return url;
     }
 
-    // Маршрут через несколько точек в 2GIS
+    // Актуальный deeplink 2GIS: пустая точка A — старт с текущей геопозиции.
+    // Каждая следующая пара координат — адрес доставки, порядок lon,lat.
     static gis2Route(stops) {
-        const rtext = stops.map(s => `${s.lon},${s.lat}`).join('~');
-        return `https://2gis.ru/directions/tab/car?r=${rtext}`;
+        if (!Array.isArray(stops) || stops.length === 0) return 'https://2gis.ru/directions/tab/car';
+        const destinations = stops.map(s => `${s.lon},${s.lat}`).join('|');
+        return `https://2gis.ru/directions/points/|${destinations}`;
     }
 
     // Все три навигатора для одной точки
