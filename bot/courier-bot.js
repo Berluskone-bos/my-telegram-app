@@ -653,7 +653,7 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('failed_')) {
         const [, routeId, stopId] = data.split('_');
-        showFailureReasons(chatId, parseInt(routeId), parseInt(stopId));
+        showFailureReasons(chatId, parseInt(routeId), parseInt(stopId), query.message?.message_id);
         bot.answerCallbackQuery(query.id);
         return;
     }
@@ -663,7 +663,8 @@ bot.on('callback_query', async (query) => {
         const routeId = parseInt(parts[1]);
         const stopId = parseInt(parts[2]);
         const reason = parts.slice(3).join('_');
-        handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason);
+        const originMessageId = query.message?.reply_to_message?.message_id || null;
+        handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason, originMessageId);
         return;
     }
 
@@ -929,7 +930,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 .filter(s => !['cancelled', 'delivered', 'failed'].includes(s.status))
                 .sort((a, b) => Number(a.stop_number) - Number(b.stop_number));
             await bot.editMessageReplyMarkup({
-                inline_keyboard: buildRouteControls(refreshedRoute, refreshedRoute?.stops || [], remaining[0] || null, remaining.length ? 'enroute' : null)
+                inline_keyboard: buildRouteControls(refreshedRoute, remaining, remaining[0] || null, remaining.length ? 'enroute' : null)
             }, { chat_id: chatId, message_id: msgId });
         } catch (e) { console.error('[ROUTE] Не удалось открыть следующую точку:', errorCode(e)); }
 
@@ -990,7 +991,7 @@ function buildNavButtons(route, stop, nextState) {
 
 // ====== Причины не доставки ======
 
-function showFailureReasons(chatId, routeId, stopId) {
+function showFailureReasons(chatId, routeId, stopId, routeMessageId = null) {
     const buttons = [
         [{ text: 'Клиента нет дома', callback_data: `failreason_${routeId}_${stopId}_Клиента нет дома` }],
         [{ text: 'Не отвечает на звонки', callback_data: `failreason_${routeId}_${stopId}_Не отвечает на звонки` }],
@@ -1001,13 +1002,14 @@ function showFailureReasons(chatId, routeId, stopId) {
 
     bot.sendMessage(chatId, '<b>Причина не доставки:</b>', {
         parse_mode: 'HTML',
+        ...(routeMessageId ? { reply_to_message_id: routeMessageId } : {}),
         reply_markup: { inline_keyboard: buttons }
     });
 }
 
 // ====== Обработка результата доставки ======
 
-async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, reason = '') {
+async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, reason = '', routeMessageId = null) {
     const route = await db.getRouteById(routeId);
     if (!route) {
         if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId, { text: 'Маршрут не найден' });
@@ -1025,13 +1027,69 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         return;
     }
 
+    if (status === 'failed') {
+        let failure;
+        try {
+            failure = await db.failDeliveryStop(stopId, reason || 'Не указана');
+        } catch (e) {
+            console.error('[DELIVER] failure transaction failed:', errorCode(e));
+            if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId, { text: 'Не удалось сохранить недоставку. Повторите позже.', show_alert: true }).catch(() => {});
+            return;
+        }
+        if (!['failed', 'already'].includes(failure.status)) {
+            const messages = {
+                not_found: 'Остановка не найдена.',
+                cancelled: 'Заказ отменён. Недоставку фиксировать нельзя.',
+                forbidden: 'Остановка уже завершена или ещё не начата.',
+                route_not_started: 'Сначала необходимо начать весь маршрут.'
+            };
+            if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId, {
+                text: messages[failure.status] || 'Не удалось отметить недоставку.',
+                show_alert: true
+            }).catch(() => {});
+            return;
+        }
+
+        const refreshedRoute = await db.getRouteById(routeId);
+        const remaining = (refreshedRoute?.stops || [])
+            .filter(s => !['cancelled', 'delivered', 'failed'].includes(s.status))
+            .sort((a, b) => Number(a.stop_number) - Number(b.stop_number));
+        if (routeMessageId) {
+            try {
+                await bot.editMessageReplyMarkup({
+                    inline_keyboard: buildRouteControls(refreshedRoute, remaining, remaining[0] || null, remaining.length ? 'enroute' : null)
+                }, { chat_id: chatId, message_id: routeMessageId });
+            } catch (e) { console.error('[ROUTE] Не удалось открыть следующую точку после недоставки:', errorCode(e)); }
+        }
+        routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени после недоставки не удался:', errorCode(e)));
+
+        const safeReason = String(reason || 'Не указана').slice(0, 300);
+        if (callbackQueryId) {
+            bot.answerCallbackQuery(callbackQueryId, {
+                text: failure.status === 'already' ? 'Недоставка уже отмечена.' : 'Недоставка сохранена. Открыта следующая точка.'
+            }).catch(() => {});
+        }
+        bot.sendMessage(chatId,
+            `Не доставлено: ${escapeHtml(stop.order_number || '')}\nАдрес: ${escapeHtml(stop.address)}\nПричина: ${escapeHtml(safeReason)}`);
+        if (failure.status === 'failed') {
+            notifyAdmin(`[ДОСТАВКА] ${escapeHtml(route.route_number)} | Не доставлено\nАдрес: ${escapeHtml(stop.address)}${stop.order_number ? '\nЗаказ: ' + escapeHtml(stop.order_number) : ''}\nПричина: ${escapeHtml(safeReason)}`);
+            if (stop.client_chat_id) {
+                await trackerEvent(trackerPool(), stop.order_number, { stage: 'failed', eta: '' }).catch(() => {});
+                queue.notify('client', stop.client_chat_id,
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>не доставлен</b>.\nПричина: ${escapeHtml(safeReason)}`,
+                    { dedupKey: `stop-failed:${stopId}` });
+            }
+        }
+        return;
+    }
+
     if (reason === 'Другое') {
         if (callbackQueryId) bot.answerCallbackQuery(callbackQueryId);
         bot.sendMessage(chatId, 'Введите причину:');
         bot.once('message', async (msg) => {
             if (msg.chat.id !== chatId) return;
             const customReason = msg.text || 'Не указана';
-            handleDeliveryResult(routeId, stopId, 'failed', chatId, null, customReason);
+            handleDeliveryResult(routeId, stopId, 'failed', chatId, null, customReason, routeMessageId);
         });
         return;
     }

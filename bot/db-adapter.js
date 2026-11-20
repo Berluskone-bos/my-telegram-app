@@ -489,6 +489,79 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Неудачная попытка доставки — отдельный терминальный результат остановки,
+    // но не отмена заказа и не завершение всего маршрута. Заказ остаётся SHIPPING,
+    // чтобы оператор мог принять решение о повторной доставке или отмене.
+    async failDeliveryStop(stopId, reason) {
+        const id = Number(stopId);
+        if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const candidateRes = await client.query(
+                'SELECT id, route_id, order_id, order_number FROM route_stops WHERE id = $1', [id]);
+            if (!candidateRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+            const candidate = candidateRes.rows[0];
+
+            // Единый порядок блокировок: заказ → маршрут → остановка.
+            if (candidate.order_id || candidate.order_number) {
+                await client.query(
+                    `SELECT id FROM orders
+                      WHERE (NULLIF($1::text, '') IS NOT NULL AND id::text = NULLIF($1::text, ''))
+                         OR (NULLIF($2::text, '') IS NOT NULL AND order_number = NULLIF($2::text, ''))
+                      ORDER BY CASE WHEN id::text = NULLIF($1::text, '') THEN 0 ELSE 1 END
+                      LIMIT 1 FOR UPDATE`,
+                    [candidate.order_id == null ? '' : String(candidate.order_id), candidate.order_number || '']);
+            }
+            const routeRes = await client.query(
+                'SELECT id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
+            if (!routeRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+            if (routeRes.rows[0].status !== 'in_progress') {
+                await client.query('ROLLBACK');
+                return { status: 'route_not_started' };
+            }
+            const stopRes = await client.query(
+                'SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [id, candidate.route_id]);
+            if (!stopRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+            const stop = stopRes.rows[0];
+            if (stop.status === 'failed') {
+                await client.query('COMMIT');
+                return { status: 'already', stop };
+            }
+            if (stop.status === 'cancelled') {
+                await client.query('ROLLBACK');
+                return { status: 'cancelled' };
+            }
+            if (stop.status !== 'in_progress') {
+                await client.query('ROLLBACK');
+                return { status: 'forbidden' };
+            }
+            const updated = await client.query(
+                `UPDATE route_stops
+                    SET status = 'failed', fail_reason = $2::text
+                  WHERE id = $1 RETURNING *`,
+                [id, String(reason || 'Не указана').slice(0, 300)]);
+            await this._refreshRouteCompletion(client, candidate.route_id);
+            const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [candidate.route_id]);
+            await client.query('COMMIT');
+            return { status: 'failed', stop: updated.rows[0], route: route.rows[0] };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
+    }
+
     // Завершение доставки — одна транзакция: блокировка остановки/заказа,
     // перевод заказа в COMPLETED, обновление маршрута и постановка уведомления в outbox.
     // Повторный callback получает already и не создаёт второе уведомление.

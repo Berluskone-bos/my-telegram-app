@@ -56,9 +56,9 @@ test('курьерский бот: кнопки отменённого зака�
             stops: [{ order_id: String(o.id), order_number: o.order_number, address: o.address, phone: '1', client_name: 'К', client_chat_id: o.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
         return { o, route, stopId: route.stops[0].id };
     };
-    const press = async (data, replyMarkup = { inline_keyboard: [] }) => {
+    const press = async (data, replyMarkup = { inline_keyboard: [] }, messageExtras = {}) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: replyMarkup } });
+        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
@@ -218,4 +218,60 @@ test('курьерский бот: кнопки отменённого зака�
     multiClientTexts = await clientTexts();
     assert.equal(multiClientTexts.length, 4, 'второй клиент получает уведомление только после завершения первой доставки');
     assert.match(multiClientTexts[3], /AP-cg_multi_2/);
+
+    // Недоставка первой из трёх точек должна закрыть только остановку, а не весь маршрут.
+    await pool.query('DELETE FROM notification_outbox');
+    const failedOrders = [];
+    for (let i = 1; i <= 3; i++) {
+        const key = `cg_failed_${i}`;
+        const o = await db.createOrder({ order_number: 'AP-' + key, user_id: 777020 + i, user_name: 'К', name: 't', phone: '1',
+            address: `СПб, адрес недоставки ${i}`, zone: 'spb', city: 'c', street: 's', house: String(i), items: [], subtotal: 1, total: 1, idempotency_key: key });
+        for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o.id, status), true);
+        failedOrders.push(o);
+    }
+    const failedRoute = await db.createRoute({
+        route_number: 'RL-CGFAILED', route_date: '2026-11-14', courier_id: courier.id, status: 'assigned',
+        total_orders: 3, enforceReadyOrders: true,
+        stops: failedOrders.map((o, i) => ({
+            order_id: String(o.id), order_number: o.order_number, stop_number: i + 1,
+            address: o.address, lat: 59.96 + i * 0.01, lon: 30.36 + i * 0.01,
+            phone: '1', client_name: 'К', client_chat_id: o.user_id,
+            amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: ''
+        }))
+    });
+    for (const st of failedRoute.stops) await press(`deliver_${failedRoute.id}_${st.id}_accept`);
+    await press(`startroute_${failedRoute.id}`);
+    const failedRouteCard = calls.find(c => c[0] === 'sendMessage' &&
+        c[3]?.reply_markup?.inline_keyboard?.flat().some(b => b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[0].id}_enroute`));
+    assert.ok(failedRouteCard, 'общая карточка трёх точек создана');
+
+    await press(`failed_${failedRoute.id}_${failedRoute.stops[0].id}`, failedRouteCard[3].reply_markup);
+    const reasonPrompt = calls.find(c => c[0] === 'sendMessage' && /Причина не доставки/.test(c[2]));
+    assert.ok(reasonPrompt, 'курьеру показан выбор причины недоставки');
+    assert.equal(reasonPrompt[3].reply_to_message_id, 55, 'причина привязана к общей карточке маршрута');
+
+    await press(`failreason_${failedRoute.id}_${failedRoute.stops[0].id}_Не отвечает на звонки`, reasonPrompt[3].reply_markup,
+        { reply_to_message: { message_id: 55 } });
+    let failedState = await db.getRouteById(failedRoute.id);
+    assert.equal(failedState.stops[0].status, 'failed', 'первая остановка отмечена как недоставленная');
+    assert.equal(failedState.stops[0].fail_reason, 'Не отвечает на звонки');
+    assert.equal(failedState.status, 'in_progress', 'маршрут остаётся в пути, пока есть две активные точки');
+    assert.equal(Number(failedState.failed), 1, 'счётчик недоставленных обновлён');
+    assert.equal((await db.getOrderByNumber(failedOrders[0].id)).status, 'SHIPPING', 'заказ не отменён и не помечен доставленным');
+    const nextAfterFailure = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1);
+    assert.ok(nextAfterFailure?.[1]?.inline_keyboard?.flat()?.some(b =>
+        b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`),
+        'после недоставки в той же карточке открывается следующая остановка');
+    assert.ok(!nextAfterFailure[1].inline_keyboard.flat().some(b =>
+        b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[0].id}_enroute`),
+        'недоставленная точка больше не активна');
+    assert.equal((await db.getDayStats('2026-11-14')).failed, 1, 'статистика админ-панели учитывает недоставку');
+    assert.ok((await adminTexts()).some(t => /Не доставлено/.test(t) && /Не отвечает на звонки/.test(t)),
+        'админ получает статус и причину недоставки');
+    assert.ok((await clientTexts()).some(t => /не доставлен/.test(t) && /Не отвечает на звонки/.test(t)),
+        'клиент получает уведомление о неудачной попытке, без сообщения о доставке');
+
+    await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, nextAfterFailure[1]);
+    assert.ok((await clientTexts()).some(t => /AP-cg_failed_2/.test(t) && /Курьер в пути/.test(t)),
+        'следующий клиент получает уведомление только после закрытия предыдущей остановки');
 });
