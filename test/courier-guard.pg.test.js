@@ -207,6 +207,11 @@ test('курьерский бот: кнопки отменённого зака�
     assert.deepEqual(await clientTexts(), [], 'при старте маршрута ни один клиент не получает преждевременное «Курьер в пути»');
 
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_enroute`, { inline_keyboard: routeKeyboard });
+    let actionKeyboard = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1)?.[1]?.inline_keyboard || [];
+    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `failed_${multiRoute.id}_${multiRoute.stops[0].id}`),
+        'после нажатия «В пути» кнопка «Не доставлено» остаётся доступной');
+    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[0].id}_arrived`),
+        'после нажатия «В пути» появляется действие «У клиента»');
     let multiClientTexts = await clientTexts();
     assert.equal(multiClientTexts.length, 1, 'после «В пути» уведомляется только первый клиент');
     assert.match(multiClientTexts[0], /AP-cg_multi_1/);
@@ -215,6 +220,11 @@ test('курьерский бот: кнопки отменённого зака�
     assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /предыдущую доставку/);
 
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_arrived`, { inline_keyboard: routeKeyboard });
+    actionKeyboard = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1)?.[1]?.inline_keyboard || [];
+    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `failed_${multiRoute.id}_${multiRoute.stops[0].id}`),
+        'после нажатия «У клиента» кнопка «Не доставлено» по-прежнему доступна');
+    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[0].id}_done`),
+        'после нажатия «У клиента» доступно подтверждение «Доставлен»');
     await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_done`, { inline_keyboard: routeKeyboard });
     const nextKeyboardCall = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1);
     assert.ok(nextKeyboardCall?.[1]?.inline_keyboard?.flat().some(x =>
