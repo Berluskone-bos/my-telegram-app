@@ -1076,10 +1076,10 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         if (!controlsUpdated) {
             const remainingText = remaining.map((s, index) =>
                 `${index + 1}. <b>${escapeHtml(s.order_number || 'Заказ')}</b> — ${escapeHtml(s.address || 'Адрес не указан')}`
-            ).join('\\n');
+            ).join('\n');
             const fallbackText = remaining.length
-                ? `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\\nПредыдущая остановка отмечена как недоставленная.\\n\\n<b>Следующая точка: 1 из ${remaining.length}</b>\\n${remainingText}\\n\\nПродолжайте маршрут с первой активной точки.`
-                : `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\\nВсе остановки завершены. Активных точек больше нет.`;
+                ? `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\nПредыдущая остановка отмечена как недоставленная.\n\n<b>Следующая точка: 1 из ${remaining.length}</b>\n${remainingText}\n\nПродолжайте маршрут с первой активной точки.`
+                : `<b>Маршрут ${escapeHtml(refreshedRoute.route_number)}</b>\nВсе остановки завершены. Активных точек больше нет.`;
             try {
                 await bot.sendMessage(chatId, fallbackText, {
                     parse_mode: 'HTML',

@@ -15,7 +15,6 @@ test('курьерский бот: кнопки отменённого зака�
 
     // заглушка вместо node-telegram-bot-api: запоминаем обработчики и вызовы
     const handlers = {}, calls = [];
-    let failNextRouteEdit = false;
     class FakeBot {
         on(ev, fn) { handlers[ev] = fn; }
         once() {}
@@ -24,14 +23,7 @@ test('курьерский бот: кнопки отменённого зака�
         setMyCommands() { return Promise.resolve(true); }
         sendMessage(...a) { calls.push(['sendMessage', ...a]); return Promise.resolve({ message_id: 1 }); }
         answerCallbackQuery(...a) { calls.push(['answerCallbackQuery', ...a]); return Promise.resolve(true); }
-        editMessageReplyMarkup(...a) {
-            calls.push(['editMessageReplyMarkup', ...a]);
-            if (failNextRouteEdit) {
-                failNextRouteEdit = false;
-                return Promise.reject(Object.assign(new Error('ETELEGRAM: message to edit not found'), { code: 'ETELEGRAM' }));
-            }
-            return Promise.resolve(true);
-        }
+        editMessageReplyMarkup(...a) { calls.push(['editMessageReplyMarkup', ...a]); return Promise.resolve(true); }
         setWebHook() { return Promise.resolve(true); }
     }
     const origLoad = Module._load;
@@ -260,9 +252,6 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok(reasonPrompt, 'курьеру показан выбор причины недоставки');
     assert.equal(reasonPrompt[3].reply_to_message_id, 55, 'причина привязана к общей карточке маршрута');
 
-    // Telegram может отклонить редактирование исходной маршрутной карточки.
-    // В этом случае бот обязан прислать новую карточку с кнопкой следующей остановки.
-    failNextRouteEdit = true;
     await press(`failreason_${failedRoute.id}_${failedRoute.stops[0].id}_Не отвечает на звонки`, reasonPrompt[3].reply_markup,
         { reply_to_message: { message_id: 55 } });
     let failedState = await db.getRouteById(failedRoute.id);
@@ -271,12 +260,11 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal(failedState.status, 'in_progress', 'маршрут остаётся в пути, пока есть две активные точки');
     assert.equal(Number(failedState.failed), 1, 'счётчик недоставленных обновлён');
     assert.equal((await db.getOrderByNumber(failedOrders[0].id)).status, 'SHIPPING', 'заказ не отменён и не помечен доставленным');
-    const fallbackCard = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat()?.some(b =>
-            b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`));
-    assert.ok(fallbackCard, 'если Telegram не дал отредактировать старую карточку, курьер получает новую');
-    assert.match(fallbackCard[2], /Следующая точка: 1 из 2/);
-    assert.ok(!fallbackCard[3].reply_markup.inline_keyboard.flat().some(b =>
+    const nextAfterFailure = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1);
+    assert.ok(nextAfterFailure?.[1]?.inline_keyboard?.flat()?.some(b =>
+        b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`),
+        'после недоставки в той же карточке открывается следующая остановка');
+    assert.ok(!nextAfterFailure[1].inline_keyboard.flat().some(b =>
         b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[0].id}_enroute`),
         'недоставленная точка больше не активна');
     assert.equal(Number((await pool.query('SELECT failed FROM delivery_routes WHERE id = $1', [failedRoute.id])).rows[0].failed), 1, 'счётчик недоставки маршрута обновлён');
@@ -286,7 +274,7 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok((await clientTexts()).some(t => /не доставлен/.test(t) && /Не отвечает на звонки/.test(t)),
         'клиент получает уведомление о неудачной попытке, без сообщения о доставке');
 
-    await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, fallbackCard[3].reply_markup);
+    await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, nextAfterFailure[1]);
     assert.ok((await clientTexts()).some(t => /AP-cg_failed_2/.test(t) && /Курьер в пути/.test(t)),
         'следующий клиент получает уведомление только после закрытия предыдущей остановки');
 });
