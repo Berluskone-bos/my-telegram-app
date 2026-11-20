@@ -830,7 +830,9 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         // В пути → У клиента
         const nextButtons = [
             ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
-            [{ text: 'У клиента', callback_data: `deliver_${routeId}_${stopId}_arrived` }]
+            [{ text: 'У клиента', callback_data: `deliver_${routeId}_${stopId}_arrived` }],
+            // Недоставка остаётся доступной после выезда: исход доставки ещё неизвестен.
+            [{ text: 'Не доставлено', callback_data: `failed_${routeId}_${stopId}` }]
         ];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });
@@ -861,7 +863,9 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         // У клиента → Доставлен
         const nextButtons = [
             ...(query.message.reply_markup?.inline_keyboard?.filter(row => row.some(b => b.url)) || []),
-            [{ text: 'Доставлен', callback_data: `deliver_${routeId}_${stopId}_done` }]
+            [{ text: 'Доставлен', callback_data: `deliver_${routeId}_${stopId}_done` }],
+            // При прибытии курьер всё ещё может не вручить заказ — не скрываем отказ.
+            [{ text: 'Не доставлено', callback_data: `failed_${routeId}_${stopId}` }]
         ];
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId });

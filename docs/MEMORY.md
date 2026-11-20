@@ -356,3 +356,10 @@
 - Production и рабочая PostgreSQL не менялись. CI и ручной smoke test исправления ожидаются.
 
 - CI update: GitHub Actions run `44724345317` (run #269) completed `success`; syntax checks, npm audit, secret scanning, and all automated tests passed, including the new Telegram edit-failure regression. PR #69 is open; no merge or production deployment has occurred. Real Telegram smoke test remains pending after an approved deployment.
+
+
+## 20.11.2026 — Кнопка недоставки сохраняется на этапах доставки
+- По обратной связи курьеру после нажатия «В пути» показывалась только кнопка «У клиента», а действие «Не доставлено» исчезало. Аналогично обработчик прибытия заменял клавиатуру только кнопкой «Доставлен».
+- Исправление: на этапах «В пути» и «У клиента» сохранять кнопку «Не доставлено» рядом с действием следующего этапа. Убирать её только после окончательного «Доставлен» либо фиксации недоставки.
+- Добавлены регрессионные проверки клавиатуры после `enroute` и `arrived`: callback `failed_<route>_<stop>` остаётся доступным, а кнопка следующего этапа присутствует.
+- Изменения ограничены Telegram-клавиатурой и тестом; статусы заказов, схема БД, транзакции и серверные guards не меняются. Merge/deploy и ручной Telegram smoke test ожидаются.
