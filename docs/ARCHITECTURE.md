@@ -1,4 +1,4 @@
-# ARCHITECTURE — как собрано (по состоянию на 10.11.2026)
+# ARCHITECTURE — как собрано (по состоянию на 20.11.2026; drift-правка: loyalty/referral/admin auth)
 
 Источник истины — репозиторий `Berluskone-bos/my-telegram-app` (публичный) и сервисы Railway (бот и база данных), GitHub Pages. Neon **не используется** (проверено 17.11.2026 по живому Railway, см. `MEMORY.md`). Раньше в этих документах описывался отдельный сервер на VPS: **он не используется**, его файлы лежат в `archive-vps/` и `to-integrate/`.
 
@@ -24,7 +24,7 @@
 |---|---|
 | Фронтенд | HTML5, CSS3, чистый JS (модули `Products`, `Cart`, `Favorites`, `Profile`, `App`), Telegram WebApp API. Каталог: `data/catalog.json` (фолбэк и витрина) |
 | Бэкенд | Node.js, Express, `pg`, `node-telegram-bot-api` 0.67 (с `overrides` для безопасных `form-data`, `qs`, `tough-cookie`, `uuid`) |
-| База | PostgreSQL на Railway (служба `Postgres`, том 500 МБ, внутренний адрес `postgres.railway.internal`). Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals`, `admin_users`, `admin_sessions` и таблицы кэша подбора масла |
+| База | PostgreSQL на Railway (служба `Postgres`, том 500 МБ, внутренний адрес `postgres.railway.internal`). Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals`, `admin_users`, `admin_sessions`, `loyalty_tiers`, `bonus_ledger`, `app_settings`, `notification_outbox`, `widget_messages` и таблицы кэша подбора масла |
 | Хостинг | Фронт — GitHub Pages (workflow `deploy-pages.yml`). Бэкенд — Railway (`Procfile`). |
 | Секреты (Railway Variables) | `BOT_TOKEN`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`, `WEBHOOK_URL` (база без пути), `WEBHOOK_SECRET`, `DATABASE_URL`, `YANDEX_GEO_KEY`, `PARTSAPI_KEY_VINDECODE`, `PARTSAPI_KEY_GETFILLVOLUMES`, `PARTSAPI_KEY_TODOPUSK`, `PARTSAPI_KEY_GETMAKES`, `PARTSAPI_KEY_GETMODELS`, `PARTSAPI_KEY_GETCARS`; опц. `WAREHOUSE_ADDRESS` (или `WAREHOUSE_LAT` + `WAREHOUSE_LON`) — склад, откуда курьер стартует; `SERVICE_MINUTES` (время на выдачу заказа, по умолчанию 5), `ETA_UPDATE_MINUTES` (порог пересылки времени клиенту, 15), `OSRM_URL` (сервис дорог, по умолчанию публичный router.project-osrm.org), `WIDGETS_ENABLED` (0 — выключить интерактивные карточки, по умолчанию включены), `PARTSAPI_DAILY_LIMIT`, `ADMIN_USER_IDS`, `ALLOWED_ORIGINS`, `DB_SSL_STRICT`, `INIT_DATA_TTL_SEC` |
 
@@ -84,7 +84,7 @@ toMakes (id марки) → toModels (brandId) → toTypes (modelId) → typeId
 
 ## Известные ограничения
 - Лимиты запросов и дедупликация заказов — в памяти процесса (при нескольких копиях сервера не общие).
-- Корзина, избранное, «потрачено» хранятся в `localStorage`, скидка по обороту не считается на сервере (задача C4). Профиль и гараж частично хранятся на сервере (`customer_profiles`, `user_garage`).
+- Корзина и избранное пока в `localStorage` (задача C6). Скидка по обороту и реферальные бонусы считаются на сервере (`loyalty_tiers`, `discount.js`, `referral.js`, обновления 21 и 23; UI профиля — C4c). Профиль и гараж частично на сервере (`customer_profiles`, `user_garage`).
 - VINdecode опирается на TecDoc и может не знать VIN российской сборки (Z94, XTA и др.).
 - Интерактивные карточки: на живом сервисе Telegram их пока не принимает (`INPUT_MEDIA_WIDGET_NOT_ALLOWED`, см. TASKS.md, обновление 28), поэтому вид карточек, `widget_query` и серые кнопки не проверены.
 - Живая работа ботов в Telegram из среды Claude не проверялась (состав служб Railway и подключение бота к базе проверены 17.11.2026 по логам); серверные проверки выполнялись на локальной копии с подставными ответами Telegram.
