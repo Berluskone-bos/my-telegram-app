@@ -95,5 +95,5 @@ test('план без заданного старта: склад не подс�
     assert.deepEqual(plan.ordered.map(s => s.id), ['A', 'B', 'C']);
     assert.equal(plan.ordered[0].etaAt, null, 'ETA первой точки не рассчитывается от вымышленного старта');
     assert.ok(plan.ordered[1].etaAt instanceof Date);
-    assert.equal(plan.totalMin, 20, 'считается только путь между адресами и время остановки');
+    assert.equal(plan.totalMin, 30, 'считается путь между адресами и две промежуточные остановки, без времени до первой точки');
 });
