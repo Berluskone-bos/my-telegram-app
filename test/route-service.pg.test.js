@@ -98,35 +98,24 @@ test('маршрут из 4 заказов: порядок по времени �
     for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
     assert.ok((await db.getRouteById(out.route.id)).stops.every(s => s.status === 'in_progress'));
 
-    // После общего старта клиентам отправляются ETA-уведомления по всем заказам маршрута.
+    // Пересчёт ETA остаётся внутренним для маршрутного листа и никогда не уведомляет клиентов.
     clock.t = new Date('2026-11-15T00:02:00Z');
-    let r = await svc.refreshEtas({ routeId: out.route.id, firstStopId: stops[0].id, notifyNew: true });
-    const clientTexts = () => sent.filter(m => m.bot === 'client');
-    assert.equal(clientTexts().length, 4);
-    const toUser = (n) => clientTexts().find(m => m.chat === String(880100 + n)).text;
-    assert.match(toUser(3), /Курьер в пути/); assert.match(toUser(3), /Время прибытия уточним после определения фактического местоположения/);
-    assert.match(toUser(1), /Курьер выехал/); assert.match(toUser(1), /2-й из 4/); assert.match(toUser(1), /через ~15 мин/);
-    assert.match(toUser(2), /3-й из 4/); assert.match(toUser(2), /через ~30 мин/); assert.match(toUser(4), /4-й из 4/); assert.match(toUser(4), /через ~45 мин/);
-    sent.length = 0;
-
-    // повторное нажатие и пересчёт без сдвига ничего не отправляют
     await svc.refreshEtas({ routeId: out.route.id, firstStopId: stops[0].id, notifyNew: true });
-    assert.equal(clientTexts().filter(m => !/Курьер в пути/.test(m.text)).length, 0, 'остальным второй раз не пишем');
+    assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'расчётное время не отправляется клиентам');
+    sent.length = 0;
+    await svc.refreshEtas({ routeId: out.route.id, firstStopId: stops[0].id, notifyNew: true });
+    assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'повторный расчёт также не отправляет ETA');
     sent.length = 0;
 
-    // доставил первую точку на 6 минут позже плана: сдвиг меньше 15 минут — клиентам не пишем
+    // После фактического завершения остановок пересчёт внутренних ETA также не уведомляет клиентов.
     await db.updateStopStatus(stops[0].id, 'delivered', '');
     clock.t = new Date('2026-11-15T00:16:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
-    assert.equal(clientTexts().length, 0, 'небольшой сдвиг без сообщений');
-
-    // вторую точку курьер сдал только в 00:50 — остальным уходит уточнённое время
+    assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'после первой доставки ETA остаётся внутренним');
     await db.updateStopStatus(stops[1].id, 'delivered', '');
     clock.t = new Date('2026-11-15T00:50:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
-    assert.equal(clientTexts().length, 2, 'сдвиг больше 15 минут — обновление двум оставшимся');
-    assert.ok(clientTexts().every(m => /уточнено/.test(m.text)));
-    assert.deepEqual(clientTexts().map(m => m.chat).sort(), [String(880102), String(880104)]);
+    assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'сдвиг расчётного времени не отправляется клиентам');
     assert.ok(fetchCalls > 0);
     assert.equal((await db.completeDeliveryStop(stops[2].id)).status, 'completed', 'курьер может завершить доставку после старта маршрута');
 
