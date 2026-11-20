@@ -431,9 +431,10 @@
 - [x] При отсутствии ID исходной карточки или ошибке Telegram при редактировании отправлять новую маршрутную карточку с первой оставшейся активной остановкой.
 - [x] Добавить интеграционный тест, который имитирует `ETELEGRAM` при редактировании и проверяет резервную кнопку следующего заказа.
 - [x] Полный GitHub Actions CI run #269 (`44724345317`) — SUCCESS: синтаксис, npm audit, Gitleaks и полный набор автотестов, включая сценарий отказа Telegram edit.
-- [x] PR #69 открыт — https://github.com/Berluskone-bos/my-telegram-app/pull/69; merge не выполнялся.
-- [ ] Не сливать PR #69 без отдельного разрешения владельца.
-- [ ] После разрешённого merge проверить Railway deployment и повторить реальный Telegram smoke test на маршруте из трёх заказов.
+- [x] PR #69 merged squash commit `0b121b1c6b32571e267aeeb671a52d1a2dd5fcc8`.
+- [x] Railway deployment `5e5bfde4-9598-4d9b-9a48-d8081baf9b46` — SUCCESS; `gulf-bot` и PostgreSQL Online.
+- [ ] Повторить реальный Telegram smoke test на маршруте из трёх заказов.
+- [ ] Проверить отдельную ошибку `ADMIN BOT polling ETELEGRAM 409 Conflict`, отмеченную в startup logs.
 
 
 ## Кнопка «Не доставлено» на всех этапах до завершения — 20.11.2026
