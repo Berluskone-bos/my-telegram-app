@@ -32,7 +32,7 @@ test('маршрут из 4 заказов: порядок по времени �
     const sent = [];
     const queue = { notify: (bot, chat, text, opts = {}) => { sent.push({ bot, chat: String(chat), text, opts }); return Promise.resolve(1); } };
     const clock = { t: new Date('2026-11-15T00:00:00Z') };     // воскресенье 03:00 МСК: коэффициент 1.0
-    const svc = createRouteService({ db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5' }, now: () => clock.t });
+    const svc = createRouteService({ db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5', WAREHOUSE_LAT: '59.94', WAREHOUSE_LON: '30.34' }, now: () => clock.t });
 
     const courier = await db.createCourier({ name: 'Курьер-маршрут', phone: '1', telegram_id: 900010, telegram_user: 'r', vehicle_type: 'авто' });
     t.after(async () => {
