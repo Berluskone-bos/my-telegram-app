@@ -286,7 +286,7 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok((await clientTexts()).some(t => /не доставлен/.test(t) && /Не отвечает на звонки/.test(t)),
         'клиент получает уведомление о неудачной попытке, без сообщения о доставке');
 
-    await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, nextAfterFailure[1]);
+    await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, fallbackCard[3].reply_markup);
     assert.ok((await clientTexts()).some(t => /AP-cg_failed_2/.test(t) && /Курьер в пути/.test(t)),
         'следующий клиент получает уведомление только после закрытия предыдущей остановки');
 });
