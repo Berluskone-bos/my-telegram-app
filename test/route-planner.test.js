@@ -81,3 +81,19 @@ test('текст времени: минуты округляются до 5, в�
     assert.equal(P.formatEta(new Date('2026-11-15T09:01:00Z'), now).minutes, 5);
     assert.match(P.formatEta(new Date('2026-11-15T10:20:00Z'), now).text, /^через ~1 ч 20 мин \(около 13:20\)$/);
 });
+
+test('план без заданного старта: склад не подставляется, выбирается кратчайший открытый путь', async () => {
+    const dur = [[0, 600, 1800], [600, 0, 600], [1800, 600, 0]];
+    const stops = [{ id: 'A', lat: 59.9, lon: 30.3 }, { id: 'B', lat: 59.91, lon: 30.31 }, { id: 'C', lat: 59.92, lon: 30.32 }];
+    let requestedPoints = 0;
+    const plan = await P.planRoute({ start: null, stops, departAt: new Date('2026-11-15T00:00:00Z'),
+        fetchImpl: async (url) => {
+            requestedPoints = url.split('/driving/')[1].split('?')[0].split(';').length;
+            return { ok: true, json: async () => ({ code: 'Ok', durations: dur }) };
+        } });
+    assert.equal(requestedPoints, 3, 'в матрицу не добавлена фиктивная точка склада');
+    assert.deepEqual(plan.ordered.map(s => s.id), ['A', 'B', 'C']);
+    assert.equal(plan.ordered[0].etaAt, null, 'ETA первой точки не рассчитывается от вымышленного старта');
+    assert.ok(plan.ordered[1].etaAt instanceof Date);
+    assert.equal(plan.totalMin, 30, 'считается путь между адресами и две промежуточные остановки, без времени до первой точки');
+});

@@ -10,29 +10,11 @@ const { trackerEvent } = require('./tracker');
 const { queueRouteSheetEdit, sheetKey } = require('./route-sheet');
 const poolOf = () => require('./db').pool;
 
-const DEFAULT_START = { lat: 59.9343, lon: 30.3351, source: 'default' };   // центр Санкт-Петербурга, пока склад не задан
 const ACTIVE = ['pending', 'accepted', 'in_progress'];
 
 function createRouteService({ db, geocoder = null, queue, planner = defaultPlanner, env = process.env, now = () => new Date() }) {
     const serviceMin = () => Math.max(0, Number(env.SERVICE_MINUTES) || 5);
     const thresholdMin = () => Math.max(1, Number(env.ETA_UPDATE_MINUTES) || 15);
-    let warehouseCache = null;
-
-    // Точка старта (склад): WAREHOUSE_LAT + WAREHOUSE_LON, либо WAREHOUSE_ADDRESS (определяется один раз по геокодеру)
-    async function getWarehouse() {
-        if (warehouseCache) return warehouseCache;
-        const lat = Number(env.WAREHOUSE_LAT), lon = Number(env.WAREHOUSE_LON);
-        if (env.WAREHOUSE_LAT && env.WAREHOUSE_LON && isFinite(lat) && isFinite(lon)) {
-            return (warehouseCache = { lat, lon, source: 'coords' });
-        }
-        if (env.WAREHOUSE_ADDRESS && geocoder) {
-            try {
-                const g = await geocoder.geocode(env.WAREHOUSE_ADDRESS);
-                if (g && g.lat && g.lon) return (warehouseCache = { lat: Number(g.lat), lon: Number(g.lon), source: 'address' });
-            } catch (e) { console.error('[ROUTE] Не удалось определить координаты склада'); }
-        }
-        return DEFAULT_START;   // не кэшируем: после появления настройки подхватится сама
-    }
 
     async function activeStopFor(orderNumber) {
         return db.activeRouteNumberForOrder(orderNumber);
@@ -75,8 +57,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             stops.push({ order: o, id: o.id, lat, lon });
         }
 
-        const start = await getWarehouse();
-        const plan = await planner.planRoute({ start, stops, departAt: now(), serviceMin: serviceMin() });
+        // Точка старта неизвестна при назначении маршрута. Не подставляем склад или центр города:
+        // порядок выбирается только по адресам доставок, навигатор начнёт от GPS курьера.
+        const plan = await planner.planRoute({ start: null, stops, departAt: now(), serviceMin: serviceMin() });
         const placed = plan.ordered.map(p => ({ ...p, order: stops.find(s => s.id === p.id).order }));
         const sequence = placed.concat(plan.unplaced.map(s => ({ ...s, etaAt: null })));
 
@@ -98,16 +81,15 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         });
 
         const approx = plan.source === 'estimate' ? ' (оценка по прямой: сервис дорог недоступен)' : '';
-        const startNote = start.source === 'default' ? '\n⚠ Склад не задан в настройках: старт принят за центр города.' : '';
         const n = route.stops.length;
         const list = sequence.map((s, i) => stopText(s, i, n)).join('\n');
 
         if (courier.telegram_id) {
             const sheet =
                 `<b>Маршрут ${escapeHtml(route.route_number)}</b>: ${n} ${n === 1 ? 'точка' : 'точек'}\n` +
-                (plan.ordered.length ? `В пути около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}.\n` +
+                (plan.ordered.length ? `Между адресами около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}; время до первой точки зависит от текущего местоположения курьера.\n` +
                     `Время ориентировочное: считается по дорогам и часам пик, живые пробки не учитываются.\n` : '') +
-                `\n${list}\n\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз.${startNote}`;
+                `\n${list}\n\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз. Навигация начинает путь от текущего местоположения курьера.`;
             const ll = placed.map(p => ({ lat: p.lat, lon: p.lon }));
             const nav = placed.length ? MapLinks.allRoute(ll) : null;
             const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
@@ -142,23 +124,23 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         if (notifyAdmin) {
             notifyAdmin(
                 `<b>Маршрут ${escapeHtml(route.route_number)} назначен</b>\nКурьер: ${escapeHtml(courier.name)}\n` +
-                `Точек: ${n}${plan.ordered.length ? `, в пути около ${plan.totalMin} мин` : ''}${approx}\n\n${list}${startNote}`);
+                `Точек: ${n}${plan.ordered.length ? `, между адресами около ${plan.totalMin} мин` : ''}${approx}\n\n${list}`);
         }
-        return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: start.source }, sequence: sequence.map(s => s.order.order_number) };
+        return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: 'current-location' }, sequence: sequence.map(s => s.order.order_number) };
     }
 
     const etaClientText = (stop, eta, kind, position, total) => {
         const head = `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\n`;
-        const when = planner.formatEta(eta, now()).text;
-        if (kind === 'own') return head + `Статус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ и будет у вас ${when}.`;
-        if (kind === 'first') return head + `Статус: <b>Курьер выехал</b>\nВаш заказ — ${position}-й из ${total} по маршруту курьера. Ориентировочно курьер будет у вас ${when}.\nВремя приблизительное; если оно заметно изменится, мы напишем.`;
+        const when = eta ? planner.formatEta(eta, now()).text : null;
+        if (kind === 'own') return head + (when ? `Статус: <b>Курьер в пути</b>\nКурьер везёт ваш заказ и будет у вас ${when}.` : `Статус: <b>Курьер в пути</b>\nКурьер начал маршрут. Время прибытия уточним после определения фактического местоположения.`);
+        if (kind === 'first') return head + (when ? `Статус: <b>Курьер выехал</b>\nВаш заказ — ${position}-й из ${total} по маршруту курьера. Ориентировочно курьер будет у вас ${when}.\nВремя приблизительное; если оно заметно изменится, мы напишем.` : `Статус: <b>Курьер выехал</b>\nВаш заказ — ${position}-й из ${total} по маршруту курьера. Время прибытия уточним после первой остановки.`);
         return head + `Время приезда курьера уточнено: курьер будет у вас ${when}.`;
     };
 
     // Пересчитать время приезда по остановкам маршрута и сообщить клиентам.
     //   firstStopId — курьер выехал к этой точке («В пути»): её клиенту — «везёт ваш заказ» с временем;
     //                 остальным, кому ещё не писали, — «курьер выехал, вы N-й, будет через…»
-    //   from — где курьер сейчас ({lat, lon}); без него — склад
+    //   from — фактическая геопозиция курьера ({lat, lon}); без неё первая ETA неизвестна
     //   notifyNew — false: только обновить тем, кому время уже называли (после доставки/недоставки)
     async function refreshEtas({ routeId, firstStopId = null, from = null, notifyNew = true }) {
         const route = await db.getRouteById(routeId);
@@ -171,10 +153,10 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             if (f) pending = [f, ...pending.filter(s => s !== f)];
         }
         if (!pending.length) return null;
-        // курьер сейчас у последней завершённой точки (доставил или не смог доставить), а если таких нет — на складе
+        // Если GPS не передан, используем последнюю завершённую точку; для первой остановки старта нет.
         const done = (route.stops || []).filter(s => ['delivered', 'failed'].includes(s.status) && planner.hasCoords(s))
             .sort((a, b) => b.stop_number - a.stop_number)[0];
-        const start = from || (done ? { lat: Number(done.lat), lon: Number(done.lon) } : await getWarehouse());
+        const start = from || (done ? { lat: Number(done.lat), lon: Number(done.lon) } : null);
         const plan = await planner.planRoute({ start, stops: pending, departAt: t, serviceMin: serviceMin(), keepOrder: true });
         const sent = [];
         for (const p of plan.ordered) {
@@ -183,23 +165,23 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             let kind = null;
             if (firstStopId && Number(stop.id) === Number(firstStopId)) kind = 'own';
             else if (!told && notifyNew) kind = 'first';
-            else if (told && Math.abs(p.etaAt - told) / 60e3 > thresholdMin()) kind = 'update';
-            await db.setStopEta(stop.id, p.etaAt, !!kind && !!stop.client_chat_id);
+            else if (told && p.etaAt && Math.abs(p.etaAt - told) / 60e3 > thresholdMin()) kind = 'update';
+            await db.setStopEta(stop.id, p.etaAt, !!kind && !!stop.client_chat_id && !!p.etaAt);
             if (kind && stop.client_chat_id) {
                 const pos = pending.findIndex(s => Number(s.id) === Number(stop.id)) + 1;
-                const clock = planner.formatEta(p.etaAt, t).clock;
+                const clock = p.etaAt ? planner.formatEta(p.etaAt, t).clock : 'no-eta';
                 queue.notify('client', stop.client_chat_id, etaClientText(stop, p.etaAt, kind, pos, pending.length),
                     { dedupKey: `eta:${stop.id}:${kind}:${clock}` });
                 sent.push({ stopId: stop.id, kind });
                 // то же время — в карточку заказа клиента (без уведомления; текст выше его и так даёт)
-                await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
+                if (p.etaAt) await trackerEvent(poolOf(), stop.order_number, { eta: planner.formatEta(p.etaAt, t).text, stage: 'enroute' }).catch(() => {});
             }
         }
         // точки без координат остаются без времени; сообщение «курьер в пути» их клиентам отправляет обработчик кнопки
         return { plan, sent };
     }
 
-    return { buildRoute, refreshEtas, getWarehouse };
+    return { buildRoute, refreshEtas };
 }
 
 module.exports = { createRouteService };

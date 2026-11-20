@@ -2,7 +2,7 @@
 // Планировщик маршрута курьера из нескольких заказов.
 //
 // Что делает:
-//   1. берёт время в пути между складом и точками (реальные дороги из OpenStreetMap через OSRM, бесплатно;
+//   1. берёт время в пути между клиентскими точками (реальные дороги из OpenStreetMap через OSRM, бесплатно;
 //      если сервис недоступен — оценка по прямой линии с поправкой на дорогу);
 //   2. умножает его на коэффициент времени суток (час пик в Санкт-Петербурге) — это ОЦЕНКА, не живые пробки;
 //   3. подбирает порядок точек с наименьшим суммарным временем в пути (точно перебором до 8 точек,
@@ -104,6 +104,50 @@ function bestOrder(dur) {
     return path;
 }
 
+
+// Порядок адресов без заданной точки старта: выбираем кратчайший открытый путь,
+// начало маршрута — одна из клиентских точек. Никакой склад/центр города не подставляется.
+function bestOpenOrder(dur) {
+    const n = dur.length;
+    if (n <= 1) return n ? [0] : [];
+    const pathCost = (p) => p.slice(1).reduce((sum, idx, i) => sum + dur[p[i]][idx], 0);
+    if (n <= MAX_EXACT) {
+        let best = Infinity, bestPath = null;
+        const used = new Array(n).fill(false), path = [];
+        (function dfs(cost) {
+            if (cost >= best) return;
+            if (path.length === n) { best = cost; bestPath = path.slice(); return; }
+            for (let j = 0; j < n; j++) {
+                if (used[j]) continue;
+                const extra = path.length ? dur[path[path.length - 1]][j] : 0;
+                used[j] = true; path.push(j); dfs(cost + extra); path.pop(); used[j] = false;
+            }
+        })(0);
+        return bestPath;
+    }
+    let bestPath = null, best = Infinity;
+    for (let start = 0; start < n; start++) {
+        const left = new Set(Array.from({ length: n }, (_, i) => i).filter(i => i !== start));
+        const path = [start]; let cur = start;
+        while (left.size) {
+            let next = null;
+            for (const j of left) if (next === null || dur[cur][j] < dur[cur][next]) next = j;
+            path.push(next); left.delete(next); cur = next;
+        }
+        let improved = true;
+        while (improved) {
+            improved = false;
+            for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) {
+                const candidate = path.slice(0, i).concat(path.slice(i, k + 1).reverse(), path.slice(k + 1));
+                if (pathCost(candidate) < pathCost(path) - 1e-9) { path.splice(0, n, ...candidate); improved = true; }
+            }
+        }
+        const cost = pathCost(path);
+        if (cost < best) { best = cost; bestPath = path.slice(); }
+    }
+    return bestPath;
+}
+
 const hasCoords = (s) => s && s.lat !== null && s.lat !== undefined && s.lon !== null && s.lon !== undefined
     && s.lat !== '' && s.lon !== '' && isFinite(Number(s.lat)) && isFinite(Number(s.lon));
 
@@ -113,17 +157,21 @@ async function planRoute({ start, stops, departAt = new Date(), serviceMin = 5, 
     const withC = stops.filter(hasCoords).map(s => ({ ...s, lat: Number(s.lat), lon: Number(s.lon) }));
     const unplaced = stops.filter(s => !hasCoords(s));
     if (!withC.length) return { ordered: [], unplaced, totalMin: 0, source: 'none', factor: 1 };
-    const pts = [{ lat: Number(start.lat), lon: Number(start.lon) }, ...withC];
+    const hasStart = !!start && isFinite(Number(start.lat)) && isFinite(Number(start.lon));
+    const pts = hasStart ? [{ lat: Number(start.lat), lon: Number(start.lon) }, ...withC] : withC;
     const { durations, source } = await fetchDurations(pts, { fetchImpl });
     const factor = trafficFactor(departAt);
     const dur = durations.map(r => r.map(v => v * factor));
-    const order = keepOrder ? withC.map((_, i) => i + 1) : bestOrder(dur);
+    const order = keepOrder
+        ? withC.map((_, i) => hasStart ? i + 1 : i)
+        : (hasStart ? bestOrder(dur) : bestOpenOrder(dur));
     const ordered = [];
-    let t = departAt.getTime(), cur = 0, totalSec = 0;
+    let t = departAt.getTime(), cur = hasStart ? 0 : null, totalSec = 0;
     order.forEach((idx, k) => {
-        const leg = dur[cur][idx];
-        t += leg * 1000; totalSec += leg;
-        ordered.push({ ...withC[idx - 1], etaAt: new Date(t), legMin: Math.round(leg / 60) });
+        const leg = cur === null ? 0 : dur[cur][idx];
+        if (cur !== null) { t += leg * 1000; totalSec += leg; }
+        const etaAt = cur === null ? null : new Date(t);
+        ordered.push({ ...withC[hasStart ? idx - 1 : idx], etaAt, legMin: cur === null ? null : Math.round(leg / 60) });
         t += serviceMin * 60e3; totalSec += serviceMin * 60;
         cur = idx;
     });
@@ -141,4 +189,4 @@ function formatEta(etaAt, now = new Date()) {
     return { text: `через ~${dur} (около ${hh}:${mm})`, minutes: r, clock: `${hh}:${mm}` };
 }
 
-module.exports = { planRoute, fetchDurations, bestOrder, trafficFactor, formatEta, haversineKm, hasCoords, MAX_EXACT };
+module.exports = { planRoute, fetchDurations, bestOrder, bestOpenOrder, trafficFactor, formatEta, haversineKm, hasCoords, MAX_EXACT };
