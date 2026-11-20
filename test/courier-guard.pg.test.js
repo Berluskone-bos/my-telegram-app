@@ -16,16 +16,25 @@ test('курьерский бот: кнопки отменённого зака�
     // заглушка вместо node-telegram-bot-api: запоминаем обработчики и вызовы
     const handlers = {}, calls = [];
     let failNextRouteEdit = false;
+    let nextMessageId = 1000;
     class FakeBot {
         on(ev, fn) { handlers[ev] = fn; }
         once() {}
         onText() {}
         getMe() { return Promise.resolve({ id: 1, username: 'x' }); }
         setMyCommands() { return Promise.resolve(true); }
-        sendMessage(...a) { calls.push(['sendMessage', ...a]); return Promise.resolve({ message_id: 1 }); }
+        sendMessage(...a) { const result = { message_id: nextMessageId++ }; calls.push(['sendMessage', ...a, result]); return Promise.resolve(result); }
         answerCallbackQuery(...a) { calls.push(['answerCallbackQuery', ...a]); return Promise.resolve(true); }
         editMessageReplyMarkup(...a) {
             calls.push(['editMessageReplyMarkup', ...a]);
+            if (failNextRouteEdit) {
+                failNextRouteEdit = false;
+                return Promise.reject(Object.assign(new Error('ETELEGRAM: message to edit not found'), { code: 'ETELEGRAM' }));
+            }
+            return Promise.resolve(true);
+        }
+        editMessageText(...a) {
+            calls.push(['editMessageText', ...a]);
             if (failNextRouteEdit) {
                 failNextRouteEdit = false;
                 return Promise.reject(Object.assign(new Error('ETELEGRAM: message to edit not found'), { code: 'ETELEGRAM' }));
@@ -270,16 +279,20 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok(reasonPrompt, 'курьеру показан выбор причины недоставки');
     assert.equal(reasonPrompt[3].reply_to_message_id, 55, 'причина привязана к общей карточке маршрута');
 
-    // Имитируем отказ Telegram при редактировании исходной маршрутной карточки.
+    // Telegram callback message — само сообщение с причинами; reply_to_message отсутствует.
     failNextRouteEdit = true;
     await press(`failreason_${failedRoute.id}_${failedRoute.stops[0].id}_Не отвечает на звонки`, reasonPrompt[3].reply_markup,
-        { reply_to_message: { message_id: 55 } });
+        { message_id: reasonPrompt[4].message_id });
     let failedState = await db.getRouteById(failedRoute.id);
     assert.equal(failedState.stops[0].status, 'failed', 'первая остановка отмечена как недоставленная');
     assert.equal(failedState.stops[0].fail_reason, 'Не отвечает на звонки');
     assert.equal(failedState.status, 'in_progress', 'маршрут остаётся в пути, пока есть две активные точки');
     assert.equal(Number(failedState.failed), 1, 'счётчик недоставленных обновлён');
     assert.equal((await db.getOrderByNumber(failedOrders[0].id)).status, 'SHIPPING', 'заказ не отменён и не помечен доставленным');
+    const reasonMessageUpdate = calls.find(c => c[0] === 'editMessageText');
+    assert.ok(reasonMessageUpdate, 'бот пытается превратить сообщение с причиной в карточку следующей точки');
+    assert.equal(reasonMessageUpdate[2].message_id, reasonPrompt[4].message_id,
+        'редактируется callback message с выбором причины, без зависимости от reply_to_message');
     const fallbackCard = calls.find(c => c[0] === 'sendMessage' &&
         c[3]?.reply_markup?.inline_keyboard?.flat()?.some(b =>
             b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`));
