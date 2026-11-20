@@ -58,7 +58,7 @@ test('курьерский бот: кнопки отменённого зака�
     };
     const press = async (data, replyMarkup = { inline_keyboard: [] }) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup } });
+        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: replyMarkup } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
