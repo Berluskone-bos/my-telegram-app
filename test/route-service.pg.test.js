@@ -17,12 +17,12 @@ test('маршрут из 4 заказов: порядок по времени �
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
     await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-rs%'");
 
-    // Склад(0) и четыре адреса. Время в пути (сек): выгодный порядок D, B, A, C.
+    // Только четыре адреса доставок. Фиктивной точки склада в матрице нет; выгодный открытый путь D, B, A, C.
     const coords = { 'адрес A': [59.90, 30.30], 'адрес B': [59.91, 30.31], 'адрес C': [59.92, 30.32], 'адрес D': [59.93, 30.33] };
     const geocoder = { geocode: async (addr) => ({ lat: coords[addr][0], lon: coords[addr][1] }) };
     let fetchCalls = 0;
     // «Дорога»: вдоль неё точки стоят в порядке склад, D, B, A, C; время в пути = 600 с на каждый участок между соседними
-    const along = { '59.94': 0, '59.93': 1, '59.91': 2, '59.9': 3, '59.92': 4 };
+    const along = { '59.93': 0, '59.91': 1, '59.9': 2, '59.92': 3 };
     const planner = { ...realPlanner, planRoute: (o) => realPlanner.planRoute({ ...o, fetchImpl: async (url) => {
         fetchCalls++;
         const lats = url.split('/driving/')[1].split('?')[0].split(';').map(p => String(Number(p.split(',')[1])));
@@ -32,7 +32,7 @@ test('маршрут из 4 заказов: порядок по времени �
     const sent = [];
     const queue = { notify: (bot, chat, text, opts = {}) => { sent.push({ bot, chat: String(chat), text, opts }); return Promise.resolve(1); } };
     const clock = { t: new Date('2026-11-15T00:00:00Z') };     // воскресенье 03:00 МСК: коэффициент 1.0
-    const svc = createRouteService({ db, geocoder, queue, planner, env: { WAREHOUSE_LAT: '59.94', WAREHOUSE_LON: '30.34', SERVICE_MINUTES: '5' }, now: () => clock.t });
+    const svc = createRouteService({ db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5' }, now: () => clock.t });
 
     const courier = await db.createCourier({ name: 'Курьер-маршрут', phone: '1', telegram_id: 900010, telegram_user: 'r', vehicle_type: 'авто' });
     t.after(async () => {
@@ -68,9 +68,9 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.deepEqual(out.sequence, ['AP-rs4', 'AP-rs2', 'AP-rs1', 'AP-rs3'], 'порядок по времени в пути, а не по порядку заказов');
     const stops = (await db.getRouteById(out.route.id)).stops;
     assert.deepEqual(stops.map(s => [s.stop_number, s.order_number]), [[1, 'AP-rs4'], [2, 'AP-rs2'], [3, 'AP-rs1'], [4, 'AP-rs3']]);
-    assert.ok(stops.every(s => s.eta_at), 'время приезда сохранено');
-    // склад→D = 600 с (10 мин) после выезда в 03:00 UTC... время прибытия: 00:10, 00:25 (+5 мин остановка), 00:40, 00:55
-    assert.deepEqual(stops.map(s => new Date(s.eta_at).toISOString().slice(11, 16)), ['00:10', '00:25', '00:40', '00:55']);
+    assert.equal(stops[0].eta_at, null, 'первая точка не получает ETA от несуществующего склада');
+    // Первая ETA неизвестна без GPS; следующие рассчитываются между клиентскими адресами.
+    assert.deepEqual(stops.slice(1).map(s => new Date(s.eta_at).toISOString().slice(11, 16)), ['00:15', '00:30', '00:45']);
     for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     // повторно те же заказы нельзя
     await assert.rejects(svc.buildRoute({ orderIds: [oA.id], courier }), (e) => e.code === 'CONFLICT' && /уже назначен/.test(e.message));
@@ -78,7 +78,7 @@ test('маршрут из 4 заказов: порядок по времени �
     // курьеру: один маршрутный лист + 4 карточки с кнопкой «Принять»
     const toCourier = sent.filter(m => m.bot === 'courier');
     assert.equal(toCourier.length, 5);
-    assert.match(toCourier[0].text, /Маршрут RL-[A-Z0-9-]+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D — к 03:10/);
+    assert.match(toCourier[0].text, /Маршрут RL-[A-Z0-9-]+<\/b>: 4 точек/); assert.match(toCourier[0].text, /1\. AP-rs4 — адрес D/); assert.doesNotMatch(toCourier[0].text, /AP-rs4 — адрес D — к/);
     assert.match(toCourier[0].text, /живые пробки не учитываются/);
     assert.match(toCourier[1].text, /Точка 1 из 4/);
     assert.equal(toCourier[1].opts.buttons.at(-1)[0].callback_data, `deliver_${out.route.id}_${stops[0].id}_accept`);
@@ -104,9 +104,9 @@ test('маршрут из 4 заказов: порядок по времени �
     const clientTexts = () => sent.filter(m => m.bot === 'client');
     assert.equal(clientTexts().length, 4);
     const toUser = (n) => clientTexts().find(m => m.chat === String(880100 + n)).text;
-    assert.match(toUser(4), /Курьер в пути/); assert.match(toUser(4), /везёт ваш заказ и будет у вас через ~10 мин \(около 03:12\)/);
-    assert.match(toUser(2), /Курьер выехал/); assert.match(toUser(2), /2-й из 4/); assert.match(toUser(2), /через ~25 мин/);
-    assert.match(toUser(1), /3-й из 4/); assert.match(toUser(3), /4-й из 4/);
+    assert.match(toUser(4), /Курьер в пути/); assert.match(toUser(4), /Время прибытия уточним после определения фактического местоположения/);
+    assert.match(toUser(2), /Курьер выехал/); assert.match(toUser(2), /2-й из 4/); assert.match(toUser(2), /через ~15 мин/);
+    assert.match(toUser(1), /3-й из 4/); assert.match(toUser(1), /через ~30 мин/); assert.match(toUser(3), /4-й из 4/); assert.match(toUser(3), /через ~45 мин/);
     sent.length = 0;
 
     // повторное нажатие и пересчёт без сдвига ничего не отправляют
