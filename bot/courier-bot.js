@@ -862,7 +862,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                     ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courier?.name || '')}: <a href="tel:${escapeHtml(phoneLink)}">${escapeHtml(courierPhone)}</a>.`
                     : 'Телефон курьера пока не указан. Для уточнения времени прибытия свяжитесь с нами.';
                 queue.notify('client', stop.client_chat_id,
-                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\\n\\nСтатус: <b>Курьер выехал</b>\\nКурьер везёт ваш заказ.\\n${contact}`,
+                    `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер везёт ваш заказ.\n${contact}`,
                     { dedupKey: `stop-enroute:${stopId}` });
             }
         } catch (e) { console.error('[DELIVER] notify error:', errorCode(e)); }
