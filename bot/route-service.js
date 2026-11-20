@@ -108,7 +108,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 (plan.ordered.length ? `В пути около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}.\n` +
                     `Время ориентировочное: считается по дорогам и часам пик, живые пробки не учитываются.\n` : '') +
                 `\n${list}\n\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз.${startNote}`;
-            const ll = [start, ...placed].map(p => ({ lat: p.lat, lon: p.lon }));
+            const ll = placed.map(p => ({ lat: p.lat, lon: p.lon }));
             const nav = placed.length ? MapLinks.allRoute(ll) : null;
             const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
             if (queue.notifyWidget && widgets.widgetsEnabled()) {

@@ -1027,7 +1027,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         return;
     }
 
-    if (status === 'failed') {
+    if (status === 'failed' && reason !== 'Другое') {
         let failure;
         try {
             failure = await db.failDeliveryStop(stopId, reason || 'Не указана');

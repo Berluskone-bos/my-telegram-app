@@ -1266,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td><strong>${esc(r.route_number)}</strong></td>
                             <td>${esc(c ? c.name : '-')}</td>
                             <td>${r.total_orders || 0}</td>
-                            <td>${r.completed || 0} / ${r.total_orders || 0}${(r.failed || 0) ? '<br><small class="text-danger">Не доставлено: ' + (r.failed || 0) + '</small>' : ''}</td>
+                            <td>${r.completed || 0} / ${r.total_orders || 0}${(r.failed || 0) ? '<br><small class="text-danger">Не доставлено: ' + (r.stops || []).filter(s => s.status === 'failed').map(s => esc((s.order_number || 'Заказ') + ': ' + (s.fail_reason || 'Причина не указана'))).join('<br>') + '</small>' : ''}</td>
                             <td><span class="badge ${sc}">${esc(r.status)}</span></td>
                             <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
                         </tr>`;

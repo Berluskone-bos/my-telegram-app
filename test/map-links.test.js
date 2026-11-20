@@ -15,7 +15,7 @@ test('маршруты навигаторов стартуют от текуще
     assert.match(links.google, /destination=59\.95,30\.35/);
     assert.match(links.google, /waypoints=59\.93%2C30\.33%7C59\.94%2C30\.34/);
     assert.doesNotMatch(links.google, /origin=/);
-    assert.match(links.gis2, /r=~30\.33,59\.93~30\.34,59\.94~30\.35,59\.95/);
+    assert.match(links.gis2, /directions\/points\/\|30\.33,59\.93\|30\.34,59\.94\|30\.35,59\.95/);
 });
 
 test('одна точка доставки остаётся пунктом назначения, а не стартовой точкой', () => {
@@ -23,5 +23,5 @@ test('одна точка доставки остаётся пунктом на�
     assert.match(links.yandex, /rtext=~59\.93,30\.33/);
     assert.match(links.google, /destination=59\.93,30\.33/);
     assert.doesNotMatch(links.google, /origin=|waypoints=/);
-    assert.match(links.gis2, /r=~30\.33,59\.93/);
+    assert.match(links.gis2, /directions\/points\/\|30\.33,59\.93/);
 });
