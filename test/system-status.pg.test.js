@@ -9,7 +9,7 @@ const skip = DB ? false : 'нет TEST_DATABASE_URL';
 test('system-status: только после входа, показывает базу и очередь уведомлений', { skip }, async (t) => {
     Object.assign(process.env, {
         DATABASE_URL: DB, WEBHOOK_SECRET: 's'.repeat(32), BOT_TOKEN: '1:x', WEB_APP_URL: 'https://x.y', WEBHOOK_URL: 'https://x.y',
-        ADMIN_CHAT_ID: '1', ADMIN_BOT_TOKEN: '1:y', ADMIN_API_KEY: 'test-admin-key-0123456789', ADMIN_POLLING: 'off'
+        ADMIN_CHAT_ID: '1', ADMIN_BOT_TOKEN: '1:y', ADMIN_API_KEY: 'test-admin-key-0123456789', ADMIN_POLLING: 'off', OUTBOX_DISABLED: '1'
     });
     process.env.COURIER_BOT_TOKEN = '1:c';   // без токена курьерского бота маршруты не регистрируются (так устроен модуль)
     require('./fake-telegram-preload');       // вместо настоящего Telegram — заглушка
