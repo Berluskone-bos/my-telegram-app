@@ -179,6 +179,16 @@ async function initDB() {
 
         // Профиль покупателя хранит только имя и телефон: один раз стираем адреса, сохранённые раньше
         await client.query(`CREATE TABLE IF NOT EXISTS app_flags (flag TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        // Одноразовая активация складского учёта в production по явному флагу Railway.
+        // После успешного запуска флаг окружения нужно выключить; запись в app_flags остаётся постоянной.
+        if (process.env.ENABLE_STOCK_TRACKING_ON_STARTUP === 'true') {
+            const activated = await client.query(
+                "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING RETURNING flag"
+            );
+            console.log(activated.rowCount
+                ? '[MIGRATION] stock_tracking_enabled activated'
+                : '[MIGRATION] stock_tracking_enabled already active');
+        }
         const purged = await client.query(`INSERT INTO app_flags (flag) VALUES ('profile_address_purged') ON CONFLICT DO NOTHING RETURNING flag`);
         if (purged.rowCount) {
             await client.query(`UPDATE customer_profiles SET city = '', street = '', house = '', building = '', letter = '', entrance = '', floor = '', apartment = ''`);
