@@ -30,12 +30,18 @@ test('маршрут из 4 заказов: порядок по времени �
         return { ok: true, json: async () => ({ code: 'Ok', durations }) };
     } }) };
     const sent = [];
-    const queue = { notify: async (bot, chat, text, opts = {}) => { await new Promise(resolve => setImmediate(resolve)); sent.push({ bot, chat: String(chat), text, opts }); return 1; } };
+    const actualQueue = require('../bot/notify-queue');
+    const queue = { notify: async (bot, chat, text, opts = {}) => {
+        await new Promise(resolve => setImmediate(resolve));
+        sent.push({ bot, chat: String(chat), text, opts });
+        return actualQueue.notify(bot, chat, text, opts);
+    } };
     const clock = { t: new Date('2026-11-15T00:00:00Z') };     // воскресенье 03:00 МСК: коэффициент 1.0
     const svc = createRouteService({ db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5', WAREHOUSE_LAT: '59.94', WAREHOUSE_LON: '30.34' }, now: () => clock.t });
 
     const courier = await db.createCourier({ name: 'Курьер-маршрут', phone: '1', telegram_id: 900010, telegram_user: 'r', vehicle_type: 'авто' });
     t.after(async () => {
+        await pool.query('DELETE FROM notification_outbox');
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
         await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-rs%'");
         await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
@@ -64,9 +70,17 @@ test('маршрут из 4 заказов: порядок по времени �
     await assert.rejects(svc.buildRoute({ orderIds: [cancelled.id], courier }), (e) => e.code === 'CONFLICT');
 
     // сборка маршрута
-    const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: async (x) => { await new Promise(resolve => setImmediate(resolve)); sent.push({ bot: 'admin', text: x }); } });
+    const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: async (x, options = {}) => {
+        await new Promise(resolve => setImmediate(resolve));
+        sent.push({ bot: 'admin', text: x });
+        return actualQueue.notify('admin', '1', x, { db: options.db, dedupKey: options.dedupKey, throwOnError: true });
+    } });
     assert.deepEqual(out.sequence, ['AP-rs3', 'AP-rs1', 'AP-rs2', 'AP-rs4'], 'при равной стоимости допустим любой кратчайший открытый путь; выбран C, A, B, D');
     const stops = (await db.getRouteById(out.route.id)).stops;
+    const routeOutbox = await pool.query(
+        `SELECT bot, dedup_key FROM notification_outbox WHERE dedup_key = $1 OR dedup_key = $2 OR dedup_key = $3 OR dedup_key = $4 OR dedup_key = $5 OR dedup_key = $6`,
+        [`route-sheet:${out.route.id}`, `assign:${stops[0].id}`, `assign:${stops[1].id}`, `assign:${stops[2].id}`, `assign:${stops[3].id}`, `admin-route-assigned:${out.route.id}`]);
+    assert.equal(routeOutbox.rowCount, 6, 'маршрут, маршрутный лист, точки и уведомление администратору записаны вместе');
     assert.deepEqual(stops.map(s => [s.stop_number, s.order_number]), [[1, 'AP-rs3'], [2, 'AP-rs1'], [3, 'AP-rs2'], [4, 'AP-rs4']]);
     assert.equal(stops[0].eta_at, null, 'первая точка не получает ETA от несуществующего склада');
     // Первая ETA неизвестна без GPS; следующие рассчитываются между клиентскими адресами.
