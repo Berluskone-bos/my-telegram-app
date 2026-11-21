@@ -756,7 +756,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             return;
         }
         if (action !== 'done') {
-            const atClient = stops.find(s => Number(s.id) !== stopId && s.status === 'in_progress' && s.stage === 'arrived');
+            // Читаем актуальную остановку напрямую из БД, а не из снимка currentRoute.
+            const atClient = await db.getRouteStopAtClient(routeId, stopId);
             if (atClient) {
                 bot.answerCallbackQuery(query.id, {
                     text: `Сначала закончите заказ №${atClient.stop_number} (${atClient.order_number || ''}): вы у клиента. Нажмите «Доставлен» или «Не доставлено».`,
@@ -809,6 +810,17 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     else if (action === 'enroute') {
         // В пути: этап сохраняется в базе, карточка показывает его у этого заказа
         const changed = await db.setStopStage(stopId, 'enroute');
+        if (!changed) {
+            const atClient = await db.getRouteStopAtClient(routeId, stopId);
+            if (atClient) {
+                bot.answerCallbackQuery(query.id, {
+                    text: `Сначала закончите заказ №${atClient.stop_number} (${atClient.order_number || ''}): вы у клиента. Нажмите «Доставлен» или «Не доставлено».`,
+                    show_alert: true
+                }).catch(() => {});
+                await renderRouteCard(chatId, msgId, routeId, atClient.id);
+                return;
+            }
+        }
         await renderRouteCard(chatId, msgId, routeId, stopId);
         bot.answerCallbackQuery(query.id, { text: changed ? 'Вы в пути. Клиент уведомлён.' : 'Этот шаг уже отмечен.' }).catch(() => {});
         if (!changed) return;
@@ -841,6 +853,17 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
     else if (action === 'arrived') {
         const changed = await db.setStopStage(stopId, 'arrived');
+        if (!changed) {
+            const atClient = await db.getRouteStopAtClient(routeId, stopId);
+            if (atClient) {
+                bot.answerCallbackQuery(query.id, {
+                    text: `Сначала закончите заказ №${atClient.stop_number} (${atClient.order_number || ''}): вы у клиента. Нажмите «Доставлен» или «Не доставлено».`,
+                    show_alert: true
+                }).catch(() => {});
+                await renderRouteCard(chatId, msgId, routeId, atClient.id);
+                return;
+            }
+        }
         await renderRouteCard(chatId, msgId, routeId, stopId);
         bot.answerCallbackQuery(query.id, { text: changed ? 'Клиент уведомлён. Подтвердите передачу заказа.' : 'Этот шаг уже отмечен.' }).catch(() => {});
         if (!changed) return;

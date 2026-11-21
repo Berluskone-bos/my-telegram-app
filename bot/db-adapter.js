@@ -478,18 +478,70 @@ class DBAdapter {
         } finally { client.release(); }
     }
 
-    // Этап остановки для курьера: 'enroute' (в пути к клиенту) / 'arrived' (у клиента).
-    // Хранится в базе, чтобы карточка маршрута и сообщения не зависели от того, на каком сообщении нажали кнопку.
-    // Возвращает остановку, если этап изменился, и null, если он уже был таким (повторное нажатие) или остановка не в работе.
+    // Возвращает другую остановку маршрута, у которой курьер уже находится у клиента.
+    // Отдельный запрос нужен для понятного предупреждения; окончательная защита — внутри setStopStage.
+    async getRouteStopAtClient(routeId, exceptStopId) {
+        const res = await pool.query(
+            `SELECT * FROM route_stops
+              WHERE route_id = $1 AND id <> $2
+                AND status = 'in_progress' AND stage = 'arrived'
+              ORDER BY stop_number
+              LIMIT 1`,
+            [Number(routeId), Number(exceptStopId)]);
+        return res.rows[0] || null;
+    }
+
+    // Этапы остановки сериализуются блокировкой строки маршрута. Проверка другой остановки
+    // и UPDATE выполняются в одной транзакции, поэтому параллельные callback не обходят guard.
     async setStopStage(stopId, stage) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0 || !['enroute', 'arrived'].includes(stage)) return null;
-        const res = await pool.query(
-            `UPDATE route_stops SET stage = $2::text, stage_at = NOW()
-              WHERE id = $1 AND status = 'in_progress' AND stage IS DISTINCT FROM $2::text
-                AND NOT (COALESCE(stage, '') = 'arrived' AND $2::text = 'enroute')
-              RETURNING *`, [id, stage]);
-        return res.rows[0] || null;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const candidate = await client.query(
+                'SELECT route_id FROM route_stops WHERE id = $1', [id]);
+            if (!candidate.rowCount) {
+                await client.query('ROLLBACK');
+                return null;
+            }
+            const routeId = candidate.rows[0].route_id;
+            await client.query(
+                'SELECT id FROM delivery_routes WHERE id = $1 FOR UPDATE', [routeId]);
+            const targetRes = await client.query(
+                'SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [id, routeId]);
+            if (!targetRes.rowCount || targetRes.rows[0].status !== 'in_progress') {
+                await client.query('COMMIT');
+                return null;
+            }
+            const target = targetRes.rows[0];
+            if (target.stage === stage || (target.stage === 'arrived' && stage === 'enroute')) {
+                await client.query('COMMIT');
+                return null;
+            }
+            const atClient = await client.query(
+                `SELECT id FROM route_stops
+                  WHERE route_id = $1 AND id <> $2
+                    AND status = 'in_progress' AND stage = 'arrived'
+                  LIMIT 1`,
+                [routeId, id]);
+            if (atClient.rowCount) {
+                await client.query('COMMIT');
+                return null;
+            }
+            const updated = await client.query(
+                `UPDATE route_stops SET stage = $2::text, stage_at = NOW()
+                  WHERE id = $1 AND route_id = $3 AND status = 'in_progress'
+                  RETURNING *`,
+                [id, stage, routeId]);
+            await client.query('COMMIT');
+            return updated.rows[0] || null;
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     async updateStopStatus(stopId, status, reason) {

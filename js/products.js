@@ -15,15 +15,7 @@ const Products = {
             if (response.ok) {
                 const products = await response.json();
                 if (products.length > 0) {
-                    this.data = products.map(p => ({
-                        ...p,
-                        category_id: p.category,
-                        main_image: p.image || p.main_image,
-                        api: p.api_std || p.api,
-                        price: Number(p.price) || 0,
-                        old_price: Number(p.old_price) || 0,
-                        in_stock: p.in_stock !== false
-                    }));
+                    this.data = products.map(p => this.normalize(p));
                     this.categories = [
                         { id: 'motor', name: 'Моторные масла', icon: 'droplets' },
                         { id: 'transmission', name: 'Трансмиссионные масла', icon: 'cog' },
@@ -42,7 +34,7 @@ const Products = {
         try {
             const response = await fetch('data/catalog.json');
             const catalog = await response.json();
-            this.data = catalog.products;
+            this.data = (catalog.products || []).map(p => this.normalize(p));
             this.categories = catalog.categories;
         } catch (e) {
             console.error('Ошибка загрузки каталога:', e);
@@ -82,9 +74,9 @@ const Products = {
         const q = query.toLowerCase().trim();
         if (!q) return this.data;
         return this.data.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            p.full_name.toLowerCase().includes(q) ||
-            p.description.toLowerCase().includes(q) ||
+            (p.name || '').toLowerCase().includes(q) ||
+            (p.full_name || '').toLowerCase().includes(q) ||
+            (p.description || '').toLowerCase().includes(q) ||
             (p.viscosity && p.viscosity.toLowerCase().includes(q)) ||
             (p.sku && p.sku.toLowerCase().includes(q)) ||
             (p.series && p.series.toLowerCase().includes(q)) ||
@@ -219,14 +211,15 @@ const Products = {
             ? techSpecs.map(s => `<div class="spec-row"><span class="spec-label">${esc(s.key)}</span><span class="spec-value">${esc(s.val)}</span></div>`).join('')
             : '';
 
+        const desc = (product.description || '').trim();
         return `
             <div class="product-detail">
                 <button class="btn-back" onclick="App.goBack()">← Назад</button>
                 <div class="product-detail-image">
                     ${this.getPictureHtml(image, product.name)}
                 </div>
-                <div class="product-detail-brand">${esc(product.brand || product.brand_name || 'Gulf Western Oil')}</div>
-                <div class="product-detail-name">${esc(product.full_name || product.name)}</div>
+                <div class="product-detail-brand">${esc(product.brand || 'Gulf Western Oil')}</div>
+                <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
                 ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
                 <div class="product-detail-chips">
                     ${product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : ''}
@@ -236,12 +229,12 @@ const Products = {
                 <div class="product-detail-price-row">
                     ${product.coming_soon
                         ? '<div class="product-soon">Скоро в продаже</div>'
-                        : `<div class="product-detail-price">${product.price.toLocaleString()} ₽</div>
-                    ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString()} ₽</div>` : ''}`}
+                        : `<div class="product-detail-price">${product.price.toLocaleString('ru-RU')} ₽</div>
+                    ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</div>` : ''}`}
                 </div>
-                <div class="product-detail-description">${esc(product.description)}</div>
                 ${techSpecsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${techSpecsHtml}</div>` : ''}
-                ${specsHtml ? `<div class="product-detail-specs"><h3>Дополнительно</h3>${specsHtml}</div>` : ''}
+                ${specsHtml ? `<div class="product-detail-specs"><h3>Параметры</h3>${specsHtml}</div>` : ''}
+                ${desc ? `<div class="product-detail-description"><h3 class="product-detail-desc-title">Описание</h3><p>${esc(desc)}</p></div>` : ''}
                 ${product.coming_soon
                     ? '<button class="btn-add-cart" disabled>Скоро в продаже</button>'
                     : product.in_stock === false

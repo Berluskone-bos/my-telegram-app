@@ -391,7 +391,7 @@ const App = {
         container.classList.add('active');
         const titleEl = document.getElementById('headerTitle');
         if (titleEl) {
-            titleEl.innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+            titleEl.innerHTML = '<img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">';
         }
 
         // Скрываем нижнее меню
@@ -430,7 +430,7 @@ const App = {
         // Меняем заголовок
         const titleEl = document.getElementById('headerTitle');
         if (titleEl) {
-            titleEl.innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+            titleEl.innerHTML = '<img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">';
         }
 
         // Рендерим содержимое
@@ -567,7 +567,7 @@ const App = {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             const titleEl = document.getElementById('headerTitle');
             if (titleEl) {
-                titleEl.innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+                titleEl.innerHTML = '<img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">';
             }
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
@@ -828,7 +828,7 @@ const App = {
         if (target) target.classList.add('active');
         document.querySelector('.bottom-nav').style.display = 'flex';
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById('headerTitle').innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+        document.getElementById('headerTitle').innerHTML = '<img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">';
         Profile.renderOrderHistory();
         Profile.syncOrders();
         if (typeof lucide !== 'undefined') lucide.createIcons();
