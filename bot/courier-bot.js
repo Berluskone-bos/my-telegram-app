@@ -1303,7 +1303,7 @@ function registerCourierRoutes(app) {
 
     app.get('/api/orders/:id', verifyAdmin, requirePermission('orders.view'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         try {
@@ -1475,7 +1475,7 @@ function registerCourierRoutes(app) {
     // Совместимый endpoint одиночного назначения: использует тот же маршрутный процесс, что и пакетная отправка.
     app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         const rawOrderId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawOrderId)) return res.status(400).json({ error: 'Некорректный номер заказа' });
+        if (!/^\d{1,15}$/.test(rawOrderId)) return res.status(400).json({ error: 'Некорректный номер заказа' });
         const orderId = Number(rawOrderId);
         if (!Number.isSafeInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный номер заказа' });
         try {
@@ -1483,7 +1483,7 @@ function registerCourierRoutes(app) {
             let courierId = null;
             if (rawCourierId !== undefined && rawCourierId !== null && rawCourierId !== '') {
                 const courierIdText = String(rawCourierId);
-                if (!/^\\d{1,15}$/.test(courierIdText)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+                if (!/^\d{1,15}$/.test(courierIdText)) return res.status(400).json({ error: 'Некорректный ID курьера' });
                 courierId = Number(courierIdText);
                 if (!Number.isSafeInteger(courierId) || courierId <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
             }
@@ -1536,7 +1536,7 @@ function registerCourierRoutes(app) {
 
     app.patch('/api/products/:id/stock', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateStockUpdate(req.body);
@@ -1564,7 +1564,7 @@ function registerCourierRoutes(app) {
 
     app.put('/api/products/:id', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateProductPayload(req.body, { partial: true });
