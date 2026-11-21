@@ -447,3 +447,9 @@
 - Опасный `restart-bot.bat`, который завершал все процессы `node.exe` на Windows, заменяется безопасным `start-bot.bat`, который только запускает основной процесс.
 - Обновляются README и DEPLOY под текущую схему GitHub Pages + Railway. Production DB, Railway Variables, товары, цены, остатки и заказы не изменялись.
 - Не проверено: живой Telegram smoke test, восстановление backup, динамический IDOR/BOLA тест всех ролей и SQL-аудит production PostgreSQL.
+
+
+## 21.11.2026 — запрет HTTP-кэширования защищённых admin API
+- В отдельной ветке `security/admin-no-store-2026-11-21` добавлено централизованное `Cache-Control: no-store` в `verifyAdmin` после проверки действующей сессии. Это закрывает риск забыть заголовок на отдельном защищённом GET endpoint.
+- Добавлен PostgreSQL integration regression test на защищённый GET без собственного заголовка маршрута.
+- Изменение не затрагивает авторизацию, роли, запросы к данным, БД-схему или клиентские API. До merge требуется полный CI; после merge — отдельный dynamic IDOR/BOLA audit остаётся открытым.
