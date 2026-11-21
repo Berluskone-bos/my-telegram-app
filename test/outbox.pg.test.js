@@ -86,6 +86,24 @@ test('очередь: отправка, повтор после сбоя, дед
     assert.equal((await row(e)).status, 'failed');
     assert.equal((await row(e)).attempts, 8);
 
+    // Ручное восстановление после исправления конфигурации: та же строка и тот же dedup_key.
+    const recover = await q.enqueue({ bot: 'client', dedupKey: 'manual-retry-key', payload: { chat_id: '8', text: 'повтор после исправления конфигурации' } });
+    mode = 'blocked';
+    assert.equal((await q.processOnce()).failed, 1);
+    assert.equal((await row(recover)).status, 'failed');
+    assert.equal(await q.retryFailed(recover), true, 'failed можно вернуть в pending вручную');
+    let recovered = await row(recover);
+    assert.equal(recovered.status, 'pending');
+    assert.equal(recovered.attempts, 0, 'счётчик попыток сброшен');
+    assert.equal(recovered.locked_until, null, 'старая lease снята');
+    assert.equal(recovered.last_error, null, 'старая ошибка очищена после запроса повтора');
+    assert.equal(await q.enqueue({ bot: 'client', dedupKey: 'manual-retry-key', payload: { chat_id: '8', text: 'дубликат' } }), null,
+        'повторное событие с тем же ключом не создаёт вторую строку');
+    mode = 'ok';
+    assert.equal((await q.processOnce()).sent, 1);
+    assert.equal((await row(recover)).status, 'sent');
+    assert.equal(await q.retryFailed(recover), false, 'sent нельзя поставить на повтор');
+
     // зависимость: второе сообщение ждёт, пока первое не получит итог
     mode = 'ok';
     const first = await q.enqueue({ bot: 'courier', dedupKey: 'first', payload: { chat_id: '9', text: '1' } });
