@@ -1257,12 +1257,12 @@ function registerCourierRoutes(app) {
         try {
             const { order_ids, courier_id } = req.body || {};
             const rawCourierId = String(courier_id == null ? '' : courier_id);
-            if (!/^\\d{1,15}$/.test(rawCourierId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+            if (!/^\d{1,15}$/.test(rawCourierId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
             const courierId = Number(rawCourierId);
             if (!Number.isSafeInteger(courierId) || courierId <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
             if (!Array.isArray(order_ids) || order_ids.length < 1 || order_ids.length > 30 ||
                 !order_ids.every(id => (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) ||
-                    (typeof id === 'string' && /^\\d{1,15}$/.test(id)))) {
+                    (typeof id === 'string' && /^\d{1,15}$/.test(id)))) {
                 return res.status(400).json({ error: 'Некорректный список заказов (1–30 ID)' });
             }
             const courier = (await db.getCouriers()).find(c => Number(c.id) === courierId);
@@ -1346,7 +1346,7 @@ function registerCourierRoutes(app) {
 
     app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const rawRouteId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawRouteId)) return res.status(400).json({ error: 'Некорректный ID маршрута' });
+        if (!/^\d{1,15}$/.test(rawRouteId)) return res.status(400).json({ error: 'Некорректный ID маршрута' });
         const routeId = Number(rawRouteId);
         if (!Number.isSafeInteger(routeId) || routeId <= 0) return res.status(400).json({ error: 'Некорректный ID маршрута' });
         try {
@@ -1389,7 +1389,7 @@ function registerCourierRoutes(app) {
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
             const rawOrderId = String(req.params.id || '');
-            if (!/^\\d{1,15}$/.test(rawOrderId)) return res.status(400).json({ error: 'Некорректный ID заказа' });
+            if (!/^\d{1,15}$/.test(rawOrderId)) return res.status(400).json({ error: 'Некорректный ID заказа' });
             const orderId = Number(rawOrderId);
             if (!Number.isSafeInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный ID заказа' });
             const changed = await db.updateOrderStatus(orderId, status, {
