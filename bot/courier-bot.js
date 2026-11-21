@@ -702,9 +702,14 @@ async function handleStartRoute(chatId, routeId, user) {
         // Пересчитываем ETA без массовой рассылки клиентам: каждый клиент получит
         // «Курьер в пути» только когда курьер начнёт именно его заказ.
         await routeSvc.refreshEtas({ routeId, notifyNew: false });
-        // Одна карточка маршрута: все заказы пронумерованы, курьер сам выбирает, какой везёт первым.
-        const shown = await renderRouteCard(chatId, null, routeId, null);
-        if (!shown) throw new Error('card not sent');
+        // Карточка после успешного старта — бизнес-уведомление: сохраняем её в outbox,
+        // чтобы перезапуск процесса не оставил курьера без рабочего маршрутного листа.
+        const currentRoute = await db.getRouteById(routeId);
+        if (!currentRoute) throw new Error('route disappeared after start');
+        const card = buildRouteCard(currentRoute, null);
+        await queue.notify('courier', chatId, card.text, {
+            buttons: card.keyboard, dedupKey: `route-start-card:${routeId}`, throwOnError: true
+        });
     } catch (e) {
         console.error('[ROUTE] Не удалось отправить единый маршрут:', errorCode(e));
         bot.sendMessage(chatId, 'Маршрут начат, но не удалось показать маршрутную карточку. Откройте /route для просмотра.');
@@ -786,14 +791,14 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const waiting = activeStops.filter(s => s.status !== 'accepted' && s.status !== 'in_progress').length;
             const acceptedCount = activeStops.length - waiting;
             if (activeStops.length > 0 && waiting === 0 && latestRoute.status === 'assigned') {
-                await bot.sendMessage(chatId,
-                    `Все заказы маршрута ${latestRoute.route_number} приняты (${acceptedCount} из ${activeStops.length}). Можно выезжать.`,
-                    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[
-                        { text: 'Начать маршрут', callback_data: `startroute_${routeId}` }
-                    ]] } });
+                await queue.notify('courier', chatId,
+                    `Все заказы маршрута ${escapeHtml(latestRoute.route_number)} приняты (${acceptedCount} из ${activeStops.length}). Можно выезжать.`,
+                    { buttons: [[{ text: 'Начать маршрут', callback_data: `startroute_${routeId}` }]],
+                        dedupKey: `route-all-accepted:${routeId}`, throwOnError: true });
             } else if (activeStops.length > 0) {
-                await bot.sendMessage(chatId,
-                    `Заказ принят. Принято ${acceptedCount} из ${activeStops.length}. Осталось принять: ${waiting}.`);
+                await queue.notify('courier', chatId,
+                    `Заказ принят. Принято ${acceptedCount} из ${activeStops.length}. Осталось принять: ${waiting}.`,
+                    { dedupKey: `route-accept-progress:${stopId}`, throwOnError: true });
             }
         }
     }
