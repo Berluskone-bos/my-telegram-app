@@ -1,7 +1,7 @@
 // esc() объявлена в products.js (грузится первой)
 
 // Главный модуль приложения
-const App = {
+var App = {
     currentScreen: 'main',
     currentCategory: 'all',
     currentSubcategory: null,
@@ -881,5 +881,4 @@ const App = {
     }
 };
 
-// Запуск приложения
-document.addEventListener('DOMContentLoaded', () => App.init());
+window.App = App;
