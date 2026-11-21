@@ -35,6 +35,8 @@ function classifyError(err) {
 //   editStopMessage: stopId — для editMessageReplyMarkup: message_id взять из route_stops в момент отправки
 async function enqueue(db, item) {
     if (!BOTS.includes(item.bot)) throw new Error('outbox: неизвестный бот ' + item.bot);
+    const delaySec = item.delaySec === undefined ? 0 : item.delaySec;
+    if (!Number.isInteger(delaySec) || delaySec < 0 || delaySec > 86400) throw new Error('outbox: delaySec должен быть целым числом от 0 до 86400');
     // on_sent — служебные данные: stopId (запомнить message_id у остановки), widget {kind, ref} (запомнить карточку),
     // fallback {method?, payload} — что отправить вместо, если Telegram не принял карточку/кнопку (payload null — просто пропустить)
     const onSent = item.onSent || item.widget || item.fallback
@@ -42,12 +44,12 @@ async function enqueue(db, item) {
             ...(item.fallback ? { fallback: item.fallback } : {}) }
         : null;
     const r = await db.query(
-        `INSERT INTO notification_outbox (bot, method, payload, dedup_key, depends_on, on_sent, edit_stop_id, edit_ref)
-         VALUES ($1, $2, $3::jsonb, $4, $5, $6::jsonb, $7, $8)
+        `INSERT INTO notification_outbox (bot, method, payload, dedup_key, depends_on, on_sent, edit_stop_id, edit_ref, next_attempt_at)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6::jsonb, $7, $8, NOW() + ($9::int * INTERVAL '1 second'))
          ON CONFLICT (dedup_key) WHERE dedup_key IS NOT NULL DO NOTHING
          RETURNING id`,
         [item.bot, item.method || 'sendMessage', JSON.stringify(item.payload || {}), item.dedupKey || null,
-         item.dependsOn || null, onSent ? JSON.stringify(onSent) : null, item.editStopMessage || null, item.editRef || null]);
+         item.dependsOn || null, onSent ? JSON.stringify(onSent) : null, item.editStopMessage || null, item.editRef || null, delaySec]);
     if (r.rowCount && item.widget) await widgetStore.upsert(db, item.widget.kind, item.widget.ref, item.widget.state || {});
     return r.rowCount ? r.rows[0].id : null;
 }
