@@ -29,7 +29,7 @@ function validateStockUpdate(raw) {
     const data = {};
     for (const key of keys) {
         const value = raw[key];
-        const number = typeof value === 'string' && /^\\d+$/.test(value) ? Number(value) : value;
+        const number = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
         if (!Number.isSafeInteger(number) || number < 0 || number > 1_000_000) {
             return { ok: false, error: `Поле ${key}: ожидается целое число от 0 до 1000000` };
         }
