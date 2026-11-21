@@ -7,8 +7,12 @@
 const crypto = require('crypto');
 
 function verifyInitData(initData, botToken, opts = {}) {
-    const ttlSec = opts.ttlSec ?? 3600;
-    const nowSec = opts.nowSec ?? Math.floor(Date.now() / 1000);
+    // Некорректный TTL (например, INIT_DATA_TTL_SEC=abc -> NaN) не должен отключать срок действия.
+    const requestedTtl = opts.ttlSec;
+    const ttlSec = Number.isSafeInteger(requestedTtl) && requestedTtl > 0 && requestedTtl <= 86400
+        ? requestedTtl : 3600;
+    const requestedNow = opts.nowSec;
+    const nowSec = Number.isSafeInteger(requestedNow) ? requestedNow : Math.floor(Date.now() / 1000);
     if (!initData || typeof initData !== 'string' || !botToken) return null;
     let params;
     try { params = new URLSearchParams(initData); } catch { return null; }
