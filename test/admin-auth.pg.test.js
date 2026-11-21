@@ -94,7 +94,7 @@ test('вход в админку: cookie, сессии, защита от под
     assert.ok(blocked.headers.get('retry-after'));
     const storedLimit = await pool.query('SELECT ip_hash, attempts FROM admin_login_attempts WHERE attempts >= 5');
     assert.equal(storedLimit.rowCount, 1);
-    assert.equal(storedLimit.rows[0].ip_hash, require('crypto').createHash('sha256').update('7.7.7.7').digest('hex'));
+    assert.equal(storedLimit.rows[0].ip_hash, require('crypto').createHmac('sha256', process.env.WEBHOOK_SECRET).update('7.7.7.7').digest('hex'));
     assert.equal((await login(KEY, '8.8.8.8')).status, 200);
 
     // 7. вход с чужого Origin отклоняется
