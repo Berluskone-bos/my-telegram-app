@@ -595,6 +595,13 @@
 - [x] PR #99: ожидать запись клиентских уведомлений в outbox в обработчиках `enroute` и `arrived`.
 - [x] Main CI SUCCESS; Railway `gulf-bot`/Postgres Online; Pages SUCCESS.
 - [x] Владелец согласовал включение `app_flags.stock_tracking_enabled`; подготовить одноразовую production-активацию через явный Railway env-флаг, без изменения остатков/заказов/цен.
-- [ ] Включить `ENABLE_STOCK_TRACKING_ON_STARTUP=true`, дождаться SUCCESS и подтвердить запись в БД по startup log.
-- [ ] Выключить одноразовый env-флаг и проверить повторный deployment; запись `app_flags.stock_tracking_enabled` должна сохраниться.
+- [x] Включить `ENABLE_STOCK_TRACKING_ON_STARTUP=true`; Railway startup log подтвердил `stock_tracking_enabled activated`.
+- [x] Выключить одноразовый env-флаг (`false`); повторный Railway deployment SUCCESS, сервисы Online, запись в БД остаётся постоянной.
 - [ ] Продолжить аудит ручных складских корректировок, повторных callback и конкурентных изменений остатков.
+
+
+## PR — единый порядок блокировок остановки маршрута (21.11.2026)
+- [x] Подтвердить несовпадение порядка блокировок: `completeDeliveryStop` — заказ → остановка → маршрут; `setStopStage`/`failDeliveryStop` — маршрут → остановка.
+- [x] Привести `completeDeliveryStop` к порядку заказ → маршрут → остановка.
+- [x] Добавить PostgreSQL regression test, который ставит два callback в очередь на одну блокировку маршрута и проверяет отсутствие deadlock.
+- [ ] CI, merge и Railway deployment.
