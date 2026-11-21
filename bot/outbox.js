@@ -10,7 +10,10 @@
 // (одно и то же событие не отправится дважды), зависимость (отправлять только после другого сообщения).
 const MAX_ATTEMPTS = 8;
 const RETRY_SEC = [30, 120, 600, 3600, 3 * 3600, 6 * 3600, 12 * 3600]; // пауза после 1-й, 2-й, ... неудачи
-const LEASE_SEC = 120;          // «аренда» строки обработчиком: если процесс умер, строку возьмёт другой
+// Один worker забирает batch строк и отправляет их последовательно. Lease должен покрывать
+// худшее время ожидания последней строки: batch × HTTP timeout (15 с) + запас на DB/сеть.
+const leaseDurationSec = (batch, sendTimeoutSec = 15) =>
+    Math.max(120, Math.max(1, Number(batch) || 1) * sendTimeoutSec + 30);
 const BOTS = ['client', 'admin', 'courier'];
 const widgetStore = require('./widget-store');
 const widgets = require('./widgets');
@@ -63,6 +66,7 @@ async function supersede(db, dedupKey) {
 }
 
 function createOutbox({ pool, send, batch = 10 }) {
+    const leaseSec = leaseDurationSec(batch);
     let timer = null, running = false, lastPurge = 0;
 
     async function resolveMessageId(stopId) {
@@ -126,7 +130,7 @@ function createOutbox({ pool, send, batch = 10 }) {
                             SELECT 1 FROM notification_outbox d
                              WHERE d.dedup_key = c.depends_on AND d.status IN ('pending', 'sending')))
                      ORDER BY c.id LIMIT $1 FOR UPDATE SKIP LOCKED)
-          RETURNING o.*`, [batch, LEASE_SEC]);
+          RETURNING o.*`, [batch, leaseSec]);
         const rows = claimed.rows.sort((a, b) => Number(a.id) - Number(b.id));
         for (const row of rows) {
             try {
@@ -189,4 +193,4 @@ function createOutbox({ pool, send, batch = 10 }) {
     return { processOnce, start, stop, tick, purge, enqueue: (item, db) => enqueue(db || pool, item), supersede: (key, db) => supersede(db || pool, key) };
 }
 
-module.exports = { createOutbox, enqueue, supersede, classifyError, retryDelaySec, MAX_ATTEMPTS };
+module.exports = { createOutbox, enqueue, supersede, classifyError, retryDelaySec, leaseDurationSec, MAX_ATTEMPTS };
