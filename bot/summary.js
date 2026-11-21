@@ -18,7 +18,7 @@ function createSummaryService({ db, pool, queue, chatId, enqueue: enqueueMessage
         const sum = await db.getDaySummary();
         const card = widgets.summaryWidget(sum);
         const ok = queue.notifyWidget
-            ? await queue.notifyWidget('admin', chatId, card, { kind: 'summary', ref: chatId, state: { sig: sig(sum) }, fallbackText: widgets.summaryFallbackText(sum) })
+            ? await queue.notifyWidget('admin', chatId, card, { kind: 'summary', ref: chatId, state: { sig: sig(sum) }, fallbackText: widgets.summaryFallbackText(sum), throwOnError: true })
             : (await queue.notify('admin', chatId, widgets.summaryFallbackText(sum)), false);
         return ok;
     }
