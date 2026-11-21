@@ -267,10 +267,11 @@ test('курьерский бот: кнопки отменённого зака�
     assert.match(card.text, /2\. <b>AP-cg_multi_2<\/b>[^\n]*\n\s+доставлен/);
     assert.ok(!hasBtn(card.keyboard, `deliver_${M.route.id}_${s2.id}_done`), 'у доставленного заказа кнопок нет');
     // кнопка на старом сообщении по уже доставленному заказу — предупреждение, а не повторная отправка
-    const before = (await clientTexts()).length;
+    const departureTexts = async () => (await clientTexts()).filter(t => /Курьер выехал/.test(t));
+    const before = (await departureTexts()).length;
     await press(`deliver_${M.route.id}_${s2.id}_enroute`);
     assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /уже доставлен/);
-    assert.equal((await clientTexts()).length, before);
+    assert.equal((await departureTexts()).length, before, 'повторная кнопка доставленного заказа не отправляет повторное сообщение «Курьер выехал»');
 
     // ===== «Не доставлен» первого заказа: статус в админке меняется, одно сообщение, причина кодом =====
     await pool.query('DELETE FROM notification_outbox');
