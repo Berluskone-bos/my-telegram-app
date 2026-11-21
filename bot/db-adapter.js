@@ -1596,7 +1596,7 @@ class DBAdapter {
         }
         if (fields.length === 0) return null;
         values.push(id);
-        const updateSql = 'UPDATE products SET ' + fields.join(', ') + ' WHERE id = 
+        const updateSql = 'UPDATE products SET ' + fields.join(', ') + ' WHERE id = ' + String.fromCharCode(36) + idx + ' RETURNING *';
         const tracksStock = Object.prototype.hasOwnProperty.call(p, 'stock') && p.stock !== undefined;
         if (tracksStock) {
             // Обновление товара и включение учёта атомарны. Несуществующий ID не должен
