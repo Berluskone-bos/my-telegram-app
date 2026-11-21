@@ -1295,7 +1295,9 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    // Возвращает полные записи заказов для вкладки диспетчеризации; доступ только у роли с settings.manage.
+    // routes.manage сам по себе недостаточен: оператору не нужен полный набор полей orders.
+    app.get('/api/dispatch/unassigned-orders', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try { res.json(await db.getOrders()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
