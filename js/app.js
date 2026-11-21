@@ -390,11 +390,9 @@ const App = {
         document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
         container.classList.add('active');
         const titleEl = document.getElementById('headerTitle');
-        const span = document.createElement('span');
-        span.className = 'header-logo-text';
-        span.textContent = product.name;
-        titleEl.textContent = '';
-        titleEl.appendChild(span);
+        if (titleEl) {
+            titleEl.innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+        }
 
         // Скрываем нижнее меню
         document.querySelector('.bottom-nav').style.display = 'none';
@@ -430,22 +428,10 @@ const App = {
         if (navBtn) navBtn.classList.add('active');
 
         // Меняем заголовок
-        const titleTexts = {
-            main: 'АВТОПРОМОЙЛ',
-            favorites: 'ИЗБРАННОЕ',
-            cart: 'КОРЗИНА',
-            profile: 'ПРОФИЛЬ',
-            about: 'О НАС',
-            delivery: 'ДОСТАВКА И ОПЛАТА',
-            contacts: 'КОНТАКТЫ'
-        };
-        const titleText = titleTexts[screenName] || 'АВТОПРОМОЙЛ';
         const titleEl = document.getElementById('headerTitle');
-        titleEl.textContent = '';
-        const span = document.createElement('span');
-        span.className = 'header-logo-text';
-        span.textContent = titleText;
-        titleEl.appendChild(span);
+        if (titleEl) {
+            titleEl.innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+        }
 
         // Рендерим содержимое
         if (screenName === 'cart') {
@@ -579,23 +565,10 @@ const App = {
             if (target) target.classList.add('active');
             document.querySelector('.bottom-nav').style.display = 'flex';
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            const titles = {
-                about: '<span class="header-logo-text">О НАС</span>',
-                delivery: '<span class="header-logo-text">ДОСТАВКА И ОПЛАТА</span>',
-                contacts: '<span class="header-logo-text">КОНТАКТЫ</span>'
-            };
-            const menuTitles = {
-                about: 'О НАС',
-                delivery: 'ДОСТАВКА И ОПЛАТА',
-                contacts: 'КОНТАКТЫ'
-            };
-            const titleText = menuTitles[screen] || 'АВТОПРОМОЙЛ';
             const titleEl = document.getElementById('headerTitle');
-            titleEl.textContent = '';
-            const span = document.createElement('span');
-            span.className = 'header-logo-text';
-            span.textContent = titleText;
-            titleEl.appendChild(span);
+            if (titleEl) {
+                titleEl.innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
+            }
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     },
@@ -855,7 +828,7 @@ const App = {
         if (target) target.classList.add('active');
         document.querySelector('.bottom-nav').style.display = 'flex';
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById('headerTitle').innerHTML = '<span class="header-logo-text">МОИ ЗАКАЗЫ</span>';
+        document.getElementById('headerTitle').innerHTML = '<img src="img/logo.png" alt="" class="header-logo-img"><span class="header-logo-text">АВТОПРОМОЙЛ</span>';
         Profile.renderOrderHistory();
         Profile.syncOrders();
         if (typeof lucide !== 'undefined') lucide.createIcons();
