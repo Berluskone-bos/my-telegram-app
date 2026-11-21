@@ -1314,7 +1314,52 @@ function registerCourierRoutes(app) {
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
             const orderId = parseInt(req.params.id);
-            const changed = await db.updateOrderStatus(orderId, status);
+            const changed = await db.updateOrderStatus(orderId, status, {
+                afterUpdate: async ({ order, client }) => {
+                    const statusLabels = {
+                        NEW: 'Новый', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Сборка',
+                        READY_FOR_SHIPMENT: 'Готов к отправке', READY_FOR_PICKUP: 'Готов к выдаче',
+                        PICKED_UP: 'Выдан клиенту', SHIPPING: 'В доставке',
+                        DELIVERY_FAILED: 'Не доставлен', DELIVERED: 'Доставлен',
+                        COMPLETED: 'Выполнен', CANCELLED: 'Отменён'
+                    };
+                    const label = statusLabels[status];
+                    if (!label) return;
+
+                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'PICKED_UP'
+                        ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
+                        : null;
+                    await notifyAdmin(
+                        `<b>Смена статуса</b>\n\n` +
+                        `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
+                        `Клиент: ${escapeHtml(order.user_name || '-') }\n` +
+                        `Телефон: ${escapeHtml(order.phone || '-') }\n` +
+                        `Адрес: ${escapeHtml(order.address || '-') }\n` +
+                        `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
+                        `Статус: <b>${label}</b>`,
+                        cancelBtn, `admin-order-status:${order.id}:${status}`, client, true
+                    );
+
+                    // Отмену клиенту и курьеру уже ставит cancel-flow в этой же транзакции.
+                    if (order.user_id && status !== 'CANCELLED') {
+                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered', READY_FOR_PICKUP: 'accepted', PICKED_UP: 'delivered' };
+                        const finalSt = status === 'DELIVERED' || status === 'COMPLETED';
+                        const pickupNotice = status === 'READY_FOR_PICKUP' || status === 'PICKED_UP';
+                        const onCard = stageMap[status]
+                            ? await trackerEvent(client, order.order_number, {
+                                stage: stageMap[status],
+                                ...(finalSt ? { eta: '', canRate: true } : {}),
+                                ...(status === 'PICKED_UP' ? { eta: '', canRate: false } : {})
+                            })
+                            : false;
+                        if (!onCard || finalSt || pickupNotice) {
+                            await queue.notify('client', order.user_id,
+                                `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`,
+                                { dedupKey: `client-order-status:${order.id}:${status}`, db: client, throwOnError: true });
+                        }
+                    }
+                }
+            });
             if (changed === 'CANCELLED_LOCKED') return res.status(409).json({ error: 'Отменённый заказ нельзя вернуть в работу. Оформите новый заказ.' });
             if (changed === 'TRANSITION_FORBIDDEN') return res.status(409).json({ error: 'Недопустимая смена статуса: доставленный или завершённый заказ нельзя вернуть в работу.' });
             if (!changed) return res.status(404).json({ error: 'Заказ не найден' });
@@ -1338,58 +1383,6 @@ function registerCourierRoutes(app) {
                         await db.updateRouteStatus(route.id, newRouteStatus, newCompleted, newFailed);
                         console.log(`[МАРШРУТ] ${escapeHtml(route.route_number)}: стоп ${stop.id} -> ${stopStatus}, маршрут -> ${newRouteStatus}`);
                         break;
-                    }
-                }
-            }
-
-            // Уведомление в админ-бот + клиенту о смене статуса
-            const order = await db.getOrderByNumber(orderId);
-            if (order) {
-                const statusLabels = {
-                    'NEW': 'Новый',
-                    'CONFIRMED': 'Подтверждён',
-                    'ASSEMBLING': 'Сборка',
-                    'READY_FOR_SHIPMENT': 'Готов к отправке',
-                    'READY_FOR_PICKUP': 'Готов к выдаче',
-                    'PICKED_UP': 'Выдан клиенту',
-                    'SHIPPING': 'В доставке',
-                    'DELIVERY_FAILED': 'Не доставлен',
-                    'DELIVERED': 'Доставлен',
-                    'COMPLETED': 'Выполнен',
-                    'CANCELLED': 'Отменён'
-                };
-                const label = statusLabels[status];
-                if (label) {
-                    // Уведомление админу
-                    const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'PICKED_UP'
-                        ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
-                        : null;
-                    await notifyAdmin(
-                        `<b>Смена статуса</b>\n\n` +
-                        `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
-                        `Клиент: ${escapeHtml(order.user_name || '-')}\n` +
-                        `Телефон: ${escapeHtml(order.phone || '-')}\n` +
-                        `Адрес: ${escapeHtml(order.address || '-')}\n` +
-                        `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
-                        `Статус: <b>${label}</b>`,
-                        cancelBtn, `admin-order-status:${order.id}:${status}`
-                    );
-                    // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
-                    if (order.user_id && status !== 'CANCELLED') {
-                        // промежуточные статусы — молча в карточку заказа; «доставлен/выполнен» — ещё и сообщением (уведомление на телефон)
-                        const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered', READY_FOR_PICKUP: 'accepted', PICKED_UP: 'delivered' };
-                        const finalSt = status === 'DELIVERED' || status === 'COMPLETED';
-                        const pickupNotice = status === 'READY_FOR_PICKUP' || status === 'PICKED_UP';
-                        const onCard = stageMap[status]
-                            ? await trackerEvent(trackerPool(), order.order_number, {
-                                stage: stageMap[status],
-                                ...(finalSt ? { eta: '', canRate: true } : {}),
-                                ...(status === 'PICKED_UP' ? { eta: '', canRate: false } : {})
-                            }).catch(() => false)
-                            : false;
-                        if (!onCard || finalSt || pickupNotice) {
-                            await queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`, { dedupKey: `client-order-status:${order.id}:${status}` });
-                        }
                     }
                 }
             }

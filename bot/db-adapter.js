@@ -1124,7 +1124,7 @@ class DBAdapter {
     // Отменённый заказ в работу вернуть нельзя: остаток уже отдан другим покупателям (вернёт 'CANCELLED_LOCKED').
     // Результат: true — статус изменён; 'ALREADY' — уже был таким, ничего не менялось; false — заказ не найден;
     // 'CANCELLED_LOCKED' — заказ отменён, статус не изменён; 'TRANSITION_FORBIDDEN' — такая смена статуса запрещена.
-    async updateOrderStatus(orderId, status) {
+    async updateOrderStatus(orderId, status, { afterUpdate = null } = {}) {
         // 'AP-…' — не PK, отвечаем «не найдено» вместо 22P02 от Postgres.
         const id = Number(orderId);
         if (!Number.isInteger(id) || id <= 0) return false;
@@ -1132,7 +1132,7 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
             const cur = await client.query(
-                'SELECT id, status, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost, delivery_type FROM orders WHERE id = $1 FOR UPDATE', [id]);
+                'SELECT id, status, items, stock_deducted, order_number, user_id, user_name, phone, address, referrer_id, bonus_used, total, delivery_cost, delivery_type FROM orders WHERE id = $1 FOR UPDATE', [id]);
             if (cur.rowCount === 0) { await client.query('ROLLBACK').catch(() => {}); return false; }
             const o = cur.rows[0];
             if (o.status === status) { await client.query('COMMIT'); return 'ALREADY'; }
@@ -1158,6 +1158,7 @@ class DBAdapter {
                 await this._undoBonuses(client, o);
             }
             if (status === 'DELIVERED' || status === 'COMPLETED' || status === 'PICKED_UP') await this._grantReferralBonus(client, o);
+            if (typeof afterUpdate === 'function') await afterUpdate({ order: o, client, status });
             await client.query('COMMIT');
             return true;
         } catch (e) {
