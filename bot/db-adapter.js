@@ -1254,7 +1254,7 @@ class DBAdapter {
                 `UPDATE orders
                     SET status = 'CANCELLED'
                   WHERE order_number = $1
-                    AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED')
+                    AND status NOT IN ('CANCELLED', 'DELIVERED', 'COMPLETED', 'PICKED_UP')
                  RETURNING id, items, stock_deducted, order_number, user_id, referrer_id, bonus_used, total, delivery_cost`,
                 [orderNumber]
             );
