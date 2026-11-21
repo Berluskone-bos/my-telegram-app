@@ -13,9 +13,28 @@ test('склад: отмена и удаление заказов возвращ
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
     const { deliverOrder } = require('./helpers/deliver-order');
     await initDB();
+    const trackingBefore = (await pool.query(
+        "SELECT EXISTS(SELECT 1 FROM app_flags WHERE flag = 'stock_tracking_enabled') AS enabled"
+    )).rows[0].enabled;
+    let pid = null;
+    t.after(async () => {
+        if (pid !== null) await pool.query('DELETE FROM products WHERE id = $1', [pid]);
+        if (trackingBefore) {
+            await pool.query("INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING");
+        } else {
+            await pool.query("DELETE FROM app_flags WHERE flag = 'stock_tracking_enabled'");
+        }
+        await pool.end();
+    });
+
+    await pool.query("DELETE FROM app_flags WHERE flag = 'stock_tracking_enabled'");
+    assert.equal(await db.updateProduct(2147483647, { stock: 0 }), null, 'несуществующий товар не обновляется');
+    assert.equal((await pool.query(
+        "SELECT EXISTS(SELECT 1 FROM app_flags WHERE flag = 'stock_tracking_enabled') AS enabled"
+    )).rows[0].enabled, false, 'неуспешное обновление не включает складской учёт');
+
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
-    const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('T-oil', 1000, true, 10) RETURNING id")).rows[0].id;
-    t.after(async () => { await pool.query('DELETE FROM products WHERE id = $1', [pid]); await pool.end(); });
+    pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('T-oil', 1000, true, 10) RETURNING id")).rows[0].id;
     const stock = async () => (await pool.query('SELECT stock FROM products WHERE id = $1', [pid])).rows[0].stock;
     const mk = (qty, key) => db.createOrder({ order_number: 'AP-' + key, name: 't', phone: '1', zone: 'spb', city: 'c', street: 's', house: '1',
         items: [{ productId: pid, qty, name: 'T-oil' }], subtotal: 1000 * qty, total: 1000 * qty, idempotency_key: key });
