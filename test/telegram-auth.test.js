@@ -56,3 +56,9 @@ test('срок действия: просроченные и «из будуще
     assert.equal(check(build(GOOD_HASH), TOKEN, { nowSec: 1700000000 + 3601 }), null);
     assert.equal(check(build(GOOD_HASH), TOKEN, { nowSec: 1700000000 - 61 }), null);
 });
+
+test('некорректный TTL не отключает срок действия initData', () => {
+    assert.equal(verifyInitData(build(GOOD_HASH), TOKEN, { nowSec: 1700000000 + 3601, ttlSec: NaN }), null);
+    assert.equal(verifyInitData(build(GOOD_HASH), TOKEN, { nowSec: 1700000000 + 3601, ttlSec: Infinity }), null);
+    assert.equal(verifyInitData(build(GOOD_HASH), TOKEN, { nowSec: 1700000000 + 3601, ttlSec: 0 }), null);
+});
