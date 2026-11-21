@@ -670,8 +670,18 @@ class DBAdapter {
                 order = orderRes.rows[0] || null;
             }
 
+            // Единый порядок блокировок: заказ → маршрут → остановка.
+            // setStopStage/failDeliveryStop уже блокируют маршрут до остановки;
+            // здесь делаем то же самое, иначе параллельные callback могут deadlock.
+            const routeRes = await client.query(
+                'SELECT id FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
+            if (!routeRes.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'not_found' };
+            }
+
             const stopRes = await client.query(
-                'SELECT * FROM route_stops WHERE id = $1 FOR UPDATE', [id]);
+                'SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [id, candidate.route_id]);
             if (!stopRes.rowCount) {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
