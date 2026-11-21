@@ -531,11 +531,9 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
             CREATE INDEX IF NOT EXISTS stock_movements_order_idx
                 ON stock_movements(order_id) WHERE order_id IS NOT NULL;
             CREATE OR REPLACE FUNCTION reject_stock_movement_mutation()
-            RETURNS trigger LANGUAGE plpgsql AS $
-            BEGIN
-                RAISE EXCEPTION 'stock_movements is append-only' USING ERRCODE = '55000';
-            END;
-            $;
+            RETURNS trigger LANGUAGE plpgsql AS 'BEGIN
+                RAISE EXCEPTION ''stock_movements is append-only'' USING ERRCODE = ''55000'';
+            END;';
             DROP TRIGGER IF EXISTS stock_movements_append_only ON stock_movements;
             CREATE TRIGGER stock_movements_append_only
                 BEFORE UPDATE OR DELETE ON stock_movements
