@@ -1033,7 +1033,22 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     let failure;
     try {
-        failure = await db.failDeliveryStop(stopId, reason || 'Не указана');
+        const safeReason = String(reason || 'Не указана').slice(0, 300);
+        failure = await db.failDeliveryStop(stopId, safeReason, {
+            afterFailure: async ({ client, stop: failedStop, route: failedRoute }) => {
+                await notifyAdmin(
+                    `[ДОСТАВКА] ${escapeHtml(failedRoute.route_number)} | НЕ ДОСТАВЛЕНО (точка ${failedStop.stop_number} из ${failedRoute.total_orders || ''})\n` +
+                    `Заказ: ${escapeHtml(failedStop.order_number || '')}\nАдрес: ${escapeHtml(failedStop.address)}\nПричина: ${escapeHtml(safeReason)}\n` +
+                    'Статус заказа в админке: «Не доставлен». Решите: отправить повторно или отменить.',
+                    null, `admin-step-failed:${stopId}`, client, true);
+                if (failedStop.client_chat_id) {
+                    await trackerEvent(client, failedStop.order_number, { stage: 'failed', eta: '' });
+                    await queue.notify('client', failedStop.client_chat_id,
+                        `<b>Заказ ${escapeHtml(failedStop.order_number)}</b>\n\nВаш заказ <b>не доставлен</b>.\nПричина: ${escapeHtml(safeReason)}`,
+                        { dedupKey: `stop-failed:${stopId}`, db: client, throwOnError: true });
+                }
+            }
+        });
     } catch (e) {
         console.error('[DELIVER] failure transaction failed:', errorCode(e));
         toast('Не удалось сохранить недоставку. Повторите позже.', true);
@@ -1055,22 +1070,8 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
     try { await routeSvc.refreshEtas({ routeId, notifyNew: false }); }
     catch (e) { console.error('[DELIVER] пересчёт времени после недоставки не удался:', errorCode(e)); }
 
-    const safeReason = String(reason || 'Не указана').slice(0, 300);
     toast(failure.status === 'already' ? 'Недоставка уже отмечена.'
         : (shown ? `Заказ №${stop.stop_number} отмечен как не доставленный.` : 'Недоставка сохранена, но карточку не удалось обновить. Откройте /route.'));
-    if (failure.status === 'failed') {
-        await notifyAdmin(
-            `[ДОСТАВКА] ${escapeHtml(route.route_number)} | НЕ ДОСТАВЛЕНО (точка ${stop.stop_number} из ${(route.stops || []).length})\n` +
-            `Заказ: ${escapeHtml(stop.order_number || '')}\nАдрес: ${escapeHtml(stop.address)}\nПричина: ${escapeHtml(safeReason)}\n` +
-            'Статус заказа в админке: «Не доставлен». Решите: отправить повторно или отменить.',
-            null, `admin-step-failed:${stopId}`);
-        if (stop.client_chat_id) {
-            await trackerEvent(trackerPool(), stop.order_number, { stage: 'failed', eta: '' }).catch(() => {});
-            await queue.notify('client', stop.client_chat_id,
-                `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nВаш заказ <b>не доставлен</b>.\nПричина: ${escapeHtml(safeReason)}`,
-                { dedupKey: `stop-failed:${stopId}` });
-        }
-    }
 }
 
 // Текст причины для «Другое»: принимаем следующее текстовое сообщение курьера (команды отменяют ожидание)

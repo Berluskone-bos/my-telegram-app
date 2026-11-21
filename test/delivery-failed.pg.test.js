@@ -73,9 +73,28 @@ test('«Не доставлен»: статус заказа, повторная
     assert.equal(await db.setStopStage(a.stopId, 'enroute'), null, 'после «У клиента» вернуться в «В пути» нельзя');
     assert.equal(await db.setStopStage(a.stopId, 'bogus'), null);
 
-    // Недоставка: остановка failed, заказ — DELIVERY_FAILED (не «В доставке»), маршрут завершён
+    // Недоставка: обязательные уведомления должны быть частью транзакции.
     assert.equal(await status(a.o.id), 'SHIPPING');
-    assert.equal((await db.failDeliveryStop(a.stopId, 'Клиента нет дома')).status, 'failed');
+    const failRollbackKey = 'stage-outbox-fail-rollback:' + a.stopId;
+    await assert.rejects(db.failDeliveryStop(a.stopId, 'Клиента нет дома', {
+        afterFailure: async ({ client }) => {
+            await enqueue(client, { bot: 'client', dedupKey: failRollbackKey, payload: { chat_id: '777031', text: 'не доставлен' } });
+            throw new Error('simulate failed-delivery notification enqueue failure');
+        }
+    }), /simulate failed-delivery notification enqueue failure/);
+    assert.equal(await status(a.o.id), 'SHIPPING', 'статус заказа откатывается при сбое обязательного уведомления');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [a.stopId])).rows[0].status, 'in_progress',
+        'остановка откатывается при сбое обязательного уведомления');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [failRollbackKey])).rows[0].n, 0,
+        'outbox также откатывается');
+    const failKey = 'stage-outbox-failed:' + a.stopId;
+    assert.equal((await db.failDeliveryStop(a.stopId, 'Клиента нет дома', {
+        afterFailure: async ({ client, stop }) => {
+            await enqueue(client, { bot: 'client', dedupKey: failKey, payload: { chat_id: String(stop.client_chat_id), text: 'Заказ не доставлен' } });
+        }
+    })).status, 'failed');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [failKey])).rows[0].n, 1,
+        'уведомление фиксируется вместе со статусом');
     assert.equal(await status(a.o.id), 'DELIVERY_FAILED');
     assert.equal((await db.failDeliveryStop(a.stopId, 'Клиента нет дома')).status, 'already', 'повтор безопасен');
     assert.equal(await db.setStopStage(a.stopId, 'enroute'), null, 'у закрытой остановки этап не меняется');
