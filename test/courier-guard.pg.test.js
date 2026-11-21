@@ -77,7 +77,7 @@ test('курьерский бот: кнопки отменённого зака�
     };
     const press = async (data, replyMarkup = { inline_keyboard: [] }, messageExtras = {}, telegramId = 900002) => {
         calls.length = 0;
-        await handlers.callback_query({ id: `q${++nextCallbackId}`, data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
+        await handlers.callback_query({ id: `q${++nextCallbackId}`, data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId, type: 'private' }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
@@ -101,6 +101,14 @@ test('курьерский бот: кнопки отменённого зака�
         assert.match(denied[2].text, /Нет доступа/);
         assert.equal(calls.some(x => x[0] === 'sendMessage'), false, 'данные чужого маршрута не отправлены в чат');
     }
+    // Даже владелец курьерского аккаунта не может использовать старую маршрутную кнопку из группы.
+    await press('showroute_' + foreignRoute.id, { inline_keyboard: [] }, { chat: { id: -100900002, type: 'supergroup' } });
+    const groupDenied = calls.find(x => x[0] === 'answerCallbackQuery');
+    assert.ok(groupDenied);
+    assert.match(groupDenied[2].text, /личный чат/);
+    assert.equal(calls.some(x => x[0] === 'sendMessage'), false, 'в группу не отправляются адреса и данные маршрута');
+    assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'групповая кнопка не меняет маршрут');
+
     assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'чужой маршрут не изменён');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [foreignOrder.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
@@ -354,10 +362,12 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`failreason_${F.route.id}_${F.stops[0].id}_other`);
     assert.match(lastCard().text, /Напишите причину/);
     assert.equal(await orderStatus(F.orders[0].id), 'SHIPPING', 'пока причина не написана, статус прежний');
-    await handlers.message({ chat: { id: 900002 }, from: { id: 900002 }, text: 'Домофон не работает' });
+    await handlers.message({ chat: { id: -100900002, type: 'supergroup' }, from: { id: 900002 }, text: 'групповая подмена' });
+    assert.equal(await orderStatus(F.orders[0].id), 'SHIPPING', 'сообщение из группы не принимается как причина недоставки');
+    await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'Домофон не работает' });
     await new Promise(r => setTimeout(r, 150));
     assert.equal(await orderStatus(F.orders[0].id), 'DELIVERY_FAILED');
     assert.equal((await db.getRouteById(F.route.id)).stops[0].fail_reason, 'Домофон не работает');
-    await handlers.message({ chat: { id: 900002 }, from: { id: 900002 }, text: 'просто сообщение' });
+    await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'просто сообщение' });
     assert.equal(await orderStatus(F.orders[1].id), 'SHIPPING', 'посторонние сообщения заказы не трогают');
 });

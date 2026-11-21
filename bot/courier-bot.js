@@ -17,6 +17,7 @@ const { filterProductsForRole, validateStockUpdate } = require('./admin-product-
 const { requirePermission, requireOrderStatusPermission, hasPermission } = require('./admin-permissions');
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
 const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
+const { isPrivateCourierMessage, isPrivateCourierCallback, isSameTelegramSender } = require('./courier-chat-guard');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -235,6 +236,7 @@ async function getActiveRoute(courierId) {
 // ====== /car — Изменить авто и регномер ======
 if (bot) {
 bot.onText(/\/car/, async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const courier = await getActiveCourier(msg.from);
     if (!courier) {
@@ -246,7 +248,7 @@ bot.onText(/\/car/, async (msg) => {
         { parse_mode: 'HTML' }
     );
     bot.once('message', async (updMsg) => {
-        if (updMsg.chat.id !== chatId || (updMsg.text || '').startsWith('/')) return;
+        if (!isPrivateCourierMessage(updMsg) || !isSameTelegramSender(updMsg, msg) || String(updMsg.chat.id) !== String(chatId) || (updMsg.text || '').startsWith('/')) return;
         const lines = (updMsg.text || '').split('\n').map(l => l.trim()).filter(Boolean);
         if (lines.length < 1) {
             bot.sendMessage(chatId, 'Нужно указать хотя бы тип транспорта. Попробуйте /car заново.');
@@ -266,6 +268,7 @@ bot.onText(/\/car/, async (msg) => {
 
 if (bot) {
 bot.onText(/\/start/, async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const user = msg.from;
     const courier = await getCourier(user);
@@ -290,7 +293,7 @@ bot.onText(/\/start/, async (msg) => {
     );
 
     bot.once('message', async (regMsg) => {
-        if (regMsg.chat.id !== chatId) return;
+        if (!isPrivateCourierMessage(regMsg) || !isSameTelegramSender(regMsg, msg) || String(regMsg.chat.id) !== String(chatId)) return;
         if (regMsg.text && regMsg.text.startsWith('/')) return;
 
         const lines = (regMsg.text || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -366,6 +369,7 @@ async function showMainScreen(chatId, courier) {
 // ====== /today — Сегодняшние доставки ======
 
 bot.onText(/\/today/, async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const courier = await getActiveCourier(msg.from);
 
@@ -399,6 +403,7 @@ bot.onText(/\/today/, async (msg) => {
 // ====== /route — Маршрутный лист (детальный) ======
 
 bot.onText(/\/route/, async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const courier = await getActiveCourier(msg.from);
 
@@ -468,6 +473,7 @@ async function sendRouteDetails(chatId, route) {
 // ====== /done — Быстрая отметка доставки ======
 
 bot.onText(/\/done/, async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const courier = await getActiveCourier(msg.from);
 
@@ -493,6 +499,7 @@ bot.onText(/\/done/, async (msg) => {
 // ====== /status — Статистика ======
 
 bot.onText(/\/status/, async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const courier = await getActiveCourier(msg.from);
 
@@ -524,6 +531,7 @@ bot.onText(/\/status/, async (msg) => {
 // ====== /help ======
 
 bot.onText(/\/help/, (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     bot.sendMessage(msg.chat.id,
         '<b>Команды курьера</b>\n\n' +
         '/start — регистрация / главный экран\n' +
@@ -542,6 +550,10 @@ bot.onText(/\/help/, (msg) => {
 if (bot) {
 bot.on('callback_query', async (query) => {
  try {
+    if (!isPrivateCourierCallback(query)) {
+        bot.answerCallbackQuery(query.id, { text: 'Откройте личный чат с курьерским ботом' }).catch(() => {});
+        return;
+    }
     const chatId = query.message.chat.id;
     const data = query.data;
     console.log('[CALLBACK] Получено действие курьера');
@@ -1081,6 +1093,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 // Текст причины для «Другое»: принимаем следующее текстовое сообщение курьера (команды отменяют ожидание)
 if (bot) {
     bot.on('message', async (msg) => {
+        if (!isPrivateCourierMessage(msg)) return;
         const p = msg && msg.chat ? pendingReasons.get(msg.chat.id) : null;
         if (!p || !msg.text) return;
         if (msg.text.startsWith('/') || Date.now() - p.at > 15 * 60_000) { pendingReasons.delete(msg.chat.id); return; }
@@ -1104,6 +1117,7 @@ async function handleOptimizeRoute(chatId, routeId) {
 // ====== Обработка фото ======
 
 bot.on('photo', async (msg) => {
+    if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
     const courier = await getActiveCourier(msg.from);
     if (!courier) return;
@@ -1120,7 +1134,7 @@ bot.on('photo', async (msg) => {
     bot.sendMessage(chatId, 'Фото получено. К какому заказу привязать?\n\nОтправьте номер заказа (например: AP-000001) или нажмите /route для выбора.', { parse_mode: 'HTML' });
 
     bot.once('message', async (orderMsg) => {
-        if (orderMsg.chat.id !== chatId) return;
+        if (!isPrivateCourierMessage(orderMsg) || !isSameTelegramSender(orderMsg, msg) || String(orderMsg.chat.id) !== String(chatId)) return;
         const orderNum = (orderMsg.text || '').trim();
         const stop = pendingStops.find(s => s.order_number === orderNum);
         if (stop) {
