@@ -80,10 +80,14 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                 ? await pool.query('SELECT COUNT(DISTINCT user_id)::int AS customers FROM orders WHERE user_id IS NOT NULL')
                 : { rows: [{ customers: null }] };
 
-            // Customer names are personal data. Only roles with customers.view receive them.
-            const recentOrders = canSeeCustomerNames
-                ? recentResult.rows
-                : recentResult.rows.map(({ customerName, ...order }) => order);
+            // Customer names and order amounts are restricted independently.
+            // roles without customers.view do not receive names; roles without sales.view do not receive totals.
+            const recentOrders = recentResult.rows.map(order => {
+                const visible = { ...order };
+                if (!canSeeCustomerNames) delete visible.customerName;
+                if (!canSeeSales) delete visible.total;
+                return visible;
+            });
 
             res.set('Cache-Control', 'no-store');
             return res.json({
