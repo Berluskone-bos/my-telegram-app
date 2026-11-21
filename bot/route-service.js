@@ -66,7 +66,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const routeNumber = 'RL-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
         const approx = plan.source === 'estimate' ? ' (оценка по прямой: сервис дорог недоступен)' : '';
         const n = sequence.length;
-        const list = sequence.map((s, i) => stopText(s, i, n)).join('\\n');
+        const list = sequence.map((s, i) => stopText(s, i, n)).join('\n');
 
         // Маршрут и все связанные уведомления записываются одной транзакцией.
         // Ошибка enqueue откатывает маршрут, чтобы API не оставил назначение без уведомлений.
@@ -88,10 +88,10 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             afterCreate: async ({ route: createdRoute, client }) => {
                 if (courier.telegram_id) {
                     const sheet =
-                        `<b>Маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${n} ${n === 1 ? 'точка' : 'точек'}\\n` +
-                        (plan.ordered.length ? `Между адресами около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}; время до первой точки зависит от текущего местоположения курьера.\\n` +
-                            `Время ориентировочное: считается по дорогам и часам пик, живые пробки не учитываются.\\n` : '') +
-                        `\\n${list}\\n\\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз. Навигация начинает путь от текущего местоположения курьера.`;
+                        `<b>Маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${n} ${n === 1 ? 'точка' : 'точек'}\n` +
+                        (plan.ordered.length ? `Между адресами около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}; время до первой точки зависит от текущего местоположения курьера.\n` +
+                            `Время ориентировочное: считается по дорогам и часам пик, живые пробки не учитываются.\n` : '') +
+                        `\n${list}\n\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз. Навигация начинает путь от текущего местоположения курьера.`;
                     const ll = placed.map(p => ({ lat: p.lat, lon: p.lon }));
                     const nav = placed.length ? MapLinks.allRoute(ll) : null;
                     const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
@@ -113,12 +113,12 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                         const st = createdRoute.stops[i];
                         const item = sequence[i], o = item.order;
                         const text =
-                            `<b>Точка ${i + 1} из ${n}</b>\\n\\nЗаказ: ${escapeHtml(o.order_number)}\\nАдрес: ${escapeHtml(o.address)}\\n` +
-                            (item.etaAt ? `Ориентировочно: к ${planner.formatEta(item.etaAt, now()).clock}\\n` : '') +
-                            `Сумма: ${parseFloat(o.total || 0).toLocaleString()} руб.${o.payment === 'cash' ? ' (оплата на месте)' : ''}\\n` +
-                            (o.phone ? `Телефон: ${escapeHtml(o.phone)}\\n` : '') +
-                            (o.comment ? `Комментарий: ${escapeHtml(o.comment)}\\n` : '') +
-                            `\\nНажмите "Принять заказ", когда заберёте его со склада.`;
+                            `<b>Точка ${i + 1} из ${n}</b>\n\nЗаказ: ${escapeHtml(o.order_number)}\nАдрес: ${escapeHtml(o.address)}\n` +
+                            (item.etaAt ? `Ориентировочно: к ${planner.formatEta(item.etaAt, now()).clock}\n` : '') +
+                            `Сумма: ${parseFloat(o.total || 0).toLocaleString()} руб.${o.payment === 'cash' ? ' (оплата на месте)' : ''}\n` +
+                            (o.phone ? `Телефон: ${escapeHtml(o.phone)}\n` : '') +
+                            (o.comment ? `Комментарий: ${escapeHtml(o.comment)}\n` : '') +
+                            `\nНажмите "Принять заказ", когда заберёте его со склада.`;
                         const buttons = [];
                         if (item.lat && item.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(o.address, item.lat, item.lon) }, { text: '2GIS', url: MapLinks.gis2(item.lat, item.lon) }]);
                         buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${createdRoute.id}_${st.id}_accept` }]);
@@ -129,8 +129,8 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 }
                 if (notifyAdmin) {
                     await notifyAdmin(
-                        `<b>Маршрут ${escapeHtml(createdRoute.route_number)} назначен</b>\\nКурьер: ${escapeHtml(courier.name)}\\n` +
-                        `Точек: ${n}${plan.ordered.length ? `, между адресами около ${plan.totalMin} мин` : ''}${approx}\\n\\n${list}`,
+                        `<b>Маршрут ${escapeHtml(createdRoute.route_number)} назначен</b>\nКурьер: ${escapeHtml(courier.name)}\n` +
+                        `Точек: ${n}${plan.ordered.length ? `, между адресами около ${plan.totalMin} мин` : ''}${approx}\n\n${list}`,
                         { db: client, dedupKey: `admin-route-assigned:${createdRoute.id}` }
                     );
                 }
