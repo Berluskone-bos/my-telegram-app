@@ -82,7 +82,9 @@ test('параллельные callback «Доставлен» фиксирую�
     };
 
     t.after(async () => {
-        if (stopIds.length) await pool.query('DELETE FROM notification_outbox WHERE dedup_key = ANY($1::text[])', [stopIds.map(id => `stop-delivered:${id}`)]);
+        if (stopIds.length) await pool.query('DELETE FROM notification_outbox WHERE dedup_key = ANY($1::text[])', [
+            [...stopIds.map(id => `stop-delivered:${id}`), ...stopIds.flatMap(id => [`complete-admin-rollback:${id}`, `complete-admin-ok:${id}`])]
+        ]);
         await pool.query('DELETE FROM route_stops WHERE route_id IN (SELECT id FROM delivery_routes WHERE courier_id = $1)', [courier.id]);
         await pool.query('DELETE FROM delivery_routes WHERE courier_id = $1', [courier.id]);
         if (created.length) await pool.query('DELETE FROM orders WHERE id = ANY($1::int[])', [created]);
