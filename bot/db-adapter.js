@@ -659,7 +659,7 @@ class DBAdapter {
     // Завершение доставки — одна транзакция: блокировка остановки/заказа,
     // перевод заказа в COMPLETED, обновление маршрута и постановка уведомления в outbox.
     // Повторный callback получает already и не создаёт второе уведомление.
-    async completeDeliveryStop(stopId) {
+    async completeDeliveryStop(stopId, { afterComplete = null } = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -742,6 +742,10 @@ class DBAdapter {
                   RETURNING *`, [id]);
 
             await this._refreshRouteCompletion(client, stop.route_id);
+            const routeRes = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [stop.route_id]);
+            if (typeof afterComplete === 'function') {
+                await afterComplete({ client, stop: updated.rows[0], route: routeRes.rows[0] || {}, order });
+            }
 
             if (stop.client_chat_id) {
                 const orderNumber = stop.order_number || order?.order_number || String(order?.id || id);
