@@ -121,6 +121,24 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'повторный расчёт также не отправляет ETA');
     sent.length = 0;
 
+    // Маршрутный лист ставится в очередь только после записи новых ETA.
+    const etasBeforeSheetRefresh = (await db.getRouteById(out.route.id)).stops.map(s => s.eta_at && new Date(s.eta_at).toISOString());
+    const sheetWrites = [];
+    const { createRouteService: createRouteServiceWithSheetHook } = require('../bot/route-service');
+    const sheetSvc = createRouteServiceWithSheetHook({
+        db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5' }, now: () => clock.t,
+        refreshRouteSheet: async (_db, routeId) => {
+            const current = await db.getRouteById(routeId);
+            sheetWrites.push(current.stops.map(s => s.eta_at && new Date(s.eta_at).toISOString()));
+            return true;
+        }
+    });
+    clock.t = new Date('2026-11-15T00:55:00Z');
+    await sheetSvc.refreshEtas({ routeId: out.route.id, firstStopId: stops[2].id });
+    assert.equal(sheetWrites.length, 1);
+    assert.ok(sheetWrites[0].some((eta, i) => eta !== etasBeforeSheetRefresh[i]),
+        'в момент постановки карточки уже сохранены ETA, пересчитанные на новое время');
+
     // После фактического завершения остановок пересчёт внутренних ETA также не уведомляет клиентов.
     await db.updateStopStatus(stops[0].id, 'delivered', '');
     clock.t = new Date('2026-11-15T00:16:00Z');
