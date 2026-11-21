@@ -513,12 +513,12 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
         await client.query(`
             CREATE TABLE IF NOT EXISTS stock_movements (
                 id BIGSERIAL PRIMARY KEY,
-                product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+                product_id INTEGER, -- исторический ID товара; не FK, чтобы append-only журнал не переписывался при удалении товара
                 movement_type TEXT NOT NULL CHECK (movement_type IN ('order_deduction', 'order_return', 'manual_adjustment')),
                 qty_delta INTEGER NOT NULL CHECK (qty_delta <> 0),
                 stock_before INTEGER NOT NULL CHECK (stock_before >= 0),
                 stock_after INTEGER NOT NULL CHECK (stock_after >= 0),
-                order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+                order_id INTEGER, -- исторический ID заказа; не FK, чтобы сохранять неизменность журнала
                 actor_user_id BIGINT,
                 actor_role VARCHAR(20),
                 reason TEXT NOT NULL CHECK (length(btrim(reason)) > 0),
