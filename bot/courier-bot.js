@@ -14,7 +14,7 @@ const { createRouteService } = require('./route-service');
 const { registerOrderStatsRoutes } = require('./order-stats');
 const { validateProductPayload, validateExpectedStock } = require('./product-validation');
 const { filterProductsForRole, validateStockUpdate } = require('./admin-product-visibility');
-const { requirePermission, requireOrderStatusPermission } = require('./admin-permissions');
+const { requirePermission, requireOrderStatusPermission, hasPermission } = require('./admin-permissions');
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
 const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
 
@@ -1364,7 +1364,14 @@ function registerCourierRoutes(app) {
     app.get('/api/dispatch/stats', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const date = req.query.date || new Date().toISOString().split('T')[0];
-            res.json(await db.getDayStats(date));
+            const stats = await db.getDayStats(date);
+            // Операционная роль видит ход доставки, но не финансовые суммы маршрутов.
+            // Доступ к денежным итогам контролируется отдельным sales.view.
+            if (!hasPermission(req.admin && req.admin.role, 'sales.view')) {
+                stats.cash_to_collect = null;
+                stats.cash_collected = null;
+            }
+            res.json(stats);
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 

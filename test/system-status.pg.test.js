@@ -15,6 +15,7 @@ test('system-status: только после входа, показывает б
     require('./fake-telegram-preload');       // вместо настоящего Telegram — заглушка
     const express = require('express');
     const { pool, initDB } = require('../bot/db');
+    const db = require('../bot/db-adapter');
     await initDB();
     await pool.query('DELETE FROM admin_sessions');
     await pool.query('DELETE FROM notification_outbox');
@@ -26,7 +27,17 @@ test('system-status: только после входа, показывает б
     auth.registerRoutes(app);
     registerCourierRoutes(app);
     const server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
-    t.after(async () => { server.close(); await pool.query('DELETE FROM notification_outbox'); await pool.end(); });
+    let rbacRouteId = null;
+    let rbacCourierId = null;
+    t.after(async () => {
+        server.close();
+        if (rbacRouteId) await pool.query('DELETE FROM delivery_routes WHERE id = $1', [rbacRouteId]);
+        if (rbacCourierId) await pool.query('DELETE FROM couriers WHERE id = $1', [rbacCourierId]);
+        await pool.query("DELETE FROM admin_sessions WHERE staff_user_id IN (SELECT id FROM admin_users WHERE login = 'rbac.operator')");
+        await pool.query("DELETE FROM admin_users WHERE login = 'rbac.operator'");
+        await pool.query('DELETE FROM notification_outbox');
+        await pool.end();
+    });
     const base = `http://127.0.0.1:${server.address().port}`;
     const H = { 'content-type': 'application/json', 'x-forwarded-proto': 'https' };
     const Hsame = { ...H, origin: base.replace(/^http:/, 'https:') };
@@ -90,5 +101,55 @@ test('system-status: только после входа, показывает б
         method: 'PUT', headers: { ...Hsame, cookie }, body: JSON.stringify({ status: 'CONFIRMED' })
     });
     assert.equal(invalidStatusId.status, 400, 'ID заказа не принимает суффикс');
+
+
+    // RBAC: оператору нужна статистика доставки, но денежные итоги маршрутов ему не положены.
+    const staff = await fetch(base + '/api/admin/staff', {
+        method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify({
+            login: 'rbac.operator', displayName: 'Оператор RBAC',
+            password: 'Operator-Password-2026!', role: 'operator'
+        })
+    });
+    assert.equal(staff.status, 201);
+    const operatorLogin = await fetch(base + '/api/admin/login', {
+        method: 'POST', headers: { ...Hsame, 'x-forwarded-for': '9.9.9.8' },
+        body: JSON.stringify({ login: 'rbac.operator', password: 'Operator-Password-2026!' })
+    });
+    assert.equal(operatorLogin.status, 200);
+    const operatorCookie = operatorLogin.headers.getSetCookie().find(c => c.startsWith('__Host-admin_session=')).split(';')[0];
+
+    const statsDate = new Date().toISOString().slice(0, 10);
+    const beforeAdminStats = await (await fetch(base + `/api/dispatch/stats?date=${statsDate}`, {
+        headers: { ...H, cookie }
+    })).json();
+
+    const courier = await db.createCourier({
+        name: 'RBAC test courier', phone: '+70000000000',
+        telegram_id: 880000000 + (Date.now() % 1000000),
+        telegram_user: 'rbac_test', vehicle_type: 'авто'
+    });
+    rbacCourierId = courier.id;
+    const route = await db.createRoute({
+        route_number: 'RBAC-' + Date.now().toString().slice(-10), route_date: statsDate,
+        courier_id: courier.id, status: 'assigned', total_orders: 2,
+        cash_to_collect: 1500, cash_collected: 500, stops: []
+    });
+    rbacRouteId = route.id;
+
+    const adminDispatchStats = await (await fetch(base + `/api/dispatch/stats?date=${statsDate}`, {
+        headers: { ...H, cookie }
+    })).json();
+    assert.equal(Number(adminDispatchStats.cash_to_collect) - Number(beforeAdminStats.cash_to_collect), 1500, 'администратор с sales.view видит денежные итоги маршрута');
+    assert.equal(Number(adminDispatchStats.cash_collected) - Number(beforeAdminStats.cash_collected), 500);
+
+    const operatorDispatchStatsResponse = await fetch(base + `/api/dispatch/stats?date=${statsDate}`, {
+        headers: { ...H, cookie: operatorCookie }
+    });
+    assert.equal(operatorDispatchStatsResponse.status, 200, 'оператор может видеть операционную статистику маршрутов');
+    const operatorDispatchStats = await operatorDispatchStatsResponse.json();
+    assert.equal(Number(operatorDispatchStats.total_routes), Number(adminDispatchStats.total_routes));
+    assert.equal(Number(operatorDispatchStats.delivered), Number(adminDispatchStats.delivered));
+    assert.equal(operatorDispatchStats.cash_to_collect, null, 'оператору не раскрывается сумма к сбору');
+    assert.equal(operatorDispatchStats.cash_collected, null, 'оператору не раскрывается собранная сумма');
 
 });
