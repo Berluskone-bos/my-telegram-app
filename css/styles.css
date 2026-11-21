@@ -70,20 +70,14 @@ a, button, input, select { font-family: inherit; }
     min-width: 0;
 }
 .header-logo-img {
-    height: 32px;
+    height: 40px;
     width: auto;
-    max-width: 36px;
+    max-width: min(220px, 58vw);
     object-fit: contain;
     flex-shrink: 0;
 }
 .header-logo-text {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 1.2px;
-    color: var(--navy);
-    text-transform: uppercase;
-    white-space: nowrap;
+    display: none;
 }
 .header-icon {
     cursor: pointer;
@@ -1005,13 +999,30 @@ a, button, input, select { font-family: inherit; }
     font-size: 14px;
     color: var(--text-secondary);
     line-height: 1.6;
+    margin-top: 8px;
     margin-bottom: 20px;
+    padding-top: 4px;
+}
+.product-detail-description p {
+    margin: 0;
+}
+.product-detail-desc-title {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 10px;
 }
 .product-detail-specs {
     background: var(--bg-secondary);
     border-radius: var(--radius-sm);
     padding: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+}
+.product-detail-specs + .product-detail-description {
+    margin-top: 4px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
 }
 .product-detail-specs h3 {
     font-family: var(--font-heading);
