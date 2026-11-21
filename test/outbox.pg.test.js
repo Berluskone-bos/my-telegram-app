@@ -97,6 +97,7 @@ test('очередь: отправка, повтор после сбоя, дед
     // Отложенное уведомление остаётся в PostgreSQL outbox и не отправляется раньше срока.
     const delayed = await q.enqueue({ bot: 'client', payload: { chat_id: '11', text: 'оцените доставку' }, delaySec: 5 });
     assert.equal((await q.processOnce()).sent, 0, 'отложенная запись не отправляется до next_attempt_at');
+    assert.equal((await row(delayed)).status, 'pending');
     await due(delayed);
     assert.equal((await q.processOnce()).sent, 1);
     assert.equal((await row(delayed)).status, 'sent');
