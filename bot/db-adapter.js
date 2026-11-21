@@ -1648,18 +1648,44 @@ class DBAdapter {
         return res.rows;
     }
 
-    async createProduct(p) {
-        const res = await pool.query(
-            `INSERT INTO products (brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac, price, old_price, stock, min_stock, image, description, specs, active, is_new, is_popular)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
-            [p.brand, p.category, p.name, p.full_name || p.name, p.series, p.sku,
-             p.viscosity, p.oil_type, p.volume, p.api_std || p.api, p.acea, p.ilsac,
-             p.price, p.old_price ?? null, p.stock ?? 0, p.min_stock ?? 3,
-             p.image || p.main_image, p.description ?? null,
-             toDbValue(p.specs || {}),        // если уже строка — не двойное кодирование
-             p.active !== false, p.is_new || false, p.is_popular || false]
-        );
-        return res.rows[0];
+    async createProduct(p, options = {}) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const res = await client.query(
+                `INSERT INTO products (brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac, price, old_price, stock, min_stock, image, description, specs, active, is_new, is_popular)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+                [p.brand, p.category, p.name, p.full_name || p.name, p.series, p.sku,
+                 p.viscosity, p.oil_type, p.volume, p.api_std || p.api, p.acea, p.ilsac,
+                 p.price, p.old_price ?? null, p.stock ?? 0, p.min_stock ?? 3,
+                 p.image || p.main_image, p.description ?? null,
+                 toDbValue(p.specs || {}),
+                 p.active !== false, p.is_new || false, p.is_popular || false]
+            );
+            const created = res.rows[0];
+            const initialStock = Number(created.stock) || 0;
+            if (initialStock > 0) {
+                await client.query(
+                    `INSERT INTO stock_movements
+                        (product_id, movement_type, qty_delta, stock_before, stock_after,
+                         actor_user_id, actor_role, reason, operation_key)
+                     VALUES ($1, 'manual_adjustment', $2, 0, $2, $3, $4, $5, $6)`,
+                    [created.id, initialStock, options.actorId || null, options.actorRole || null,
+                     'Начальный остаток при создании товара',
+                     'product:' + created.id + ':initial:' + require('crypto').randomUUID()]
+                );
+                await client.query(
+                    "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
+                );
+            }
+            await client.query('COMMIT');
+            return created;
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     async updateProduct(id, p, options = {}) {
