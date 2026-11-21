@@ -110,4 +110,20 @@ test('склад: отмена и удаление заказов возвращ
     await db.deleteAllOrders();
     assert.equal(await stock(), 6, 'вернули только активные k4 и k5; доставленные k2, k2b и k6 не вернули');
     assert.equal((await pool.query('SELECT count(*)::int n FROM orders')).rows[0].n, 0);
+
+    // Когда остаток последнего товара исчерпан, учёт не должен отключаться автоматически.
+    await mk(6, 'k7');
+    assert.equal(await stock(), 0, 'последний остаток списан до нуля');
+    const publicProduct = (await db.getPublicCatalog()).find(p => p.id === pid);
+    assert.equal(publicProduct.in_stock, false, 'витрина показывает отсутствие товара при нулевом остатке');
+    await assert.rejects(
+        () => mk(1, 'k8'),
+        (error) => error.code === 'OUT_OF_STOCK',
+        'следующий заказ отклоняется, а не проходит при нулевом остатке'
+    );
+    assert.equal(await stock(), 0, 'нехватка товара не меняет остаток');
+    assert.equal((await pool.query("SELECT count(*)::int n FROM orders WHERE order_number = 'AP-k8'")).rows[0].n, 0,
+        'заказ с недостаточным остатком не сохраняется');
+    await db.deleteAllOrders();
+    assert.equal(await stock(), 6, 'тестовый заказ очищен, остаток восстановлен');
 });

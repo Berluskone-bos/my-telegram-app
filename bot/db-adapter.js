@@ -1051,8 +1051,17 @@ class DBAdapter {
                 if (up.rowCount === 0) { const err = new Error('PROMO_EXHAUSTED'); err.code = 'PROMO_EXHAUSTED'; throw err; }
             }
 
-            // Списание остатка в той же транзакции, что и заказ (учёт включается, когда в админке введён хотя бы один остаток)
-            const tracking = (await client.query('SELECT EXISTS(SELECT 1 FROM products WHERE active AND stock > 0) AS on')).rows[0].on;
+            // Первый положительный остаток включает складской учёт постоянно: нулевой остаток после продаж
+            // не должен отключать проверку и снова разрешать заказы отсутствующего товара.
+            await client.query(`
+                INSERT INTO app_flags (flag)
+                SELECT 'stock_tracking_enabled'
+                 WHERE EXISTS (SELECT 1 FROM products WHERE active AND stock > 0)
+                ON CONFLICT (flag) DO NOTHING
+            `);
+            const tracking = (await client.query(
+                `SELECT EXISTS(SELECT 1 FROM app_flags WHERE flag = 'stock_tracking_enabled') AS on`
+            )).rows[0].on;
             if (tracking) {
                 const list = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
                 for (const it of list) {
@@ -1539,7 +1548,10 @@ class DBAdapter {
             `SELECT id, brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac,
                     price, old_price, stock, image, gallery, description, specs, is_new, is_popular, coming_soon, rating, reviews_count
                FROM products WHERE active = true ORDER BY id`);
-        const tracking = res.rows.some(r => r.stock > 0);
+        const tracking = (await pool.query(
+            `SELECT EXISTS(SELECT 1 FROM app_flags WHERE flag = 'stock_tracking_enabled')
+                 OR EXISTS(SELECT 1 FROM products WHERE active AND stock > 0) AS enabled`
+        )).rows[0].enabled;
         return res.rows.map(({ stock, ...r }) => ({
             ...r,
             in_stock: tracking ? stock > 0 : true,
@@ -1583,6 +1595,13 @@ class DBAdapter {
             idx++;
         }
         if (fields.length === 0) return null;
+        // Ручная корректировка остатка явно включает учёт, даже если новое значение — 0.
+        // Ставим флаг до обновления: конкурентный заказ уже увидит включённый контроль.
+        if (Object.prototype.hasOwnProperty.call(p, 'stock') && p.stock !== undefined) {
+            await pool.query(
+                "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
+            );
+        }
         values.push(id);
         const res = await pool.query(
             `UPDATE products SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
