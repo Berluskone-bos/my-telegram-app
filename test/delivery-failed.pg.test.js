@@ -17,6 +17,7 @@ test('«Не доставлен»: статус заказа, повторная
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('T-fail', 500, true, 10) RETURNING id")).rows[0].id;
     const courier = await db.createCourier({ name: 'Курьер-недоставка', phone: '1', telegram_id: 900077, telegram_user: 'f', vehicle_type: 'авто' });
     t.after(async () => {
+        await pool.query("DELETE FROM notification_outbox WHERE dedup_key LIKE 'stage-outbox-%'");
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
         await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-df%'");
         await pool.query('DELETE FROM products WHERE id = $1', [pid]);
