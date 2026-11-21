@@ -62,8 +62,9 @@ async function getDashboardForRole(role) {
     });
 
     let body;
+    const headers = {};
     const res = {
-        set() { return this; },
+        set(name, value) { headers[name] = value; return this; },
         status(code) { throw new Error('Unexpected HTTP status ' + code); },
         json(value) { body = value; return this; }
     };
@@ -71,20 +72,43 @@ async function getDashboardForRole(role) {
     handlers[0](req, res, () => {});
     handlers[1](req, res, () => {});
     await handlers[2](req, res);
-    return body;
+    return { body, headers };
 }
 
 for (const role of ['admin', 'manager']) {
     test('dashboard preserves customer names for ' + role + ' role with customers.view', async () => {
-        const body = await getDashboardForRole(role);
+        const { body, headers } = await getDashboardForRole(role);
         assert.equal(body.recentOrders[0].customerName, 'Иван Петров');
+        assert.equal(body.summary.revenue, 2500);
+        assert.equal(body.summary.customers, 1);
+        assert.equal(headers['Cache-Control'], 'no-store');
+        if (role === 'admin') {
+            assert.equal(body.summary.products, 2);
+            assert.equal(body.summary.lowStockCount, 0);
+            assert.equal(body.lowStockProducts.length, 0);
+        } else {
+            assert.equal(body.summary.products, null);
+            assert.equal(body.summary.lowStockCount, null);
+            assert.deepEqual(body.lowStockProducts, []);
+        }
     });
 }
 
 for (const role of ['operator', 'warehouse']) {
     test('dashboard omits customer names for ' + role + ' role without customers.view', async () => {
-        const body = await getDashboardForRole(role);
+        const { body, headers } = await getDashboardForRole(role);
         assert.equal(Object.hasOwn(body.recentOrders[0], 'customerName'), false);
         assert.equal(body.recentOrders[0].orderNumber, 'AP-123');
+        assert.equal(body.summary.revenue, null);
+        assert.equal(body.summary.customers, null);
+        assert.equal(headers['Cache-Control'], 'no-store');
+        if (role === 'warehouse') {
+            assert.equal(body.summary.products, 2);
+            assert.equal(body.summary.lowStockCount, 0);
+        } else {
+            assert.equal(body.summary.products, null);
+            assert.equal(body.summary.lowStockCount, null);
+            assert.deepEqual(body.lowStockProducts, []);
+        }
     });
 }
