@@ -598,7 +598,7 @@
 - [x] Включить `ENABLE_STOCK_TRACKING_ON_STARTUP=true`; Railway startup log подтвердил `stock_tracking_enabled activated`.
 - [x] Выключить одноразовый env-флаг (`false`); повторный Railway deployment SUCCESS, сервисы Online, запись в БД остаётся постоянной.
 - [x] Проверены конкурентные отмены и ручные установки; PR #105 добавил PostgreSQL regression tests.
-- [ ] Внедрить optimistic concurrency для ручной установки остатка (`expected_stock` / HTTP 409); PR в работе.
+- [x] Внедрить optimistic concurrency для ручной установки остатка (`expected_stock` / HTTP 409); PR #106 слит, CI SUCCESS, Railway deployment SUCCESS.
 - [ ] Продолжить аудит повторных callback и сверки складских движений после отдельного согласования журнала.
 
 
@@ -626,4 +626,20 @@
 - [x] Добавить PostgreSQL-тест двух параллельных ручных установок абсолютного остатка.
 - [x] Зафиксировать архитектуру будущего неизменяемого журнала складских движений и optimistic concurrency.
 - [x] Не менять production-остатки, заказы и схему БД; не выполнять миграцию журнала.
-- [ ] PostgreSQL CI, review, merge и проверка Railway.
+- [x] PostgreSQL CI SUCCESS, PR #105 слит; Railway deployment SUCCESS подтверждён владельцем.
+
+
+## PR #106 — защита ручной установки остатка от устаревшей формы (21.11.2026)
+- [x] Передавать `expected_stock` при абсолютной установке остатка из админки/складского API.
+- [x] Условное обновление по прежнему значению; при конфликте — HTTP 409, отсутствующий товар — 404.
+- [x] Обновить обработку конфликта в интерфейсе и PostgreSQL/unit regression tests.
+- [x] CI run 44898530323 SUCCESS; merge commit `ff78332ce1e79c554f11d4e38f74a413c1a6a276`.
+- [x] Railway deployment `9c42c900-dbad-4286-b3c4-a01ee3d85ad5` SUCCESS; `gulf-bot` и PostgreSQL Online. Production-остатки, заказы, цены и схема БД не менялись.
+
+## PR #107 — повторные и конкурирующие callback доставки (21.11.2026)
+- [x] Добавить PostgreSQL-тест двух одновременных callback «Доставлен»: один переход и одна запись уведомления в outbox.
+- [x] Добавить гонку «Доставлен» против «Не доставлен»: только одно согласованное терминальное состояние.
+- [x] PR CI run 44898916671 SUCCESS; PR #107 слит, commit `9707786552a07b08121a4d3955a6f67db652d627`.
+- [ ] Проверить main CI run 44899039101 и зафиксировать результат.
+- [ ] Следующий этап: описать и оценить окно повторной отправки outbox при сбое между успешным ответом Telegram и записью `sent` в PostgreSQL; не обещать exactly-once для Telegram Bot API.
+- [ ] Живой Telegram smoke test заказа, уведомлений и курьерского маршрута остаётся ручной проверкой владельца.
