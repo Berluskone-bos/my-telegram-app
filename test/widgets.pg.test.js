@@ -122,11 +122,11 @@ test('виджеты: очередь, запасной вариант, трек�
     assert.equal(await tracker.handleWidgetQuery(query('rate:9'), { pool, db, call }), 'ignored', 'оценка вне 1–5');
     assert.equal(await tracker.handleWidgetQuery(query('drop table'), { pool, db, call }), 'ignored');
     const before = Number((await pool.query('SELECT rating_count FROM couriers WHERE id = $1', [courier.id])).rows[0].rating_count);
-    calls.length = 0;
+    calls.length = 0; sent.length = 0;
     assert.equal(await tracker.handleWidgetQuery(query('rate:4'), { pool, db, call }), 'rated');
     assert.equal(calls[0].method, 'answerWidgetQuery', 'Telegram получает короткий ответ на нажатие');
     await q.processOnce();
-    const ratingEdit = sent.find(s => s.method === 'editMessageWidgetData');
+    const ratingEdit = sent.find(s => s.method === 'editMessageWidgetData' && JSON.parse(s.payload.chat_data).r === 4);
     assert.ok(ratingEdit, 'правка оценки доставляется через durable outbox');
     assert.equal(JSON.parse(ratingEdit.payload.chat_data).r, 4, 'оценка видна в карточке');
     assert.equal(await tracker.handleWidgetQuery(query('rate:1'), { pool, db, call }), 'already_rated', 'второй раз нельзя');
