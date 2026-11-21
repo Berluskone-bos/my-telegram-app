@@ -9,7 +9,7 @@ const { enqueue } = require('./outbox');
 const sig = (sum) => JSON.stringify({ ...sum, updated: undefined });
 const summaryKey = (chatId) => `widget:summary:${chatId}`;
 
-function createSummaryService({ db, pool, queue, chatId }) {
+function createSummaryService({ db, pool, queue, chatId, enqueue: enqueueMessage = enqueue }) {
     let timer = null;
 
     // Прислать новую карточку (или текст). Возвращает true, если ушла именно карточка.
@@ -30,11 +30,13 @@ function createSummaryService({ db, pool, queue, chatId }) {
         if (!w || !w.active || !w.message_id) return false;
         const sum = await db.getDaySummary();
         if ((w.state || {}).sig === sig(sum)) return false;
-        await store.mergeState(pool, 'summary', chatId, { sig: sig(sum) });
-        await enqueue(pool, {
+        // Сначала надёжно ставим edit в outbox. Если enqueue завершится ошибкой,
+        // старый sig останется в widget_messages и следующий refresh повторит попытку.
+        await enqueueMessage(pool, {
             bot: 'admin', method: 'editMessageWidgetData', payload: { chat_data: widgets.summaryWidget(sum).chat_data },
             editRef: `summary:${chatId}`
         });
+        await store.mergeState(pool, 'summary', chatId, { sig: sig(sum) });
         return true;
     }
 

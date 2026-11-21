@@ -196,6 +196,19 @@ test('виджеты: очередь, запасной вариант, трек�
     assert.ok(sd.o >= 1 && /^\d\d\.\d\d\.\d{4}$/.test(sd.a));
     assert.ok(widgets.checkWidget(widgets.summaryWidget({ date: sd.a, orders: sd.o })));
 
+    // Ошибка enqueue не должна заранее обновить sig: следующий refresh обязан повторить edit.
+    const previousSig = (await store.get(pool, 'summary', 4242)).state.sig;
+    await mkOrder('wg8');
+    const failingSummary = createSummaryService({
+        db, pool, queue: summaryQueue, chatId: 4242,
+        enqueue: async () => { throw new Error('simulated summary enqueue failure'); }
+    });
+    await assert.rejects(failingSummary.refresh(), /simulated summary enqueue failure/);
+    assert.equal((await store.get(pool, 'summary', 4242)).state.sig, previousSig,
+        'sig не меняется, если edit не поставлен в outbox');
+    assert.equal(await sum.refresh(), true, 'следующий refresh повторяет неудачную постановку');
+    await q.processOnce();
+
     // ── 9. настоящий notifyWidget: карточка в очередь с запасным вариантом; при выключателе — сразу обычный текст ──
     await pool.query('DELETE FROM notification_outbox');
     const card = widgets.routeSheetWidget('RL-1', [{ order_number: 'AP-1', address: 'Адрес', status: 'pending', clock: '14:35' }]);
