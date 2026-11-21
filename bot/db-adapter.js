@@ -497,7 +497,7 @@ class DBAdapter {
 
     // Этапы остановки сериализуются блокировкой строки маршрута. Проверка другой остановки
     // и UPDATE выполняются в одной транзакции, поэтому параллельные callback не обходят guard.
-    async setStopStage(stopId, stage) {
+    async setStopStage(stopId, stage, options = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0 || !['enroute', 'arrived'].includes(stage)) return null;
         const client = await pool.connect();
@@ -538,8 +538,16 @@ class DBAdapter {
                   WHERE id = $1 AND route_id = $3 AND status = 'in_progress'
                   RETURNING *`,
                 [id, stage, routeId]);
+            const stop = updated.rows[0] || null;
+            if (stop && typeof options.afterUpdate === 'function') {
+                const routeRes = await client.query(
+                    `SELECT route_number,
+                            (SELECT COUNT(*)::int FROM route_stops WHERE route_id = $1) AS stop_count
+                       FROM delivery_routes WHERE id = $1`, [routeId]);
+                await options.afterUpdate({ client, stop, route: routeRes.rows[0] || {}, stage });
+            }
             await client.query('COMMIT');
-            return updated.rows[0] || null;
+            return stop;
         } catch (e) {
             await client.query('ROLLBACK').catch(() => {});
             throw e;
