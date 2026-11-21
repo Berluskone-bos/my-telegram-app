@@ -132,6 +132,8 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 role: row.user_role || row.legacy_role || 'admin',
                 legacy: !row.staff_user_id
             };
+            // Защищённые ответы могут содержать ПДн и служебные данные — запретить кэширование на уровне общего middleware.
+            res.set('Cache-Control', 'no-store');
             const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
             if (unsafe && !sameOrigin(req)) {
                 await audit(req, 'csrf_blocked', 403, null);
