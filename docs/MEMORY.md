@@ -533,3 +533,9 @@
 
 ## 21.11.2026 — согласованная активация складского учёта в production
 Владелец согласовал включение постоянного режима `app_flags.stock_tracking_enabled`. Активация выполняется контролируемо через одноразовый Railway env-флаг `ENABLE_STOCK_TRACKING_ON_STARTUP=true`: при старте приложения выполняется только идемпотентный INSERT в `app_flags`, без изменения товаров, остатков, цен или заказов. После успешного deployment env-флаг выключается; постоянная запись в БД сохраняется. CI/merge/deploy ожидают.
+
+
+## 21.11.2026 — production activation of stock tracking (PR #101)
+- Owner approved persistent stock tracking. PR #101 adds an explicit one-time startup switch `ENABLE_STOCK_TRACKING_ON_STARTUP=true` which inserts `stock_tracking_enabled` into `app_flags` idempotently; no product rows, quantities, prices or orders are modified.
+- PR #101 CI SUCCESS, merge commit `853b451fe5fea3b7d238f9a927ec00c09456f13c`. Railway deployment `21451c04-51b3-4f9e-82f4-f544cf311cc9` SUCCESS; startup log explicitly reported `[MIGRATION] stock_tracking_enabled activated`. The switch was then set to `false` and deployment `1827cd3c-7816-4ec3-a656-9d543c9e1deb` SUCCESS; its startup log had no activation message. `gulf-bot` and PostgreSQL Online, no active warnings/errors.
+- After activation, audit found a lock-order mismatch: `completeDeliveryStop` locked order → stop → route, while `setStopStage` and `failDeliveryStop` lock route before stop. Concurrent courier callbacks could deadlock. PR #102 changes completion to order → route → stop and adds a deterministic PostgreSQL concurrency regression test.
