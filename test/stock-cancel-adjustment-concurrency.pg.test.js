@@ -97,4 +97,16 @@ test('склад: параллельная отмена и ручная корр
         error => error.code === 'STOCK_CONFLICT'
     );
     assert.equal(await stock(), 50, 'устаревшая ручная установка не перезаписала новый остаток');
+
+    const manualMovements = await pool.query(
+        `SELECT qty_delta, stock_before, stock_after
+           FROM stock_movements
+          WHERE product_id = $1 AND movement_type = 'manual_adjustment'
+          ORDER BY id`,
+        [productId]
+    );
+    assert.equal(manualMovements.rowCount, 4, 'каждая успешная ручная установка записана в журнал');
+    assert.ok(manualMovements.rows.every(row =>
+        Number(row.qty_delta) === Number(row.stock_after) - Number(row.stock_before)
+    ), 'дельта ручного движения совпадает с разницей остатков');
 });
