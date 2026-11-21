@@ -32,6 +32,7 @@ function registerReferralRoutes(app, { db, rateLimit, authenticatedTelegramUser,
         try {
             const user = authenticatedTelegramUser(req);
             if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+            res.set('Cache-Control', 'no-store');
             const refId = parseReferralCode(String(req.query.code || '').trim().slice(0, 50));
             if (!refId) return res.json({ success: true, valid: false, reason: 'bad_code' });
             const phone = String(req.query.phone || '').slice(0, 30);
