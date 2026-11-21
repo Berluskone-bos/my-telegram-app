@@ -1201,6 +1201,26 @@ function registerCourierRoutes(app) {
         res.json(out);
     });
 
+    // Ручной повтор уведомления после исправления причины отказа (например, токена или доступа к чату).
+    // Доступ только владельцу/администратору; строка outbox и dedup_key сохраняются.
+    app.post('/api/admin/outbox/:id/retry', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID уведомления' });
+        try {
+            const q = queue.instance();
+            const retried = await q.retryFailed(id);
+            if (!retried) {
+                const found = await q.pool.query('SELECT status FROM notification_outbox WHERE id = $1', [id]);
+                if (!found.rowCount) return res.status(404).json({ error: 'Уведомление не найдено' });
+                return res.status(409).json({ error: 'Повтор разрешён только для уведомлений со статусом failed', status: found.rows[0].status });
+            }
+            return res.status(202).json({ success: true, id, status: 'pending' });
+        } catch (e) {
+            console.error('[API /admin/outbox/retry]', errorCode(e));
+            return res.status(500).json({ error: 'Не удалось поставить уведомление на повтор' });
+        }
+    });
+
     app.get('/api/couriers', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(filterCouriersForRole(await db.getCouriers(), req.admin && req.admin.role)); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
