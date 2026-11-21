@@ -153,12 +153,20 @@ test('курьерский бот: кнопки отменённого зака�
         'до общего старта у принятого заказа нет преждевременной кнопки «У клиента»'
     );
     assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
+    await press(`deliver_${b.route.id}_${b.stopId}_accept`); // новый callback_query.id, те же callback_data
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1", [`route-all-accepted:${b.route.id}`])).rows[0].n, 1,
+        'повторный callback не создаёт второе уведомление о готовности к старту');
+    assert.equal((await adminTexts()).length, 1, 'повторный callback не дублирует уведомление администратору');
 
     // Курьер запускает маршрут из того же чата, не переходя на отдельный экран.
     await press(`startroute_${b.route.id}`);
     assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
     assert.equal((await adminTexts()).length, 2, 'админ получает отдельное уведомление о старте маршрута');
     assert.ok((await adminTexts())[1].startsWith('[МАРШРУТ]') && /начат курьером/i.test((await adminTexts())[1]));
+    await press(`startroute_${b.route.id}`); // новый callback_query.id, маршрут уже начат
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1", [`route-start-card:${b.route.id}`])).rows[0].n, 1,
+        'повторный callback старта не создаёт вторую карточку маршрута');
+    assert.equal((await adminTexts()).length, 2, 'повторный callback старта не дублирует уведомление администратору');
     const enroutePrompt = await courierPayload(`route-start-card:${b.route.id}`);
     assert.ok(enroutePrompt, 'после общего старта маршрутная карточка сохранена в outbox');
     assert.ok(enroutePrompt.reply_markup.inline_keyboard.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
