@@ -151,17 +151,29 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
-    async createCourier(courier) {
-        const res = await pool.query(
-            `INSERT INTO couriers (name, phone, telegram_id, telegram_user, vehicle_type, license_plate, zones, is_active, max_orders, rating, rating_count)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-            [courier.name, courier.phone, courier.telegram_id, courier.telegram_user,
-             courier.vehicle_type, courier.license_plate || null,
-             toDbValue(courier.zones || ['spb']),        // массив, не JSON
-             courier.is_active !== false,
-             courier.max_orders || 10, courier.rating || 0, courier.rating_count || 0]
-        );
-        return res.rows[0];
+    async createCourier(courier, { afterCreate } = {}) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const res = await client.query(
+                `INSERT INTO couriers (name, phone, telegram_id, telegram_user, vehicle_type, license_plate, zones, is_active, max_orders, rating, rating_count)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+                [courier.name, courier.phone, courier.telegram_id, courier.telegram_user,
+                 courier.vehicle_type, courier.license_plate || null,
+                 toDbValue(courier.zones || ['spb']),        // массив, не JSON
+                 courier.is_active !== false,
+                 courier.max_orders || 10, courier.rating || 0, courier.rating_count || 0]
+            );
+            const created = res.rows[0];
+            if (typeof afterCreate === 'function') await afterCreate({ client, courier: created });
+            await client.query('COMMIT');
+            return created;
+        } catch (e) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     // Оценка разрешена только владельцу заказа после доставки и только один раз.
