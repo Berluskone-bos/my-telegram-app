@@ -507,3 +507,8 @@
 - При продолжении IDOR/BOLA и privacy-аудита обнаружено, что `GET /api/profile` возвращает телефон из `customer_profiles`, а `PUT /api/profile` возвращает сохранённый профиль, но эти ответы не устанавливали явный `Cache-Control: no-store`.
 - В ветке `security/profile-no-store-2026-11-21` добавлен `no-store` после проверки подписанного Telegram initData для обоих маршрутов. Проверка в `test/order-api.pg.test.js` подтверждает заголовок на GET и PUT.
 - Изменение не меняет способ аутентификации, состав профиля, SQL, данные пользователей или схему БД. До прохождения CI и merge не считать исправление активным в production.
+
+
+## 21.11.2026 — усиление тестов матрицы доступа dashboard
+- При продолжении проверки ролевого доступа подтверждено, что `/api/admin/dashboard` уже фильтрует выручку и число клиентов по `sales.view`, имена покупателей по `customers.view`, остатки по `inventory.view`/`products.view`; ответ устанавливает `Cache-Control: no-store`.
+- В ветке `test/admin-dashboard-role-boundaries` расширены регрессионные тесты для admin, manager, operator и warehouse: проверяются выручка, клиенты, имена, остатки и запрет кэширования. Изменение только тестовое, production-код и данные не меняются.
