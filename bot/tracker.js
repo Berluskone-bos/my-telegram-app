@@ -69,14 +69,29 @@ async function handleWidgetQuery(q, { pool, db, call }) {
     }
     // Состояние карточки — только отображение. Единственный источник защиты от дублей — route_stops.client_rating.
     const ratingToShow = saved.status === 'rated' ? rating : Number(saved.rating);
-    const mark = await pool.query(
-        `UPDATE widget_messages SET state = state || $2::jsonb, updated_at = NOW()
-          WHERE kind = 'tracker' AND ref = $1 RETURNING state`,
-        [w.ref, JSON.stringify({ rating: ratingToShow, canRate: false })]);
-    const card = widgets.trackerWidget(w.ref, mark.rows[0]?.state || { rating: ratingToShow, canRate: false });
+    // Состояние карточки и запрос её редактирования фиксируем атомарно.
+    // Если enqueue упадёт, транзакция откатит отображаемое состояние; повторный widget_query
+    // получит already_rated из route_stops и сможет безопасно поставить правку повторно.
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const mark = await client.query(
+            `UPDATE widget_messages SET state = state || $2::jsonb, updated_at = NOW()
+              WHERE kind = 'tracker' AND ref = $1 AND active RETURNING state`,
+            [w.ref, JSON.stringify({ rating: ratingToShow, canRate: false })]);
+        const card = widgets.trackerWidget(w.ref, mark.rows[0]?.state || { rating: ratingToShow, canRate: false });
+        await enqueue(client, {
+            bot: 'client', method: 'editMessageWidgetData', payload: { chat_data: card.chat_data },
+            editRef: `tracker:${w.ref}`
+        });
+        await client.query('COMMIT');
+    } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw e;
+    } finally {
+        client.release();
+    }
     await answer(saved.status === 'rated' ? 'ok' : 'done');
-    await call('editMessageWidgetData', { chat_id: chatId, message_id: messageId, chat_data: card.chat_data }).catch(e =>
-        console.error('[ВИДЖЕТ] не удалось показать оценку в карточке:', String(e.message).slice(0, 150)));
     return saved.status === 'rated' ? 'rated' : 'already_rated';
 }
 
