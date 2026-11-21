@@ -199,6 +199,14 @@ test('виджеты: очередь, запасной вариант, трек�
     // ── 8. сводка дня: правка только когда цифры изменились ──
     const summaryQueue = { notifyWidget: (bot, chatId, card, opts) => q.enqueue({ bot, method: 'sendWidget', payload: { chat_id: String(chatId), html: card.html, chat_data: card.chat_data, caption: card.caption, allow_queries: true }, widget: { kind: opts.kind, ref: opts.ref, state: opts.state } }).then(() => true), notify: async () => {} };
     const sum = createSummaryService({ db, pool, queue: summaryQueue, chatId: 4242 });
+    const failingSummarySend = createSummaryService({
+        db, pool, chatId: 4243,
+        queue: { notifyWidget: async (_bot, _chat, _card, options) => {
+            assert.equal(options.throwOnError, true, 'ошибка постановки сводки должна дойти до команды /summary');
+            throw new Error('simulated summary send enqueue failure');
+        } }
+    });
+    await assert.rejects(failingSummarySend.send(), /simulated summary send enqueue failure/);
     assert.equal(await sum.refresh(), false, 'карточки ещё нет');
     assert.equal(await sum.send(), true); await q.processOnce();
     assert.equal(await sum.refresh(), false, 'цифры не менялись');
