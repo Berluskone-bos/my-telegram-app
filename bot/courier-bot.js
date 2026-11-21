@@ -15,6 +15,7 @@ const { registerOrderStatsRoutes } = require('./order-stats');
 const { validateProductPayload } = require('./product-validation');
 const { requirePermission, requireOrderStatusPermission } = require('./admin-permissions');
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
+const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -1186,7 +1187,7 @@ function registerCourierRoutes(app) {
     });
 
     app.get('/api/couriers', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
-        try { res.json(await db.getCouriers()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(filterCouriersForRole(await db.getCouriers(), req.admin && req.admin.role)); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,
@@ -1207,7 +1208,7 @@ function registerCourierRoutes(app) {
             if (!courier) return res.status(404).json({ error: 'Курьер не найден' });
             if (!courier.is_active) return res.status(409).json({ error: 'Курьер не активен' });
             const out = await routeSvc.buildRoute({ orderIds: order_ids, courier, notifyAdmin: (t) => notifyAdmin(t) });
-            res.json({ success: true, route: out.route, plan: out.plan, sequence: out.sequence });
+            res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), plan: out.plan, sequence: out.sequence });
         } catch (e) {
             const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
             if (status) return res.status(status).json({ error: e.message });
@@ -1216,7 +1217,7 @@ function registerCourierRoutes(app) {
     });
 
     app.get('/api/routes', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
-        try { res.json(await db.getRoutes()); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+        try { res.json(filterRoutesForRole(await db.getRoutes(), req.admin && req.admin.role)); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
     registerOrderStatsRoutes(app, { db, verifyAdmin });
@@ -1275,7 +1276,7 @@ function registerCourierRoutes(app) {
         res.json(MapLinks.allRoute(stops));
     });
 
-    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+    app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         try {
             const route = await db.getRouteById(parseInt(req.params.id));
             if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -1416,7 +1417,7 @@ function registerCourierRoutes(app) {
             const courier = couriers.find(x => Number(x.id) === courierId && x.is_active);
             if (!courier) return res.status(404).json({ error: 'Активный курьер не найден' });
             const out = await routeSvc.buildRoute({ orderIds: [orderId], courier, notifyAdmin: notifyAdmin });
-            return res.json({ success: true, route: out.route, plan: out.plan, sequence: out.sequence });
+            return res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), plan: out.plan, sequence: out.sequence });
         } catch (e) {
             const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
             if (status) return res.status(status).json({ error: e.message });
