@@ -521,7 +521,7 @@ bot.on('callback_query', async (query) => {
                     ok = r === true;
                 }
                 if (!ok) {
-                    await bot.answerCallbackQuery(query.id, { text: 'Заказ уже отменён, доставлен или не найден' }).catch(() => {});
+                    await bot.answerCallbackQuery(query.id, { text: 'Заказ уже отменён, выдан при самовывозе, доставлен или не найден' }).catch(() => {});
                     if (query.message && query.message.chat) {
                         await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
                             chat_id: query.message.chat.id, message_id: query.message.message_id

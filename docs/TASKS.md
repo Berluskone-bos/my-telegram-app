@@ -604,4 +604,11 @@
 - [x] Подтвердить несовпадение порядка блокировок: `completeDeliveryStop` — заказ → остановка → маршрут; `setStopStage`/`failDeliveryStop` — маршрут → остановка.
 - [x] Привести `completeDeliveryStop` к порядку заказ → маршрут → остановка.
 - [x] Добавить PostgreSQL regression test, который ставит два callback в очередь на одну блокировку маршрута и проверяет отсутствие deadlock.
+- [x] PR #102 CI SUCCESS, merge выполнен; main CI SUCCESS; Railway deployment `04acfe6e-61fd-477d-8e71-d0ac15643c5d` SUCCESS, сервисы Online.
+
+
+## PR — запрет отмены уже выданного самовывоза (21.11.2026)
+- [x] Найти обход: `cancelOrderByNumber` разрешал CANCELLED для `PICKED_UP`, обходя таблицу переходов.
+- [x] Запретить отмену `PICKED_UP` через отмену по номеру; не менять статус, остатки и бонусы.
+- [x] Добавить PostgreSQL regression test полного сценария самовывоза и попытки отмены после выдачи.
 - [ ] CI, merge и Railway deployment.
