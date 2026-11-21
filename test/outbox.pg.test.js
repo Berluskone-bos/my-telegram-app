@@ -12,7 +12,7 @@ function env() {
 }
 
 test('классификация ошибок Telegram и паузы между повторами (без базы)', () => {
-    const { classifyError, retryDelaySec, MAX_ATTEMPTS } = require('../bot/outbox');
+    const { classifyError, retryDelaySec, leaseDurationSec, MAX_ATTEMPTS } = require('../bot/outbox');
     assert.equal(classifyError(Object.assign(new Error('Forbidden: bot was blocked by the user'), { tgCode: 403 })).kind, 'permanent');
     assert.equal(classifyError(Object.assign(new Error('Bad Request: chat not found'), { tgCode: 400 })).kind, 'permanent');
     assert.equal(classifyError(Object.assign(new Error('Bad Request: message is not modified'), { tgCode: 400 })).kind, 'done');
@@ -21,6 +21,9 @@ test('классификация ошибок Telegram и паузы между 
     assert.equal(classifyError(Object.assign(new Error('Bad Gateway'), { tgCode: 502 })).kind, 'retry');
     assert.deepEqual([1, 2, 3, 4].map(retryDelaySec), [30, 120, 600, 3600]);
     assert.ok(retryDelaySec(99) >= 3600 && MAX_ATTEMPTS === 8);
+    assert.equal(leaseDurationSec(10), 180, 'lease покрывает 10 последовательных запросов по 15 с с запасом');
+    assert.equal(leaseDurationSec(5), 120, 'для небольшой пачки сохраняется минимальный lease');
+    assert.equal(leaseDurationSec(10, 20), 230, 'lease учитывает более длинный HTTP timeout');
 });
 
 test('очередь: отправка, повтор после сбоя, дедупликация, зависимость, окончательный отказ', { skip }, async (t) => {
