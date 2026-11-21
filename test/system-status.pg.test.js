@@ -71,5 +71,6 @@ test('system-status: только после входа, показывает б
     assert.equal(duplicateRetry.status, 409, 'нельзя повторно поставить уже pending');
     assert.equal((await fetch(base + '/api/admin/outbox/999999999/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 404);
     assert.equal((await fetch(base + '/api/admin/outbox/nope/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 400);
+    assert.equal((await fetch(base + '/api/admin/outbox/1e3/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 400, 'ID не должен принимать scientific notation');
 
 });
