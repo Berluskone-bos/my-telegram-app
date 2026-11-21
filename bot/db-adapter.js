@@ -742,9 +742,9 @@ class DBAdapter {
                   RETURNING *`, [id]);
 
             await this._refreshRouteCompletion(client, stop.route_id);
-            const routeRes = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [stop.route_id]);
+            const completedRouteRes = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [stop.route_id]);
             if (typeof afterComplete === 'function') {
-                await afterComplete({ client, stop: updated.rows[0], route: routeRes.rows[0] || {}, order });
+                await afterComplete({ client, stop: updated.rows[0], route: completedRouteRes.rows[0] || {}, order });
             }
 
             if (stop.client_chat_id) {
