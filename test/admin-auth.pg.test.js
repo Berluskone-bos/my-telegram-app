@@ -56,7 +56,9 @@ test('вход в админку: cookie, сессии, защита от под
     assert.equal(rows[0].token_hash.length, 64);
 
     // 3. сессия работает; чтение без Origin можно, изменение — только с Origin этого же сайта
-    assert.equal((await call('/api/secret', { cookie })).status, 200);
+    const protectedRead = await call('/api/secret', { cookie });
+    assert.equal(protectedRead.status, 200);
+    assert.equal(protectedRead.headers.get('cache-control'), 'no-store', 'защищённый GET не должен кэшироваться');
     assert.equal((await call('/api/admin/me', { cookie })).status, 200);
     assert.equal((await call('/api/secret/1', { method: 'PUT', cookie, body: { status: 'CANCELLED' } })).status, 403, 'без Origin');
     assert.equal((await call('/api/secret/1', { method: 'PUT', cookie, body: { status: 'X' }, headers: { origin: 'https://evil.example' } })).status, 403, 'чужой Origin');
