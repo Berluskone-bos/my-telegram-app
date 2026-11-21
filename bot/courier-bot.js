@@ -1557,7 +1557,7 @@ function registerCourierRoutes(app) {
 
     app.get('/api/products/:id/stock-movements', verifyAdmin, requirePermission('inventory.view'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         try {
