@@ -16,6 +16,14 @@ const ALLOWED_FIELDS = new Set([
     ...Object.keys(STRING_LIMITS), ...Object.keys(NUMERIC_LIMITS), ...BOOLEAN_FIELDS, 'specs'
 ]);
 
+function validateExpectedStock(value) {
+    const number = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+    if (!Number.isSafeInteger(number) || number < 0 || number > 1_000_000) {
+        return { ok: false, error: 'Поле expected_stock: ожидается целое число от 0 до 1000000' };
+    }
+    return { ok: true, value: number };
+}
+
 function validateProductPayload(raw, { partial = false } = {}) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return { ok: false, error: 'Тело запроса должно быть объектом' };
@@ -78,4 +86,4 @@ function validateProductPayload(raw, { partial = false } = {}) {
     return { ok: true, data };
 }
 
-module.exports = { validateProductPayload };
+module.exports = { validateProductPayload, validateExpectedStock };
