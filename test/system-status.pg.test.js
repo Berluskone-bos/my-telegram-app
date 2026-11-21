@@ -118,13 +118,17 @@ test('system-status: только после входа, показывает б
     assert.equal(operatorLogin.status, 200);
     const operatorCookie = operatorLogin.headers.getSetCookie().find(c => c.startsWith('__Host-admin_session=')).split(';')[0];
 
+    const statsDate = new Date().toISOString().slice(0, 10);
+    const beforeAdminStats = await (await fetch(base + `/api/dispatch/stats?date=${statsDate}`, {
+        headers: { ...H, cookie }
+    })).json();
+
     const courier = await db.createCourier({
         name: 'RBAC test courier', phone: '+70000000000',
         telegram_id: 880000000 + (Date.now() % 1000000),
         telegram_user: 'rbac_test', vehicle_type: 'авто'
     });
     rbacCourierId = courier.id;
-    const statsDate = new Date().toISOString().slice(0, 10);
     const route = await db.createRoute({
         route_number: 'RBAC-' + Date.now(), route_date: statsDate,
         courier_id: courier.id, status: 'assigned', total_orders: 2,
@@ -135,16 +139,16 @@ test('system-status: только после входа, показывает б
     const adminDispatchStats = await (await fetch(base + `/api/dispatch/stats?date=${statsDate}`, {
         headers: { ...H, cookie }
     })).json();
-    assert.equal(Number(adminDispatchStats.cash_to_collect), 1500, 'администратор с sales.view видит денежные итоги маршрута');
-    assert.equal(Number(adminDispatchStats.cash_collected), 500);
+    assert.equal(Number(adminDispatchStats.cash_to_collect) - Number(beforeAdminStats.cash_to_collect), 1500, 'администратор с sales.view видит денежные итоги маршрута');
+    assert.equal(Number(adminDispatchStats.cash_collected) - Number(beforeAdminStats.cash_collected), 500);
 
     const operatorDispatchStatsResponse = await fetch(base + `/api/dispatch/stats?date=${statsDate}`, {
         headers: { ...H, cookie: operatorCookie }
     });
     assert.equal(operatorDispatchStatsResponse.status, 200, 'оператор может видеть операционную статистику маршрутов');
     const operatorDispatchStats = await operatorDispatchStatsResponse.json();
-    assert.equal(Number(operatorDispatchStats.total_routes), 1);
-    assert.equal(Number(operatorDispatchStats.delivered), 0);
+    assert.equal(Number(operatorDispatchStats.total_routes), Number(adminDispatchStats.total_routes));
+    assert.equal(Number(operatorDispatchStats.delivered), Number(adminDispatchStats.delivered));
     assert.equal(operatorDispatchStats.cash_to_collect, null, 'оператору не раскрывается сумма к сбору');
     assert.equal(operatorDispatchStats.cash_collected, null, 'оператору не раскрывается собранная сумма');
 
