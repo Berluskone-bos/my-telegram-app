@@ -13,6 +13,7 @@ const widgets = require('./widgets');
 const { createRouteService } = require('./route-service');
 const { registerOrderStatsRoutes } = require('./order-stats');
 const { validateProductPayload } = require('./product-validation');
+const { filterProductsForRole, validateStockUpdate } = require('./admin-product-visibility');
 const { requirePermission, requireOrderStatusPermission } = require('./admin-permissions');
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
 const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
@@ -1451,11 +1452,23 @@ function registerCourierRoutes(app) {
                     console.warn('[ПРЕДУПРЕЖДЕНИЕ] Не удалось загрузить catalog.json:', errorCode(e));
                 }
             }
-            res.json(catalog);
+            res.json(filterProductsForRole(catalog, req.admin && req.admin.role));
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.post('/api/products', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
+    app.patch('/api/products/:id/stock', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        const validated = validateStockUpdate(req.body);
+        if (!validated.ok) return res.status(400).json({ error: validated.error });
+        try {
+            const product = await db.updateProduct(id, validated.data);
+            if (!product) return res.status(404).json({ error: 'not found' });
+            res.json(filterProductsForRole([product], req.admin && req.admin.role)[0]);
+        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+    });
+
+    app.post('/api/products', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const validated = validateProductPayload(req.body);
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
@@ -1465,7 +1478,7 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
-    app.put('/api/products/:id', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
+    app.put('/api/products/:id', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateProductPayload(req.body, { partial: true });
