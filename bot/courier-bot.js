@@ -679,10 +679,18 @@ async function handleStartRoute(chatId, routeId, user) {
     const route = await db.getRouteById(routeId);
     if (!route) return;
     const started = await db.startRouteIfAllAccepted(routeId, {
-        afterStart: async ({ client, route: startedRoute }) => {
+        afterStart: async ({ client, route: startedRoute, stops }) => {
             await notifyAdmin(
                 `[МАРШРУТ] ${escapeHtml(startedRoute.route_number)} начат курьером ${user.first_name || ''}`,
                 null, `route-started:${routeId}`, client, true);
+            // Уведомление с рабочей карточкой фиксируется в той же транзакции, что и старт маршрута.
+            const startedStops = (stops || []).map(stop => ({
+                ...stop, status: stop.status === 'accepted' ? 'in_progress' : stop.status
+            }));
+            const card = buildRouteCard({ ...startedRoute, stops: startedStops }, null);
+            await queue.notify('courier', chatId, card.text, {
+                buttons: card.keyboard, dedupKey: `route-start-card:${routeId}`, db: client, throwOnError: true
+            });
         }
     });
     if (started.status === 'not_ready') {
@@ -701,10 +709,10 @@ async function handleStartRoute(chatId, routeId, user) {
     try {
         // Пересчитываем ETA без массовой рассылки клиентам: каждый клиент получит
         // «Курьер в пути» только когда курьер начнёт именно его заказ.
-        await routeSvc.refreshEtas({ routeId, notifyNew: false });
-        // Одна карточка маршрута: все заказы пронумерованы, курьер сам выбирает, какой везёт первым.
-        const shown = await renderRouteCard(chatId, null, routeId, null);
-        if (!shown) throw new Error('card not sent');
+        // Пересчёт ETA не влияет на доступность уже поставленной в outbox карточки.
+        await routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => {
+            console.error('[ROUTE] Не удалось обновить ETA после старта:', errorCode(e));
+        });
     } catch (e) {
         console.error('[ROUTE] Не удалось отправить единый маршрут:', errorCode(e));
         bot.sendMessage(chatId, 'Маршрут начат, но не удалось показать маршрутную карточку. Откройте /route для просмотра.');
@@ -754,13 +762,28 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
     if (action === 'accept') {
         const accepted = await db.acceptRouteStop(routeId, stopId, {
-            afterAccept: async ({ client, stop: acceptedStop, route: acceptedRoute }) => {
+            afterAccept: async ({ client, stop: acceptedStop, route: acceptedRoute, stops }) => {
                 const who = query && query.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
                 await notifyAdmin(
                     `[ДОСТАВКА] ${escapeHtml(acceptedRoute.route_number || '')} | курьер принял заказ (забрал со склада)\n` +
                     `Заказ: ${escapeHtml(acceptedStop.order_number || '')} (точка ${acceptedStop.stop_number} из ${acceptedRoute.total_orders || ''})\nАдрес: ${escapeHtml(acceptedStop.address || '')}` +
                     (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
                     null, `admin-step-accept:${stopId}`, client, true);
+
+                // Прогресс приёма и кнопка старта — часть той же транзакции, что и принятие остановки.
+                const activeStops = (stops || []).filter(s => !['cancelled', 'delivered', 'failed'].includes(s.status));
+                const waiting = activeStops.filter(s => s.status !== 'accepted' && s.status !== 'in_progress').length;
+                const acceptedCount = activeStops.length - waiting;
+                if (activeStops.length > 0 && waiting === 0) {
+                    await queue.notify('courier', chatId,
+                        `Все заказы маршрута ${escapeHtml(acceptedRoute.route_number)} приняты (${acceptedCount} из ${activeStops.length}). Можно выезжать.`,
+                        { buttons: [[{ text: 'Начать маршрут', callback_data: `startroute_${routeId}` }]],
+                            dedupKey: `route-all-accepted:${routeId}`, db: client, throwOnError: true });
+                } else if (activeStops.length > 0) {
+                    await queue.notify('courier', chatId,
+                        `Заказ принят. Принято ${acceptedCount} из ${activeStops.length}. Осталось принять: ${waiting}.`,
+                        { dedupKey: `route-accept-progress:${stopId}`, db: client, throwOnError: true });
+                }
             }
         });
         if (!['accepted', 'already'].includes(accepted.status)) {
@@ -776,26 +799,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: accepted.status === 'already' ? 'Заказ уже принят' : 'Заказ принят. Примите остальные заказы маршрута.' }).catch(() => {});
 
-        // Явно показываем курьеру кнопку общего старта маршрута после принятия всех активных заказов.
-        // Раньше «У клиента» появлялась сразу после принятия одной остановки, а кнопка старта
-        // оставалась только на отдельном экране /start — курьер попадал в тупик на маршруте из одной точки.
-        if (accepted.status === 'accepted') {
-            const latestRoute = await db.getRouteById(routeId);
-            const activeStops = (latestRoute?.stops || []).filter(s =>
-                !['cancelled', 'delivered', 'failed'].includes(s.status));
-            const waiting = activeStops.filter(s => s.status !== 'accepted' && s.status !== 'in_progress').length;
-            const acceptedCount = activeStops.length - waiting;
-            if (activeStops.length > 0 && waiting === 0 && latestRoute.status === 'assigned') {
-                await bot.sendMessage(chatId,
-                    `Все заказы маршрута ${latestRoute.route_number} приняты (${acceptedCount} из ${activeStops.length}). Можно выезжать.`,
-                    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[
-                        { text: 'Начать маршрут', callback_data: `startroute_${routeId}` }
-                    ]] } });
-            } else if (activeStops.length > 0) {
-                await bot.sendMessage(chatId,
-                    `Заказ принят. Принято ${acceptedCount} из ${activeStops.length}. Осталось принять: ${waiting}.`);
-            }
-        }
+        // Прогресс приёма и кнопка старта уже записаны в outbox внутри транзакции acceptRouteStop.
     }
 
     else if (action === 'enroute') {
@@ -1191,14 +1195,47 @@ function registerCourierRoutes(app) {
             out.outbox.oldestPendingSec = old.rows[0].age;
             const lastAdmin = await pool.query(`SELECT sent_at, last_error FROM notification_outbox WHERE bot = 'admin' AND status = 'sent' ORDER BY sent_at DESC LIMIT 1`);
             out.lastAdminNotificationAt = lastAdmin.rows[0] ? lastAdmin.rows[0].sent_at : null;
-            const fail = await pool.query(`SELECT created_at, last_error FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 1`);
-            out.lastFailed = fail.rows[0] ? { at: fail.rows[0].created_at, error: String(fail.rows[0].last_error || '').slice(0, 200) } : null;
+            const fail = await pool.query(`SELECT id, created_at, last_error FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 1`);
+            out.lastFailed = fail.rows[0] ? {
+                id: String(fail.rows[0].id), at: fail.rows[0].created_at,
+                error: String(fail.rows[0].last_error || '').slice(0, 200)
+            } : null;
+            // Для ручного восстановления показываем только технические метаданные, никогда не payload с ПДн.
+            const failedItems = await pool.query(
+                `SELECT id, bot, method, created_at, last_error
+                   FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 10`);
+            out.failedItems = failedItems.rows.map(x => ({
+                id: String(x.id), bot: String(x.bot), method: String(x.method),
+                at: x.created_at, error: String(x.last_error || '').slice(0, 200)
+            }));
             const w = require('./widgets').widgetsPausedUntil();
             out.widgetsPausedUntil = w > Date.now() ? new Date(w).toISOString() : null;
         } catch (e) {
             out.db = { ok: false, error: errorCode(e) };
         }
         res.json(out);
+    });
+
+    // Ручной повтор уведомления после исправления причины отказа (например, токена или доступа к чату).
+    // Доступ только владельцу/администратору; строка outbox и dedup_key сохраняются.
+    app.post('/api/admin/outbox/:id/retry', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID уведомления' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID уведомления' });
+        try {
+            const q = queue.instance();
+            const retried = await q.retryFailed(id);
+            if (!retried) {
+                const found = await q.pool.query('SELECT status FROM notification_outbox WHERE id = $1', [id]);
+                if (!found.rowCount) return res.status(404).json({ error: 'Уведомление не найдено' });
+                return res.status(409).json({ error: 'Повтор разрешён только для уведомлений со статусом failed', status: found.rows[0].status });
+            }
+            return res.status(202).json({ success: true, id, status: 'pending' });
+        } catch (e) {
+            console.error('[API /admin/outbox/retry]', errorCode(e));
+            return res.status(500).json({ error: 'Не удалось поставить уведомление на повтор' });
+        }
     });
 
     app.get('/api/couriers', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
@@ -1219,7 +1256,16 @@ function registerCourierRoutes(app) {
     app.post('/api/routes/build', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try {
             const { order_ids, courier_id } = req.body || {};
-            const courier = (await db.getCouriers()).find(c => c.id === parseInt(courier_id));
+            const rawCourierId = String(courier_id == null ? '' : courier_id);
+            if (!/^\d{1,15}$/.test(rawCourierId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+            const courierId = Number(rawCourierId);
+            if (!Number.isSafeInteger(courierId) || courierId <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
+            if (!Array.isArray(order_ids) || order_ids.length < 1 || order_ids.length > 30 ||
+                !order_ids.every(id => (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) ||
+                    (typeof id === 'string' && /^\d{1,15}$/.test(id)))) {
+                return res.status(400).json({ error: 'Некорректный список заказов (1–30 ID)' });
+            }
+            const courier = (await db.getCouriers()).find(c => Number(c.id) === courierId);
             if (!courier) return res.status(404).json({ error: 'Курьер не найден' });
             if (!courier.is_active) return res.status(409).json({ error: 'Курьер не активен' });
             const out = await routeSvc.buildRoute({ orderIds: order_ids, courier, notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true) });
@@ -1286,14 +1332,25 @@ function registerCourierRoutes(app) {
     });
 
     app.post('/api/map-links/route', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
-        const { stops } = req.body;
-        if (!stops || stops.length < 2) return res.status(400).json({ error: 'stops array with 2+ required' });
+        const { stops } = req.body || {};
+        if (!Array.isArray(stops) || stops.length < 2 || stops.length > 30 ||
+            !stops.every(s => s && typeof s === 'object' && !Array.isArray(s) &&
+                s.lat !== null && s.lat !== undefined && String(s.lat).trim() !== '' &&
+                s.lon !== null && s.lon !== undefined && String(s.lon).trim() !== '' &&
+                Number.isFinite(Number(s.lat)) && Number(s.lat) >= -90 && Number(s.lat) <= 90 &&
+                Number.isFinite(Number(s.lon)) && Number(s.lon) >= -180 && Number(s.lon) <= 180)) {
+            return res.status(400).json({ error: 'Нужны 2–30 точек с корректными координатами' });
+        }
         res.json(MapLinks.allRoute(stops));
     });
 
     app.post('/api/routes/:id/optimize', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+        const rawRouteId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawRouteId)) return res.status(400).json({ error: 'Некорректный ID маршрута' });
+        const routeId = Number(rawRouteId);
+        if (!Number.isSafeInteger(routeId) || routeId <= 0) return res.status(400).json({ error: 'Некорректный ID маршрута' });
         try {
-            const route = await db.getRouteById(parseInt(req.params.id));
+            const route = await db.getRouteById(routeId);
             if (!route) return res.status(404).json({ error: 'Route not found' });
             const stops = route.stops || [];
             if (stops.length < 2) return res.json({ message: 'Nothing to optimize', stops });
@@ -1331,7 +1388,10 @@ function registerCourierRoutes(app) {
             const { status } = req.body;
             const valid = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'CANCELLED'];
             if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
-            const orderId = parseInt(req.params.id);
+            const rawOrderId = String(req.params.id || '');
+            if (!/^\d{1,15}$/.test(rawOrderId)) return res.status(400).json({ error: 'Некорректный ID заказа' });
+            const orderId = Number(rawOrderId);
+            if (!Number.isSafeInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный ID заказа' });
             const changed = await db.updateOrderStatus(orderId, status, {
                 afterUpdate: async ({ order, client }) => {
                     const statusLabels = {

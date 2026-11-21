@@ -17,6 +17,7 @@ test('курьерский бот: кнопки отменённого зака�
     const handlers = {}, calls = [];
     let failNextRouteEdit = false;
     let nextMessageId = 1000;
+    let nextCallbackId = 0;
     class FakeBot {
         on(ev, fn) { handlers[ev] = fn; }
         once() {}
@@ -76,11 +77,12 @@ test('курьерский бот: кнопки отменённого зака�
     };
     const press = async (data, replyMarkup = { inline_keyboard: [] }, messageExtras = {}, telegramId = 900002) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
+        await handlers.callback_query({ id: `q${++nextCallbackId}`, data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
     const clientTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'client' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
+    const courierPayload = async (key) => (await pool.query("SELECT payload FROM notification_outbox WHERE bot = 'courier' AND dedup_key = $1", [key])).rows[0]?.payload;
 
     // Прямой вызов callback с ID маршрута другого курьера не раскрывает данные и не меняет состояние.
     const foreignOrder = await db.createOrder({ order_number: 'AP-cg_foreign', user_id: 777099, user_name: 'К', name: 't', phone: '1',
@@ -139,10 +141,10 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${b.route.id}_${b.stopId}_accept`);
     assert.ok(!calls.some(c => c[0] === 'answerCallbackQuery' && c[2] && c[2].show_alert), 'предупреждения нет');
     assert.deepEqual(await clientTexts(), [], 'после «Принять» клиенту ничего не отправлено');
-    const startPrompt = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
-    assert.ok(startPrompt, 'после принятия единственного заказа курьеру показана кнопка общего старта маршрута');
-    assert.match(startPrompt[2], /Все заказы маршрута .* приняты/);
+    const startPrompt = await courierPayload(`route-all-accepted:${b.route.id}`);
+    assert.ok(startPrompt, 'после принятия единственного заказа уведомление о старте маршрута сохранено в outbox');
+    assert.match(startPrompt.text, /Все заказы маршрута .* приняты/);
+    assert.ok(startPrompt.reply_markup.inline_keyboard.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
     const acceptedCard = calls.find(c => c[0] === 'editMessageReplyMarkup');
     assert.ok(acceptedCard, 'карточка принятого заказа обновлена');
     assert.equal(
@@ -151,17 +153,25 @@ test('курьерский бот: кнопки отменённого зака�
         'до общего старта у принятого заказа нет преждевременной кнопки «У клиента»'
     );
     assert.equal((await adminTexts()).length, 1); assert.match((await adminTexts())[0], /принял заказ \(забрал со склада\)/);
+    await press(`deliver_${b.route.id}_${b.stopId}_accept`); // новый callback_query.id, те же callback_data
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1", [`route-all-accepted:${b.route.id}`])).rows[0].n, 1,
+        'повторный callback не создаёт второе уведомление о готовности к старту');
+    assert.equal((await adminTexts()).length, 1, 'повторный callback не дублирует уведомление администратору');
 
     // Курьер запускает маршрут из того же чата, не переходя на отдельный экран.
     await press(`startroute_${b.route.id}`);
     assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
     assert.equal((await adminTexts()).length, 2, 'админ получает отдельное уведомление о старте маршрута');
     assert.ok((await adminTexts())[1].startsWith('[МАРШРУТ]') && /начат курьером/i.test((await adminTexts())[1]));
-    const enroutePrompt = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
-    assert.ok(enroutePrompt, 'после общего старта курьер получает карточку с кнопкой «В пути»');
-    assert.match(enroutePrompt[2], /AP-cg2/);
-    assert.match(enroutePrompt[2], /СПб, ул\. Т/);
+    await press(`startroute_${b.route.id}`); // новый callback_query.id, маршрут уже начат
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1", [`route-start-card:${b.route.id}`])).rows[0].n, 1,
+        'повторный callback старта не создаёт вторую карточку маршрута');
+    assert.equal((await adminTexts()).length, 2, 'повторный callback старта не дублирует уведомление администратору');
+    const enroutePrompt = await courierPayload(`route-start-card:${b.route.id}`);
+    assert.ok(enroutePrompt, 'после общего старта маршрутная карточка сохранена в outbox');
+    assert.ok(enroutePrompt.reply_markup.inline_keyboard.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
+    assert.match(enroutePrompt.text, /AP-cg2/);
+    assert.match(enroutePrompt.text, /СПб, ул\. Т/);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
@@ -237,15 +247,15 @@ test('курьерский бот: кнопки отменённого зака�
     const M = await mkMulti('cg_multi', 'RL-CGMULTI', 59.93);
     const [s1, s2, s3] = M.stops;
     await press(`startroute_${M.route.id}`);
-    const sent = calls.filter(c => c[0] === 'sendMessage');
-    assert.equal(sent.length, 1, 'после старта — ОДНО сообщение со всем маршрутом');
-    const cardText = sent[0][2];
+    const sent = await courierPayload(`route-start-card:${M.route.id}`);
+    assert.ok(sent, 'после старта — одно маршрутное сообщение сохранено в outbox');
+    const cardText = sent.text;
     assert.match(cardText, /1\. <b>AP-cg_multi_1/);
     assert.match(cardText, /2\. <b>AP-cg_multi_2/);
     assert.match(cardText, /3\. <b>AP-cg_multi_3/);
     assert.match(cardText, /Заказов: 3 · доставлено: 0 · не доставлено: 0 · осталось: 3/);
     assert.match(cardText, /Сейчас: заказ 1 из 3/);
-    const kb0 = sent[0][3].reply_markup.inline_keyboard;
+    const kb0 = sent.reply_markup.inline_keyboard;
     assert.equal(kb0.flat().filter(b => b.url && /~/.test(b.url)).length >= 1, true, 'есть ссылка на весь маршрут');
     assert.ok(hasBtn(kb0, `deliver_${M.route.id}_${s1.id}_enroute`), 'для первого заказа кнопка «В пути»');
     assert.ok(hasBtn(kb0, `failed_${M.route.id}_${s1.id}`), 'кнопка «Не доставлено» с номером');

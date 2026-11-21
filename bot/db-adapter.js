@@ -431,7 +431,10 @@ class DBAdapter {
             const accepted = await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1 RETURNING *", [sid]);
             if (typeof afterAccept === 'function') {
                 const routeDetails = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [rid]);
-                await afterAccept({ client, stop: accepted.rows[0], route: routeDetails.rows[0] || {} });
+                const routeStops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number', [rid]);
+                await afterAccept({
+                    client, stop: accepted.rows[0], route: routeDetails.rows[0] || {}, stops: routeStops.rows
+                });
             }
             await client.query('COMMIT');
             return { status: 'accepted' };

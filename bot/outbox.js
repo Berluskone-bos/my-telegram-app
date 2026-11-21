@@ -7,7 +7,8 @@
 // а фоновый обработчик отправляет его и при сбое повторяет с нарастающей паузой.
 //
 // Строка очереди: какой бот (client | admin | courier), метод Bot API, тело запроса, ключ дедупликации
-// (одно и то же событие не отправится дважды), зависимость (отправлять только после другого сообщения).
+// (одно событие не создаст вторую строку), зависимость (отправлять только после другого сообщения).
+// Дедупликация записи не равна exactly-once доставке: после ответа Telegram и до фиксации sent возможен повтор.
 const MAX_ATTEMPTS = 8;
 const RETRY_SEC = [30, 120, 600, 3600, 3 * 3600, 6 * 3600, 12 * 3600]; // пауза после 1-й, 2-й, ... неудачи
 // Один worker забирает batch строк и отправляет их последовательно. Lease должен покрывать
@@ -62,6 +63,17 @@ async function supersede(db, dedupKey) {
     const r = await db.query(
         `UPDATE notification_outbox SET status = 'skipped', last_error = 'заменено более новым событием'
           WHERE dedup_key = $1 AND status = 'pending'`, [dedupKey]);
+    return r.rowCount > 0;
+}
+
+// Ручное восстановление окончательно не доставленного уведомления после исправления конфигурации.
+// Обновляем ту же строку: dedup_key сохраняется, поэтому повторное событие не создаст дубликат.
+async function retryFailed(db, id) {
+    const r = await db.query(
+        `UPDATE notification_outbox
+            SET status = 'pending', attempts = 0, next_attempt_at = NOW(), locked_until = NULL, last_error = NULL
+          WHERE id = $1 AND status = 'failed'
+          RETURNING id`, [id]);
     return r.rowCount > 0;
 }
 
@@ -190,7 +202,7 @@ function createOutbox({ pool, send, batch = 10 }) {
     }
     function stop() { if (timer) { clearInterval(timer); timer = null; } }
 
-    return { processOnce, start, stop, tick, purge, enqueue: (item, db) => enqueue(db || pool, item), supersede: (key, db) => supersede(db || pool, key) };
+    return { processOnce, start, stop, tick, purge, enqueue: (item, db) => enqueue(db || pool, item), supersede: (key, db) => supersede(db || pool, key), retryFailed: (id) => retryFailed(pool, id) };
 }
 
-module.exports = { createOutbox, enqueue, supersede, classifyError, retryDelaySec, leaseDurationSec, MAX_ATTEMPTS };
+module.exports = { createOutbox, enqueue, supersede, retryFailed, classifyError, retryDelaySec, leaseDurationSec, MAX_ATTEMPTS };

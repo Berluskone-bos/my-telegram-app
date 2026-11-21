@@ -1202,11 +1202,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 let h = row(s.db.ok, 'База данных', s.db.ok ? `отвечает за ${s.db.pingMs} мс` : 'не отвечает ' + (s.db.error || ''));
                 h += row(pend === 0 || o.oldestPendingSec < 300, 'Очередь уведомлений', pend ? `ждут отправки: ${pend}, самое старое — ${o.oldestPendingSec} с` : 'пуста, всё отправлено');
                 h += row(!(o.failed > 0), 'Не доставлено за 7 дней', String(o.failed || 0) + (s.lastFailed ? ' (последнее: ' + s.lastFailed.error + ')' : ''));
+                const failedItems = Array.isArray(s.failedItems) ? s.failedItems : [];
+                if (failedItems.length) {
+                    h += `<div style="margin-top:10px"><b>Недоставленные уведомления (последние 10)</b>`;
+                    h += failedItems.map(x => `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--border)">
+                        <span>#${esc(x.id)} · ${esc(x.bot)} / ${esc(x.method)} — ${esc(x.error || 'причина не указана')}</span>
+                        <button type="button" class="btn btn-outline" data-retry-outbox="${esc(x.id)}">Повторить</button>
+                    </div>`).join('');
+                    h += `</div>`;
+                }
                 h += row(true, 'Последнее уведомление в админ-чат', ago(s.lastAdminNotificationAt));
                 h += row(p.enabled === false || (p.holder && p.polling && p.errorsInRow === 0), 'Кнопки админ-бота (опрос Telegram)', p.enabled === false ? 'выключен' : !p.holder ? 'опрос ведёт другой экземпляр' : p.errorsInRow ? `ошибок подряд: ${p.errorsInRow} (${p.lastError || ''})` : `работает, последний успешный запрос ${ago(p.lastOkAt)}`);
                 if (s.widgetsPausedUntil) h += row(false, 'Карточки-виджеты', 'приостановлены до ' + new Date(s.widgetsPausedUntil).toLocaleString('ru-RU') + ' (уведомления идут обычным текстом)');
                 h += `<div style="opacity:.7;font-size:12px">Сервер работает ${Math.round(s.uptimeSec / 60)} мин</div>`;
                 box.innerHTML = h;
+                box.querySelectorAll('[data-retry-outbox]').forEach(button => {
+                    button.addEventListener('click', async () => {
+                        const id = button.getAttribute('data-retry-outbox');
+                        if (!confirm('Сначала исправьте причину недоставки (токен, доступ к чату и т. п.). Повторить отправку этого уведомления?')) return;
+                        button.disabled = true;
+                        try {
+                            const rr = await fetch(`${ADMIN_API}/api/admin/outbox/${encodeURIComponent(id)}/retry`, { method: 'POST' });
+                            const result = await rr.json().catch(() => ({}));
+                            if (!rr.ok) {
+                                alert(result.error || 'Не удалось поставить уведомление на повтор');
+                                button.disabled = false;
+                                return;
+                            }
+                            await loadSystemStatus();
+                        } catch (e) {
+                            alert('Сервер недоступен. Уведомление не поставлено на повтор.');
+                            button.disabled = false;
+                        }
+                    });
+                });
             } catch (e) { box.textContent = 'Сервер недоступен'; }
         }
 
