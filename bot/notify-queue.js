@@ -26,12 +26,12 @@ function instance() {
 }
 
 // Короткая запись: текст в очередь (db — pool или client транзакции)
-function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = null, db = null, throwOnError = false } = {}) {
+function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = null, db = null, throwOnError = false, delaySec = 0 } = {}) {
     if (chatId === null || chatId === undefined || chatId === '') return Promise.resolve(null);
     const payload = { chat_id: String(chatId), text, parse_mode: 'HTML' };
     if (buttons) payload.reply_markup = { inline_keyboard: buttons };
     const q = instance();
-    return q.enqueue({ bot, payload, dedupKey, onSent }, db).catch(e => {
+    return q.enqueue({ bot, payload, dedupKey, onSent, delaySec }, db).catch(e => {
         console.error('[OUTBOX] не поставлено в очередь:', String(e.code || e.name || 'unknown').slice(0, 40));
         if (throwOnError) throw e;
         return null;
