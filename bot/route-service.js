@@ -63,8 +63,15 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const placed = plan.ordered.map(p => ({ ...p, order: stops.find(s => s.id === p.id).order }));
         const sequence = placed.concat(plan.unplaced.map(s => ({ ...s, etaAt: null })));
 
+        const routeNumber = 'RL-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
+        const approx = plan.source === 'estimate' ? ' (оценка по прямой: сервис дорог недоступен)' : '';
+        const n = sequence.length;
+        const list = sequence.map((s, i) => stopText(s, i, n)).join('\\n');
+
+        // Маршрут и все связанные уведомления записываются одной транзакцией.
+        // Ошибка enqueue откатывает маршрут, чтобы API не оставил назначение без уведомлений.
         const route = await db.createRoute({
-            route_number: 'RL-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase(),
+            route_number: routeNumber,
             route_date: now().toISOString().split('T')[0],
             courier_id: courier.id, status: 'assigned', total_orders: sequence.length, enforceReadyOrders: true,
             stops: sequence.map((s, i) => {
@@ -77,56 +84,59 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     amount_to_pay: o.payment === 'cash' ? o.total : 0, payment_status: o.payment === 'cash' ? 'pending' : 'paid',
                     status: 'pending', comment: o.comment || ''
                 };
-            })
+            }),
+            afterCreate: async ({ route: createdRoute, client }) => {
+                if (courier.telegram_id) {
+                    const sheet =
+                        `<b>Маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${n} ${n === 1 ? 'точка' : 'точек'}\\n` +
+                        (plan.ordered.length ? `Между адресами около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}; время до первой точки зависит от текущего местоположения курьера.\\n` +
+                            `Время ориентировочное: считается по дорогам и часам пик, живые пробки не учитываются.\\n` : '') +
+                        `\\n${list}\\n\\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз. Навигация начинает путь от текущего местоположения курьера.`;
+                    const ll = placed.map(p => ({ lat: p.lat, lon: p.lon }));
+                    const nav = placed.length ? MapLinks.allRoute(ll) : null;
+                    const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
+                    if (queue.notifyWidget && widgets.widgetsEnabled()) {
+                        const card = widgets.routeSheetWidget(createdRoute.route_number, sequence.map(s => ({
+                            order_number: s.order.order_number, address: s.order.address || '', status: 'pending',
+                            clock: s.etaAt ? planner.formatEta(s.etaAt, now()).clock : ''
+                        })));
+                        await queue.notifyWidget('courier', courier.telegram_id, card, {
+                            kind: 'route', ref: createdRoute.id, state: {}, fallbackText: sheet, buttons: sheetButtons,
+                            dedupKey: sheetKey(createdRoute.id), db: client, throwOnError: true
+                        });
+                    } else {
+                        await queue.notify('courier', courier.telegram_id, sheet, {
+                            dedupKey: `route-sheet:${createdRoute.id}`, buttons: sheetButtons, db: client, throwOnError: true
+                        });
+                    }
+                    for (let i = 0; i < createdRoute.stops.length; i++) {
+                        const st = createdRoute.stops[i];
+                        const item = sequence[i], o = item.order;
+                        const text =
+                            `<b>Точка ${i + 1} из ${n}</b>\\n\\nЗаказ: ${escapeHtml(o.order_number)}\\nАдрес: ${escapeHtml(o.address)}\\n` +
+                            (item.etaAt ? `Ориентировочно: к ${planner.formatEta(item.etaAt, now()).clock}\\n` : '') +
+                            `Сумма: ${parseFloat(o.total || 0).toLocaleString()} руб.${o.payment === 'cash' ? ' (оплата на месте)' : ''}\\n` +
+                            (o.phone ? `Телефон: ${escapeHtml(o.phone)}\\n` : '') +
+                            (o.comment ? `Комментарий: ${escapeHtml(o.comment)}\\n` : '') +
+                            `\\nНажмите "Принять заказ", когда заберёте его со склада.`;
+                        const buttons = [];
+                        if (item.lat && item.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(o.address, item.lat, item.lon) }, { text: '2GIS', url: MapLinks.gis2(item.lat, item.lon) }]);
+                        buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${createdRoute.id}_${st.id}_accept` }]);
+                        await queue.notify('courier', courier.telegram_id, text, {
+                            buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id }, db: client, throwOnError: true
+                        });
+                    }
+                }
+                if (notifyAdmin) {
+                    await notifyAdmin(
+                        `<b>Маршрут ${escapeHtml(createdRoute.route_number)} назначен</b>\\nКурьер: ${escapeHtml(courier.name)}\\n` +
+                        `Точек: ${n}${plan.ordered.length ? `, между адресами около ${plan.totalMin} мин` : ''}${approx}\\n\\n${list}`,
+                        { db: client, dedupKey: `admin-route-assigned:${createdRoute.id}` }
+                    );
+                }
+            }
         });
 
-        const approx = plan.source === 'estimate' ? ' (оценка по прямой: сервис дорог недоступен)' : '';
-        const n = route.stops.length;
-        const list = sequence.map((s, i) => stopText(s, i, n)).join('\n');
-
-        if (courier.telegram_id) {
-            const sheet =
-                `<b>Маршрут ${escapeHtml(route.route_number)}</b>: ${n} ${n === 1 ? 'точка' : 'точек'}\n` +
-                (plan.ordered.length ? `Между адресами около ${plan.totalMin} мин (с остановками по ${serviceMin()} мин)${approx}; время до первой точки зависит от текущего местоположения курьера.\n` +
-                    `Время ориентировочное: считается по дорогам и часам пик, живые пробки не учитываются.\n` : '') +
-                `\n${list}\n\nНиже — карточка каждой точки с кнопками. Порядок: сверху вниз. Навигация начинает путь от текущего местоположения курьера.`;
-            const ll = placed.map(p => ({ lat: p.lat, lon: p.lon }));
-            const nav = placed.length ? MapLinks.allRoute(ll) : null;
-            const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
-            if (queue.notifyWidget && widgets.widgetsEnabled()) {
-                // карточка «Маршрутный лист»; если Telegram её не примет или виджеты выключены — прежний текстовый лист
-                const card = widgets.routeSheetWidget(route.route_number, sequence.map(s => ({
-                    order_number: s.order.order_number, address: s.order.address || '', status: 'pending',
-                    clock: s.etaAt ? planner.formatEta(s.etaAt, now()).clock : ''
-                })));
-                await queue.notifyWidget('courier', courier.telegram_id, card, {
-                    kind: 'route', ref: route.id, state: {}, fallbackText: sheet, buttons: sheetButtons, dedupKey: sheetKey(route.id)
-                });
-            } else {
-                await queue.notify('courier', courier.telegram_id, sheet, { dedupKey: `route-sheet:${route.id}`, buttons: sheetButtons });
-            }
-            for (let i = 0; i < route.stops.length; i++) {
-                const st = route.stops[i];
-                const s = sequence[i], o = s.order;
-                const text =
-                    `<b>Точка ${i + 1} из ${n}</b>\n\nЗаказ: ${escapeHtml(o.order_number)}\nАдрес: ${escapeHtml(o.address)}\n` +
-                    (s.etaAt ? `Ориентировочно: к ${planner.formatEta(s.etaAt, now()).clock}\n` : '') +
-                    `Сумма: ${parseFloat(o.total || 0).toLocaleString()} руб.${o.payment === 'cash' ? ' (оплата на месте)' : ''}\n` +
-                    (o.phone ? `Телефон: ${escapeHtml(o.phone)}\n` : '') +
-                    (o.comment ? `Комментарий: ${escapeHtml(o.comment)}\n` : '') +
-                    `\nНажмите "Принять заказ", когда заберёте его со склада.`;
-                const buttons = [];
-                if (s.lat && s.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(o.address, s.lat, s.lon) }, { text: '2GIS', url: MapLinks.gis2(s.lat, s.lon) }]);
-                buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${route.id}_${st.id}_accept` }]);
-                await queue.notify('courier', courier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id } });
-            }
-        }
-
-        if (notifyAdmin) {
-            await notifyAdmin(
-                `<b>Маршрут ${escapeHtml(route.route_number)} назначен</b>\nКурьер: ${escapeHtml(courier.name)}\n` +
-                `Точек: ${n}${plan.ordered.length ? `, между адресами около ${plan.totalMin} мин` : ''}${approx}\n\n${list}`);
-        }
         return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: 'current-location' }, sequence: sequence.map(s => s.order.order_number) };
     }
 
