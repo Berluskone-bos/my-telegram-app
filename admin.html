@@ -2019,6 +2019,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function loadShopProducts() {
             if (!window.adminHasPermission || !window.adminHasPermission('products.view')) return;
+            const addProductButton = document.querySelector('button[onclick="openProductModal()"]');
+            if (addProductButton) addProductButton.style.display = window.adminHasPermission('settings.manage') ? '' : 'none';
             try {
                 const products = await fetch(`${API_BASE}/api/products`).then(r => r.json());
                 window._products = products;
@@ -2134,7 +2136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const saved = await res.json().catch(() => ({}));
                     const pid = editId || saved.id;
                     if (canManageCatalog && pid && window.adminHasPermission('settings.manage')) {
-                        const list = form.approvals.value.split(/[,;\\n]/).map(s => s.trim()).filter(Boolean);
+                        const list = form.approvals.value.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
                         const approvalsResponse = await fetch(API_BASE + '/api/products/' + pid + '/approvals', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approvals: list }) });
                         if (!approvalsResponse.ok) throw new Error('Не удалось сохранить допуски товара');
                     }
