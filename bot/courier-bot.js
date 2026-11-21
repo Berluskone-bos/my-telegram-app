@@ -902,7 +902,16 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         // Сначала атомарно фиксируем доставку. Только первый callback получает status=completed.
         let completion;
         try {
-            completion = await db.completeDeliveryStop(stopId);
+            completion = await db.completeDeliveryStop(stopId, {
+                afterComplete: async ({ client, stop: deliveredStop, route: deliveredRoute }) => {
+                    const who = query && query.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
+                    await notifyAdmin(
+                        `[ДОСТАВКА] ${escapeHtml(deliveredRoute.route_number || '')} | заказ доставлен\n` +
+                        `Заказ: ${escapeHtml(deliveredStop.order_number || '')} (точка ${deliveredStop.stop_number} из ${deliveredRoute.total_orders || ''})\nАдрес: ${escapeHtml(deliveredStop.address || '')}` +
+                        (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
+                        null, `admin-step-done:${stopId}`, client, true);
+                }
+            });
         } catch (e) {
             console.error('[DELIVER] completion transaction failed:', errorCode(e));
             bot.answerCallbackQuery(query.id, { text: 'Не удалось завершить доставку. Повторите позже.', show_alert: true }).catch(() => {});
@@ -928,7 +937,6 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         await renderRouteCard(chatId, msgId, routeId, null);
         bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' }).catch(() => {});
 
-        await notifyAdminStep(routeId, stopId, 'done', query);
         routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', errorCode(e)));
 
         // Клиентское уведомление уже записано в outbox в той же транзакции, что и доставка.
