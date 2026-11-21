@@ -30,9 +30,20 @@ test('оператор обрабатывает заказы, но не полу
     for (const permission of ['dashboard.view', 'orders.view', 'orders.process', 'routes.manage']) {
         assert.equal(hasPermission('operator', permission), true, permission);
     }
-    for (const permission of ['customers.view', 'sales.view', 'inventory.manage', 'staff.manage']) {
+    for (const permission of ['customers.view', 'sales.view', 'inventory.manage', 'staff.manage', 'settings.manage']) {
         assert.equal(hasPermission('operator', permission), false, permission);
     }
+});
+
+test('оператор может управлять маршрутами, но не читать полный feed диспетчеризации', () => {
+    assert.equal(hasPermission('operator', 'routes.manage'), true);
+    assert.equal(hasPermission('operator', 'settings.manage'), false);
+    let called = false;
+    let status;
+    const res = { status(code) { status = code; return this; }, json() { return this; } };
+    requirePermission('settings.manage')({ admin: { role: 'operator' } }, res, () => { called = true; });
+    assert.equal(called, false);
+    assert.equal(status, 403);
 });
 
 test('кладовщик видит товары и склад, работает с комплектацией, но не управляет клиентами и продажами', () => {

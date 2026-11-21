@@ -5,9 +5,9 @@
 
 ## Где мы сейчас (21.11.2026)
 - Рабочий проект: Telegram Mini App и три Telegram-бота; фронтенд — GitHub Pages, backend и PostgreSQL — Railway.
-- Production commit: `833b34b5c3d92049099f01884ca70d5c7bbc0a52` (PR #85). GitHub Actions Tests и Deploy to GitHub Pages завершились SUCCESS; тестовый workflow сообщил 108/108 успешных тестов.
+- Production commit: `d8da2ae0734669dd3bfb014c1acb82d0f397c0d1` (PR #89). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
 - Railway production: `gulf-bot` и `Postgres` — Online, по одной активной реплике; недавних падений и активных предупреждений нет.
-- PR #73–85 слиты в `main`; открытых PR на момент проверки нет. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
+- PR #73–89 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
 - Neon и отдельный VPS не используются. `project-files/archive-vps/` сохранён как холодный исторический архив; он не запускается в production.
 - PostgreSQL размещён в Railway, регион sfo (США). Автоматические резервные копии не подтверждены; см. `docs/BACKUP.md`.
 - Каталог: основной источник — PostgreSQL; `data/catalog.json` — резервный источник. В JSON 18 записей: 13 товаров первой партии и 5 позиций `coming_soon`. Не менять товары, цены и остатки без подтверждения владельца.
@@ -474,3 +474,10 @@
 - Устранены дубли legacy ADMIN_API_KEY в TASKS.md; объединены повторяющиеся пункты ручных проверок.
 - Устаревшие ожидания CI/merge/deploy по объединённым PR #59 и #64–#88 заменены фактическими результатами. Незавершённые ручные Telegram smoke tests не отмечались как выполненные.
 - Уточнено, что резервные копии должны быть off-site и зашифрованы; скрипты в репозитории не означают, что расписание и внешнее хранилище уже настроены.
+
+## 21.11.2026 — частичное закрытие IDOR/BOLA: dispatch feed
+- Проверены клиентские endpoints: `/api/profile`, `/api/orders/my`, `/api/orders/my/hide`, `/api/loyalty`, `/api/bonuses` используют пользователя из подписанного Telegram initData; чтение и скрытие заказов ограничены `user_id` на уровне SQL.
+- Найдено несоответствие прав: `/api/dispatch/unassigned-orders` возвращал `db.getOrders()` (`SELECT * FROM orders`) и был защищён только `routes.manage`. Роль `operator` имеет `routes.manage`, но не `settings.manage`; при прямом вызове API оператор мог получить все поля всех заказов, хотя UI вкладки диспетчеризации требует `settings.manage`.
+- В ветке `security/restrict-dispatch-order-feed` endpoint переведён на `settings.manage`; добавлен тест границы прав для оператора. Это ограничивает доступ к полному feed и не меняет данные.
+- Не менялись production DB, заказы, товары, цены, остатки и Railway Variables. Полный динамический IDOR/BOLA аудит ещё не завершён.
+- Следующие проверки: остальные endpoints с ID из URL/body; доступ курьера к маршрутам и остановкам; cross-user Telegram API с разными initData.
