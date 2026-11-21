@@ -339,9 +339,10 @@ bot.onText(/\/start/, async (msg) => {
         );
 
         const regText = `[КУРЬЕР] Заявка: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
-        await notifyAdmin(regText,
-            [[{ text: 'Активировать курьера', callback_data: `activate_courier_${newCourier.id}` }]],
-            `courier-registration:${newCourier.id}`);
+        const activationButtons = adminBot && ADMIN_CHAT_ID
+            ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${newCourier.id}` }]]
+            : null;
+        await notifyAdmin(regText, activationButtons, `courier-registration:${newCourier.id}`);
     });
 });
 
