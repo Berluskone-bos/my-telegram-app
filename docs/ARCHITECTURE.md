@@ -161,3 +161,9 @@ PR #54 добавил индивидуальные учётные записи, 
 
 ## Dashboard role response matrix
 `GET /api/admin/dashboard` использует права роли для полей ответа: `sales.view` управляет выручкой и числом клиентов, `customers.view` — именами клиентов в последних заказах, `inventory.view` или `products.view` — остатками и низким запасом. Ответы защищены `Cache-Control: no-store`; регрессионные проверки четырёх ролей находятся в `test/admin-dashboard.test.js`.
+
+
+## Права на каталог и склад
+- `GET /api/products`: администратор получает полную карточку; роль warehouse — только `id`, бренд, категория, название, артикул, объём, остаток, минимальный остаток и статусы наличия.
+- `POST /api/products` и `PUT /api/products/:id`: требуют `settings.manage` (управление каталогом).
+- `PATCH /api/products/:id/stock`: требует `inventory.manage`; разрешены только целочисленные неотрицательные `stock` и/или `min_stock` в пределах 0–1 000 000.
