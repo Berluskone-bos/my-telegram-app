@@ -1555,6 +1555,21 @@ function registerCourierRoutes(app) {
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
 
+    app.get('/api/products/:id/stock-movements', verifyAdmin, requirePermission('inventory.view'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        try {
+            const movements = await db.getStockMovements(id, req.query.limit);
+            res.set('Cache-Control', 'no-store');
+            return res.json(movements);
+        } catch (e) {
+            console.error('[API]', errorCode(e));
+            return res.status(500).json({ error: 'Internal error' });
+        }
+    });
+
     app.patch('/api/products/:id/stock', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
         if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
@@ -1563,7 +1578,7 @@ function registerCourierRoutes(app) {
         const validated = validateStockUpdate(req.body);
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
-            const product = await db.updateProduct(id, validated.data, { expectedStock: validated.expectedStock });
+            const product = await db.updateProduct(id, validated.data, { expectedStock: validated.expectedStock, actorId: req.admin && req.admin.userId, actorRole: req.admin && req.admin.role, reason: 'Ручная корректировка остатка через складскую форму' });
             if (!product) return res.status(404).json({ error: 'not found' });
             res.json(filterProductsForRole([product], req.admin && req.admin.role)[0]);
         } catch (e) {
@@ -1600,7 +1615,7 @@ function registerCourierRoutes(app) {
             expectedStock = expected.value;
         }
         try {
-            const product = await db.updateProduct(id, validated.data, { expectedStock });
+            const product = await db.updateProduct(id, validated.data, { expectedStock, actorId: req.admin && req.admin.userId, actorRole: req.admin && req.admin.role, reason: 'Ручная корректировка остатка через карточку товара' });
             if (!product) return res.status(404).json({ error: 'not found' });
             res.json(product);
         } catch (e) {
