@@ -64,9 +64,9 @@ test('system-status: только после входа, показывает б
     assert.equal(recovered.rows[0].last_error, null);
     assert.equal(recovered.rows[0].locked_until, null);
 
-    const duplicateRetry = await fetch(base + `/api/admin/outbox/${failedId}/retry`, { method: 'POST', headers: { ...H, cookie }, body: '{}' });
+    const duplicateRetry = await fetch(base + `/api/admin/outbox/${failedId}/retry`, { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' });
     assert.equal(duplicateRetry.status, 409, 'нельзя повторно поставить уже pending');
-    assert.equal((await fetch(base + '/api/admin/outbox/999999999/retry', { method: 'POST', headers: { ...H, cookie }, body: '{}' })).status, 404);
-    assert.equal((await fetch(base + '/api/admin/outbox/nope/retry', { method: 'POST', headers: { ...H, cookie }, body: '{}' })).status, 400);
+    assert.equal((await fetch(base + '/api/admin/outbox/999999999/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 404);
+    assert.equal((await fetch(base + '/api/admin/outbox/nope/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 400);
 
 });
