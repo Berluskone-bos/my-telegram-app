@@ -30,7 +30,7 @@ test('маршрут из 4 заказов: порядок по времени �
         return { ok: true, json: async () => ({ code: 'Ok', durations }) };
     } }) };
     const sent = [];
-    const queue = { notify: (bot, chat, text, opts = {}) => { sent.push({ bot, chat: String(chat), text, opts }); return Promise.resolve(1); } };
+    const queue = { notify: async (bot, chat, text, opts = {}) => { await new Promise(resolve => setImmediate(resolve)); sent.push({ bot, chat: String(chat), text, opts }); return 1; } };
     const clock = { t: new Date('2026-11-15T00:00:00Z') };     // воскресенье 03:00 МСК: коэффициент 1.0
     const svc = createRouteService({ db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5', WAREHOUSE_LAT: '59.94', WAREHOUSE_LON: '30.34' }, now: () => clock.t });
 
@@ -64,7 +64,7 @@ test('маршрут из 4 заказов: порядок по времени �
     await assert.rejects(svc.buildRoute({ orderIds: [cancelled.id], courier }), (e) => e.code === 'CONFLICT');
 
     // сборка маршрута
-    const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: (x) => sent.push({ bot: 'admin', text: x }) });
+    const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: async (x) => { await new Promise(resolve => setImmediate(resolve)); sent.push({ bot: 'admin', text: x }); } });
     assert.deepEqual(out.sequence, ['AP-rs3', 'AP-rs1', 'AP-rs2', 'AP-rs4'], 'при равной стоимости допустим любой кратчайший открытый путь; выбран C, A, B, D');
     const stops = (await db.getRouteById(out.route.id)).stops;
     assert.deepEqual(stops.map(s => [s.stop_number, s.order_number]), [[1, 'AP-rs3'], [2, 'AP-rs1'], [3, 'AP-rs2'], [4, 'AP-rs4']]);
