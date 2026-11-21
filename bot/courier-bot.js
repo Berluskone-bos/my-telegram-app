@@ -1330,12 +1330,12 @@ function registerCourierRoutes(app) {
                         ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
                         : null;
                     await notifyAdmin(
-                        `<b>Смена статуса</b>\\n\\n` +
-                        `Заказ: <b>${escapeHtml(order.order_number)}</b>\\n` +
-                        `Клиент: ${escapeHtml(order.user_name || '-') }\\n` +
-                        `Телефон: ${escapeHtml(order.phone || '-') }\\n` +
-                        `Адрес: ${escapeHtml(order.address || '-') }\\n` +
-                        `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\\n` +
+                        `<b>Смена статуса</b>\n\n` +
+                        `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
+                        `Клиент: ${escapeHtml(order.user_name || '-') }\n` +
+                        `Телефон: ${escapeHtml(order.phone || '-') }\n` +
+                        `Адрес: ${escapeHtml(order.address || '-') }\n` +
+                        `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
                         `Статус: <b>${label}</b>`,
                         cancelBtn, `admin-order-status:${order.id}:${status}`, client, true
                     );
@@ -1354,7 +1354,7 @@ function registerCourierRoutes(app) {
                             : false;
                         if (!onCard || finalSt || pickupNotice) {
                             await queue.notify('client', order.user_id,
-                                `<b>Заказ ${escapeHtml(order.order_number)}</b>\\n\\nСтатус: <b>${label}</b>`,
+                                `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`,
                                 { dedupKey: `client-order-status:${order.id}:${status}`, db: client, throwOnError: true });
                         }
                     }
