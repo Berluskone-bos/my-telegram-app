@@ -29,6 +29,7 @@ test('system-status: только после входа, показывает б
     t.after(async () => { server.close(); await pool.query('DELETE FROM notification_outbox'); await pool.end(); });
     const base = `http://127.0.0.1:${server.address().port}`;
     const H = { 'content-type': 'application/json', 'x-forwarded-proto': 'https' };
+    const Hsame = { ...H, origin: base.replace(/^http:/, 'https:') };
 
     assert.equal((await fetch(base + '/api/admin/system-status', { headers: H })).status, 401, 'без входа — отказ');
     assert.equal((await fetch(base + '/api/admin/outbox/1/retry', { method: 'POST', headers: H })).status, 401, 'повтор failed без входа запрещён');
@@ -54,7 +55,7 @@ test('system-status: только после входа, показывает б
     assert.ok(s.lastAdminNotificationAt);
     assert.equal(s.adminPolling.enabled, false, 'опрос выключен переменной ADMIN_POLLING=off');
 
-    const retry = await fetch(base + `/api/admin/outbox/${failedId}/retry`, { method: 'POST', headers: { ...H, cookie }, body: '{}' });
+    const retry = await fetch(base + `/api/admin/outbox/${failedId}/retry`, { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' });
     assert.equal(retry.status, 202, 'администратор может вернуть failed в очередь');
     assert.deepEqual(await retry.json(), { success: true, id: failedId, status: 'pending' });
     const recovered = await pool.query('SELECT status, attempts, last_error, locked_until FROM notification_outbox WHERE id = $1', [failedId]);
