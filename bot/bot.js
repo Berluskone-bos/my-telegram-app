@@ -29,7 +29,13 @@ const WEBHOOK_SECRET  = process.env.WEBHOOK_SECRET;
 const ADMIN_API_KEY   = process.env.ADMIN_API_KEY;
 const STATIC_DIR      = process.env.STATIC_DIR || path.join(__dirname, '..', 'public');
 const TRUST_CLIENT_PRICES = process.env.TRUST_CLIENT_PRICES === 'true';
-const INIT_DATA_TTL_SEC  = Number(process.env.INIT_DATA_TTL_SEC || 3600);
+const rawInitDataTtl = process.env.INIT_DATA_TTL_SEC;
+const parsedInitDataTtl = rawInitDataTtl === undefined ? 3600 : Number(rawInitDataTtl);
+const INIT_DATA_TTL_SEC = Number.isSafeInteger(parsedInitDataTtl) && parsedInitDataTtl > 0 && parsedInitDataTtl <= 86400
+    ? parsedInitDataTtl : 3600;
+if (rawInitDataTtl !== undefined && INIT_DATA_TTL_SEC !== parsedInitDataTtl) {
+    console.warn('[SECURITY] INIT_DATA_TTL_SEC некорректен; используется безопасное значение по умолчанию 3600 секунд');
+}
 
 if (TRUST_CLIENT_PRICES && process.env.NODE_ENV === 'production') {
     console.error('[SECURITY] TRUST_CLIENT_PRICES запрещён в production: цены должны проверяться по базе данных.');
