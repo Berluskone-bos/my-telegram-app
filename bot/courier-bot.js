@@ -679,10 +679,18 @@ async function handleStartRoute(chatId, routeId, user) {
     const route = await db.getRouteById(routeId);
     if (!route) return;
     const started = await db.startRouteIfAllAccepted(routeId, {
-        afterStart: async ({ client, route: startedRoute }) => {
+        afterStart: async ({ client, route: startedRoute, stops }) => {
             await notifyAdmin(
                 `[МАРШРУТ] ${escapeHtml(startedRoute.route_number)} начат курьером ${user.first_name || ''}`,
                 null, `route-started:${routeId}`, client, true);
+            // Уведомление с рабочей карточкой фиксируется в той же транзакции, что и старт маршрута.
+            const startedStops = (stops || []).map(stop => ({
+                ...stop, status: stop.status === 'accepted' ? 'in_progress' : stop.status
+            }));
+            const card = buildRouteCard({ ...startedRoute, stops: startedStops }, null);
+            await queue.notify('courier', chatId, card.text, {
+                buttons: card.keyboard, dedupKey: `route-start-card:${routeId}`, db: client, throwOnError: true
+            });
         }
     });
     if (started.status === 'not_ready') {
@@ -701,14 +709,9 @@ async function handleStartRoute(chatId, routeId, user) {
     try {
         // Пересчитываем ETA без массовой рассылки клиентам: каждый клиент получит
         // «Курьер в пути» только когда курьер начнёт именно его заказ.
-        await routeSvc.refreshEtas({ routeId, notifyNew: false });
-        // Карточка после успешного старта — бизнес-уведомление: сохраняем её в outbox,
-        // чтобы перезапуск процесса не оставил курьера без рабочего маршрутного листа.
-        const currentRoute = await db.getRouteById(routeId);
-        if (!currentRoute) throw new Error('route disappeared after start');
-        const card = buildRouteCard(currentRoute, null);
-        await queue.notify('courier', chatId, card.text, {
-            buttons: card.keyboard, dedupKey: `route-start-card:${routeId}`, throwOnError: true
+        // Пересчёт ETA не влияет на доступность уже поставленной в outbox карточки.
+        await routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => {
+            console.error('[ROUTE] Не удалось обновить ETA после старта:', errorCode(e));
         });
     } catch (e) {
         console.error('[ROUTE] Не удалось отправить единый маршрут:', errorCode(e));
