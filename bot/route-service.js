@@ -103,9 +103,10 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     kind: 'route', ref: route.id, state: {}, fallbackText: sheet, buttons: sheetButtons, dedupKey: sheetKey(route.id)
                 });
             } else {
-                queue.notify('courier', courier.telegram_id, sheet, { dedupKey: `route-sheet:${route.id}`, buttons: sheetButtons });
+                await queue.notify('courier', courier.telegram_id, sheet, { dedupKey: `route-sheet:${route.id}`, buttons: sheetButtons });
             }
-            route.stops.forEach((st, i) => {
+            for (let i = 0; i < route.stops.length; i++) {
+                const st = route.stops[i];
                 const s = sequence[i], o = s.order;
                 const text =
                     `<b>Точка ${i + 1} из ${n}</b>\n\nЗаказ: ${escapeHtml(o.order_number)}\nАдрес: ${escapeHtml(o.address)}\n` +
@@ -117,12 +118,12 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 const buttons = [];
                 if (s.lat && s.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(o.address, s.lat, s.lon) }, { text: '2GIS', url: MapLinks.gis2(s.lat, s.lon) }]);
                 buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${route.id}_${st.id}_accept` }]);
-                queue.notify('courier', courier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id } });
-            });
+                await queue.notify('courier', courier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id } });
+            }
         }
 
         if (notifyAdmin) {
-            notifyAdmin(
+            await notifyAdmin(
                 `<b>Маршрут ${escapeHtml(route.route_number)} назначен</b>\nКурьер: ${escapeHtml(courier.name)}\n` +
                 `Точек: ${n}${plan.ordered.length ? `, между адресами около ${plan.totalMin} мин` : ''}${approx}\n\n${list}`);
         }
