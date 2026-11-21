@@ -34,7 +34,7 @@ function registerAdminDashboardRoutes(app, { pool, verifyAdmin }) {
                      SELECT TO_CHAR(d.day, 'YYYY-MM-DD') AS "businessDate",
                             COUNT(o.id)::int AS orders,
                             COUNT(o.id) FILTER (WHERE o.status = 'NEW')::int AS "newOrders",
-                            COUNT(o.id) FILTER (WHERE o.status IN ('NEW','CONFIRMED','ASSEMBLING','SHIPPING'))::int AS "activeOrders",
+                            COUNT(o.id) FILTER (WHERE o.status IN ('NEW','CONFIRMED','ASSEMBLING','SHIPPING','DELIVERY_FAILED'))::int AS "activeOrders",
                             COALESCE(SUM(o.total) FILTER (WHERE o.status <> 'CANCELLED'), 0)::float8 AS revenue,
                             COUNT(o.id) FILTER (WHERE o.status = 'CANCELLED')::int AS cancelled,
                             COUNT(o.id) FILTER (WHERE o.status IN ('DELIVERED','COMPLETED'))::int AS delivered,

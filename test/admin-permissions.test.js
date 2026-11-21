@@ -114,7 +114,7 @@ test('оператор начинает сборку, кладовщик под�
     called = false;
     requireOrderStatusPermission({ admin: { role: 'operator' }, body: { status: 'READY_FOR_PICKUP' } }, res, () => { called = true; });
     assert.equal(called, false);
-    for (const status of ['SHIPPING', 'DELIVERED', 'COMPLETED']) {
+    for (const status of ['SHIPPING', 'DELIVERED', 'COMPLETED', 'DELIVERY_FAILED']) {
         called = false;
         const denied = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
         requireOrderStatusPermission({ admin: { role: 'admin' }, body: { status } }, denied, () => { called = true; });

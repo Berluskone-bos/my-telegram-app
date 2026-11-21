@@ -39,7 +39,7 @@ function requireAnyPermission(...permissions) {
 }
 function requireOrderStatusPermission(req, res, next) {
     const status = req && req.body && req.body.status;
-    if (['SHIPPING', 'DELIVERED', 'COMPLETED'].includes(status)) {
+    if (['SHIPPING', 'DELIVERED', 'COMPLETED', 'DELIVERY_FAILED'].includes(status)) {
         return res.status(403).json({ error: 'Этот статус подтверждается только курьером', code: 'COURIER_ONLY' });
     }
     const permission = ['READY_FOR_SHIPMENT', 'READY_FOR_PICKUP'].includes(status) ? 'orders.fulfill' : 'orders.process';

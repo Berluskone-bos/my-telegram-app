@@ -87,7 +87,7 @@
 
     const rub = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
     const integer = new Intl.NumberFormat('ru-RU');
-    const statusNames = { NEW: 'Новый', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается', SHIPPING: 'В доставке', DELIVERED: 'Доставлен', COMPLETED: 'Завершён', CANCELLED: 'Отменён' };
+    const statusNames = { NEW: 'Новый', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается', SHIPPING: 'В доставке', DELIVERY_FAILED: 'Не доставлен', DELIVERED: 'Доставлен', COMPLETED: 'Завершён', CANCELLED: 'Отменён' };
     const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
     function moscowDateKey() {
         const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
