@@ -1,105 +1,77 @@
-# Деплой АВТОПРОМОЙЛ
+# Деплой и эксплуатация АВТОПРОМОЙЛ
 
-## Архитектура
+Актуальная production-схема: **GitHub Pages + Railway + PostgreSQL на Railway**. Render, Vercel и отдельный VPS не являются текущими production-площадками.
 
-```
-GitHub Pages (бесплатно)          Railway.app / Render.com (бесплатно)
-┌─────────────────────┐          ┌─────────────────────┐
-│  Фронтенд (сайт)    │          │  Бот (Node.js)      │
-│  - index.html        │          │  - Обработка /start │
-│  - css/              │          │  - Приём заказов    │
-│  - js/               │          │  - Уведомления      │
-│  - data/catalog.json │          │  - Express API      │
-└─────────────────────┘          └─────────────────────┘
-         │                                │
-         └────────── Telegram ────────────┘
-```
+## Production architecture
 
-## Шаг 1: Фронтенд на GitHub Pages
+- Frontend: GitHub Pages — https://berluskone-bos.github.io/my-telegram-app/
+- Backend: Railway service `gulf-bot` — Express API и Telegram-боты.
+- Database: Railway service `Postgres` — PostgreSQL.
+- Health endpoint: https://gulf-bot-production.up.railway.app/api/health
 
-Фронтенд автоматически деплоится при push в ветку `main`.
-URL: https://berluskone-bos.github.io/my-telegram-app/
+Не создавайте новые проекты и сервисы Railway при обычном обновлении кода. Используйте существующие production services и environment.
 
-Для включения GitHub Pages:
-1. Откройте репозиторий на GitHub
-2. Settings → Pages
-3. Source: "GitHub Actions"
-4. Сохраните
+## Обычный выпуск изменений
 
-## Шаг 2: Деплой бота
-
-### Вариант A: Railway.app (рекомендуется)
-
-1. Откройте https://railway.app → Login with GitHub
-2. New Project → Deploy from GitHub repo → `my-telegram-app`
-3. Перейдите в Variables и добавьте:
-
-```
-BOT_TOKEN = ваш_токен_от_botfather
-ADMIN_CHAT_ID = ваш_chat_id
-WEB_APP_URL = https://berluskone-bos.github.io/my-telegram-app/
-```
-
-4. Railway автоматически найдёт `Procfile` и запустит бота
-5. Проверьте логи — должны видеть:
+1. Создать отдельную ветку от актуального `main`.
+2. Внести ограниченные изменения; обновить `docs/MEMORY.md`, `docs/TASKS.md` и при необходимости `docs/ARCHITECTURE.md`.
+3. Запустить локальные проверки:
+   ```bash
+   npm ci
+   npm test
    ```
-   ✅ BOT_TOKEN: задан
-   ✅ Кнопка меню "Открыть магазин" установлена
-   🤖 Бот запущен и ожидает сообщения...
-   ```
+   PostgreSQL integration tests должны использовать отдельную тестовую БД через `TEST_DATABASE_URL`, никогда production `DATABASE_URL`.
+4. Создать Pull Request в `main`.
+5. Проверить GitHub Actions: Tests и, для frontend, Deploy to GitHub Pages. Не сливать PR с красными или пропущенными обязательными проверками.
+6. После merge проверить, что workflow Pages завершился SUCCESS, а Railway deployment сервиса `gulf-bot` завершился SUCCESS.
+7. Проверить Railway environment: `gulf-bot` и `Postgres` Online. Затем выполнить согласованный smoke test: health endpoint, Mini App, уведомления и курьерский маршрут. Не создавать реальный заказ без тестового сценария.
+8. Если deployment неуспешен, остановить дальнейшие изменения, изучить build/deploy logs и при необходимости откатить приложение на предыдущий успешный deployment. Не исправлять сбой ручным изменением production DB.
 
-### Вариант B: Render.com
+## Railway Variables
 
-1. Откройте https://render.com → New Web Service
-2. Подключите GitHub репозиторий
-3. Настройки:
-   - Build Command: `npm install`
-   - Start Command: `node bot/bot.js`
-4. Добавьте переменные окружения (Environment)
-5. Deploy
+Секреты хранятся только в Railway Variables. Не записывайте реальные значения в README, PR, GitHub Actions logs или тестовые фикстуры.
 
-### Вариант C: Локально (для отладки)
+Перечень переменных и назначение поддерживаются в `docs/ARCHITECTURE.md` и `bot/.env.example`. Основные группы:
+- токены Telegram-ботов;
+- URL и секрет webhook;
+- `DATABASE_URL`;
+- ключи PartsAPI и геокодера;
+- настройки CORS, времени жизни Telegram initData и TLS PostgreSQL.
+
+Основной вход в админ-панель — индивидуальная учётная запись сотрудника и серверная сессия. Не включать legacy `ADMIN_API_KEY` в production.
+
+## Локальные проверки
+
+Требуется Node.js 20+. Команды выполняются из корня репозитория:
 
 ```bash
-# Установите зависимости
-cd bot && npm install
-
-# Создайте bot/.env файл:
-# BOT_TOKEN=ваш_токен
-# ADMIN_CHAT_ID=ваш_chat_id
-# WEB_APP_URL=https://berluskone-bos.github.io/my-telegram-app/
-
-# Запустите бота
-node bot.js
+npm ci
+npm test
 ```
 
-## Получение токена и Chat ID
+Для интеграционных тестов подготовить отдельную тестовую PostgreSQL БД и передать URL через `TEST_DATABASE_URL`. Тесты намеренно блокируют production database. Не обходить защиту и не запускать тесты на рабочей базе.
 
-1. **BOT_TOKEN**: Откройте @BotFather → `/newbot` → скопируйте токен
-2. **ADMIN_CHAT_ID**: Откройте @userinfobot → отправьте сообщение → скопируйте ID
+Windows: `start-bot.bat` запускает основной backend-процесс. Старый `restart-bot.bat`, который завершал все процессы `node.exe`, удалён. Для локального запуска используйте собственные тестовые credentials; не копируйте production tokens в файлы, которые могут попасть в Git.
 
-## Проверка работы
+## Проверка после выпуска
 
-### Бот:
-Откройте @Gulf_Western_Oil_bot → `/start` → должна появиться кнопка "Открыть магазин"
+- GitHub Actions: последний run нужного commit — conclusion SUCCESS.
+- GitHub Pages: сайт открывается и загружает актуальные JS/CSS/изображения.
+- Railway: deployment `gulf-bot` — SUCCESS, service Online, без crash/restart loop.
+- PostgreSQL: service Online, том подключён.
+- API: `/api/health` отвечает штатно; `/api/catalog` возвращает корректный JSON.
+- Telegram: отдельно проверить клиентского бота, уведомления админ-бота и курьерский маршрут.
 
-### Кнопка меню:
-После запуска бота в чате появится кнопка 🛒 внизу экрана
+## Резервное копирование и аварийное восстановление
 
-### Сайт:
-https://berluskone-bos.github.io/my-telegram-app/
+Наличие автоматических backup у текущего Railway production не подтверждено. Скрипты в `backup/` и документ `docs/BACKUP.md` сами по себе не означают, что резервирование выполняется по расписанию.
 
-### API:
-https://ваш-проект.railway.app/api/health
+До настройки собственного автоматического зашифрованного backup и успешного теста восстановления нельзя считать базу защищённой резервными копиями. Не удалять `backup/`; не выполнять restore поверх production без отдельного плана и проверенной копии.
 
-## Обновление каталога
+## Запрещённые действия в рамках обычного deploy
 
-1. Отредактируйте `data/catalog.json`
-2. Загрузите на GitHub:
-   ```bash
-   git add -A
-   git commit -m "Обновление каталога"
-   git push
-   ```
-3. GitHub Pages обновится автоматически
-4. Бот на Railway перезапустится автоматически
+- Не удалять и не пересоздавать Railway Postgres service или его volume.
+- Не выполнять SQL миграции вручную на production, если миграция не входит в проверенный релиз.
+- Не менять цены, остатки, товары, заказы и учётные записи.
+- Не ротировать токены без плана обновления всех зависимых сервисов.
+- Не отключать branch protection и не обходить CI.
