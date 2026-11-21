@@ -12,7 +12,7 @@ const poolOf = () => require('./db').pool;
 
 const ACTIVE = ['pending', 'accepted', 'in_progress'];
 
-function createRouteService({ db, geocoder = null, queue, planner = defaultPlanner, env = process.env, now = () => new Date() }) {
+function createRouteService({ db, geocoder = null, queue, planner = defaultPlanner, env = process.env, now = () => new Date(), refreshRouteSheet = queueRouteSheetEdit }) {
     const serviceMin = () => Math.max(0, Number(env.SERVICE_MINUTES) || 5);
     const thresholdMin = () => Math.max(1, Number(env.ETA_UPDATE_MINUTES) || 15);
 
@@ -145,14 +145,16 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
     async function refreshEtas({ routeId, firstStopId = null, from = null }) {
         const route = await db.getRouteById(routeId);
         if (!route) return null;
-        await queueRouteSheetEdit(poolOf(), routeId, { activeStopId: firstStopId, now: now() }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
         const t = now();
         let pending = (route.stops || []).filter(s => ACTIVE.includes(s.status)).sort((a, b) => a.stop_number - b.stop_number);
         if (firstStopId) {
             const f = pending.find(s => Number(s.id) === Number(firstStopId));
             if (f) pending = [f, ...pending.filter(s => s !== f)];
         }
-        if (!pending.length) return null;
+        if (!pending.length) {
+            await refreshRouteSheet(poolOf(), routeId, { activeStopId: firstStopId, now: t }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
+            return null;
+        }
         const done = (route.stops || []).filter(s => ['delivered', 'failed'].includes(s.status) && planner.hasCoords(s))
             .sort((a, b) => b.stop_number - a.stop_number)[0];
         const start = from || (done ? { lat: Number(done.lat), lon: Number(done.lon) } : null);
@@ -164,6 +166,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             // Удаляем ETA, оставшееся в карточке клиента от предыдущей версии маршрута.
             await trackerEvent(poolOf(), stop.order_number, { eta: '' }).catch(() => {});
         }
+        // Сначала сохраняем пересчитанные ETA, затем строим и ставим в очередь карточку:
+        // иначе курьер может получить старые времена из снимка маршрута.
+        await refreshRouteSheet(poolOf(), routeId, { activeStopId: firstStopId, now: t }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
         return { plan, sent: [] };
     }
 
