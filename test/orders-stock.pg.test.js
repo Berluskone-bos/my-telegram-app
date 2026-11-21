@@ -43,6 +43,28 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await stock(), 7, 'списано 3');
     assert.equal(await db.updateOrderStatus(o1.id, 'CANCELLED'), true);
     assert.equal(await stock(), 10, 'остаток вернулся');
+    const firstOrderMovements = await pool.query(
+        'SELECT movement_type, qty_delta, stock_before, stock_after FROM stock_movements WHERE order_id = $1 ORDER BY id',
+        [o1.id]
+    );
+    assert.deepEqual(firstOrderMovements.rows.map(row => row.movement_type), ['order_deduction', 'order_return']);
+    assert.deepEqual(firstOrderMovements.rows.map(row => Number(row.qty_delta)), [-3, 3]);
+    assert.deepEqual(firstOrderMovements.rows.map(row => [Number(row.stock_before), Number(row.stock_after)]), [[10, 7], [7, 10]]);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM stock_movements WHERE order_id = $1', [o1.id])).rows[0].n, 2,
+        'списание и возврат зафиксированы ровно по одному разу');
+    const movementId = firstOrderMovements.rows.length
+        ? (await pool.query('SELECT id FROM stock_movements WHERE order_id = $1 ORDER BY id LIMIT 1', [o1.id])).rows[0].id
+        : null;
+    await assert.rejects(
+        pool.query('UPDATE stock_movements SET reason = reason WHERE id = $1', [movementId]),
+        error => error.code === '55000',
+        'изменение записи журнала запрещено'
+    );
+    await assert.rejects(
+        pool.query('DELETE FROM stock_movements WHERE id = $1', [movementId]),
+        error => error.code === '55000',
+        'удаление записи журнала запрещено'
+    );
     assert.equal(await db.updateOrderStatus(o1.id, 'CANCELLED'), 'ALREADY');
     assert.equal(await stock(), 10, 'повтор не возвращает второй раз');
     assert.equal(await db.updateOrderStatus(o1.id, 'SHIPPING'), 'CANCELLED_LOCKED', 'из CANCELLED назад нельзя');
