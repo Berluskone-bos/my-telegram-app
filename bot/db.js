@@ -507,6 +507,38 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
         // Каталог: признак «скоро в продаже» и отметка, что остаток по заказу уже списан
         await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS coming_soon BOOLEAN NOT NULL DEFAULT false`);
         await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN NOT NULL DEFAULT false`);
+
+        // Неизменяемый журнал складских движений. Исторические остатки не backfill-им:
+        // начальные балансы появятся только после отдельной инвентаризации.
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS stock_movements (
+                id BIGSERIAL PRIMARY KEY,
+                product_id INTEGER, -- исторический ID товара; не FK, чтобы append-only журнал не переписывался при удалении товара
+                movement_type TEXT NOT NULL CHECK (movement_type IN ('order_deduction', 'order_return', 'manual_adjustment')),
+                qty_delta INTEGER NOT NULL CHECK (qty_delta <> 0),
+                stock_before INTEGER NOT NULL CHECK (stock_before >= 0),
+                stock_after INTEGER NOT NULL CHECK (stock_after >= 0),
+                order_id INTEGER, -- исторический ID заказа; не FK, чтобы сохранять неизменность журнала
+                actor_user_id BIGINT,
+                actor_role VARCHAR(20),
+                reason TEXT NOT NULL CHECK (length(btrim(reason)) > 0),
+                operation_key TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CHECK (stock_after - stock_before = qty_delta)
+            );
+            CREATE INDEX IF NOT EXISTS stock_movements_product_created_idx
+                ON stock_movements(product_id, created_at DESC, id DESC);
+            CREATE INDEX IF NOT EXISTS stock_movements_order_idx
+                ON stock_movements(order_id) WHERE order_id IS NOT NULL;
+            CREATE OR REPLACE FUNCTION reject_stock_movement_mutation()
+            RETURNS trigger LANGUAGE plpgsql AS 'BEGIN
+                RAISE EXCEPTION ''stock_movements is append-only'' USING ERRCODE = ''55000'';
+            END;';
+            DROP TRIGGER IF EXISTS stock_movements_append_only ON stock_movements;
+            CREATE TRIGGER stock_movements_append_only
+                BEFORE UPDATE OR DELETE ON stock_movements
+                FOR EACH ROW EXECUTE FUNCTION reject_stock_movement_mutation();
+        `);
         // История заказов клиента: «удаление» из истории только скрывает заказ у клиента, запись остаётся в учёте
         await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_hidden BOOLEAN NOT NULL DEFAULT false`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id, id DESC)`);

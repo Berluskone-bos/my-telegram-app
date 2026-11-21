@@ -1104,14 +1104,25 @@ class DBAdapter {
             )).rows[0].on;
             if (tracking) {
                 const list = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
-                for (const it of list) {
+                for (let itemIndex = 0; itemIndex < list.length; itemIndex++) {
+                    const it = list[itemIndex];
                     const q = await client.query(
-                        'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id',
+                        'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id, stock + $1 AS stock_before, stock AS stock_after',
                         [it.qty, it.productId]
                     );
                     if (q.rowCount === 0) {
                         const err = new Error('OUT_OF_STOCK'); err.code = 'OUT_OF_STOCK'; err.product = it.name; throw err;
                     }
+                    const movement = q.rows[0];
+                    await client.query(
+                        `INSERT INTO stock_movements
+                            (product_id, movement_type, qty_delta, stock_before, stock_after, order_id, reason, operation_key)
+                         VALUES ($1, 'order_deduction', $2, $3, $4, $5, $6, $7)
+                         ON CONFLICT (operation_key) DO NOTHING`,
+                        [movement.id, -Number(it.qty), Number(movement.stock_before), Number(movement.stock_after),
+                         res.rows[0].id, 'Списание по заказу ' + String(order.order_number || res.rows[0].id),
+                         'order:' + res.rows[0].id + ':deduction:' + itemIndex]
+                    );
                 }
                 await client.query('UPDATE orders SET stock_deducted = true WHERE id = $1', [res.rows[0].id]);
             }
@@ -1139,8 +1150,24 @@ class DBAdapter {
         if (!order.stock_deducted) return;
         const raw = order.items;
         const list = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
-        for (const it of list) {
-            await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [it.qty, it.productId]);
+        for (let itemIndex = 0; itemIndex < list.length; itemIndex++) {
+            const it = list[itemIndex];
+            const restored = await client.query(
+                'UPDATE products SET stock = stock + $1 WHERE id = $2 RETURNING id, stock - $1 AS stock_before, stock AS stock_after',
+                [it.qty, it.productId]
+            );
+            if (restored.rowCount > 0) {
+                const movement = restored.rows[0];
+                await client.query(
+                    `INSERT INTO stock_movements
+                        (product_id, movement_type, qty_delta, stock_before, stock_after, order_id, reason, operation_key)
+                     VALUES ($1, 'order_return', $2, $3, $4, $5, $6, $7)
+                     ON CONFLICT (operation_key) DO NOTHING`,
+                    [movement.id, Number(it.qty), Number(movement.stock_before), Number(movement.stock_after),
+                     order.id, 'Возврат по отмене заказа ' + String(order.order_number || order.id),
+                     'order:' + order.id + ':return:' + itemIndex]
+                );
+            }
         }
         await client.query('UPDATE orders SET stock_deducted = false WHERE id = $1', [order.id]);
     }
@@ -1605,18 +1632,60 @@ class DBAdapter {
         return res.rows;
     }
 
-    async createProduct(p) {
+    async getStockMovements(productId, limit = 100) {
+        const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 500);
         const res = await pool.query(
-            `INSERT INTO products (brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac, price, old_price, stock, min_stock, image, description, specs, active, is_new, is_popular)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
-            [p.brand, p.category, p.name, p.full_name || p.name, p.series, p.sku,
-             p.viscosity, p.oil_type, p.volume, p.api_std || p.api, p.acea, p.ilsac,
-             p.price, p.old_price ?? null, p.stock ?? 0, p.min_stock ?? 3,
-             p.image || p.main_image, p.description ?? null,
-             toDbValue(p.specs || {}),        // если уже строка — не двойное кодирование
-             p.active !== false, p.is_new || false, p.is_popular || false]
+            `SELECT sm.id, sm.product_id, sm.movement_type, sm.qty_delta,
+                    sm.stock_before, sm.stock_after, sm.order_id, o.order_number,
+                    sm.actor_user_id, sm.actor_role, sm.reason, sm.created_at
+               FROM stock_movements sm
+               LEFT JOIN orders o ON o.id = sm.order_id
+              WHERE sm.product_id = $1
+              ORDER BY sm.created_at DESC, sm.id DESC
+              LIMIT $2`,
+            [productId, safeLimit]
         );
-        return res.rows[0];
+        return res.rows;
+    }
+
+    async createProduct(p, options = {}) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const res = await client.query(
+                `INSERT INTO products (brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac, price, old_price, stock, min_stock, image, description, specs, active, is_new, is_popular)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+                [p.brand, p.category, p.name, p.full_name || p.name, p.series, p.sku,
+                 p.viscosity, p.oil_type, p.volume, p.api_std || p.api, p.acea, p.ilsac,
+                 p.price, p.old_price ?? null, p.stock ?? 0, p.min_stock ?? 3,
+                 p.image || p.main_image, p.description ?? null,
+                 toDbValue(p.specs || {}),
+                 p.active !== false, p.is_new || false, p.is_popular || false]
+            );
+            const created = res.rows[0];
+            const initialStock = Number(created.stock) || 0;
+            if (initialStock > 0) {
+                await client.query(
+                    `INSERT INTO stock_movements
+                        (product_id, movement_type, qty_delta, stock_before, stock_after,
+                         actor_user_id, actor_role, reason, operation_key)
+                     VALUES ($1, 'manual_adjustment', $2, 0, $2, $3, $4, $5, $6)`,
+                    [created.id, initialStock, options.actorId || null, options.actorRole || null,
+                     'Начальный остаток при создании товара',
+                     'product:' + created.id + ':initial:' + require('crypto').randomUUID()]
+                );
+                await client.query(
+                    "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
+                );
+            }
+            await client.query('COMMIT');
+            return created;
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     async updateProduct(id, p, options = {}) {
@@ -1630,31 +1699,41 @@ class DBAdapter {
         const values = [];
         let idx = 1;
         for (const [key, val] of Object.entries(p)) {
-            if (!allowed.includes(key)) continue;
-            if (val === undefined) continue;
+            if (!allowed.includes(key) || val === undefined) continue;
             fields.push(`${key} = $${idx}`);
             values.push(toDbValue(val));
             idx++;
         }
         if (fields.length === 0) return null;
-        values.push(id);
-        let whereSql = ' WHERE id = ' + String.fromCharCode(36) + idx;
-        if (expectedStock !== undefined) {
-            values.push(expectedStock);
-            whereSql += ' AND stock = ' + String.fromCharCode(36) + (idx + 1);
-        }
-        const updateSql = 'UPDATE products SET ' + fields.join(', ') + whereSql + ' RETURNING *';
         const tracksStock = Object.prototype.hasOwnProperty.call(p, 'stock') && p.stock !== undefined;
         if (expectedStock !== undefined && !tracksStock) {
             const err = new Error('EXPECTED_STOCK_REQUIRES_STOCK_UPDATE'); err.code = 'INVALID_EXPECTED_STOCK'; throw err;
         }
         if (tracksStock) {
-            // Обновление товара и включение учёта атомарны. Несуществующий ID не должен
-            // включать складской режим; конкурентный заказ не увидит промежуточное состояние.
             const client = await pool.connect();
             try {
                 await client.query('BEGIN');
-                const res = await client.query(updateSql, values);
+                let stockBefore;
+                if (expectedStock !== undefined) {
+                    stockBefore = Number(expectedStock);
+                } else {
+                    const locked = await client.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [id]);
+                    if (!locked.rowCount) {
+                        await client.query('COMMIT');
+                        return null;
+                    }
+                    stockBefore = Number(locked.rows[0].stock);
+                }
+                const updateValues = [...values, id];
+                let whereSql = ` WHERE id = $${idx}`;
+                if (expectedStock !== undefined) {
+                    updateValues.push(expectedStock);
+                    whereSql += ` AND stock = $${idx + 1}`;
+                }
+                const res = await client.query(
+                    'UPDATE products SET ' + fields.join(', ') + whereSql + ' RETURNING *',
+                    updateValues
+                );
                 if (res.rowCount === 0 && expectedStock !== undefined) {
                     const exists = await client.query('SELECT 1 FROM products WHERE id = $1', [id]);
                     if (exists.rowCount > 0) {
@@ -1662,6 +1741,19 @@ class DBAdapter {
                     }
                 }
                 if (res.rowCount > 0) {
+                    const stockAfter = Number(res.rows[0].stock);
+                    if (stockAfter !== stockBefore) {
+                        const reason = String(options.reason || 'Ручная корректировка из админ-панели').trim().slice(0, 500);
+                        await client.query(
+                            `INSERT INTO stock_movements
+                                (product_id, movement_type, qty_delta, stock_before, stock_after,
+                                 actor_user_id, actor_role, reason, operation_key)
+                             VALUES ($1, 'manual_adjustment', $2, $3, $4, $5, $6, $7, $8)`,
+                            [id, stockAfter - stockBefore, stockBefore, stockAfter,
+                             options.actorId || null, options.actorRole || null, reason || 'Ручная корректировка',
+                             'manual:' + require('crypto').randomUUID()]
+                        );
+                    }
                     await client.query(
                         "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
                     );
@@ -1675,7 +1767,11 @@ class DBAdapter {
                 client.release();
             }
         }
-        const res = await pool.query(updateSql, values);
+        const updateValues = [...values, id];
+        const res = await pool.query(
+            'UPDATE products SET ' + fields.join(', ') + ` WHERE id = $${idx} RETURNING *`,
+            updateValues
+        );
         return res.rows[0] || null;
     }
 
