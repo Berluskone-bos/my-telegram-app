@@ -192,54 +192,104 @@ const Products = {
     },
 
     renderDetail(product) {
-        const specsHtml = product.specs
-            ? Object.entries(product.specs).map(([key, val]) =>
-                `<div class="spec-row"><span class="spec-label">${esc(key)}</span><span class="spec-value">${esc(val)}</span></div>`
-              ).join('')
-            : '';
         const image = product.main_image || product.image;
+        const desc = (product.description || '').trim();
+        const inCart = Cart.items.some(i => i.id === product.id);
 
-        // Дополнительные характеристики из ТЗ 6.3.2
-        const techSpecs = [];
-        if (product.sku) techSpecs.push({ key: 'Артикул', val: product.sku });
-        if (product.series) techSpecs.push({ key: 'Серия', val: product.series });
-        if (product.api) techSpecs.push({ key: 'API', val: product.api });
-        if (product.acea) techSpecs.push({ key: 'ACEA', val: product.acea });
-        if (product.ilsac) techSpecs.push({ key: 'ILSAC', val: product.ilsac });
-        if (product.oil_type) techSpecs.push({ key: 'Тип масла', val: product.oil_type });
-        const techSpecsHtml = techSpecs.length > 0
-            ? techSpecs.map(s => `<div class="spec-row"><span class="spec-label">${esc(s.key)}</span><span class="spec-value">${esc(s.val)}</span></div>`).join('')
+        // Один список характеристик без дублей (Характеристики + specs)
+        const rows = [];
+        const seen = new Set();
+        const add = (key, val) => {
+            const v = String(val ?? '').trim();
+            if (!v) return;
+            const k = String(key).trim();
+            const sig = k.toLowerCase() + '|' + v.toLowerCase();
+            if (seen.has(sig)) return;
+            // не дублируем API/тип, если уже есть такая же строка по смыслу
+            const keyL = k.toLowerCase();
+            if ((keyL === 'api' || keyL === 'acea' || keyL === 'sae' || keyL === 'тип') &&
+                [...seen].some(s => s.endsWith('|' + v.toLowerCase()))) return;
+            seen.add(sig);
+            rows.push({ key: k, val: v });
+        };
+
+        if (product.volume) add('Объём', product.volume);
+        if (product.oil_type) add('Тип масла', product.oil_type);
+        const admits = [product.api, product.acea, product.ilsac].filter(Boolean).join(', ');
+        if (admits) add('Допуски и спецификации', admits);
+        if (product.sku) add('Артикул', product.sku);
+        if (product.series) add('Серия', product.series);
+
+        let specs = product.specs;
+        if (typeof specs === 'string') {
+            try { specs = JSON.parse(specs); } catch (_) { specs = {}; }
+        }
+        if (specs && typeof specs === 'object') {
+            for (const [k, v] of Object.entries(specs)) {
+                const kl = String(k).toLowerCase();
+                // SAE часто = вязкость — не повторяем, если совпадает
+                if (kl === 'sae' && product.viscosity && String(v).toLowerCase() === String(product.viscosity).toLowerCase()) continue;
+                if (kl === 'api' && product.api && String(v).toLowerCase() === String(product.api).toLowerCase()) continue;
+                if ((kl === 'тип' || kl === 'тип масла') && product.oil_type && String(v).toLowerCase() === String(product.oil_type).toLowerCase()) continue;
+                add(k, v);
+            }
+        }
+
+        const rowsHtml = rows.length
+            ? rows.map(({ key, val }) =>
+                `<div class="spec-row">
+                    <span class="spec-label">${esc(key)}</span>
+                    <span class="spec-value">${esc(val)}</span>
+                </div>`).join('')
             : '';
 
-        const desc = (product.description || '').trim();
+        const stockHtml = product.coming_soon
+            ? '<span class="product-stock soon">Скоро в продаже</span>'
+            : product.in_stock === false
+                ? '<span class="product-stock out">Нет в наличии</span>'
+                : product.stock_left
+                    ? `<span class="product-stock ok">В наличии · осталось ${esc(product.stock_left)} шт.</span>`
+                    : '<span class="product-stock ok">В наличии</span>';
+
+        const chips = [
+            product.viscosity ? '' : '', // viscosity is hero, not chip
+            product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : '',
+            product.acea ? `<span class="spec-chip">${esc(product.acea)}</span>` : '',
+            product.volume ? `<span class="spec-chip">${esc(product.volume)}</span>` : ''
+        ].filter(Boolean).join('');
+
         return `
             <div class="product-detail">
-                <button class="btn-back" onclick="App.goBack()">← Назад</button>
+                <div class="product-detail-top">
+                    <button type="button" class="btn-back" onclick="App.goBack()" aria-label="Назад">←</button>
+                    <button type="button" class="product-detail-fav ${Favorites.has(product.id) ? 'active' : ''}"
+                        onclick="App.toggleFavorite(${product.id}); this.classList.toggle('active');"
+                        aria-label="Избранное"><i data-lucide="heart"></i></button>
+                </div>
                 <div class="product-detail-image">
                     ${this.getPictureHtml(image, product.name)}
                 </div>
-                <div class="product-detail-brand">${esc(product.brand || 'Gulf Western Oil')}</div>
-                <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
-                ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
-                <div class="product-detail-chips">
-                    ${product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : ''}
-                    ${product.acea ? `<span class="spec-chip">${esc(product.acea)}</span>` : ''}
-                    ${product.volume ? `<span class="spec-chip">${esc(product.volume)}</span>` : ''}
-                </div>
-                <div class="product-detail-price-row">
+                <div class="product-detail-body">
+                    <div class="product-detail-brand">${esc(product.brand || 'Gulf Western Oil')}</div>
+                    <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
+                    ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
+                    ${chips ? `<div class="product-detail-chips">${chips}</div>` : ''}
+                    <div class="product-detail-price-row">
+                        ${product.coming_soon
+                            ? '<div class="product-soon">Скоро в продаже</div>'
+                            : `<div class="product-detail-price">${product.price.toLocaleString('ru-RU')} ₽</div>`}
+                        ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</div>` : ''}
+                        ${stockHtml}
+                    </div>
+                    ${rowsHtml ? `<div class="product-detail-specs">${rowsHtml}</div>` : ''}
+                    ${desc ? `<div class="product-detail-description"><p>${esc(desc)}</p></div>` : ''}
                     ${product.coming_soon
-                        ? '<div class="product-soon">Скоро в продаже</div>'
-                        : `<div class="product-detail-price">${product.price.toLocaleString('ru-RU')} ₽</div>
-                    ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</div>` : ''}`}
+                        ? '<button class="btn-add-cart" disabled>Скоро в продаже</button>'
+                        : product.in_stock === false
+                        ? '<button class="btn-add-cart" disabled>Нет в наличии</button>'
+                        : `<button class="btn-add-cart ${inCart ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${inCart ? 'В корзине' : 'Добавить в корзину'}</button>`}
+                    <button type="button" class="btn-oil-link" onclick="Oil.open()">Подобрать для своего авто</button>
                 </div>
-                ${techSpecsHtml ? `<div class="product-detail-specs"><h3>Характеристики</h3>${techSpecsHtml}</div>` : ''}
-                ${specsHtml ? `<div class="product-detail-specs"><h3>Параметры</h3>${specsHtml}</div>` : ''}
-                ${desc ? `<div class="product-detail-description"><h3 class="product-detail-desc-title">Описание</h3><p>${esc(desc)}</p></div>` : ''}
-                ${product.coming_soon
-                    ? '<button class="btn-add-cart" disabled>Скоро в продаже</button>'
-                    : product.in_stock === false
-                    ? '<button class="btn-add-cart" disabled>Нет в наличии</button>'
-                    : `<button class="btn-add-cart ${Cart.items.some(i => i.id === product.id) ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${Cart.items.some(i => i.id === product.id) ? 'В корзине' : 'Добавить в корзину'}</button>`}
             </div>
         `;
     }
