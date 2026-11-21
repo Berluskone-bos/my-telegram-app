@@ -388,6 +388,16 @@ CREATE TABLE IF NOT EXISTS admin_audit (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_audit_at ON admin_audit (at DESC);
 
+-- Общий persistent rate limit для входа в админку. IP хранится только в виде SHA-256.
+CREATE TABLE IF NOT EXISTS admin_login_attempts (
+  ip_hash           CHAR(64) PRIMARY KEY,
+  attempts          INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  blocked_until     TIMESTAMPTZ,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_admin_login_attempts_updated ON admin_login_attempts (updated_at);
+
 
 CREATE TABLE IF NOT EXISTS to_vehicles (
   type_id         BIGINT PRIMARY KEY,       -- typeId из toTypes (каталог ТО PartsAPI)

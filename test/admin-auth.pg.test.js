@@ -15,7 +15,7 @@ test('вход в админку: cookie, сессии, защита от под
     const { pool, initDB } = require('../bot/db');
     const { createAdminAuth } = require('../bot/admin-auth');
     await initDB();
-    await pool.query('DELETE FROM admin_sessions'); await pool.query('DELETE FROM admin_audit');
+    await pool.query('DELETE FROM admin_sessions'); await pool.query('DELETE FROM admin_audit'); await pool.query('DELETE FROM admin_login_attempts');
 
     const KEY = process.env.ADMIN_API_KEY;
     let key = KEY;
@@ -27,8 +27,13 @@ test('вход в админку: cookie, сессии, защита от под
     app.get('/api/secret', auth.verifyAdmin, (req, res) => res.json({ ok: true }));
     app.put('/api/secret/:id', auth.verifyAdmin, (req, res) => res.json({ ok: true, status: req.body.status }));
     const server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
-    t.after(async () => { server.close(); await pool.end(); });
+    // Второй экземпляр имитирует отдельную реплику приложения: лимит должен быть общим.
+    const auth2 = createAdminAuth({ pool, getKey: () => key, failDelayMs: 0, maxFails: 5, blockMs: 60_000 });
+    const app2 = express(); app2.set('trust proxy', 1); app2.use(express.json()); auth2.registerRoutes(app2);
+    const server2 = await new Promise(r => { const s = app2.listen(0, '127.0.0.1', () => r(s)); });
+    t.after(async () => { server.close(); server2.close(); await pool.end(); });
     const base = `http://127.0.0.1:${server.address().port}`;
+    const base2 = `http://127.0.0.1:${server2.address().port}`;
     const HTTPS = { 'x-forwarded-proto': 'https' };
     const origin = `https://127.0.0.1:${server.address().port}`;
     const call = (path, { method = 'GET', body, cookie, headers = {} } = {}) => fetch(base + path, {
@@ -36,6 +41,10 @@ test('вход в админку: cookie, сессии, защита от под
         body: body ? JSON.stringify(body) : undefined, redirect: 'manual'
     });
     const login = async (k = KEY, ip = '9.9.9.1') => call('/api/admin/login', { method: 'POST', body: { key: k }, headers: { 'x-forwarded-for': ip } });
+    const login2 = async (k = KEY, ip = '9.9.9.1') => fetch(base2 + '/api/admin/login', {
+        method: 'POST', headers: { 'content-type': 'application/json', ...HTTPS, 'x-forwarded-for': ip },
+        body: JSON.stringify({ key: k }), redirect: 'manual'
+    });
 
     // 1. без входа — 401, старый заголовок x-admin-key не работает
     assert.equal((await call('/api/secret')).status, 401);
@@ -79,9 +88,13 @@ test('вход в админку: cookie, сессии, защита от под
 
     // 6. подбор: 5 неверных ключей — блок, даже верный ключ с этого IP не пускает; другой IP не затронут
     for (let i = 0; i < 5; i++) assert.equal((await login('wrong-' + i, '7.7.7.7')).status, 401);
-    const blocked = await login(KEY, '7.7.7.7');
+    // Другой экземпляр приложения видит ту же блокировку через PostgreSQL.
+    const blocked = await login2(KEY, '7.7.7.7');
     assert.equal(blocked.status, 429);
     assert.ok(blocked.headers.get('retry-after'));
+    const storedLimit = await pool.query('SELECT ip_hash, attempts FROM admin_login_attempts WHERE attempts >= 5');
+    assert.equal(storedLimit.rowCount, 1);
+    assert.equal(storedLimit.rows[0].ip_hash, require('crypto').createHmac('sha256', process.env.WEBHOOK_SECRET).update('7.7.7.7').digest('hex'));
     assert.equal((await login(KEY, '8.8.8.8')).status, 200);
 
     // 7. вход с чужого Origin отклоняется

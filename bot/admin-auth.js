@@ -45,7 +45,13 @@ const AUDIT_FIELDS = ['status', 'active', 'stock', 'price', 'name', 'courier_id'
 
 function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 3600e3, maxFails = 5, blockMs = 15 * 60e3, failDelayMs = 400 }) {
     if (!pool || typeof pool.query !== 'function') throw new TypeError('pool is required');
-    const fails = new Map();
+    // Храним только SHA-256 IP, а не исходный адрес. PostgreSQL обеспечивает общий лимит
+    // между несколькими процессами/репликами и сохраняет блокировку после перезапуска.
+    const rateLimitSecret = process.env.WEBHOOK_SECRET || process.env.ADMIN_API_KEY || (typeof getKey === 'function' ? getKey() : '');
+    if (typeof rateLimitSecret !== 'string' || rateLimitSecret.length < 32) {
+        throw new Error('WEBHOOK_SECRET (32+ символа) обязателен для безопасного rate limit');
+    }
+    const ipKey = ip => crypto.createHmac('sha256', rateLimitSecret).update(String(ip || 'unknown')).digest('hex');
     const secureReq = req => req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0] === 'https';
     const cookieName = req => secureReq(req) ? '__Host-admin_session' : 'admin_session';
     const anyCookie = req => readCookie(req, '__Host-admin_session') || readCookie(req, 'admin_session');
@@ -81,24 +87,39 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             console.error('[AUDIT] не записано:', String(e.code || e.name || 'unknown').slice(0, 40));
         }
     }
-    const blockedFor = ip => {
-        const f = fails.get(ip);
-        return f && f.until > Date.now() ? f.until - Date.now() : 0;
-    };
-    function noteFail(ip) {
-        const now = Date.now();
-        let f = fails.get(ip);
-        if (!f && fails.size >= 10000) fails.delete(fails.keys().next().value);
-        if (!f || now - f.first > blockMs) f = { n: 0, first: now, until: 0 };
-        f.n++;
-        if (f.n >= maxFails) f.until = now + blockMs;
-        fails.set(ip, f);
+    async function blockedFor(ip) {
+        const result = await pool.query(
+            'SELECT GREATEST(0, CEIL(EXTRACT(EPOCH FROM (blocked_until - NOW())) * 1000))::bigint AS remaining_ms ' +
+            'FROM admin_login_attempts WHERE ip_hash = $1 AND blocked_until > NOW()',
+            [ipKey(ip)]
+        );
+        return result.rowCount ? Number(result.rows[0].remaining_ms) || 0 : 0;
     }
-    const timer = setInterval(() => {
-        const now = Date.now();
-        for (const [ip, f] of fails) if (now - f.first > blockMs && (!f.until || f.until < now)) fails.delete(ip);
-    }, 60000);
-    if (timer.unref) timer.unref();
+    async function noteFail(ip) {
+        await pool.query(
+            'INSERT INTO admin_login_attempts (ip_hash, attempts, window_started_at, blocked_until, updated_at) ' +
+            'VALUES ($1, 1, NOW(), NULL, NOW()) ' +
+            'ON CONFLICT (ip_hash) DO UPDATE SET ' +
+            'attempts = CASE WHEN admin_login_attempts.window_started_at <= NOW() - ($2::text || \' milliseconds\')::interval ' +
+            'THEN 1 ELSE admin_login_attempts.attempts + 1 END, ' +
+            'window_started_at = CASE WHEN admin_login_attempts.window_started_at <= NOW() - ($2::text || \' milliseconds\')::interval ' +
+            'THEN NOW() ELSE admin_login_attempts.window_started_at END, ' +
+            'blocked_until = CASE WHEN (CASE WHEN admin_login_attempts.window_started_at <= NOW() - ($2::text || \' milliseconds\')::interval ' +
+            'THEN 1 ELSE admin_login_attempts.attempts + 1 END) >= $3 ' +
+            'THEN NOW() + ($4::text || \' milliseconds\')::interval ELSE admin_login_attempts.blocked_until END, ' +
+            'updated_at = NOW()',
+            [ipKey(ip), String(blockMs), maxFails, String(blockMs)]
+        );
+    }
+    async function clearFails(ip) {
+        await pool.query('DELETE FROM admin_login_attempts WHERE ip_hash = $1', [ipKey(ip)]);
+    }
+    // Ограничиваем рост таблицы: старые неактивные IP-хэши удаляются раз в 6 часов.
+    const cleanupTimer = setInterval(() => {
+        pool.query("DELETE FROM admin_login_attempts WHERE updated_at < NOW() - INTERVAL '1 day'")
+            .catch(e => console.warn('[ADMIN AUTH] login-limit cleanup failed:', String(e.code || e.name || 'unknown').slice(0, 40)));
+    }, 6 * 3600e3);
+    if (cleanupTimer.unref) cleanupTimer.unref();
 
     async function verifyAdmin(req, res, next) {
         try {
@@ -177,12 +198,12 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             const body = req.body && typeof req.body === 'object' ? req.body : {};
             const ip = String(req.ip || 'unknown');
             if (req.headers.origin && !sameOrigin(req)) return res.status(403).json({ error: 'Войти можно только на странице админки сервера' });
-            const wait = blockedFor(ip);
-            if (wait) {
-                res.set('Retry-After', String(Math.ceil(wait / 1000)));
-                return res.status(429).json({ error: 'Слишком много попыток. Повторите позже.' });
-            }
             try {
+                const wait = await blockedFor(ip);
+                if (wait) {
+                    res.set('Retry-After', String(Math.ceil(wait / 1000)));
+                    return res.status(429).json({ error: 'Слишком много попыток. Повторите позже.' });
+                }
                 if (typeof body.login === 'string' || typeof body.password === 'string') {
                     const login = typeof body.login === 'string' ? body.login.trim() : '';
                     const password = typeof body.password === 'string' ? body.password : '';
@@ -192,12 +213,12 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                     const valid = password.length >= PASSWORD_MIN && password.length <= 128 && found.rowCount && found.rows[0].is_active === true
                         ? await verifyPassword(password, found.rows[0].password_hash) : false;
                     if (!valid) {
-                        noteFail(ip);
+                        await noteFail(ip);
                         await audit(req, 'login_fail', 401, 'staff_login');
                         await new Promise(resolve => setTimeout(resolve, failDelayMs));
                         return res.status(401).json({ error: 'Неверный логин или пароль' });
                     }
-                    fails.delete(ip);
+                    await clearFails(ip);
                     const user = found.rows[0];
                     return await createSession(req, res, {
                         role: user.role, userId: user.id, login: user.login, displayName: user.display_name
@@ -207,12 +228,12 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 if (!key) return res.status(503).json({ error: 'Вход по ключу отключён. Используйте логин и пароль.' });
                 const given = typeof body.key === 'string' ? body.key : '';
                 if (!given || !safeEqual(given, key)) {
-                    noteFail(ip);
+                    await noteFail(ip);
                     await audit(req, 'login_fail', 401, 'legacy_key');
                     await new Promise(resolve => setTimeout(resolve, failDelayMs));
                     return res.status(401).json({ error: 'Неверный ключ' });
                 }
-                fails.delete(ip);
+                await clearFails(ip);
                 return await createSession(req, res, { role: 'admin' });
             } catch (e) {
                 console.error('[ADMIN LOGIN]', String(e.code || e.name || 'unknown').slice(0, 40));
