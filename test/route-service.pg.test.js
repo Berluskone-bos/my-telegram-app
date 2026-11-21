@@ -102,12 +102,43 @@ test('маршрут из 4 заказов: порядок по времени �
 
     // Старт всего маршрута блокируется, пока не приняты все заказы.
     assert.deepEqual(await db.startRouteIfAllAccepted(out.route.id), { status: 'not_ready', waiting: 4 });
-    assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id)).status, 'accepted');
+    const { enqueue } = require('../bot/outbox');
+    const acceptRollbackKey = 'route-accept-rollback:' + stops[0].id;
+    await assert.rejects(db.acceptRouteStop(out.route.id, stops[0].id, {
+        afterAccept: async ({ client }) => {
+            await enqueue(client, { bot: 'admin', dedupKey: acceptRollbackKey, payload: { chat_id: '1', text: 'Принят' } });
+            throw new Error('simulate accept admin enqueue failure');
+        }
+    }), /simulate accept admin enqueue failure/);
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [stops[0].id])).rows[0].status, 'pending');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [acceptRollbackKey])).rows[0].n, 0);
+    const acceptKey = 'route-accept-ok:' + stops[0].id;
+    assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id, {
+        afterAccept: async ({ client }) => enqueue(client, { bot: 'admin', dedupKey: acceptKey, payload: { chat_id: '1', text: 'Принят' } })
+    })).status, 'accepted');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [acceptKey])).rows[0].n, 1);
     assert.equal((await db.acceptRouteStop(out.route.id, stops[0].id)).status, 'already', 'повторное принятие идемпотентно');
     assert.deepEqual(await db.startRouteIfAllAccepted(out.route.id), { status: 'not_ready', waiting: 3 });
     for (const stop of stops.slice(1)) assert.equal((await db.acceptRouteStop(out.route.id, stop.id)).status, 'accepted');
-    const starts = await Promise.all([db.startRouteIfAllAccepted(out.route.id), db.startRouteIfAllAccepted(out.route.id)]);
+    const startRollbackKey = 'route-start-rollback:' + out.route.id;
+    await assert.rejects(db.startRouteIfAllAccepted(out.route.id, {
+        afterStart: async ({ client }) => {
+            await enqueue(client, { bot: 'admin', dedupKey: startRollbackKey, payload: { chat_id: '1', text: 'Старт' } });
+            throw new Error('simulate start admin enqueue failure');
+        }
+    }), /simulate start admin enqueue failure/);
+    assert.equal((await db.getRouteById(out.route.id)).status, 'assigned');
+    for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [startRollbackKey])).rows[0].n, 0);
+    const startKey = 'route-start-ok:' + out.route.id;
+    const starts = await Promise.all([
+        db.startRouteIfAllAccepted(out.route.id, {
+            afterStart: async ({ client }) => enqueue(client, { bot: 'admin', dedupKey: startKey, payload: { chat_id: '1', text: 'Старт' } })
+        }),
+        db.startRouteIfAllAccepted(out.route.id)
+    ]);
     assert.deepEqual(starts.map(x => x.status).sort(), ['already', 'started'], 'конкурентный старт фиксируется один раз');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [startKey])).rows[0].n, 1);
     assert.equal((await db.getRouteById(out.route.id)).status, 'in_progress');
     for (const o of [oA, oB, oC, oD]) assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [o.id])).rows[0].status, 'SHIPPING');
     assert.ok((await db.getRouteById(out.route.id)).stops.every(s => s.status === 'in_progress'));

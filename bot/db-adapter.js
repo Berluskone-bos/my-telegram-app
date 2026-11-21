@@ -415,7 +415,7 @@ class DBAdapter {
     }
 
     // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
-    async acceptRouteStop(routeId, stopId) {
+    async acceptRouteStop(routeId, stopId, { afterAccept = null } = {}) {
         const rid = Number(routeId), sid = Number(stopId);
         if (!Number.isInteger(rid) || rid <= 0 || !Number.isInteger(sid) || sid <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -428,7 +428,11 @@ class DBAdapter {
             if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
             if (stop.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { status: stop.rows[0].status === 'cancelled' ? 'cancelled' : 'forbidden' }; }
-            await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1", [sid]);
+            const accepted = await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1 RETURNING *", [sid]);
+            if (typeof afterAccept === 'function') {
+                const routeDetails = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [rid]);
+                await afterAccept({ client, stop: accepted.rows[0], route: routeDetails.rows[0] || {} });
+            }
             await client.query('COMMIT');
             return { status: 'accepted' };
         } catch (e) {
@@ -439,7 +443,7 @@ class DBAdapter {
 
     // Общий старт разрешён только когда каждая неотменённая остановка принята.
     // Блокировка маршрута сериализует одновременные нажатия и отмены/принятия.
-    async startRouteIfAllAccepted(routeId) {
+    async startRouteIfAllAccepted(routeId, { afterStart = null } = {}) {
         const id = Number(routeId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -474,6 +478,9 @@ class DBAdapter {
                     AND rs.status = 'in_progress' AND o.status = 'READY_FOR_SHIPMENT'`, [id]);
             const updated = await client.query(
                 "UPDATE delivery_routes SET status = 'in_progress', started_at = COALESCE(started_at, NOW()) WHERE id = $1 RETURNING *", [id]);
+            if (typeof afterStart === 'function') {
+                await afterStart({ client, route: updated.rows[0], stops: stops.rows });
+            }
             await client.query('COMMIT');
             return { status: 'started', route: updated.rows[0], stops: stops.rows };
         } catch (e) {
