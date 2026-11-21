@@ -481,3 +481,10 @@
 - В ветке `security/restrict-dispatch-order-feed` endpoint переведён на `settings.manage`; добавлен тест границы прав для оператора. Это ограничивает доступ к полному feed и не меняет данные.
 - Не менялись production DB, заказы, товары, цены, остатки и Railway Variables. Полный динамический IDOR/BOLA аудит ещё не завершён.
 - Следующие проверки: остальные endpoints с ID из URL/body; доступ курьера к маршрутам и остановкам; cross-user Telegram API с разными initData.
+
+## 21.11.2026 — проверка владения маршрутами курьера
+- После слияния PR #90 Railway deployment `29d2eb06-a1a9-445e-834c-a1805cdd9d8d` для commit `e4651c742f1430d00b0e8ff69f9571a6d8f59bc9` завершился SUCCESS; `gulf-bot` и Postgres Online, по статусу Railway нет активных предупреждений/критических проблем.
+- Просмотрен обработчик callback курьер-бота: для действий с route/stop ID он получает курьера по `query.from.id`, загружает маршрут и сверяет `route.courier_id` с `courier.id`; stop ID должен входить в `route.stops`. Неавторизованный callback отклоняется до обработки действия.
+- В существующем PostgreSQL integration test `test/courier-guard.pg.test.js` добавлен сценарий прямой подмены route/stop ID: другой курьер не должен получить карточку, запустить маршрут или изменить заказ. Проверяется сохранение статуса маршрута и заказа. Изменения в ветке `security/test-courier-route-ownership` (PR #91 планируется).
+- Тест использует изолированные тестовые записи и очистку тестовых строк; production DB не затрагивается.
+- В runtime логах после последнего деплоя был Telegram polling `409 Conflict` во время запуска нового экземпляра. Статус Railway стал Online без сбоев; нужно проверить, повторяется ли 409 после завершения rolling deploy, прежде чем менять механизм polling.
