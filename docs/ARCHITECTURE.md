@@ -167,3 +167,4 @@ PR #54 добавил индивидуальные учётные записи, 
 - `GET /api/products`: администратор получает полную карточку; роль warehouse — только `id`, бренд, категория, название, артикул, объём, остаток, минимальный остаток и статусы наличия.
 - `POST /api/products` и `PUT /api/products/:id`: требуют `settings.manage` (управление каталогом).
 - `PATCH /api/products/:id/stock`: требует `inventory.manage`; разрешены только целочисленные неотрицательные `stock` и/или `min_stock` в пределах 0–1 000 000.
+- `GET/PUT /api/products/:id/approvals`: требуют `settings.manage`; кладовщик не получает допуски через отдельный endpoint.
