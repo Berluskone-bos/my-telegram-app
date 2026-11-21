@@ -597,10 +597,16 @@
     <script src="js/oil.js"></script>
     <script src="js/app.js"></script>
     <script>
-        // Инициализация приложения
-        (async () => { try { await App.init(); } catch(e) { console.error('App.init failed:', e); } })();
-        // Инициализация Lucide иконок
-        lucide.createIcons();
+        // Инициализация после загрузки DOM (App на window из app.js)
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                if (!window.App) throw new ReferenceError('App is not defined (app.js not loaded)');
+                await window.App.init();
+            } catch (e) {
+                console.error('App.init failed:', e);
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
 
         // Автоматическая карусель
         let currentSlide = 0;
