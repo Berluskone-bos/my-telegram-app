@@ -87,4 +87,14 @@ test('склад: параллельная отмена и ручная корр
     ]);
     assert.ok(a && b);
     assert.ok([30, 40].includes(await stock()), 'последняя сериализованная установка определяет итог');
+
+    // Optimistic concurrency: accept the update only if stock still matches the value read.
+    const expected = await stock();
+    const accepted = await db.updateProduct(productId, { stock: 50 }, { expectedStock: expected });
+    assert.equal(Number(accepted.stock), 50);
+    await assert.rejects(
+        db.updateProduct(productId, { stock: 60 }, { expectedStock: expected }),
+        error => error.code === 'STOCK_CONFLICT'
+    );
+    assert.equal(await stock(), 50, 'устаревшая ручная установка не перезаписала новый остаток');
 });

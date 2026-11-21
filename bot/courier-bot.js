@@ -12,7 +12,7 @@ const { buildRouteCard, buildReasonPicker, REASONS } = require('./courier-card')
 const widgets = require('./widgets');
 const { createRouteService } = require('./route-service');
 const { registerOrderStatsRoutes } = require('./order-stats');
-const { validateProductPayload } = require('./product-validation');
+const { validateProductPayload, validateExpectedStock } = require('./product-validation');
 const { filterProductsForRole, validateStockUpdate } = require('./admin-product-visibility');
 const { requirePermission, requireOrderStatusPermission } = require('./admin-permissions');
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
@@ -1462,10 +1462,14 @@ function registerCourierRoutes(app) {
         const validated = validateStockUpdate(req.body);
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
-            const product = await db.updateProduct(id, validated.data);
+            const product = await db.updateProduct(id, validated.data, { expectedStock: validated.expectedStock });
             if (!product) return res.status(404).json({ error: 'not found' });
             res.json(filterProductsForRole([product], req.admin && req.admin.role)[0]);
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) {
+            if (e.code === 'STOCK_CONFLICT') return res.status(409).json({ error: 'Остаток уже изменился. Обновите список товаров и повторите корректировку.' });
+            console.error('[API]', errorCode(e));
+            return res.status(500).json({ error: 'Internal error' });
+        }
     });
 
     app.post('/api/products', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
@@ -1483,11 +1487,24 @@ function registerCourierRoutes(app) {
         if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateProductPayload(req.body, { partial: true });
         if (!validated.ok) return res.status(400).json({ error: validated.error });
+        let expectedStock;
+        if (Object.prototype.hasOwnProperty.call(validated.data, 'stock')) {
+            if (!Object.prototype.hasOwnProperty.call(req.body || {}, 'expected_stock')) {
+                return res.status(400).json({ error: 'Для изменения остатка обязательно передать expected_stock' });
+            }
+            const expected = validateExpectedStock(req.body.expected_stock);
+            if (!expected.ok) return res.status(400).json({ error: expected.error });
+            expectedStock = expected.value;
+        }
         try {
-            const product = await db.updateProduct(id, validated.data);
+            const product = await db.updateProduct(id, validated.data, { expectedStock });
             if (!product) return res.status(404).json({ error: 'not found' });
             res.json(product);
-        } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+        } catch (e) {
+            if (e.code === 'STOCK_CONFLICT') return res.status(409).json({ error: 'Остаток уже изменился. Обновите список товаров и повторите корректировку.' });
+            console.error('[API]', errorCode(e));
+            return res.status(500).json({ error: 'Internal error' });
+        }
     });
 }
 }

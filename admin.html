@@ -2088,6 +2088,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const k of ['brand','category','name','sku','volume','price','old_price','stock','min_stock','description','image']) {
                 if (f[k]) f[k].value = p[k] != null ? p[k] : '';
             }
+            f.dataset.expectedStock = String(Number(p.stock) || 0);
             if (canManageCatalog) {
                 f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon;
                 f.approvals.value = '';
@@ -2114,6 +2115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 price: parseFloat(form.price.value),
                 old_price: form.old_price.value ? parseFloat(form.old_price.value) : null,
                 stock: parseInt(form.stock.value, 10) || 0,
+                expected_stock: Number(form.dataset.expectedStock),
                 min_stock: form.min_stock.value === '' ? 0 : (parseInt(form.min_stock.value, 10) || 0),
                 description: form.description.value,
                 image: form.image.value,
@@ -2121,6 +2123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 coming_soon: form.coming_soon.checked
             } : {
                 stock: Number(form.stock.value),
+                expected_stock: Number(form.dataset.expectedStock),
                 min_stock: Number(form.min_stock.value)
             };
             try {
@@ -2143,8 +2146,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     closeModal('productModal');
                     form.reset();
                     loadShopProducts();
-                } else { alert('Не удалось сохранить товар. Проверьте поля и попробуйте ещё раз.'); }
-            } catch (e) { console.error('Save product error:', e); }
+                } else {
+                    const error = await res.json().catch(() => ({}));
+                    alert(res.status === 409
+                        ? (error.error || 'Остаток изменился. Обновите список товаров и повторите корректировку.')
+                        : (error.error || 'Не удалось сохранить товар. Проверьте поля и попробуйте ещё раз.'));
+                }
+            } catch (e) { console.error('Save product error:', e); alert(e.message || 'Не удалось сохранить товар.'); }
         }
 
 

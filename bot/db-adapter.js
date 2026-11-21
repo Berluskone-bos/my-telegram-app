@@ -1588,7 +1588,8 @@ class DBAdapter {
         return res.rows[0];
     }
 
-    async updateProduct(id, p) {
+    async updateProduct(id, p, options = {}) {
+        const expectedStock = options && options.expectedStock !== undefined ? options.expectedStock : undefined;
         const allowed = [
             'brand', 'category', 'name', 'full_name', 'series', 'sku', 'viscosity', 'oil_type',
             'volume', 'api_std', 'acea', 'ilsac', 'price', 'old_price', 'stock', 'min_stock',
@@ -1606,8 +1607,16 @@ class DBAdapter {
         }
         if (fields.length === 0) return null;
         values.push(id);
-        const updateSql = 'UPDATE products SET ' + fields.join(', ') + ' WHERE id = ' + String.fromCharCode(36) + idx + ' RETURNING *';
+        let whereSql = ' WHERE id = ' + String.fromCharCode(36) + idx;
+        if (expectedStock !== undefined) {
+            values.push(expectedStock);
+            whereSql += ' AND stock = ' + String.fromCharCode(36) + (idx + 1);
+        }
+        const updateSql = 'UPDATE products SET ' + fields.join(', ') + whereSql + ' RETURNING *';
         const tracksStock = Object.prototype.hasOwnProperty.call(p, 'stock') && p.stock !== undefined;
+        if (expectedStock !== undefined && !tracksStock) {
+            const err = new Error('EXPECTED_STOCK_REQUIRES_STOCK_UPDATE'); err.code = 'INVALID_EXPECTED_STOCK'; throw err;
+        }
         if (tracksStock) {
             // Обновление товара и включение учёта атомарны. Несуществующий ID не должен
             // включать складской режим; конкурентный заказ не увидит промежуточное состояние.
@@ -1615,6 +1624,12 @@ class DBAdapter {
             try {
                 await client.query('BEGIN');
                 const res = await client.query(updateSql, values);
+                if (res.rowCount === 0 && expectedStock !== undefined) {
+                    const exists = await client.query('SELECT 1 FROM products WHERE id = $1', [id]);
+                    if (exists.rowCount > 0) {
+                        const err = new Error('STOCK_CONFLICT'); err.code = 'STOCK_CONFLICT'; throw err;
+                    }
+                }
                 if (res.rowCount > 0) {
                     await client.query(
                         "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
