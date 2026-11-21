@@ -1592,7 +1592,7 @@ function registerCourierRoutes(app) {
         const validated = validateProductPayload(req.body);
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
-            let product = await db.createProduct(validated.data);
+            let product = await db.createProduct(validated.data, { actorId: req.admin && req.admin.userId, actorRole: req.admin && req.admin.role });
             if (validated.data.coming_soon === true) product = await db.updateProduct(product.id, { coming_soon: true });
             res.status(201).json(product);
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
