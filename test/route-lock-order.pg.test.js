@@ -45,6 +45,10 @@ test('параллельные «В пути» и «Доставлено» ис�
         total: 0,
         idempotency_key: 'lock-' + suffix
     });
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
+        assert.equal(await db.updateOrderStatus(order.id, status), true);
+    }
+
     const route = await db.createRoute({
         route_number: 'RL-' + suffix.slice(-8),
         route_date: new Date().toISOString().slice(0, 10),
@@ -75,9 +79,6 @@ test('параллельные «В пути» и «Доставлено» ис�
         await pool.end();
     });
 
-    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) {
-        assert.equal(await db.updateOrderStatus(order.id, status), true);
-    }
     assert.equal((await db.acceptRouteStop(route.id, stopId)).status, 'accepted');
     assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
 
