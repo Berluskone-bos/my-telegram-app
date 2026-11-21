@@ -17,6 +17,7 @@ test('курьерский бот: кнопки отменённого зака�
     const handlers = {}, calls = [];
     let failNextRouteEdit = false;
     let nextMessageId = 1000;
+    let nextCallbackId = 0;
     class FakeBot {
         on(ev, fn) { handlers[ev] = fn; }
         once() {}
@@ -76,7 +77,7 @@ test('курьерский бот: кнопки отменённого зака�
     };
     const press = async (data, replyMarkup = { inline_keyboard: [] }, messageExtras = {}, telegramId = 900002) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
+        await handlers.callback_query({ id: `q${++nextCallbackId}`, data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
