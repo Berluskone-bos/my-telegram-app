@@ -7,8 +7,10 @@ const OPERATOR_DETAIL_FIELDS = Object.freeze([
     'id', 'order_number', 'phone', 'address', 'items', 'total', 'payment', 'comment',
     'status', 'delivery_type', 'created_at'
 ]);
-const WAREHOUSE_LIST_FIELDS = Object.freeze(['id','order_number','total','status','delivery_type','created_at','fail_reason']);
-const WAREHOUSE_DETAIL_FIELDS = Object.freeze(['id','order_number','status','delivery_type','items','total','created_at']);
+// Warehouse can prepare and hand over orders, but does not have sales.view.
+// Keep financial amounts out of both list and detail API responses.
+const WAREHOUSE_LIST_FIELDS = Object.freeze(['id','order_number','status','delivery_type','created_at','fail_reason']);
+const WAREHOUSE_DETAIL_FIELDS = Object.freeze(['id','order_number','status','delivery_type','items','created_at']);
 const FULL_ACCESS_ROLES = new Set(['admin', 'manager']);
 
 function pickFields(value, fields) {
