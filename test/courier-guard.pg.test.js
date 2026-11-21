@@ -81,6 +81,7 @@ test('курьерский бот: кнопки отменённого зака�
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
     const clientTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'client' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
+    const courierPayload = async (key) => (await pool.query("SELECT payload FROM notification_outbox WHERE bot = 'courier' AND dedup_key = $1", [key])).rows[0]?.payload;
 
     // Прямой вызов callback с ID маршрута другого курьера не раскрывает данные и не меняет состояние.
     const foreignOrder = await db.createOrder({ order_number: 'AP-cg_foreign', user_id: 777099, user_name: 'К', name: 't', phone: '1',
@@ -139,10 +140,10 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${b.route.id}_${b.stopId}_accept`);
     assert.ok(!calls.some(c => c[0] === 'answerCallbackQuery' && c[2] && c[2].show_alert), 'предупреждения нет');
     assert.deepEqual(await clientTexts(), [], 'после «Принять» клиенту ничего не отправлено');
-    const startPrompt = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
-    assert.ok(startPrompt, 'после принятия единственного заказа курьеру показана кнопка общего старта маршрута');
-    assert.match(startPrompt[2], /Все заказы маршрута .* приняты/);
+    const startPrompt = await courierPayload(`route-all-accepted:${b.route.id}`);
+    assert.ok(startPrompt, 'после принятия единственного заказа уведомление о старте маршрута сохранено в outbox');
+    assert.match(startPrompt.text, /Все заказы маршрута .* приняты/);
+    assert.ok(startPrompt.reply_markup.inline_keyboard.flat().some(button => button.callback_data === `startroute_${b.route.id}`));
     const acceptedCard = calls.find(c => c[0] === 'editMessageReplyMarkup');
     assert.ok(acceptedCard, 'карточка принятого заказа обновлена');
     assert.equal(
@@ -157,11 +158,11 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await db.getRouteById(b.route.id)).status, 'in_progress', 'кнопка из сообщения запускает маршрут');
     assert.equal((await adminTexts()).length, 2, 'админ получает отдельное уведомление о старте маршрута');
     assert.ok((await adminTexts())[1].startsWith('[МАРШРУТ]') && /начат курьером/i.test((await adminTexts())[1]));
-    const enroutePrompt = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
-    assert.ok(enroutePrompt, 'после общего старта курьер получает карточку с кнопкой «В пути»');
-    assert.match(enroutePrompt[2], /AP-cg2/);
-    assert.match(enroutePrompt[2], /СПб, ул\. Т/);
+    const enroutePrompt = await courierPayload(`route-start-card:${b.route.id}`);
+    assert.ok(enroutePrompt, 'после общего старта маршрутная карточка сохранена в outbox');
+    assert.ok(enroutePrompt.reply_markup.inline_keyboard.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
+    assert.match(enroutePrompt.text, /AP-cg2/);
+    assert.match(enroutePrompt.text, /СПб, ул\\. Т/);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
@@ -237,15 +238,15 @@ test('курьерский бот: кнопки отменённого зака�
     const M = await mkMulti('cg_multi', 'RL-CGMULTI', 59.93);
     const [s1, s2, s3] = M.stops;
     await press(`startroute_${M.route.id}`);
-    const sent = calls.filter(c => c[0] === 'sendMessage');
-    assert.equal(sent.length, 1, 'после старта — ОДНО сообщение со всем маршрутом');
-    const cardText = sent[0][2];
+    const sent = await courierPayload(`route-start-card:${M.route.id}`);
+    assert.ok(sent, 'после старта — одно маршрутное сообщение сохранено в outbox');
+    const cardText = sent.text;
     assert.match(cardText, /1\. <b>AP-cg_multi_1/);
     assert.match(cardText, /2\. <b>AP-cg_multi_2/);
     assert.match(cardText, /3\. <b>AP-cg_multi_3/);
     assert.match(cardText, /Заказов: 3 · доставлено: 0 · не доставлено: 0 · осталось: 3/);
     assert.match(cardText, /Сейчас: заказ 1 из 3/);
-    const kb0 = sent[0][3].reply_markup.inline_keyboard;
+    const kb0 = sent.reply_markup.inline_keyboard;
     assert.equal(kb0.flat().filter(b => b.url && /~/.test(b.url)).length >= 1, true, 'есть ссылка на весь маршрут');
     assert.ok(hasBtn(kb0, `deliver_${M.route.id}_${s1.id}_enroute`), 'для первого заказа кнопка «В пути»');
     assert.ok(hasBtn(kb0, `failed_${M.route.id}_${s1.id}`), 'кнопка «Не доставлено» с номером');
