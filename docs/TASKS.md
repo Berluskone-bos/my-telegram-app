@@ -549,3 +549,9 @@
 - [x] Добавить регрессионную проверку заголовка для обоих методов в `test/order-api.pg.test.js`.
 - [ ] Полный CI и проверка diff.
 - [ ] Merge после успешных required checks; затем проверить Railway deployment.
+
+
+## PR — регрессионные тесты матрицы dashboard (21.11.2026)
+- [x] Зафиксировать границы `sales.view`, `customers.view`, `inventory.view`/`products.view` для четырёх ролей.
+- [x] Проверить `Cache-Control: no-store` в ответе dashboard.
+- [ ] Полный CI и merge после успешных required checks.
