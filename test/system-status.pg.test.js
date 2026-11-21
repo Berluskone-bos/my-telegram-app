@@ -73,4 +73,22 @@ test('system-status: только после входа, показывает б
     assert.equal((await fetch(base + '/api/admin/outbox/nope/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 400);
     assert.equal((await fetch(base + '/api/admin/outbox/1e3/retry', { method: 'POST', headers: { ...Hsame, cookie }, body: '{}' })).status, 400, 'ID не должен принимать scientific notation');
 
+    const postAdminJson = (path, body) => fetch(base + path, {
+        method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify(body)
+    });
+    assert.equal((await postAdminJson('/api/routes/build', { courier_id: '1e3', order_ids: [1] })).status, 400,
+        'ID курьера не принимает scientific notation');
+    assert.equal((await postAdminJson('/api/routes/build', { courier_id: '1', order_ids: ['1e3'] })).status, 400,
+        'ID заказа в маршруте должен быть десятичным');
+    assert.equal((await postAdminJson('/api/map-links/route', { stops: {} })).status, 400,
+        'API маршрутов навигации требует массив координат');
+    assert.equal((await postAdminJson('/api/map-links/route', { stops: [{ lat: 999, lon: 0 }, { lat: 0, lon: 0 }] })).status, 400,
+        'API маршрутов навигации отклоняет недопустимые координаты');
+    assert.equal((await postAdminJson('/api/routes/1junk/optimize', {})).status, 400,
+        'ID маршрута не принимает суффикс');
+    const invalidStatusId = await fetch(base + '/api/orders/1junk/status', {
+        method: 'PUT', headers: { ...Hsame, cookie }, body: JSON.stringify({ status: 'CONFIRMED' })
+    });
+    assert.equal(invalidStatusId.status, 400, 'ID заказа не принимает суффикс');
+
 });
