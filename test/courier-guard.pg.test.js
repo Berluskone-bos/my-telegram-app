@@ -362,10 +362,12 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`failreason_${F.route.id}_${F.stops[0].id}_other`);
     assert.match(lastCard().text, /Напишите причину/);
     assert.equal(await orderStatus(F.orders[0].id), 'SHIPPING', 'пока причина не написана, статус прежний');
-    await handlers.message({ chat: { id: 900002 }, from: { id: 900002 }, text: 'Домофон не работает' });
+    await handlers.message({ chat: { id: -100900002, type: 'supergroup' }, from: { id: 900002 }, text: 'групповая подмена' });
+    assert.equal(await orderStatus(F.orders[0].id), 'SHIPPING', 'сообщение из группы не принимается как причина недоставки');
+    await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'Домофон не работает' });
     await new Promise(r => setTimeout(r, 150));
     assert.equal(await orderStatus(F.orders[0].id), 'DELIVERY_FAILED');
     assert.equal((await db.getRouteById(F.route.id)).stops[0].fail_reason, 'Домофон не работает');
-    await handlers.message({ chat: { id: 900002 }, from: { id: 900002 }, text: 'просто сообщение' });
+    await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'просто сообщение' });
     assert.equal(await orderStatus(F.orders[1].id), 'SHIPPING', 'посторонние сообщения заказы не трогают');
 });
