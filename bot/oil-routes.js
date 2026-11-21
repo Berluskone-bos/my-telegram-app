@@ -24,7 +24,7 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     app.get('/api/oil/usage', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => { res.json(await pa.requestsToday(pool)); }));
 
     // Допуски товара (админка): список и замена
-    app.get('/api/products/:id/approvals', verifyAdmin, requirePermission('products.view'), wrap(async (req, res) => {
+    app.get('/api/products/:id/approvals', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => {
         const r = await pool.query('SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [id(req.params.id)]);
         res.json(r.rows.map(x => x.approval));
     }));

@@ -2019,6 +2019,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function loadShopProducts() {
             if (!window.adminHasPermission || !window.adminHasPermission('products.view')) return;
+            const addProductButton = document.querySelector('button[onclick="openProductModal()"]');
+            if (addProductButton) addProductButton.style.display = window.adminHasPermission('settings.manage') ? '' : 'none';
             try {
                 const products = await fetch(`${API_BASE}/api/products`).then(r => r.json());
                 window._products = products;
@@ -2037,7 +2039,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${esc(p.id || '-')}</td>
                             <td><strong>${esc(p.name || '-')}</strong><br><small>${esc(p.brand || '')} ${esc(p.volume || '')}</small></td>
                             <td>${esc(p.category || '-')}</td>
-                            <td>${(parseFloat(p.price)||0).toLocaleString()} руб.</td>
+                            <td>${p.price == null ? '—' : (parseFloat(p.price)||0).toLocaleString() + ' руб.'}</td>
                             <td>${stock}</td>
                             <td><span class="badge ${stockClass}">${stockLabel}</span></td>
                             <td><button class="btn btn-outline btn-sm" onclick="editProduct(${Number(p.id)})">Изменить</button></td>
@@ -2068,7 +2070,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function openProductModal() {
+            if (!window.adminHasPermission || !window.adminHasPermission('settings.manage')) return;
             const f = document.getElementById('productForm'); f.reset(); f.dataset.id = '';
+            for (const child of Array.from(f.children)) child.style.display = '';
             f.active.checked = true; f.coming_soon.checked = false; f.approvals.value = '';
             document.getElementById('productModalTitle').textContent = 'Добавить товар';
             document.getElementById('productModal').classList.add('open');
@@ -2077,21 +2081,31 @@ document.addEventListener('DOMContentLoaded', () => {
         function editProduct(id) {
             const p = (window._products || []).find(x => Number(x.id) === id);
             if (!p) return;
+            const canManageCatalog = window.adminHasPermission && window.adminHasPermission('settings.manage');
             const f = document.getElementById('productForm'); f.reset(); f.dataset.id = String(id);
+            const stockRow = f.stock.closest('.form-row');
+            for (const child of Array.from(f.children)) child.style.display = canManageCatalog || child === stockRow ? '' : 'none';
             for (const k of ['brand','category','name','sku','volume','price','old_price','stock','min_stock','description','image']) {
                 if (f[k]) f[k].value = p[k] != null ? p[k] : '';
             }
-            f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon;
-            f.approvals.value = '';
-            fetch(`${API_BASE}/api/products/${id}/approvals`).then(r => r.ok ? r.json() : []).then(l => { if (f.dataset.id === String(id)) f.approvals.value = l.join(', '); }).catch(() => {});
-            document.getElementById('productModalTitle').textContent = 'Изменить товар №' + id;
+            if (canManageCatalog) {
+                f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon;
+                f.approvals.value = '';
+                fetch(`${API_BASE}/api/products/${id}/approvals`).then(r => r.ok ? r.json() : []).then(l => { if (f.dataset.id === String(id)) f.approvals.value = l.join(', '); }).catch(() => {});
+            }
+            document.getElementById('productModalTitle').textContent = canManageCatalog ? 'Изменить товар №' + id : 'Изменить остатки товара №' + id;
             document.getElementById('productModal').classList.add('open');
         }
 
         async function saveProduct(e) {
             e.preventDefault();
             const form = e.target;
-            const data = {
+            const editId = form.dataset.id;
+            const canManageCatalog = window.adminHasPermission && window.adminHasPermission('settings.manage');
+            const method = canManageCatalog ? (editId ? 'PUT' : 'POST') : 'PATCH';
+            if (!canManageCatalog && !editId) return;
+
+            const data = canManageCatalog ? {
                 brand: form.brand.value,
                 category: form.category.value,
                 name: form.name.value,
@@ -2099,24 +2113,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 volume: form.volume.value,
                 price: parseFloat(form.price.value),
                 old_price: form.old_price.value ? parseFloat(form.old_price.value) : null,
-                stock: parseInt(form.stock.value) || 0,
-                min_stock: parseInt(form.min_stock.value) || 3,
+                stock: parseInt(form.stock.value, 10) || 0,
+                min_stock: form.min_stock.value === '' ? 0 : (parseInt(form.min_stock.value, 10) || 0),
                 description: form.description.value,
                 image: form.image.value,
                 active: form.active.checked,
                 coming_soon: form.coming_soon.checked
+            } : {
+                stock: Number(form.stock.value),
+                min_stock: Number(form.min_stock.value)
             };
-            const editId = form.dataset.id;
             try {
-                const res = await fetch(`${API_BASE}/api/products${editId ? '/' + editId : ''}`, {
-                    method: editId ? 'PUT' : 'POST',
+                const url = canManageCatalog
+                    ? `${API_BASE}/api/products${editId ? '/' + editId : ''}`
+                    : `${API_BASE}/api/products/${editId}/stock`;
+                const res = await fetch(url, {
+                    method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 if (res.ok) {
                     const saved = await res.json().catch(() => ({}));
                     const pid = editId || saved.id;
-                    if (pid && window.adminHasPermission && window.adminHasPermission('settings.manage')) {
+                    if (canManageCatalog && pid && window.adminHasPermission('settings.manage')) {
                         const list = form.approvals.value.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
                         const approvalsResponse = await fetch(API_BASE + '/api/products/' + pid + '/approvals', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approvals: list }) });
                         if (!approvalsResponse.ok) throw new Error('Не удалось сохранить допуски товара');
