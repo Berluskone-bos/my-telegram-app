@@ -1219,7 +1219,9 @@ function registerCourierRoutes(app) {
     // Ручной повтор уведомления после исправления причины отказа (например, токена или доступа к чату).
     // Доступ только владельцу/администратору; строка outbox и dedup_key сохраняются.
     app.post('/api/admin/outbox/:id/retry', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
-        const id = Number(req.params.id);
+        const rawId = String(req.params.id || '');
+        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID уведомления' });
+        const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID уведомления' });
         try {
             const q = queue.instance();
