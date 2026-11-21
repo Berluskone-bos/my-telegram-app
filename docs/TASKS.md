@@ -547,5 +547,11 @@
 ## PR — запрет HTTP-кэширования клиентского профиля (21.11.2026)
 - [x] Добавить `Cache-Control: no-store` к GET/PUT `/api/profile`, возвращающим телефон клиента.
 - [x] Добавить регрессионную проверку заголовка для обоих методов в `test/order-api.pg.test.js`.
-- [ ] Полный CI и проверка diff.
-- [ ] Merge после успешных required checks; затем проверить Railway deployment.
+- [x] Diff проверен; CI PR #94 SUCCESS, main CI SUCCESS.
+- [x] PR #94 объединён; Railway deployment `e3c630ce-d175-4a90-863d-d695674af129` SUCCESS, GitHub Pages SUCCESS; `gulf-bot` и PostgreSQL Online.
+
+
+## PR — регрессионные тесты матрицы dashboard (21.11.2026)
+- [x] Зафиксировать границы `sales.view`, `customers.view`, `inventory.view`/`products.view` для четырёх ролей.
+- [x] Проверить `Cache-Control: no-store` в ответе dashboard.
+- [ ] Полный CI и merge после успешных required checks.

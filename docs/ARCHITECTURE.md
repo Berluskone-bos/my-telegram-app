@@ -157,3 +157,7 @@ PR #54 добавил индивидуальные учётные записи, 
 
 ## Cache policy for customer profile
 Маршруты `GET /api/profile` и `PUT /api/profile` устанавливают `Cache-Control: no-store` после проверки подписанного Telegram initData, поскольку ответы содержат номер телефона клиента. Регрессионная проверка находится в `test/order-api.pg.test.js`.
+
+
+## Dashboard role response matrix
+`GET /api/admin/dashboard` использует права роли для полей ответа: `sales.view` управляет выручкой и числом клиентов, `customers.view` — именами клиентов в последних заказах, `inventory.view` или `products.view` — остатками и низким запасом. Ответы защищены `Cache-Control: no-store`; регрессионные проверки четырёх ролей находятся в `test/admin-dashboard.test.js`.
