@@ -887,6 +887,7 @@ app.get('/api/profile', rateLimit(60, 60_000), async (req, res) => {
     try {
         const user = authenticatedTelegramUser(req);
         if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        res.set('Cache-Control', 'no-store');
         const stored = await db.getCustomerProfile(String(user.id));
         return res.json({ success: true, profile: { name: telegramName(user), phone: stored ? stored.phone : '' } });
     } catch (e) {
@@ -899,6 +900,7 @@ app.put('/api/profile', rateLimit(20, 60_000), async (req, res) => {
     try {
         const user = authenticatedTelegramUser(req);
         if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        res.set('Cache-Control', 'no-store');
         const profile = normalizeProfile(req.body, user);
         if (!profile) return res.status(400).json({ success: false, error: 'Invalid profile data' });
         const saved = await db.upsertCustomerProfile(String(user.id), profile);
