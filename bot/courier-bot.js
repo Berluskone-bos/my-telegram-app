@@ -339,13 +339,9 @@ bot.onText(/\/start/, async (msg) => {
         );
 
         const regText = `[КУРЬЕР] Заявка: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
-        if (typeof adminBot !== 'undefined' && adminBot && ADMIN_CHAT_ID) {
-            adminBot.sendMessage(ADMIN_CHAT_ID, regText, {
-                reply_markup: { inline_keyboard: [[{ text: 'Активировать курьера', callback_data: `activate_courier_${newCourier.id}` }]] }
-            }).catch(() => notifyAdmin(regText));
-        } else {
-            notifyAdmin(regText);
-        }
+        await notifyAdmin(regText,
+            [[{ text: 'Активировать курьера', callback_data: `activate_courier_${newCourier.id}` }]],
+            `courier-registration:${newCourier.id}`);
     });
 });
 
@@ -1368,7 +1364,7 @@ function registerCourierRoutes(app) {
                     const cancelBtn = status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'PICKED_UP'
                         ? [[{ text: 'Отменить заказ', callback_data: `cancel_${orderId}` }]]
                         : null;
-                    notifyAdmin(
+                    await notifyAdmin(
                         `<b>Смена статуса</b>\n\n` +
                         `Заказ: <b>${escapeHtml(order.order_number)}</b>\n` +
                         `Клиент: ${escapeHtml(order.user_name || '-')}\n` +
@@ -1376,7 +1372,7 @@ function registerCourierRoutes(app) {
                         `Адрес: ${escapeHtml(order.address || '-')}\n` +
                         `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
                         `Статус: <b>${label}</b>`,
-                        cancelBtn
+                        cancelBtn, `admin-order-status:${order.id}:${status}`
                     );
                     // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
                     if (order.user_id && status !== 'CANCELLED') {
@@ -1392,7 +1388,7 @@ function registerCourierRoutes(app) {
                             }).catch(() => false)
                             : false;
                         if (!onCard || finalSt || pickupNotice) {
-                            queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`);
+                            await queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`, { dedupKey: `client-order-status:${order.id}:${status}` });
                         }
                     }
                 }
