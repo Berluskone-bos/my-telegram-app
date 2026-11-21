@@ -37,8 +37,8 @@ test('warehouse can manage stock but cannot create or edit catalog', () => {
 });
 
 test('stock update accepts only non-negative integer stock fields', () => {
-    assert.deepEqual(validateStockUpdate({ stock: 0, min_stock: 3 }), {
-        ok: true, data: { stock: 0, min_stock: 3 }
+    assert.deepEqual(validateStockUpdate({ stock: 0, min_stock: 3, expected_stock: 8 }), {
+        ok: true, data: { stock: 0, min_stock: 3 }, expectedStock: 8
     });
     assert.deepEqual(validateStockUpdate({ stock: '12', expected_stock: 10 }), {
         ok: true, data: { stock: 12 }, expectedStock: 10
