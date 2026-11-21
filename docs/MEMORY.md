@@ -5,9 +5,9 @@
 
 ## Где мы сейчас (21.11.2026)
 - Рабочий проект: Telegram Mini App и три Telegram-бота; фронтенд — GitHub Pages, backend и PostgreSQL — Railway.
-- Production commit: `04c46c9b0f79402bda78fe0a16fa0087399f2fa3` (PR #91). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
+- Production commit: `a19589f99630cb3f2fa7ebbf6187ae82efd34c94` (PR #92). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
 - Railway production: `gulf-bot` и `Postgres` — Online, по одной активной реплике; недавних падений и активных предупреждений нет.
-- PR #73–91 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed; PR #91 добавляет тест межкурьерского доступа. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
+- PR #73–92 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed; PR #91 добавляет тест межкурьерского доступа; PR #92 меняет порядок остановки polling. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
 - Neon и отдельный VPS не используются. `project-files/archive-vps/` сохранён как холодный исторический архив; он не запускается в production.
 - PostgreSQL размещён в Railway, регион sfo (США). Автоматические резервные копии не подтверждены; см. `docs/BACKUP.md`.
 - Каталог: основной источник — PostgreSQL; `data/catalog.json` — резервный источник. В JSON 18 записей: 13 товаров первой партии и 5 позиций `coming_soon`. Не менять товары, цены и остатки без подтверждения владельца.
@@ -494,3 +494,10 @@
 - Это создаёт гонку при graceful shutdown: новый экземпляр получает lock и вызывает `getUpdates`, пока старый polling ещё останавливается. Обнаруженная причина соответствует времени появления 409 во время Railway rolling deployment.
 - В ветке `fix/polling-lock-shutdown-order` изменён порядок: сначала завершается `stopQuietly(bot)`, затем освобождается advisory lock; добавлен PostgreSQL integration test с двумя экземплярами и управляемым завершением polling, доказывающий, что B не получает lock до фактической остановки A.
 - PR #92 ожидает CI; до успешной проверки и деплоя не считать исправление активным в production. При потере DB-соединения advisory lock всё равно снимается сервером PostgreSQL; отдельный recovery path остаётся основан на немедленной остановке polling и повторном захвате lock.
+
+## 21.11.2026 — минимизация данных диспетчеризации по ролям
+- При проверке UI подтверждено: экран «Доставка» загружает полный `/api/routes` и `/api/couriers` только при `settings.manage` (admin); экран заказов оператора (`routes.manage`) использует из `/api/routes` только `courier_id` и `stops[].order_id`, а из `/api/couriers` — `id`, `name`, `is_active`.
+- До изменения `/api/routes` и `/api/couriers` отдавали операторам все поля SQL `SELECT *`, включая телефоны, Telegram ID/username курьеров, телефоны/адреса/имена/чат-ID клиентов, комментарии и суммы остановок. Ответы `POST /api/routes/build` и `/api/orders/:id/assign` также содержали полный объект маршрута, хотя интерфейс использует только номер маршрута/сводку.
+- В ветке `security/minimize-operator-dispatch-pii` добавлены role-aware projections: оператор получает только поля, необходимые экрану заказов и назначению курьера; admin сохраняет полный ответ. Оптимизация маршрута ограничена `settings.manage`, поскольку endpoint не используется UI оператора и возвращает полный список остановок.
+- Добавлены unit-тесты для проекций курьеров, маршрутов и результата построения; тесты подтверждают отсутствие PII в операторских ответах и полный доступ admin.
+- PR #93 ожидает CI; production данные, схема БД, заказы, курьеры и Railway Variables не менялись.
