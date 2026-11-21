@@ -150,4 +150,19 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.equal((await db.acceptRouteStop(cancelRoute.route.id, remaining.id)).status, 'accepted');
     assert.equal((await db.startRouteIfAllAccepted(cancelRoute.route.id)).status, 'started');
     assert.equal((await db.getRouteById(cancelRoute.route.id)).stops.find(s => s.order_number === cancelB.order_number).status, 'cancelled');
+
+    // Ошибка записи уведомления должна откатить создание маршрута и всех его остановок.
+    const rollbackOrder = await mk('10', 'адрес B');
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) await db.updateOrderStatus(rollbackOrder.id, status);
+    const routesBefore = Number((await pool.query('SELECT COUNT(*)::int AS n FROM delivery_routes')).rows[0].n);
+    const failingQueue = { notify: async (_bot, _chat, _text, options = {}) => {
+        if (options.throwOnError) throw new Error('test outbox enqueue failure');
+        return null;
+    } };
+    const failingSvc = createRouteService({ db, geocoder, queue: failingQueue, planner, env: { SERVICE_MINUTES: '5' }, now: () => clock.t });
+    await assert.rejects(failingSvc.buildRoute({ orderIds: [rollbackOrder.id], courier }), /test outbox enqueue failure/);
+    assert.equal(Number((await pool.query('SELECT COUNT(*)::int AS n FROM delivery_routes')).rows[0].n), routesBefore,
+        'маршрут откатился вместе с ошибкой outbox');
+    assert.equal(Number((await pool.query('SELECT COUNT(*)::int AS n FROM route_stops WHERE order_id = $1', [String(rollbackOrder.id)])).rows[0].n), 0,
+        'остановки не остались без уведомлений');
 });
