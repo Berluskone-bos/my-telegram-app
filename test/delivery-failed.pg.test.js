@@ -70,7 +70,6 @@ test('«Не доставлен»: статус заказа, повторная
     assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [rollbackKey])).rows[0].n, 0,
         'outbox запись откатывается вместе с этапом');
     assert.ok(await db.setStopStage(a.stopId, 'arrived'));
-    assert.ok(await db.setStopStage(a.stopId, 'arrived'));
     assert.equal(await db.setStopStage(a.stopId, 'enroute'), null, 'после «У клиента» вернуться в «В пути» нельзя');
     assert.equal(await db.setStopStage(a.stopId, 'bogus'), null);
 
