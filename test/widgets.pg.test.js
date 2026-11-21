@@ -63,6 +63,15 @@ test('виджеты: очередь, запасной вариант, трек�
     const w1 = await store.get(pool, 'tracker', 'AP-wg1');
     assert.equal(Number(w1.message_id), 701); assert.equal(w1.active, true);
     sent.length = 0;
+    const trackerStateBeforeFailure = (await store.get(pool, 'tracker', 'AP-wg1')).state;
+    await assert.rejects(
+        tracker.trackerEvent(pool, 'AP-wg1', { stage: 'shipping', courier: 'Иван' }, async () => {
+            throw new Error('simulated tracker enqueue failure');
+        }),
+        /simulated tracker enqueue failure/
+    );
+    assert.deepEqual((await store.get(pool, 'tracker', 'AP-wg1')).state, trackerStateBeforeFailure,
+        'состояние трекера откатывается, если edit не попал в outbox');
     assert.equal(await tracker.trackerEvent(pool, 'AP-wg1', { stage: 'shipping', courier: 'Иван' }), true);
     await q.processOnce();
     const edit = sent.find(s => s.method === 'editMessageWidgetData');
