@@ -5,9 +5,9 @@
 
 ## Где мы сейчас (21.11.2026)
 - Рабочий проект: Telegram Mini App и три Telegram-бота; фронтенд — GitHub Pages, backend и PostgreSQL — Railway.
-- Production commit: `e4651c742f1430d00b0e8ff69f9571a6d8f59bc9` (PR #90). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
+- Production commit: `04c46c9b0f79402bda78fe0a16fa0087399f2fa3` (PR #91). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
 - Railway production: `gulf-bot` и `Postgres` — Online, по одной активной реплике; недавних падений и активных предупреждений нет.
-- PR #73–90 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed. PR #91 добавляет тест межкурьерского доступа. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
+- PR #73–91 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed; PR #91 добавляет тест межкурьерского доступа. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
 - Neon и отдельный VPS не используются. `project-files/archive-vps/` сохранён как холодный исторический архив; он не запускается в production.
 - PostgreSQL размещён в Railway, регион sfo (США). Автоматические резервные копии не подтверждены; см. `docs/BACKUP.md`.
 - Каталог: основной источник — PostgreSQL; `data/catalog.json` — резервный источник. В JSON 18 записей: 13 товаров первой партии и 5 позиций `coming_soon`. Не менять товары, цены и остатки без подтверждения владельца.
@@ -488,3 +488,9 @@
 - В существующем PostgreSQL integration test `test/courier-guard.pg.test.js` добавлен сценарий прямой подмены route/stop ID: другой курьер не должен получить карточку, запустить маршрут или изменить заказ. Проверяется сохранение статуса маршрута и заказа. Изменения в ветке `security/test-courier-route-ownership` (PR #91 планируется).
 - Тест использует изолированные тестовые записи и очистку тестовых строк; production DB не затрагивается.
 - В runtime логах после последнего деплоя был Telegram polling `409 Conflict` во время запуска нового экземпляра. Статус Railway стал Online без сбоев; нужно проверить, повторяется ли 409 после завершения rolling deploy, прежде чем менять механизм polling.
+
+## 21.11.2026 — причина Telegram polling 409 и исправление
+- Логи Railway после deploy PR #90/#91 показывали `409 Conflict` у ADMIN BOT при переключении экземпляров, после чего polling восстанавливался. Разбор `bot/poll-guard.js` выявил порядок: `lock.stop()` освобождал PostgreSQL advisory lock до вызова `stopQuietly(bot)`.
+- Это создаёт гонку при graceful shutdown: новый экземпляр получает lock и вызывает `getUpdates`, пока старый polling ещё останавливается. Обнаруженная причина соответствует времени появления 409 во время Railway rolling deployment.
+- В ветке `fix/polling-lock-shutdown-order` изменён порядок: сначала завершается `stopQuietly(bot)`, затем освобождается advisory lock; добавлен PostgreSQL integration test с двумя экземплярами и управляемым завершением polling, доказывающий, что B не получает lock до фактической остановки A.
+- PR #92 ожидает CI; до успешной проверки и деплоя не считать исправление активным в production. При потере DB-соединения advisory lock всё равно снимается сервером PostgreSQL; отдельный recovery path остаётся основан на немедленной остановке polling и повторном захвате lock.

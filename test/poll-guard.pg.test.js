@@ -35,6 +35,39 @@ test('замок опроса: второй экземпляр ждёт, пос�
     assert.ok(l.lines.some(x => /уже ведёт другой экземпляр/.test(x)), 'ожидание записано в лог');
 });
 
+test('graceful shutdown удерживает advisory lock до завершения Telegram polling', { skip }, async (t) => {
+    const pool = new Pool({ connectionString: DB, max: 6 });
+    t.after(() => pool.end());
+    const events = [];
+    let finishA;
+    const fakeBot = (id) => ({
+        polling: false,
+        getUpdates: async () => [],
+        startPolling() { this.polling = true; events.push(id + ':start'); return Promise.resolve(); },
+        isPolling() { return this.polling; },
+        stopPolling() {
+            events.push(id + ':stop-requested');
+            this.polling = false;
+            if (id === 'A') return new Promise(resolve => { finishA = () => { events.push('A:stopped'); resolve(); }; });
+            events.push(id + ':stopped');
+            return Promise.resolve();
+        }
+    });
+    const A = startGuardedPolling(fakeBot('A'), { name: 'LOCKSTOPTEST', pool, log: quietLog(), retryMs: 100, heartbeatMs: 300 });
+    await until(() => A.status().holder, 3000, 'A получил замок');
+    const B = startGuardedPolling(fakeBot('B'), { name: 'LOCKSTOPTEST', pool, log: quietLog(), retryMs: 100, heartbeatMs: 300 });
+    await sleep(250);
+    assert.equal(B.status().holder, false, 'B ждёт, пока A держит замок');
+    const stoppingA = A.stop();
+    await until(() => typeof finishA === 'function', 2000, 'A начал останавливать polling');
+    await sleep(250);
+    assert.equal(B.status().holder, false, 'B не получает замок до фактической остановки polling A');
+    finishA();
+    await stoppingA;
+    await until(() => B.status().holder, 3000, 'B получил замок после остановки A');
+    assert.ok(events.indexOf('A:stopped') < events.indexOf('B:start'), 'сначала остановился polling A, затем стартовал B: ' + events.join(', '));
+    await B.stop();
+});
 test('замок опроса: обрыв соединения с замком останавливает опрос, замок переходит другому', { skip }, async (t) => {
     const pool = new Pool({ connectionString: DB, max: 6 });
     t.after(() => pool.end());
