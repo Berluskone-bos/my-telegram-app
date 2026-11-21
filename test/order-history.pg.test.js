@@ -63,7 +63,9 @@ test('история заказов клиента: только свои зак
     assert.deepEqual(r2.orders.map(o => o.orderNumber), ['AP-h3']);
 
     // скрытие: завершённый скрывается, активный и чужой — нет
-    const h = await (await api('/api/orders/my/hide', { method: 'POST', as: U1, body: { orderNumbers: ['AP-h1', 'AP-h2', 'AP-h3'] } })).json();
+    const hideResponse = await api('/api/orders/my/hide', { method: 'POST', as: U1, body: { orderNumbers: ['AP-h1', 'AP-h2', 'AP-h3'] } });
+    assert.equal(hideResponse.headers.get('cache-control'), 'no-store', 'ответ с данными истории не должен кэшироваться');
+    const h = await hideResponse.json();
     assert.deepEqual(h.hidden, ['AP-h1']);
     assert.deepEqual(h.skipped.sort(), ['AP-h2', 'AP-h3']);
     assert.deepEqual((await (await api('/api/orders/my', { as: U1 })).json()).orders.map(o => o.orderNumber), ['AP-h2']);
