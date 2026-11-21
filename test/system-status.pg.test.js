@@ -40,7 +40,7 @@ test('system-status: только после входа, показывает б
 
     await pool.query(`INSERT INTO notification_outbox (bot, payload, status, sent_at) VALUES ('admin', '{}', 'sent', NOW())`);
     const failed = await pool.query(`INSERT INTO notification_outbox (bot, payload, status, last_error) VALUES ('admin', '{}', 'failed', 'chat not found') RETURNING id`);
-    const failedId = failed.rows[0].id;
+    const failedId = Number(failed.rows[0].id);
     await pool.query(`INSERT INTO notification_outbox (bot, payload, status) VALUES ('admin', '{}', 'pending')`);
 
     const r = await fetch(base + '/api/admin/system-status', { headers: { ...H, cookie } });
