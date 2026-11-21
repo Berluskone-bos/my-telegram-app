@@ -1219,6 +1219,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 box.querySelectorAll('[data-retry-outbox]').forEach(button => {
                     button.addEventListener('click', async () => {
                         const id = button.getAttribute('data-retry-outbox');
+                        if (!confirm('Сначала исправьте причину недоставки (токен, доступ к чату и т. п.). Повторить отправку этого уведомления?')) return;
                         button.disabled = true;
                         try {
                             const rr = await fetch(`${ADMIN_API}/api/admin/outbox/${encodeURIComponent(id)}/retry`, { method: 'POST' });
