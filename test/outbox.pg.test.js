@@ -93,6 +93,33 @@ test('очередь: отправка, повтор после сбоя, дед
     assert.equal((await row(first)).status, 'skipped');
     assert.equal((await q.processOnce()).sent, 1);
     assert.equal((await row(second)).status, 'sent');
+
+    // Два worker-процесса не должны одновременно забрать одну строку.
+    const concurrent = await q.enqueue({ bot: 'courier', payload: { chat_id: '10', text: 'одна запись — один worker' } });
+    let enteredResolve, releaseResolve;
+    const entered = new Promise(resolve => { enteredResolve = resolve; });
+    const gate = new Promise(resolve => { releaseResolve = resolve; });
+    const slowWorker = createOutbox({ pool, send: async () => {
+        enteredResolve();
+        await gate;
+        return { message_id: 9100 };
+    } });
+    const firstWorker = slowWorker.processOnce();
+    await entered;
+    assert.deepEqual(await q.processOnce(), { sent: 0, failed: 0, retried: 0, skipped: 0 },
+        'второй worker пропускает строку, пока её lease активен');
+    releaseResolve();
+    assert.equal((await firstWorker).sent, 1);
+    assert.equal((await row(concurrent)).status, 'sent');
+
+    // Если процесс умер и lease истёк, другой worker может подобрать строку повторно.
+    const expired = await q.enqueue({ bot: 'courier', payload: { chat_id: '10', text: 'восстановление после lease' } });
+    await pool.query(
+        "UPDATE notification_outbox SET status = 'sending', attempts = 1, locked_until = NOW() - INTERVAL '1 second' WHERE id = $1",
+        [expired]);
+    assert.equal((await q.processOnce()).sent, 1);
+    assert.equal((await row(expired)).status, 'sent');
+    assert.equal((await row(expired)).attempts, 2, 'повторная обработка увеличивает счётчик попыток');
 });
 
 test('новый заказ: уведомления пишутся в той же транзакции, что и заказ', { skip }, async (t) => {
