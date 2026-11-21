@@ -1195,8 +1195,19 @@ function registerCourierRoutes(app) {
             out.outbox.oldestPendingSec = old.rows[0].age;
             const lastAdmin = await pool.query(`SELECT sent_at, last_error FROM notification_outbox WHERE bot = 'admin' AND status = 'sent' ORDER BY sent_at DESC LIMIT 1`);
             out.lastAdminNotificationAt = lastAdmin.rows[0] ? lastAdmin.rows[0].sent_at : null;
-            const fail = await pool.query(`SELECT created_at, last_error FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 1`);
-            out.lastFailed = fail.rows[0] ? { at: fail.rows[0].created_at, error: String(fail.rows[0].last_error || '').slice(0, 200) } : null;
+            const fail = await pool.query(`SELECT id, created_at, last_error FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 1`);
+            out.lastFailed = fail.rows[0] ? {
+                id: String(fail.rows[0].id), at: fail.rows[0].created_at,
+                error: String(fail.rows[0].last_error || '').slice(0, 200)
+            } : null;
+            // Для ручного восстановления показываем только технические метаданные, никогда не payload с ПДн.
+            const failedItems = await pool.query(
+                `SELECT id, bot, method, created_at, last_error
+                   FROM notification_outbox WHERE status = 'failed' ORDER BY id DESC LIMIT 10`);
+            out.failedItems = failedItems.rows.map(x => ({
+                id: String(x.id), bot: String(x.bot), method: String(x.method),
+                at: x.created_at, error: String(x.last_error || '').slice(0, 200)
+            }));
             const w = require('./widgets').widgetsPausedUntil();
             out.widgetsPausedUntil = w > Date.now() ? new Date(w).toISOString() : null;
         } catch (e) {
