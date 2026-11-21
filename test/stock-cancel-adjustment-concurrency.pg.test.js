@@ -59,7 +59,8 @@ test('склад: параллельная отмена и ручная корр
         db.cancelOrderByNumber(first.order_number),
         db.updateOrderStatus(first.id, 'CANCELLED')
     ]);
-    assert.equal(outcomes.filter(x => x === true).length + outcomes.filter(x => x === true || x === 'ALREADY').length >= 1, true);
+    assert.ok((outcomes[0] === true && outcomes[1] === 'ALREADY') || (outcomes[0] === false && outcomes[1] === true),
+        `неожиданные результаты параллельной отмены: ${JSON.stringify(outcomes)}`);
     assert.equal((await pool.query('SELECT status, stock_deducted FROM orders WHERE id = $1', [first.id])).rows[0].status, 'CANCELLED');
     assert.equal((await pool.query('SELECT stock_deducted FROM orders WHERE id = $1', [first.id])).rows[0].stock_deducted, false);
     assert.equal(await stock(), 10, 'конкурирующие отмены вернули три единицы ровно один раз');
