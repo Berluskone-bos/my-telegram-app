@@ -930,7 +930,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                     await queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', {
                         buttons: rateButtons,
                         dedupKey: `stop-rating:${stopId}`,
-                        delaySec: 3
+                        delaySec: 3, throwOnError: true
                     });
                 }
             }
