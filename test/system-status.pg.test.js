@@ -52,6 +52,9 @@ test('system-status: только после входа, показывает б
     assert.equal(s.outbox.failed, 1);
     assert.equal(s.outbox.pending, 1);
     assert.equal(s.lastFailed.error, 'chat not found');
+    assert.equal(s.lastFailed.id, String(failedId));
+    assert.deepEqual(s.failedItems.map(x => x.id), [String(failedId)]);
+    assert.equal(Object.prototype.hasOwnProperty.call(s.failedItems[0], 'payload'), false, 'содержимое уведомления с ПДн не выдаётся в статусе');
     assert.ok(s.lastAdminNotificationAt);
     assert.equal(s.adminPolling.enabled, false, 'опрос выключен переменной ADMIN_POLLING=off');
 
