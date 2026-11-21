@@ -11,10 +11,10 @@ const Products = {
             : 'https://gulf-bot-production.up.railway.app';
 
         try {
-            const response = await fetch(`${API_BASE}/api/catalog`);
+            const response = await fetch(`${API_BASE}/api/catalog`, { cache: 'no-store', headers: { Accept: 'application/json' } });
             if (response.ok) {
                 const products = await response.json();
-                if (products.length > 0) {
+                if (Array.isArray(products) && products.length > 0) {
                     this.data = products.map(p => this.normalize(p));
                     this.categories = [
                         { id: 'motor', name: 'Моторные масла', icon: 'droplets' },
@@ -26,16 +26,20 @@ const Products = {
                     ];
                     return;
                 }
+                console.warn('API каталога вернул пустой или некорректный список, используем резервный каталог');
+            } else {
+                console.warn(`API каталога: HTTP ${response.status}, используем резервный каталог`);
             }
         } catch (e) {
             console.warn('API недоступен, загружаем из catalog.json:', e.message);
         }
 
         try {
-            const response = await fetch('data/catalog.json');
+            const response = await fetch('data/catalog.json', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`catalog.json: HTTP ${response.status}`);
             const catalog = await response.json();
-            this.data = (catalog.products || []).map(p => this.normalize(p));
-            this.categories = catalog.categories;
+            this.data = (Array.isArray(catalog.products) ? catalog.products : []).map(p => this.normalize(p));
+            this.categories = Array.isArray(catalog.categories) ? catalog.categories : [];
         } catch (e) {
             console.error('Ошибка загрузки каталога:', e);
             this.data = [];
