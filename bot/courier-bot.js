@@ -813,8 +813,8 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             afterUpdate: async ({ client, stop, route }) => {
                 const who = query?.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
                 await notifyAdmin(
-                    `[ДОСТАВКА] ${escapeHtml(route.route_number || '')} | курьер выехал к клиенту\\nЗаказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${route.stop_count || 0})\\nАдрес: ${escapeHtml(stop.address || '')}` +
-                    (who ? `\\nКурьер: ${escapeHtml(who)}` : ''),
+                    `[ДОСТАВКА] ${escapeHtml(route.route_number || '')} | курьер выехал к клиенту\nЗаказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${route.stop_count || 0})\nАдрес: ${escapeHtml(stop.address || '')}` +
+                    (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
                     null, `admin-step-enroute:${stopId}`, client, true);
                 if (stop.client_chat_id) {
                     const phone = String(courierForNotice?.phone || '').trim();
@@ -822,7 +822,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                         ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courierForNotice?.name || '')}: ${escapeHtml(phone)}.`
                         : 'Телефон курьера пока не указан. Для уточнения времени прибытия свяжитесь с нами.';
                     await queue.notify('client', stop.client_chat_id,
-                        `<b>Заказ ${escapeHtml(stop.order_number)}</b>\\n\\nСтатус: <b>Курьер выехал</b>\\nКурьер везёт ваш заказ.\\n${contact}`,
+                        `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер везёт ваш заказ.\n${contact}`,
                         { dedupKey: `stop-enroute:${stopId}`, db: client, throwOnError: true });
                 }
             }
@@ -842,7 +842,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         bot.answerCallbackQuery(query.id, { text: changed ? 'Вы в пути. Клиент уведомлён.' : 'Этот шаг уже отмечен.' }).catch(() => {});
         if (!changed) return;
 
-        // Уведомляем только клиента этого заказа; остальные клиенты ничего не получают.
+        // После commit обновляем внутреннюю карточку заказа; клиентское сообщение уже в outbox.
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
@@ -863,12 +863,12 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             afterUpdate: async ({ client, stop, route }) => {
                 const who = query?.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
                 await notifyAdmin(
-                    `[ДОСТАВКА] ${escapeHtml(route.route_number || '')} | курьер приехал к клиенту\\nЗаказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${route.stop_count || 0})\\nАдрес: ${escapeHtml(stop.address || '')}` +
-                    (who ? `\\nКурьер: ${escapeHtml(who)}` : ''),
+                    `[ДОСТАВКА] ${escapeHtml(route.route_number || '')} | курьер приехал к клиенту\nЗаказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${route.stop_count || 0})\nАдрес: ${escapeHtml(stop.address || '')}` +
+                    (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
                     null, `admin-step-arrived:${stopId}`, client, true);
                 if (stop.client_chat_id) {
                     await queue.notify('client', stop.client_chat_id,
-                        `<b>Заказ ${escapeHtml(stop.order_number)}</b>\\n\\nСтатус: <b>Курьер приехал</b>\\nКурьер у вас, встречайте заказ.`,
+                        `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>\nКурьер у вас, встречайте заказ.`,
                         { dedupKey: `stop-arrived:${stopId}`, db: client, throwOnError: true });
                 }
             }
@@ -888,11 +888,14 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         bot.answerCallbackQuery(query.id, { text: changed ? 'Клиент уведомлён. Подтвердите передачу заказа.' : 'Этот шаг уже отмечен.' }).catch(() => {});
         if (!changed) return;
 
-        // Курьер на месте: сообщаем клиенту
+        // Клиентское уведомление уже записано в outbox вместе с этапом остановки.
         try {
             const route = await db.getRouteById(routeId);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-        } catch (e) { console.error('[DELIVER] notify error:', errorCode(e)); }
+            if (stop?.order_number && stop.status !== 'cancelled') {
+                await trackerEvent(trackerPool(), stop.order_number, { stage: 'arrived', eta: '' }).catch(() => {});
+            }
+        } catch (e) { console.error('[DELIVER] tracker update error:', errorCode(e)); }
     }
 
     else if (action === 'done') {
