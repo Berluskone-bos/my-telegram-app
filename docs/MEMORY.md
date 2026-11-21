@@ -5,9 +5,9 @@
 
 ## Где мы сейчас (21.11.2026)
 - Рабочий проект: Telegram Mini App и три Telegram-бота; фронтенд — GitHub Pages, backend и PostgreSQL — Railway.
-- Production commit: `d8da2ae0734669dd3bfb014c1acb82d0f397c0d1` (PR #89). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
+- Production commit: `e4651c742f1430d00b0e8ff69f9571a6d8f59bc9` (PR #90). GitHub Actions Tests завершился SUCCESS (108/108); последний deploy GitHub Pages — SUCCESS.
 - Railway production: `gulf-bot` и `Postgres` — Online, по одной активной реплике; недавних падений и активных предупреждений нет.
-- PR #73–89 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
+- PR #73–90 слиты в `main`; PR #90 ограничивает доступ к полному dispatch feed. PR #91 добавляет тест межкурьерского доступа. Старые отметки «ожидает merge/CI» по этим PR в исторических разделах TASKS.md устарели.
 - Neon и отдельный VPS не используются. `project-files/archive-vps/` сохранён как холодный исторический архив; он не запускается в production.
 - PostgreSQL размещён в Railway, регион sfo (США). Автоматические резервные копии не подтверждены; см. `docs/BACKUP.md`.
 - Каталог: основной источник — PostgreSQL; `data/catalog.json` — резервный источник. В JSON 18 записей: 13 товаров первой партии и 5 позиций `coming_soon`. Не менять товары, цены и остатки без подтверждения владельца.
