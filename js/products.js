@@ -153,6 +153,9 @@ const Products = {
             ? Math.round((1 - product.price / product.old_price) * 100)
             : 0;
         const image = product.main_image || product.image;
+        const brand = product.brand || product.brand_name || 'Gulf Western Oil';
+        const viscosity = product.viscosity || '';
+        const volume = product.volume || '';
 
         return `
             <div class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" onclick="App.showProduct(${product.id})">
@@ -163,22 +166,33 @@ const Products = {
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
                     </div>
                     <button class="favorite-btn ${isFavorite ? 'active' : ''}"
-                            onclick="event.stopPropagation(); App.toggleFavorite(${product.id})">
+                            onclick="event.stopPropagation(); App.toggleFavorite(${product.id})"
+                            aria-label="Избранное">
                         <i data-lucide="heart"></i>
                     </button>
                 </div>
                 <div class="product-info">
+                    <div class="product-brand">${esc(brand)}</div>
+                    ${viscosity ? `<div class="product-viscosity">${esc(viscosity)}</div>` : ''}
                     <div class="product-title">${esc(product.name)}</div>
-                    <div class="product-volume">${esc(product.volume || '\u00a0')}</div>
-                    ${(product.coming_soon || product.in_stock === false) ? '' : `<button class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})">
-                        <i data-lucide="shopping-bag"></i>
-                    </button>`}
-                    <div class="product-price-row">
+                    <div class="product-meta-row">
+                        ${volume ? `<span class="product-volume">${esc(volume)}</span>` : '<span class="product-volume"></span>'}
                         ${product.coming_soon
-                            ? '<span class="product-soon">Скоро в продаже</span>'
-                            : `<span class="product-price">${product.price.toLocaleString()} ₽</span>
-                        ${product.in_stock === false ? '<span class="product-soon">Нет в наличии</span>' : ''}
-                        ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString()} ₽</span>` : ''}`}
+                            ? '<span class="product-soon">Скоро</span>'
+                            : product.in_stock === false
+                                ? '<span class="product-soon">Нет в наличии</span>'
+                                : ''}
+                    </div>
+                    <div class="product-footer">
+                        <div class="product-price-row">
+                            ${product.coming_soon
+                                ? '<span class="product-soon">Скоро в продаже</span>'
+                                : `<span class="product-price">${product.price.toLocaleString('ru-RU')} ₽</span>
+                            ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</span>` : ''}`}
+                        </div>
+                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})" aria-label="В корзину">
+                            <i data-lucide="shopping-cart"></i>
+                        </button>`}
                     </div>
                 </div>
             </div>
@@ -211,8 +225,14 @@ const Products = {
                 <div class="product-detail-image">
                     ${this.getPictureHtml(image, product.name)}
                 </div>
+                <div class="product-detail-brand">${esc(product.brand || product.brand_name || 'Gulf Western Oil')}</div>
                 <div class="product-detail-name">${esc(product.full_name || product.name)}</div>
-                <div class="product-detail-volume">${esc(product.volume)}${product.viscosity ? ' · ' + esc(product.viscosity) : ''}</div>
+                ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
+                <div class="product-detail-chips">
+                    ${product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : ''}
+                    ${product.acea ? `<span class="spec-chip">${esc(product.acea)}</span>` : ''}
+                    ${product.volume ? `<span class="spec-chip">${esc(product.volume)}</span>` : ''}
+                </div>
                 <div class="product-detail-price-row">
                     ${product.coming_soon
                         ? '<div class="product-soon">Скоро в продаже</div>'
