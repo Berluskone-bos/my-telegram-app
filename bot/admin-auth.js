@@ -47,7 +47,11 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
     if (!pool || typeof pool.query !== 'function') throw new TypeError('pool is required');
     // Храним только SHA-256 IP, а не исходный адрес. PostgreSQL обеспечивает общий лимит
     // между несколькими процессами/репликами и сохраняет блокировку после перезапуска.
-    const ipKey = ip => crypto.createHash('sha256').update(String(ip || 'unknown')).digest('hex');
+    const rateLimitSecret = process.env.WEBHOOK_SECRET || process.env.ADMIN_API_KEY || (typeof getKey === 'function' ? getKey() : '');
+    if (typeof rateLimitSecret !== 'string' || rateLimitSecret.length < 32) {
+        throw new Error('WEBHOOK_SECRET (32+ символа) обязателен для безопасного rate limit');
+    }
+    const ipKey = ip => crypto.createHmac('sha256', rateLimitSecret).update(String(ip || 'unknown')).digest('hex');
     const secureReq = req => req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0] === 'https';
     const cookieName = req => secureReq(req) ? '__Host-admin_session' : 'admin_session';
     const anyCookie = req => readCookie(req, '__Host-admin_session') || readCookie(req, 'admin_session');
@@ -194,12 +198,12 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             const body = req.body && typeof req.body === 'object' ? req.body : {};
             const ip = String(req.ip || 'unknown');
             if (req.headers.origin && !sameOrigin(req)) return res.status(403).json({ error: 'Войти можно только на странице админки сервера' });
-            const wait = await blockedFor(ip);
-            if (wait) {
-                res.set('Retry-After', String(Math.ceil(wait / 1000)));
-                return res.status(429).json({ error: 'Слишком много попыток. Повторите позже.' });
-            }
             try {
+                const wait = await blockedFor(ip);
+                if (wait) {
+                    res.set('Retry-After', String(Math.ceil(wait / 1000)));
+                    return res.status(429).json({ error: 'Слишком много попыток. Повторите позже.' });
+                }
                 if (typeof body.login === 'string' || typeof body.password === 'string') {
                     const login = typeof body.login === 'string' ? body.login.trim() : '';
                     const password = typeof body.password === 'string' ? body.password : '';
