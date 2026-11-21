@@ -31,6 +31,7 @@ test('параллельные callback «Доставлен» фиксирую�
     });
 
     const created = [];
+    const stopIds = [];
     const makeShipment = async (tag) => {
         const order = await db.createOrder({
             order_number: 'AP-cdr-' + suffix.slice(-12) + '-' + tag,
@@ -73,6 +74,7 @@ test('параллельные callback «Доставлен» фиксирую�
             }]
         });
         const stopId = route.stops[0].id;
+        stopIds.push(stopId);
         const accepted = await db.acceptRouteStop(route.id, stopId);
         assert.equal(accepted.status, 'accepted');
         assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
@@ -80,7 +82,7 @@ test('параллельные callback «Доставлен» фиксирую�
     };
 
     t.after(async () => {
-        await pool.query("DELETE FROM notification_outbox WHERE dedup_key LIKE $1", ['stop-delivered:%']);
+        if (stopIds.length) await pool.query('DELETE FROM notification_outbox WHERE dedup_key = ANY($1::text[])', [stopIds.map(id => `stop-delivered:${id}`)]);
         await pool.query('DELETE FROM route_stops WHERE route_id IN (SELECT id FROM delivery_routes WHERE courier_id = $1)', [courier.id]);
         await pool.query('DELETE FROM delivery_routes WHERE courier_id = $1', [courier.id]);
         if (created.length) await pool.query('DELETE FROM orders WHERE id = ANY($1::int[])', [created]);
