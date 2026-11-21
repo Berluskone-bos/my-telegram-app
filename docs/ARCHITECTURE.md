@@ -24,7 +24,7 @@
 |---|---|
 | Фронтенд | HTML5, CSS3, чистый JS (модули `Products`, `Cart`, `Favorites`, `Profile`, `App`), Telegram WebApp API. Каталог: `data/catalog.json` (фолбэк и витрина) |
 | Бэкенд | Node.js, Express, `pg`, `node-telegram-bot-api` 0.67 (с `overrides` для безопасных `form-data`, `qs`, `tough-cookie`, `uuid`) |
-| База | PostgreSQL на Railway (служба `Postgres`, том 500 МБ, внутренний адрес `postgres.railway.internal`). Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals`, `admin_users`, `admin_sessions`, `loyalty_tiers`, `bonus_ledger`, `app_settings`, `notification_outbox`, `widget_messages` и таблицы кэша подбора масла |
+| База | PostgreSQL на Railway (служба `Postgres`, том 500 МБ, внутренний адрес `postgres.railway.internal`). Таблицы (создаёт `bot/db.js` при старте): `products`, `orders`, `couriers`, `delivery_routes`, `route_stops`, `delivery_zones`, `promo_codes`, `customer_profiles`, `user_garage`, `product_approvals`, `admin_users`, `admin_sessions`, `loyalty_tiers`, `bonus_ledger`, `app_flags`, `app_settings`, `notification_outbox`, `widget_messages` и таблицы кэша подбора масла |
 | Хостинг | Фронт — GitHub Pages (workflow `deploy-pages.yml`). Бэкенд — Railway (`Procfile`). |
 | Секреты (Railway Variables) | `BOT_TOKEN`, `COURIER_BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`, `WEBHOOK_URL` (база без пути), `WEBHOOK_SECRET`, `DATABASE_URL`, `YANDEX_GEO_KEY`, `PARTSAPI_KEY_VINDECODE`, `PARTSAPI_KEY_GETFILLVOLUMES`, `PARTSAPI_KEY_TODOPUSK`, `PARTSAPI_KEY_GETMAKES`, `PARTSAPI_KEY_GETMODELS`, `PARTSAPI_KEY_GETCARS`; опц. `WAREHOUSE_ADDRESS` (или `WAREHOUSE_LAT` + `WAREHOUSE_LON`) — склад, откуда курьер стартует; `SERVICE_MINUTES` (время на выдачу заказа, по умолчанию 5), `ETA_UPDATE_MINUTES` (порог пересылки времени клиенту, 15), `OSRM_URL` (сервис дорог, по умолчанию публичный router.project-osrm.org), `WIDGETS_ENABLED` (0 — выключить интерактивные карточки, по умолчанию включены), `PARTSAPI_DAILY_LIMIT`, `ADMIN_USER_IDS`, `ALLOWED_ORIGINS`, `DB_SSL_STRICT`, `INIT_DATA_TTL_SEC` |
 
@@ -172,3 +172,7 @@ PR #54 добавил индивидуальные учётные записи, 
 
 ## Постоянное состояние складского учёта
 Первый заказ при наличии хотя бы одного активного товара с положительным остатком устанавливает `app_flags.stock_tracking_enabled` в той же транзакции, что и заказ. Режим остаётся включённым, даже когда все остатки становятся нулевыми. Публичный каталог использует сохранённый флаг, поэтому не показывает распроданный товар как доступный. Ручная корректировка поля `stock` через DB adapter также включает режим. Регрессия покрывается `test/orders-stock.pg.test.js` (PR в работе).
+
+
+## Атомарная активация складского учёта
+При ручной корректировке поля `stock` изменение товара и запись `app_flags.stock_tracking_enabled` выполняются в одной транзакции. Флаг устанавливается только если UPDATE действительно изменил существующую строку товара. Это не позволяет случайному или ошибочному ID включить глобальный режим складского учёта. Регрессионный тест находится в `test/orders-stock.pg.test.js` (PR #98).
