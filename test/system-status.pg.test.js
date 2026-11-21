@@ -152,4 +152,31 @@ test('system-status: только после входа, показывает б
     assert.equal(operatorDispatchStats.cash_to_collect, null, 'оператору не раскрывается сумма к сбору');
     assert.equal(operatorDispatchStats.cash_collected, null, 'оператору не раскрывается собранная сумма');
 
+    // Strict decimal IDs: Number() alone also accepts scientific and hexadecimal notation.
+    for (const invalidId of ['1e3', '0x10']) {
+        assert.equal((await fetch(base + '/api/orders/' + invalidId, { headers: { ...H, cookie } })).status, 400,
+            'GET заказа отклоняет не десятичный ID: ' + invalidId);
+        assert.equal((await fetch(base + '/api/orders/' + invalidId + '/assign', {
+            method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify({ courier_id: '1' })
+        })).status, 400, 'назначение отклоняет не десятичный ID заказа: ' + invalidId);
+        assert.equal((await fetch(base + '/api/products/' + invalidId + '/stock', {
+            method: 'PATCH', headers: { ...Hsame, cookie }, body: JSON.stringify({ stock: 1, expected_stock: 0 })
+        })).status, 400, 'изменение остатков отклоняет не десятичный ID: ' + invalidId);
+        assert.equal((await fetch(base + '/api/products/' + invalidId, {
+            method: 'PUT', headers: { ...Hsame, cookie }, body: JSON.stringify({ name: 'invalid' })
+        })).status, 400, 'редактирование товара отклоняет не десятичный ID: ' + invalidId);
+        for (const suffix of ['/password', '/revoke-sessions']) {
+            const body = suffix === '/password' ? { password: 'New-Password-2026!' } : {};
+            assert.equal((await fetch(base + '/api/admin/staff/' + invalidId + suffix, {
+                method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify(body)
+            })).status, 400, 'операция сотрудника отклоняет не десятичный ID: ' + invalidId + suffix);
+        }
+        assert.equal((await fetch(base + '/api/admin/staff/' + invalidId, {
+            method: 'PATCH', headers: { ...Hsame, cookie }, body: JSON.stringify({ displayName: 'invalid' })
+        })).status, 400, 'изменение сотрудника отклоняет не десятичный ID: ' + invalidId);
+    }
+    assert.equal((await fetch(base + '/api/orders/1/assign', {
+        method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify({ courier_id: '1e3' })
+    })).status, 400, 'назначение отклоняет scientific notation в ID курьера');
+
 });

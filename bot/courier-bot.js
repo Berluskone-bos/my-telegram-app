@@ -1302,8 +1302,10 @@ function registerCourierRoutes(app) {
     });
 
     app.get('/api/orders/:id', verifyAdmin, requirePermission('orders.view'), async (req, res) => {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         try {
             const order = await db.getOrderById(id);
             if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -1479,12 +1481,21 @@ function registerCourierRoutes(app) {
     // Назначить курьера на заказ
     // Совместимый endpoint одиночного назначения: использует тот же маршрутный процесс, что и пакетная отправка.
     app.post('/api/orders/:id/assign', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
-        const orderId = Number(req.params.id);
-        if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный номер заказа' });
+        const rawOrderId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawOrderId)) return res.status(400).json({ error: 'Некорректный номер заказа' });
+        const orderId = Number(rawOrderId);
+        if (!Number.isSafeInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Некорректный номер заказа' });
         try {
-            let courierId = Number(req.body && req.body.courier_id);
+            const rawCourierId = req.body && req.body.courier_id;
+            let courierId = null;
+            if (rawCourierId !== undefined && rawCourierId !== null && rawCourierId !== '') {
+                const courierIdText = String(rawCourierId);
+                if (!/^\d{1,15}$/.test(courierIdText)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+                courierId = Number(courierIdText);
+                if (!Number.isSafeInteger(courierId) || courierId <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
+            }
             const couriers = await db.getCouriers();
-            if (!courierId) {
+            if (courierId === null) {
                 const active = couriers.filter(x => x.is_active);
                 if (active.length === 1) courierId = Number(active[0].id);
                 else return res.status(400).json({ error: 'Выберите курьера' });
@@ -1531,8 +1542,10 @@ function registerCourierRoutes(app) {
     });
 
     app.patch('/api/products/:id/stock', verifyAdmin, requirePermission('inventory.manage'), async (req, res) => {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateStockUpdate(req.body);
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         try {
@@ -1557,8 +1570,10 @@ function registerCourierRoutes(app) {
     });
 
     app.put('/api/products/:id', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         const validated = validateProductPayload(req.body, { partial: true });
         if (!validated.ok) return res.status(400).json({ error: validated.error });
         let expectedStock;
