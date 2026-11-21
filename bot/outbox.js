@@ -65,6 +65,17 @@ async function supersede(db, dedupKey) {
     return r.rowCount > 0;
 }
 
+// Ручное восстановление окончательно не доставленного уведомления после исправления конфигурации.
+// Обновляем ту же строку: dedup_key сохраняется, поэтому повторное событие не создаст дубликат.
+async function retryFailed(db, id) {
+    const r = await db.query(
+        `UPDATE notification_outbox
+            SET status = 'pending', attempts = 0, next_attempt_at = NOW(), locked_until = NULL, last_error = NULL
+          WHERE id = $1 AND status = 'failed'
+          RETURNING id`, [id]);
+    return r.rowCount > 0;
+}
+
 function createOutbox({ pool, send, batch = 10 }) {
     const leaseSec = leaseDurationSec(batch);
     let timer = null, running = false, lastPurge = 0;
@@ -190,7 +201,7 @@ function createOutbox({ pool, send, batch = 10 }) {
     }
     function stop() { if (timer) { clearInterval(timer); timer = null; } }
 
-    return { processOnce, start, stop, tick, purge, enqueue: (item, db) => enqueue(db || pool, item), supersede: (key, db) => supersede(db || pool, key) };
+    return { processOnce, start, stop, tick, purge, enqueue: (item, db) => enqueue(db || pool, item), supersede: (key, db) => supersede(db || pool, key), retryFailed: (id) => retryFailed(pool, id) };
 }
 
-module.exports = { createOutbox, enqueue, supersede, classifyError, retryDelaySec, leaseDurationSec, MAX_ATTEMPTS };
+module.exports = { createOutbox, enqueue, supersede, retryFailed, classifyError, retryDelaySec, leaseDurationSec, MAX_ATTEMPTS };
