@@ -79,8 +79,8 @@ test('курьерский бот: кнопки отменённого зака�
         await handlers.callback_query({ id: 'q1', data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
         await new Promise(r => setTimeout(r, 150));
     };
-    const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
-    const clientTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'client' ORDER BY id")).rows.map(r => r.t);
+    const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
+    const clientTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'client' AND method = 'sendMessage' ORDER BY id")).rows.map(r => r.t);
 
     // Прямой вызов callback с ID маршрута другого курьера не раскрывает данные и не меняет состояние.
     const foreignOrder = await db.createOrder({ order_number: 'AP-cg_foreign', user_id: 777099, user_name: 'К', name: 't', phone: '1',
