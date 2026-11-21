@@ -154,3 +154,6 @@ PR #54 добавил индивидуальные учётные записи, 
 - `operator` (`routes.manage`) получает только `couriers: id, name, is_active` и `routes: id, courier_id, stops[].order_id`, необходимые экрану заказов для назначения и отображения курьера. Телефоны и Telegram-идентификаторы курьеров, а также ПДн клиентов в остановках маршрута в этих ответах не передаются.
 - Ответы построения/одиночного назначения маршрута для оператора содержат только метаданные маршрута; полный список остановок остаётся только у admin. Оптимизация маршрута требует `settings.manage`.
 - Реализация и регрессионные тесты: `bot/admin-dispatch-visibility.js`, `test/admin-dispatch-visibility.test.js` (PR #93).
+
+## Cache policy for customer profile
+Маршруты `GET /api/profile` и `PUT /api/profile` устанавливают `Cache-Control: no-store` после проверки подписанного Telegram initData, поскольку ответы содержат номер телефона клиента. Регрессионная проверка находится в `test/order-api.pg.test.js`.
