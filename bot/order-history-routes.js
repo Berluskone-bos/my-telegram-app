@@ -37,6 +37,7 @@ function registerOrderHistoryRoutes(app, { db, rateLimit, authenticatedTelegramU
         try {
             const user = authenticatedTelegramUser(req);
             if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+            res.set('Cache-Control', 'no-store');
             const nums = req.body && Array.isArray(req.body.orderNumbers) ? req.body.orderNumbers : null;
             if (!nums || nums.length === 0 || nums.length > 100 || !nums.every(n => typeof n === 'string' && n.length <= 40)) {
                 return res.status(400).json({ success: false, error: 'Invalid order numbers' });
