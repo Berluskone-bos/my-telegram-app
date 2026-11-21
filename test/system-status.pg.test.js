@@ -130,7 +130,7 @@ test('system-status: только после входа, показывает б
     });
     rbacCourierId = courier.id;
     const route = await db.createRoute({
-        route_number: 'RBAC-' + Date.now(), route_date: statsDate,
+        route_number: 'RBAC-' + Date.now().toString().slice(-10), route_date: statsDate,
         courier_id: courier.id, status: 'assigned', total_orders: 2,
         cash_to_collect: 1500, cash_collected: 500, stops: []
     });
