@@ -109,6 +109,33 @@ test('параллельные callback «Доставлен» фиксирую�
     );
     assert.equal(notices.rows[0].n, 1, 'в outbox ровно одно уведомление клиенту');
 
+    const transactional = await makeShipment('tx');
+    const { enqueue } = require('../bot/outbox');
+    const adminRollbackKey = 'complete-admin-rollback:' + transactional.stopId;
+    await assert.rejects(db.completeDeliveryStop(transactional.stopId, {
+        afterComplete: async ({ client }) => {
+            await enqueue(client, { bot: 'admin', dedupKey: adminRollbackKey, payload: { chat_id: '1', text: 'Доставлено' } });
+            throw new Error('simulate admin notification enqueue failure');
+        }
+    }), /simulate admin notification enqueue failure/);
+    const rolledBack = (await pool.query(
+        `SELECT rs.status AS stop_status, o.status AS order_status
+           FROM route_stops rs JOIN orders o ON o.id::text = rs.order_id
+          WHERE rs.id = $1`, [transactional.stopId]
+    )).rows[0];
+    assert.equal(rolledBack.stop_status, 'in_progress', 'остановка откатывается при сбое admin outbox');
+    assert.equal(rolledBack.order_status, 'SHIPPING', 'заказ откатывается при сбое admin outbox');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [adminRollbackKey])).rows[0].n, 0);
+
+    const adminKey = 'complete-admin-ok:' + transactional.stopId;
+    assert.equal((await db.completeDeliveryStop(transactional.stopId, {
+        afterComplete: async ({ client }) => {
+            await enqueue(client, { bot: 'admin', dedupKey: adminKey, payload: { chat_id: '1', text: 'Доставлено' } });
+        }
+    })).status, 'completed');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [adminKey])).rows[0].n, 1,
+        'административное уведомление фиксируется вместе с доставкой');
+
     const second = await makeShipment('b');
     const race = await Promise.all([
         db.completeDeliveryStop(second.stopId),
