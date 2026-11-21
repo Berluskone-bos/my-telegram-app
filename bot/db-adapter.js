@@ -17,6 +17,8 @@ function toDbValue(val) {
 
 // Допустимые смены статуса заказа. Конечные состояния защищены, чтобы нельзя было
 // «вернуть» доставленный заказ в работу и потом отменить его с повторным возвратом товара на склад.
+//   DELIVERY_FAILED — курьер не смог вручить заказ (ставит только курьерский бот): дальше только
+//     «вернули на склад, отправить повторно» (READY_FOR_SHIPMENT) или отмена;
 //   NEW, CONFIRMED, ASSEMBLING, SHIPPING — рабочие: между ними можно двигаться в любую сторону;
 //   DELIVERED  -> только COMPLETED или CANCELLED (возврат денег; на склад товар не возвращается);
 //   COMPLETED  -> только CANCELLED (поздний возврат; на склад товар не возвращается);
@@ -31,7 +33,8 @@ function orderTransitionAllowed(from, to) {
         READY_FOR_SHIPMENT: ['CANCELLED'],
         READY_FOR_PICKUP: ['PICKED_UP', 'CANCELLED'],
         PICKED_UP: [],
-        SHIPPING: ['COMPLETED', 'CANCELLED'],
+        SHIPPING: ['COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'],
+        DELIVERY_FAILED: ['READY_FOR_SHIPMENT', 'CANCELLED'],
         DELIVERED: ['COMPLETED', 'CANCELLED'],
         COMPLETED: ['CANCELLED'],
         CANCELLED: []
@@ -475,6 +478,20 @@ class DBAdapter {
         } finally { client.release(); }
     }
 
+    // Этап остановки для курьера: 'enroute' (в пути к клиенту) / 'arrived' (у клиента).
+    // Хранится в базе, чтобы карточка маршрута и сообщения не зависели от того, на каком сообщении нажали кнопку.
+    // Возвращает остановку, если этап изменился, и null, если он уже был таким (повторное нажатие) или остановка не в работе.
+    async setStopStage(stopId, stage) {
+        const id = Number(stopId);
+        if (!Number.isInteger(id) || id <= 0 || !['enroute', 'arrived'].includes(stage)) return null;
+        const res = await pool.query(
+            `UPDATE route_stops SET stage = $2::text, stage_at = NOW()
+              WHERE id = $1 AND status = 'in_progress' AND stage IS DISTINCT FROM $2::text
+                AND NOT (COALESCE(stage, '') = 'arrived' AND $2::text = 'enroute')
+              RETURNING *`, [id, stage]);
+        return res.rows[0] || null;
+    }
+
     async updateStopStatus(stopId, status, reason) {
         const id = Number(stopId);
         if (!Number.isInteger(id)) return null;
@@ -490,8 +507,8 @@ class DBAdapter {
     }
 
     // Неудачная попытка доставки — отдельный терминальный результат остановки,
-    // но не отмена заказа и не завершение всего маршрута. Заказ остаётся SHIPPING,
-    // чтобы оператор мог принять решение о дальнейших действиях с заказом.
+    // но не отмена заказа и не завершение всего маршрута. Заказ получает статус DELIVERY_FAILED
+    // («Не доставлен»): он виден в админке отдельной колонкой, оператор решает — повторная отправка или отмена.
     async failDeliveryStop(stopId, reason) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
@@ -522,10 +539,6 @@ class DBAdapter {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
             }
-            if (routeRes.rows[0].status !== 'in_progress') {
-                await client.query('ROLLBACK');
-                return { status: 'route_not_started' };
-            }
             const stopRes = await client.query(
                 'SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [id, candidate.route_id]);
             if (!stopRes.rowCount) {
@@ -533,9 +546,14 @@ class DBAdapter {
                 return { status: 'not_found' };
             }
             const stop = stopRes.rows[0];
+            // Повторное нажатие «Не доставлено» — «уже отмечено», даже если маршрут успел завершиться
             if (stop.status === 'failed') {
                 await client.query('COMMIT');
                 return { status: 'already', stop };
+            }
+            if (routeRes.rows[0].status !== 'in_progress') {
+                await client.query('ROLLBACK');
+                return { status: 'route_not_started' };
             }
             if (stop.status === 'cancelled') {
                 await client.query('ROLLBACK');
@@ -550,6 +568,14 @@ class DBAdapter {
                     SET status = 'failed', fail_reason = $2::text
                   WHERE id = $1 RETURNING *`,
                 [id, String(reason || 'Не указана').slice(0, 300)]);
+            // Заказ тоже становится «Не доставлен» (раньше оставался «В пути» и в админке ничего не менялось).
+            // Заказ уже заблокирован выше; отменённый и доставленный сюда не попадут (остановка не in_progress).
+            await client.query(
+                `UPDATE orders SET status = 'DELIVERY_FAILED'
+                  WHERE status = 'SHIPPING'
+                    AND ((NULLIF($1::text, '') IS NOT NULL AND id::text = NULLIF($1::text, ''))
+                      OR (NULLIF($2::text, '') IS NOT NULL AND order_number = NULLIF($2::text, '')))`,
+                [candidate.order_id == null ? '' : String(candidate.order_id), candidate.order_number || '']);
             await this._refreshRouteCompletion(client, candidate.route_id);
             const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [candidate.route_id]);
             await client.query('COMMIT');
@@ -849,7 +875,11 @@ class DBAdapter {
         const [count, rows] = await Promise.all([
             pool.query('SELECT COUNT(*)::int AS total FROM orders'),
             pool.query(
-                `SELECT id, order_number, user_name, phone, total, status, delivery_type, created_at
+                `SELECT id, order_number, user_name, phone, total, status, delivery_type, created_at,
+                        CASE WHEN status = 'DELIVERY_FAILED' THEN
+                            (SELECT rs.fail_reason FROM route_stops rs
+                              WHERE rs.status = 'failed' AND rs.order_id = orders.id::text ORDER BY rs.id DESC LIMIT 1)
+                        END AS fail_reason
                    FROM orders ORDER BY id DESC LIMIT $1 OFFSET $2`,
                 [safeLimit, offset]
             )

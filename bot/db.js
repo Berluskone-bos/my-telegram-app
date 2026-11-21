@@ -235,6 +235,9 @@ async function initDB() {
                 ADD COLUMN IF NOT EXISTS courier_chat_id BIGINT,
                 ADD COLUMN IF NOT EXISTS courier_message_id BIGINT;
             ALTER TABLE route_stops
+                ADD COLUMN IF NOT EXISTS stage VARCHAR(16),
+                ADD COLUMN IF NOT EXISTS stage_at TIMESTAMPTZ;
+            ALTER TABLE route_stops
                 ADD COLUMN IF NOT EXISTS eta_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS eta_told_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS client_rating SMALLINT CHECK (client_rating BETWEEN 1 AND 5);

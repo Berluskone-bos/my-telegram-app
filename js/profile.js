@@ -14,6 +14,7 @@ const Profile = {
         CONFIRMED: { text: 'Подтверждён', class: 'order-status-confirmed' },
         ASSEMBLING: { text: 'Собирается', class: 'order-status-assembling' },
         SHIPPING: { text: 'В доставке', class: 'order-status-shipped' },
+        DELIVERY_FAILED: { text: 'Не доставлен — свяжемся с вами', class: 'order-status-cancelled' },
         SHIPPED: { text: 'В доставке', class: 'order-status-shipped' },
         DELIVERED: { text: 'Доставлен', class: 'order-status-delivered' },
         COMPLETED: { text: 'Завершён', class: 'order-status-delivered' },

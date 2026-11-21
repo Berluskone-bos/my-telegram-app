@@ -183,135 +183,146 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777004, 3)).status, 'already_rated');
     assert.equal((await db.rateCourierForStop(b.stopId, courier.id, 777005, 4)).status, 'not_allowed');
 
-    // Маршрут из трёх заказов: одна карта со всеми точками и строго последовательные клиентские статусы.
+    // ===== Маршрут из трёх заказов: одно сообщение-карточка, номера, свободный выбор заказа =====
     await pool.query('DELETE FROM notification_outbox');
-    const multiOrders = [];
-    for (let i = 1; i <= 3; i++) {
-        const key = `cg_multi_${i}`;
-        const o = await db.createOrder({ order_number: 'AP-' + key, user_id: 777010 + i, user_name: 'К', name: 't', phone: '1',
-            address: `СПб, адрес ${i}`, zone: 'spb', city: 'c', street: 's', house: String(i), items: [], subtotal: 1, total: 1, idempotency_key: key });
-        for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o.id, status), true);
-        multiOrders.push(o);
-    }
-    const multiRoute = await db.createRoute({
-        route_number: 'RL-CGMULTI', route_date: '2026-11-14', courier_id: courier.id, status: 'assigned',
-        total_orders: 3, enforceReadyOrders: true,
-        stops: multiOrders.map((o, i) => ({
-            order_id: String(o.id), order_number: o.order_number, stop_number: i + 1,
-            address: o.address, lat: 59.93 + i * 0.01, lon: 30.33 + i * 0.01,
-            phone: '1', client_name: 'К', client_chat_id: o.user_id,
-            amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: ''
-        }))
-    });
-    for (const st of multiRoute.stops) await press(`deliver_${multiRoute.id}_${st.id}_accept`);
-    await press(`startroute_${multiRoute.id}`);
-    const routeCard = calls.filter(c => c[0] === 'sendMessage');
-    assert.equal(routeCard.length, 1, 'после старта отправляется одно сообщение с единым маршрутом');
-    const routeText = routeCard[0][2];
-    assert.match(routeText, /1\. <b>AP-cg_multi_1/);
-    assert.match(routeText, /2\. <b>AP-cg_multi_2/);
-    assert.match(routeText, /3\. <b>AP-cg_multi_3/);
-    const routeKeyboard = routeCard[0][3].reply_markup.inline_keyboard;
-    const mapButtons = routeKeyboard.flat().filter(x => x.url);
-    assert.equal(mapButtons.length, 2, 'одна карточка содержит ссылки на общий маршрут в навигаторах');
-    assert.match(mapButtons[0].url, /59\.93,30\.33~59\.94,30\.34~59\.95,30\.35/);
-    assert.ok(routeKeyboard.flat().some(x => x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[0].id}_enroute`));
-    assert.deepEqual(await clientTexts(), [], 'при старте маршрута ни один клиент не получает преждевременное «Курьер в пути»');
+    const mkMulti = async (prefix, routeNumber, baseLat) => {
+        const orders = [];
+        for (let i = 1; i <= 3; i++) {
+            const key = `${prefix}_${i}`;
+            const o = await db.createOrder({ order_number: 'AP-' + key, user_id: 777010 + i, user_name: 'К', name: 't', phone: '1',
+                address: `СПб, адрес ${i}`, zone: 'spb', city: 'c', street: 's', house: String(i), items: [], subtotal: 1, total: 1, idempotency_key: key });
+            for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o.id, status), true);
+            orders.push(o);
+        }
+        const route = await db.createRoute({
+            route_number: routeNumber, route_date: '2026-11-14', courier_id: courier.id, status: 'assigned',
+            total_orders: 3, enforceReadyOrders: true,
+            stops: orders.map((o, i) => ({
+                order_id: String(o.id), order_number: o.order_number, stop_number: i + 1,
+                address: o.address, lat: baseLat + i * 0.01, lon: 30.33 + i * 0.01,
+                phone: '1', client_name: 'К', client_chat_id: o.user_id,
+                amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: ''
+            }))
+        });
+        for (const st of route.stops) await press(`deliver_${route.id}_${st.id}_accept`);
+        return { orders, route, stops: route.stops };
+    };
+    const lastCard = () => {
+        const edits = calls.filter(c => c[0] === 'editMessageText');
+        return edits.length ? { text: edits.at(-1)[1], keyboard: edits.at(-1)[2].reply_markup.inline_keyboard } : null;
+    };
+    const hasBtn = (kb, data) => kb.flat().some(b => b.callback_data === data);
+    const orderStatus = async (id) => (await pool.query('SELECT status FROM orders WHERE id = $1', [id])).rows[0].status;
 
-    await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_enroute`, { inline_keyboard: routeKeyboard });
-    let actionKeyboard = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1)?.[1]?.inline_keyboard || [];
-    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `failed_${multiRoute.id}_${multiRoute.stops[0].id}`),
-        'после нажатия «В пути» кнопка «Не доставлено» остаётся доступной');
-    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[0].id}_arrived`),
-        'после нажатия «В пути» появляется действие «У клиента»');
-    let multiClientTexts = await clientTexts();
-    assert.equal(multiClientTexts.length, 1, 'после «В пути» уведомляется только первый клиент');
-    assert.match(multiClientTexts[0], /AP-cg_multi_1/);
-    await press(`deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`, { inline_keyboard: routeKeyboard });
-    assert.equal((await clientTexts()).length, 1, 'нельзя начать вторую точку до завершения первой');
-    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /предыдущую доставку/);
+    const M = await mkMulti('cg_multi', 'RL-CGMULTI', 59.93);
+    const [s1, s2, s3] = M.stops;
+    await press(`startroute_${M.route.id}`);
+    const sent = calls.filter(c => c[0] === 'sendMessage');
+    assert.equal(sent.length, 1, 'после старта — ОДНО сообщение со всем маршрутом');
+    const cardText = sent[0][2];
+    assert.match(cardText, /1\. <b>AP-cg_multi_1/);
+    assert.match(cardText, /2\. <b>AP-cg_multi_2/);
+    assert.match(cardText, /3\. <b>AP-cg_multi_3/);
+    assert.match(cardText, /Заказов: 3 · доставлено: 0 · не доставлено: 0 · осталось: 3/);
+    assert.match(cardText, /Сейчас: заказ 1 из 3/);
+    const kb0 = sent[0][3].reply_markup.inline_keyboard;
+    assert.equal(kb0.flat().filter(b => b.url && /~/.test(b.url)).length >= 1, true, 'есть ссылка на весь маршрут');
+    assert.ok(hasBtn(kb0, `deliver_${M.route.id}_${s1.id}_enroute`), 'для первого заказа кнопка «В пути»');
+    assert.ok(hasBtn(kb0, `failed_${M.route.id}_${s1.id}`), 'кнопка «Не доставлено» с номером');
+    assert.ok(kb0.flat().some(b => b.text === 'Выбрать №2') && kb0.flat().some(b => b.text === 'Выбрать №3'), 'курьер может выбрать любой заказ');
+    assert.deepEqual(await clientTexts(), [], 'при старте клиентам ничего не уходит');
 
-    await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_arrived`, { inline_keyboard: routeKeyboard });
-    actionKeyboard = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1)?.[1]?.inline_keyboard || [];
-    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `failed_${multiRoute.id}_${multiRoute.stops[0].id}`),
-        'после нажатия «У клиента» кнопка «Не доставлено» по-прежнему доступна');
-    assert.ok(actionKeyboard.flat().some(x => x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[0].id}_done`),
-        'после нажатия «У клиента» доступно подтверждение «Доставлен»');
-    await press(`deliver_${multiRoute.id}_${multiRoute.stops[0].id}_done`, { inline_keyboard: routeKeyboard });
-    const nextKeyboardCall = calls.filter(c => c[0] === 'editMessageReplyMarkup').at(-1);
-    assert.ok(nextKeyboardCall?.[1]?.inline_keyboard?.flat().some(x =>
-        x.callback_data === `deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`),
-        'после завершения первой доставки в той же карточке открывается вторая точка');
-    assert.equal((await clientTexts()).length, 3, 'первый клиент получает «В пути», «У клиента», «Доставлен»; второй пока не уведомлён');
+    // Курьер сам выбирает заказ №2 — то же сообщение перерисовывается, новых сообщений нет
+    await press(`pickstop_${M.route.id}_${s2.id}`);
+    assert.equal(calls.filter(c => c[0] === 'sendMessage').length, 0, 'выбор заказа не создаёт новых сообщений');
+    let card = lastCard();
+    assert.match(card.text, /Сейчас: заказ 2 из 3/);
+    assert.ok(hasBtn(card.keyboard, `deliver_${M.route.id}_${s2.id}_enroute`));
+    assert.ok(hasBtn(card.keyboard, `pickstop_${M.route.id}_${s1.id}`));
 
-    await press(`deliver_${multiRoute.id}_${multiRoute.stops[1].id}_enroute`);
-    multiClientTexts = await clientTexts();
-    assert.ok(multiClientTexts.some(t => /AP-cg_multi_2/.test(t) && /Курьер выехал/.test(t)),
-        'второй клиент получает уведомление только после завершения первой доставки');
-    assert.ok(!multiClientTexts.some(t => /AP-cg_multi_3/.test(t)),
-        'третий клиент не уведомляется до завершения второй доставки');
+    // Едет к №2 (не к первому): порядок не навязывается; уведомляется только клиент №2
+    await press(`deliver_${M.route.id}_${s2.id}_enroute`);
+    assert.ok(!calls.some(c => c[0] === 'answerCallbackQuery' && c[2]?.show_alert), 'свободный выбор заказа не блокируется');
+    let ct = await clientTexts();
+    assert.equal(ct.length, 1); assert.match(ct[0], /AP-cg_multi_2/); assert.match(ct[0], /Курьер выехал/);
+    card = lastCard();
+    assert.match(card.text, /2\. <b>AP-cg_multi_2<\/b>[^\n]*\n\s+в пути к клиенту/);
+    assert.ok(hasBtn(card.keyboard, `deliver_${M.route.id}_${s2.id}_arrived`), 'следующий шаг — «У клиента»');
+    await press(`deliver_${M.route.id}_${s2.id}_enroute`);
+    assert.equal((await clientTexts()).length, 1, 'повторное нажатие не дублирует сообщение клиенту');
 
-    // Недоставка первой из трёх точек должна закрыть только остановку, а не весь маршрут.
+    await press(`deliver_${M.route.id}_${s2.id}_arrived`);
+    assert.equal((await clientTexts()).length, 2);
+    assert.match(lastCard().text, /курьер у клиента/);
+    // Пока курьер у клиента №2, другой заказ в путь не берём
+    await press(`deliver_${M.route.id}_${s3.id}_enroute`);
+    const blocked = calls.find(c => c[0] === 'answerCallbackQuery');
+    assert.ok(blocked[2].show_alert && /Сначала закончите заказ №2/.test(blocked[2].text));
+    assert.equal((await clientTexts()).length, 2, 'клиент №3 не получил «Курьер выехал»');
+
+    await press(`deliver_${M.route.id}_${s2.id}_done`);
+    assert.equal(await orderStatus(M.orders[1].id), 'COMPLETED');
+    card = lastCard();
+    assert.match(card.text, /Заказов: 3 · доставлено: 1 · не доставлено: 0 · осталось: 2/);
+    assert.match(card.text, /2\. <b>AP-cg_multi_2<\/b>[^\n]*\n\s+доставлен/);
+    assert.ok(!hasBtn(card.keyboard, `deliver_${M.route.id}_${s2.id}_done`), 'у доставленного заказа кнопок нет');
+    // кнопка на старом сообщении по уже доставленному заказу — предупреждение, а не повторная отправка
+    const before = (await clientTexts()).length;
+    await press(`deliver_${M.route.id}_${s2.id}_enroute`);
+    assert.match(calls.find(c => c[0] === 'answerCallbackQuery')[2].text, /уже доставлен/);
+    assert.equal((await clientTexts()).length, before);
+
+    // ===== «Не доставлен» первого заказа: статус в админке меняется, одно сообщение, причина кодом =====
     await pool.query('DELETE FROM notification_outbox');
-    const failedOrders = [];
-    for (let i = 1; i <= 3; i++) {
-        const key = `cg_failed_${i}`;
-        const o = await db.createOrder({ order_number: 'AP-' + key, user_id: 777020 + i, user_name: 'К', name: 't', phone: '1',
-            address: `СПб, адрес недоставки ${i}`, zone: 'spb', city: 'c', street: 's', house: String(i), items: [], subtotal: 1, total: 1, idempotency_key: key });
-        for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(o.id, status), true);
-        failedOrders.push(o);
-    }
-    const failedRoute = await db.createRoute({
-        route_number: 'RL-CGFAILED', route_date: '2026-11-14', courier_id: courier.id, status: 'assigned',
-        total_orders: 3, enforceReadyOrders: true,
-        stops: failedOrders.map((o, i) => ({
-            order_id: String(o.id), order_number: o.order_number, stop_number: i + 1,
-            address: o.address, lat: 59.96 + i * 0.01, lon: 30.36 + i * 0.01,
-            phone: '1', client_name: 'К', client_chat_id: o.user_id,
-            amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: ''
-        }))
-    });
-    for (const st of failedRoute.stops) await press(`deliver_${failedRoute.id}_${st.id}_accept`);
-    await press(`startroute_${failedRoute.id}`);
-    const failedRouteCard = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat().some(b => b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[0].id}_enroute`));
-    assert.ok(failedRouteCard, 'общая карточка трёх точек создана');
+    await press(`failed_${M.route.id}_${s1.id}`);
+    assert.equal(calls.filter(c => c[0] === 'sendMessage').length, 0, 'выбор причины — в том же сообщении');
+    card = lastCard();
+    assert.match(card.text, /почему не доставлен/);
+    assert.ok(hasBtn(card.keyboard, `failreason_${M.route.id}_${s1.id}_nohome`));
+    assert.ok(hasBtn(card.keyboard, `pickstop_${M.route.id}_${s1.id}`), '«Назад, заказ не отмечать»');
+    for (const b of card.keyboard.flat()) assert.ok(Buffer.byteLength(b.callback_data || '') <= 64, 'callback_data не длиннее 64 байт');
+    assert.equal(await orderStatus(M.orders[0].id), 'SHIPPING', 'пока причина не выбрана, статус не меняется');
 
-    await press(`failed_${failedRoute.id}_${failedRoute.stops[0].id}`, failedRouteCard[3].reply_markup);
-    const reasonPrompt = calls.find(c => c[0] === 'sendMessage' && /Причина не доставки/.test(c[2]));
-    assert.ok(reasonPrompt, 'курьеру показан выбор причины недоставки');
-    assert.equal(reasonPrompt[3].reply_to_message_id, 55, 'причина привязана к общей карточке маршрута');
+    await press(`failreason_${M.route.id}_${s1.id}_nohome`);
+    const st = await db.getRouteById(M.route.id);
+    assert.equal(st.stops[0].status, 'failed');
+    assert.equal(st.stops[0].fail_reason, 'Клиента нет дома');
+    assert.equal(st.status, 'in_progress', 'маршрут остаётся в работе, пока есть заказ №3');
+    assert.equal(await orderStatus(M.orders[0].id), 'DELIVERY_FAILED', 'в админке статус «Не доставлен», а не «В доставке»');
+    assert.equal(calls.filter(c => c[0] === 'sendMessage').length, 0, 'после причины новых сообщений нет');
+    card = lastCard();
+    assert.match(card.text, /1\. <b>AP-cg_multi_1<\/b>[^\n]*\n\s+НЕ ДОСТАВЛЕН \(Клиента нет дома\)/);
+    assert.match(card.text, /доставлено: 1 · не доставлено: 1 · осталось: 1/);
+    assert.match(card.text, /Сейчас: заказ 3 из 3/);
+    assert.ok(!hasBtn(card.keyboard, `deliver_${M.route.id}_${s1.id}_enroute`), 'для недоставленного кнопок нет');
+    assert.ok((await adminTexts()).some(t => /НЕ ДОСТАВЛЕНО/.test(t) && /Клиента нет дома/.test(t) && /Не доставлен/.test(t)), 'админ-бот: статус и причина');
+    assert.ok((await clientTexts()).some(t => /AP-cg_multi_1/.test(t) && /не доставлен/.test(t)), 'клиенту: попытка не удалась');
+    await press(`failreason_${M.route.id}_${s1.id}_nohome`);   // повторное нажатие
+    assert.equal((await adminTexts()).filter(t => /НЕ ДОСТАВЛЕНО/.test(t)).length, 1, 'админу сообщение не дублируется');
 
-    // Telegram callback message — само сообщение с причинами; reply_to_message отсутствует.
-    failNextRouteEdit = true;
-    await press(`failreason_${failedRoute.id}_${failedRoute.stops[0].id}_Не отвечает на звонки`, reasonPrompt[3].reply_markup,
-        { message_id: reasonPrompt[4].message_id });
-    let failedState = await db.getRouteById(failedRoute.id);
-    assert.equal(failedState.stops[0].status, 'failed', 'первая остановка отмечена как недоставленная');
-    assert.equal(failedState.stops[0].fail_reason, 'Не отвечает на звонки');
-    assert.equal(failedState.status, 'in_progress', 'маршрут остаётся в пути, пока есть две активные точки');
-    assert.equal(Number(failedState.failed), 1, 'счётчик недоставленных обновлён');
-    assert.equal((await db.getOrderByNumber(failedOrders[0].id)).status, 'SHIPPING', 'заказ не отменён и не помечен доставленным');
-    const reasonMessageUpdate = calls.find(c => c[0] === 'editMessageText');
-    assert.ok(reasonMessageUpdate, 'бот пытается превратить сообщение с причиной в карточку следующей точки');
-    assert.equal(reasonMessageUpdate[2].message_id, reasonPrompt[4].message_id,
-        'редактируется callback message с выбором причины, без зависимости от reply_to_message');
-    const fallbackCard = calls.find(c => c[0] === 'sendMessage' &&
-        c[3]?.reply_markup?.inline_keyboard?.flat()?.some(b =>
-            b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`));
-    assert.ok(fallbackCard, 'при ошибке редактирования курьер получает новую карточку маршрута');
-    assert.match(fallbackCard[2], /Следующая точка: 1 из 2/);
-    assert.ok(!fallbackCard[3].reply_markup.inline_keyboard.flat().some(b =>
-        b.callback_data === `deliver_${failedRoute.id}_${failedRoute.stops[0].id}_enroute`),
-        'недоставленная точка больше не активна');
-    assert.equal(Number((await pool.query('SELECT failed FROM delivery_routes WHERE id = $1', [failedRoute.id])).rows[0].failed), 1, 'счётчик недоставки маршрута обновлён');
-    assert.ok(Number((await db.getDayStats('2026-11-14')).failed) >= 1, 'общая статистика учитывает недоставку (в ней также могут быть отменённые остановки)');
-    assert.ok((await adminTexts()).some(t => /Не доставлено/.test(t) && /Не отвечает на звонки/.test(t)),
-        'админ получает статус и причину недоставки');
-    assert.ok((await clientTexts()).some(t => /не доставлен/.test(t) && /Не отвечает на звонки/.test(t)),
-        'клиент получает уведомление о неудачной попытке, без сообщения о доставке');
+    // Последний заказ доставлен: маршрут завершается, итог в той же карточке
+    await press(`deliver_${M.route.id}_${s3.id}_enroute`);
+    await press(`deliver_${M.route.id}_${s3.id}_arrived`);
+    await press(`deliver_${M.route.id}_${s3.id}_done`);
+    assert.equal((await db.getRouteById(M.route.id)).status, 'completed');
+    assert.match(lastCard().text, /Маршрут завершён\.<\/b> Доставлено: 2, не доставлено: 1/);
+    assert.equal(lastCard().keyboard.flat().filter(b => b.callback_data).length, 0, 'у завершённого маршрута нет кнопок действий');
 
-    await press(`deliver_${failedRoute.id}_${failedRoute.stops[1].id}_enroute`, fallbackCard[3].reply_markup);
-    assert.ok((await clientTexts()).some(t => /AP-cg_failed_2/.test(t) && /Курьер выехал/.test(t)),
-        'следующий клиент получает уведомление только после закрытия предыдущей остановки');
+    // ===== Недоставленный заказ возвращается в работу: повторная отправка, отмена =====
+    assert.equal(await db.updateOrderStatus(M.orders[0].id, 'READY_FOR_SHIPMENT'), true, 'недоставленный можно отправить повторно');
+    assert.equal(await db.updateOrderStatus(M.orders[0].id, 'CANCELLED'), true, 'или отменить');
+    assert.equal(await db.updateOrderStatus(M.orders[1].id, 'DELIVERY_FAILED'), 'TRANSITION_FORBIDDEN', 'доставленный в «не доставлен» не переводится');
+
+    // ===== Причина «Другое»: ответное сообщение, без «следующего любого сообщения» =====
+    const F = await mkMulti('cg_other', 'RL-CGOTHER', 59.96);
+    await press(`startroute_${F.route.id}`);
+    await press(`failreason_${F.route.id}_${F.stops[0].id}_other`);
+    assert.match(lastCard().text, /Напишите причину/);
+    assert.equal(await orderStatus(F.orders[0].id), 'SHIPPING', 'пока причина не написана, статус прежний');
+    await handlers.message({ chat: { id: 900002 }, from: { id: 900002 }, text: 'Домофон не работает' });
+    await new Promise(r => setTimeout(r, 150));
+    assert.equal(await orderStatus(F.orders[0].id), 'DELIVERY_FAILED');
+    assert.equal((await db.getRouteById(F.route.id)).stops[0].fail_reason, 'Домофон не работает');
+    await handlers.message({ chat: { id: 900002 }, from: { id: 900002 }, text: 'просто сообщение' });
+    assert.equal(await orderStatus(F.orders[1].id), 'SHIPPING', 'посторонние сообщения заказы не трогают');
 });

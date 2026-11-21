@@ -1171,7 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentView === 'orders') {
                 const list = window._orders || [];
                 if (shopLoaded && window._orders) {
-                    const work = list.filter(o => ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING'].includes(o.status)).length;
+                    const work = list.filter(o => ['NEW', 'CONFIRMED', 'ASSEMBLING', 'SHIPPING', 'DELIVERY_FAILED'].includes(o.status)).length;
                     const fresh = list.filter(o => o.status === 'NEW').length;
                     t = work === 0 ? 'Все заказы обработаны'
                         : `${work} ${plural(work, 'заказ', 'заказа', 'заказов')} в работе` + (fresh ? ` · ${fresh} ${plural(fresh, 'ждёт', 'ждут', 'ждут')} подтверждения` : '');
@@ -1403,7 +1403,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const statusLabels = {
                     'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
-                    'READY_FOR_SHIPMENT': 'Готов к отправке', 'READY_FOR_PICKUP': 'Готов к выдаче', 'PICKED_UP': 'Выдан при самовывозе', 'SHIPPING': 'В доставке',
+                    'READY_FOR_SHIPMENT': 'Готов к отправке', 'READY_FOR_PICKUP': 'Готов к выдаче', 'PICKED_UP': 'Выдан при самовывозе', 'SHIPPING': 'В доставке', 'DELIVERY_FAILED': 'Не доставлен',
                     'DELIVERED': 'Доставлен', 'COMPLETED': 'Выполнен', 'CANCELLED': 'Отменён'
                 };
                 const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
@@ -1568,9 +1568,10 @@ document.addEventListener('DOMContentLoaded', () => {
             { key: 'READY_FOR_SHIPMENT', title: 'Готовы к отправке', st: ['READY_FOR_SHIPMENT'], color: '#0d9488', drop: 'READY_FOR_SHIPMENT', next: null, label: 'Назначить маршрут' },
             { key: 'READY_FOR_PICKUP', title: 'Готовы к выдаче', st: ['READY_FOR_PICKUP'], color: '#0d9488', drop: 'READY_FOR_PICKUP', next: 'PICKED_UP', label: 'Выдан клиенту' },
             { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: null },
+            { key: 'DELIVERY_FAILED', title: 'Не доставлены', st: ['DELIVERY_FAILED'], color: '#dc2626', drop: null, next: 'READY_FOR_SHIPMENT', label: 'Отправить повторно' },
             { key: 'DONE',       title: 'Доставлены / выданы', st: ['DELIVERED', 'COMPLETED', 'PICKED_UP'], color: '#16a34a', drop: 'DELIVERED',  limit: 15 }
         ];
-        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
+        const KNOWN_STATUSES = new Set(['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT', 'READY_FOR_PICKUP', 'PICKED_UP', 'SHIPPING', 'DELIVERY_FAILED', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
         let dragId = null, dragFrom = null;
 
         function agoText(ts) {
@@ -1597,8 +1598,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const canBatch = showAssign && !pickup && !courierName;
             const nextStatus = o.status === 'ASSEMBLING'
                 ? (canFulfill ? (pickup ? 'READY_FOR_PICKUP' : 'READY_FOR_SHIPMENT') : null)
-                : (o.status === 'READY_FOR_PICKUP' ? (window.adminHasPermission && window.adminHasPermission('orders.process') ? 'PICKED_UP' : null) : (col && col.next));
-            const drag = !warehouseOnly && col && col.key !== 'DONE' && o.status !== 'CANCELLED';
+                : (o.status === 'READY_FOR_PICKUP' ? (window.adminHasPermission && window.adminHasPermission('orders.process') ? 'PICKED_UP' : null)
+                : (o.status === 'DELIVERY_FAILED' ? (canFulfill ? 'READY_FOR_SHIPMENT' : null) : (col && col.next)));
+            const drag = !warehouseOnly && col && !['DONE', 'DELIVERY_FAILED'].includes(col.key) && o.status !== 'CANCELLED';
             const color = col ? col.color : '#9ca3af';
             let act = '';
             if (col && nextStatus) {
@@ -1606,6 +1608,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${nextStatus}" data-num="${num}">${esc(label)} →</button></div>`;
             }
             const who = courierName ? `Курьер: ${esc(courierName)}` : (pickup ? '' : '');
+            const failed = o.status === 'DELIVERY_FAILED';
+            const failReason = failed ? ((ctx.failReasonOf && ctx.failReasonOf(o.id)) || 'причина не указана') : '';
+            const canCancel = failed && window.adminHasPermission && window.adminHasPermission('orders.process');
+            if (canCancel) act += `<div class="bcard-act"><button type="button" class="btn btn-outline btn-sm" data-act="cancel" data-id="${Number(o.id)}" data-num="${num}">Отменить заказ</button></div>`;
             return `<div class="bcard" style="--c:${color}" tabindex="0" data-id="${Number(o.id)}" data-status="${esc(o.status)}"${drag ? ' draggable="true"' : ''}>
                 <div class="bcard-top"><span class="bcard-num">${num}</span><span class="bcard-tag${pickup ? ' pickup' : ''}">${pickup ? 'Самовывоз' : 'Курьер'}</span></div>
                 <div class="bcard-name">${esc(o.user_name || '—')}</div>
@@ -1613,6 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${o.comment ? `<div class="bcard-note">${esc(String(o.comment).substring(0, 60))}</div>` : ''}
                 ${who ? `<div class="bcard-line"><strong>${who}</strong></div>` : ''}
                 <div class="bcard-foot"><span class="bcard-sum">${rub(parseFloat(o.total) || 0)} руб.</span><span class="bcard-time">${qty ? qty + ' шт. · ' : ''}${esc(agoText(o.created_at))}</span></div>
+                ${failed ? `<div class="bcard-note" style="color:#b91c1c"><strong>Не доставлен:</strong> ${esc(failReason)}<br>Верните заказ на склад и отправьте повторно или отмените.</div>` : ''}
                 ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'PICKED_UP' ? '✓ Выдан клиенту' : (o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен')}</div>` : ''}
                 ${act}
                 ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}"> в рейс</label>` : ''}
@@ -1620,7 +1627,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function renderBoard(orders, couriers, courierOf) {
-            const ctx = { couriers: couriers.filter(c => c.is_active !== false), courierOf };
+            const ctx = { couriers: couriers.filter(c => c.is_active !== false), courierOf, failReasonOf: id => { const x = (window._orders || []).find(o => o.id === id); return x && x.fail_reason; } };
             const board = document.getElementById('ordersBoard');
             const cancelledList = orders.filter(o => o.status === 'CANCELLED');
             if (!orders.length) {
@@ -1631,7 +1638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const list = orders.filter(o => col.st.includes(o.status) || (col.key === 'NEW' && !KNOWN_STATUSES.has(o.status)));
                     const sum = list.reduce((s, o) => s + (parseFloat(o.total) || 0), 0);
                     const lim = col.limit || 30;
-                    return `<div class="bcol" style="--c:${col.color}" data-drop="${col.drop}">
+                    return `<div class="bcol" style="--c:${col.color}"${col.drop ? ` data-drop="${col.drop}"` : ''}>
                         <div class="bcol-head"><span class="dot"></span><span class="ttl">${esc(col.title)}</span><span class="cnt">${list.length}</span><span class="sum" title="Сумма заказов в колонке">${rub(sum)} ₽</span></div>
                         <div class="bcol-body">${list.length ? list.slice(0, lim).map(o => orderCardHtml(o, col, ctx)).join('') : '<div class="bcol-empty">Пусто</div>'}
                         ${list.length > lim ? `<div class="bcol-more">Показаны ${lim} из ${list.length}. Остальные — во вкладке «Таблица»</div>` : ''}</div>
@@ -1668,6 +1675,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const onClick = e => {
                 const btn = e.target.closest('[data-act="advance"]');
                 if (btn) { advanceOrder(Number(btn.dataset.id), btn.dataset.to, btn.dataset.num); return; }
+                const cancelBtn = e.target.closest('[data-act="cancel"]');
+                if (cancelBtn) {
+                    if (confirm('Отменить заказ ' + cancelBtn.dataset.num + '?\nТовар вернётся в остаток, клиент получит уведомление.')) updateOrderStatus(Number(cancelBtn.dataset.id), 'CANCELLED');
+                    return;
+                }
                 if (e.target.closest('select, input, label, button, a')) return;
                 const card = e.target.closest('.bcard');
                 if (card && card.dataset.id) showOrderDetail(Number(card.dataset.id));
@@ -1698,7 +1710,7 @@ document.addEventListener('DOMContentLoaded', () => {
             boardEl.addEventListener('dragend', clearDrag);
             boardEl.addEventListener('dragover', e => {
                 const col = e.target.closest('.bcol');
-                if (!col || dragId === null) return;
+                if (!col || dragId === null || !col.dataset.drop) return;
                 e.preventDefault();
                 col.classList.add('over');
             });
@@ -1708,7 +1720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             boardEl.addEventListener('drop', e => {
                 const col = e.target.closest('.bcol');
-                if (!col || dragId === null) return;
+                if (!col || dragId === null || !col.dataset.drop) return;
                 e.preventDefault();
                 const id = dragId, from = dragFrom, to = col.dataset.drop;
                 clearDrag();
