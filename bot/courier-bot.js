@@ -923,16 +923,15 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 const onCard = await trackerEvent(trackerPool(), stop.order_number, { stage: 'delivered', eta: '', canRate: true }).catch(() => false);
                 const courier = onCard ? null : (await db.getCouriers()).find(c => c.id === route?.courier_id);
                 if (courier) {
-                    setTimeout(() => {
-                        const rateButtons = [[1,2,3,4,5].map(n => ({
-                            text: String(n),
-                            callback_data: `rate_${courier.id}_${stop.id}_${n}`
-                        }))];
-                        queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', {
-                            buttons: rateButtons,
-                            dedupKey: `stop-rating:${stopId}`
-                        });
-                    }, 3000);
+                    const rateButtons = [[1,2,3,4,5].map(n => ({
+                        text: String(n),
+                        callback_data: `rate_${courier.id}_${stop.id}_${n}`
+                    }))];
+                    await queue.notify('client', stop.client_chat_id, 'Пожалуйста, оцените доставку:', {
+                        buttons: rateButtons,
+                        dedupKey: `stop-rating:${stopId}`,
+                        delaySec: 3
+                    });
                 }
             }
         } catch (e) { console.error('[DELIVER] client card/rating update error:', errorCode(e)); }
