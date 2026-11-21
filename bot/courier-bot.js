@@ -1373,7 +1373,8 @@ function registerCourierRoutes(app) {
                         `Сумма: ${parseFloat(order.total || 0).toLocaleString()} руб.\n` +
                         `Статус: <b>${label}</b>`,
                         cancelBtn, `admin-order-status:${order.id}:${status}`
-                    );                    // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
+                    );
+                    // Уведомление клиенту (об отмене клиенту сообщает cancel-flow, чтобы не продублировать)
                     if (order.user_id && status !== 'CANCELLED') {
                         // промежуточные статусы — молча в карточку заказа; «доставлен/выполнен» — ещё и сообщением (уведомление на телефон)
                         const stageMap = { NEW: 'accepted', CONFIRMED: 'accepted', ASSEMBLING: 'assembling', SHIPPING: 'shipping', DELIVERED: 'delivered', COMPLETED: 'delivered', READY_FOR_PICKUP: 'accepted', PICKED_UP: 'delivered' };
@@ -1387,7 +1388,7 @@ function registerCourierRoutes(app) {
                             }).catch(() => false)
                             : false;
                         if (!onCard || finalSt || pickupNotice) {
-                            await queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\\n\\nСтатус: <b>${label}</b>`, { dedupKey: `client-order-status:${order.id}:${status}` });
+                            await queue.notify('client', order.user_id, `<b>Заказ ${escapeHtml(order.order_number)}</b>\n\nСтатус: <b>${label}</b>`, { dedupKey: `client-order-status:${order.id}:${status}` });
                         }
                     }
                 }
