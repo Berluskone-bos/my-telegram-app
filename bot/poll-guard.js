@@ -116,7 +116,13 @@ function startGuardedPolling(bot, { name, pool, log = console, retryMs, heartbea
     return {
         status: () => ({ name, holder: lock.isHolder(), polling: bot.isPolling(), lastOkAt: watch.st.okAt ? new Date(watch.st.okAt).toISOString() : null,
             errorsInRow: watch.st.errorsInRow, errorsTotal: watch.st.errorsTotal, okTotal: watch.st.okTotal, lastError: watch.st.lastError }),
-        async stop() { await lock.stop(); await stopQuietly(bot); watch.stop(); }
+        async stop() {
+            // Не освобождаем advisory lock, пока Telegram polling ещё останавливается:
+            // иначе новый экземпляр может начать getUpdates раньше старого и получить 409 Conflict.
+            await stopQuietly(bot);
+            await lock.stop();
+            watch.stop();
+        }
     };
 }
 
