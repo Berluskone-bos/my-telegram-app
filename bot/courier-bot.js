@@ -699,7 +699,13 @@ bot.on('callback_query', async (query) => {
 async function handleStartRoute(chatId, routeId, user) {
     const route = await db.getRouteById(routeId);
     if (!route) return;
-    const started = await db.startRouteIfAllAccepted(routeId);
+    const started = await db.startRouteIfAllAccepted(routeId, {
+        afterStart: async ({ client, route: startedRoute }) => {
+            await notifyAdmin(
+                `[МАРШРУТ] ${escapeHtml(startedRoute.route_number)} начат курьером ${user.first_name || ''}`,
+                null, `route-started:${routeId}`, client, true);
+        }
+    });
     if (started.status === 'not_ready') {
         bot.sendMessage(chatId, `Сначала примите все заказы маршрута. Осталось принять: ${started.waiting}.`);
         return;
@@ -724,7 +730,7 @@ async function handleStartRoute(chatId, routeId, user) {
         console.error('[ROUTE] Не удалось отправить единый маршрут:', errorCode(e));
         bot.sendMessage(chatId, 'Маршрут начат, но не удалось показать маршрутную карточку. Откройте /route для просмотра.');
     }
-    await notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
+
 }
 
 // ====== Flow доставки: accept → enroute → arrived → done ======
@@ -769,7 +775,16 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     }
 
     if (action === 'accept') {
-        const accepted = await db.acceptRouteStop(routeId, stopId);
+        const accepted = await db.acceptRouteStop(routeId, stopId, {
+            afterAccept: async ({ client, stop: acceptedStop, route: acceptedRoute }) => {
+                const who = query && query.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
+                await notifyAdmin(
+                    `[ДОСТАВКА] ${escapeHtml(acceptedRoute.route_number || '')} | курьер принял заказ (забрал со склада)\n` +
+                    `Заказ: ${escapeHtml(acceptedStop.order_number || '')} (точка ${acceptedStop.stop_number} из ${acceptedRoute.total_orders || ''})\nАдрес: ${escapeHtml(acceptedStop.address || '')}` +
+                    (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
+                    null, `admin-step-accept:${stopId}`, client, true);
+            }
+        });
         if (!['accepted', 'already'].includes(accepted.status)) {
             bot.answerCallbackQuery(query.id, { text: 'Не удалось принять заказ: ' + accepted.status, show_alert: true }).catch(() => {});
             return;
@@ -782,7 +797,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try { await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId }); }
         catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: accepted.status === 'already' ? 'Заказ уже принят' : 'Заказ принят. Примите остальные заказы маршрута.' }).catch(() => {});
-        await notifyAdminStep(routeId, stopId, 'accept', query);
+
 
         // Явно показываем курьеру кнопку общего старта маршрута после принятия всех активных заказов.
         // Раньше «У клиента» появлялась сразу после принятия одной остановки, а кнопка старта
