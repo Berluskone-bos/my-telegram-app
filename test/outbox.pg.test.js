@@ -94,6 +94,14 @@ test('очередь: отправка, повтор после сбоя, дед
     assert.equal((await q.processOnce()).sent, 1);
     assert.equal((await row(second)).status, 'sent');
 
+    // Отложенное уведомление остаётся в PostgreSQL outbox и не отправляется раньше срока.
+    const delayed = await q.enqueue({ bot: 'client', payload: { chat_id: '11', text: 'оцените доставку' }, delaySec: 5 });
+    assert.equal((await q.processOnce()).sent, 0, 'отложенная запись не отправляется до next_attempt_at');
+    await due(delayed);
+    assert.equal((await q.processOnce()).sent, 1);
+    assert.equal((await row(delayed)).status, 'sent');
+    await assert.rejects(q.enqueue({ bot: 'client', payload: { chat_id: '11', text: 'bad delay' }, delaySec: -1 }), /delaySec/);
+
     // Два worker-процесса не должны одновременно забрать одну строку.
     const concurrent = await q.enqueue({ bot: 'courier', payload: { chat_id: '10', text: 'одна запись — один worker' } });
     let enteredResolve, releaseResolve;
