@@ -17,6 +17,7 @@ test('«Не доставлен»: статус заказа, повторная
     const pid = (await pool.query("INSERT INTO products(name, price, active, stock) VALUES ('T-fail', 500, true, 10) RETURNING id")).rows[0].id;
     const courier = await db.createCourier({ name: 'Курьер-недоставка', phone: '1', telegram_id: 900077, telegram_user: 'f', vehicle_type: 'авто' });
     t.after(async () => {
+        await pool.query("DELETE FROM notification_outbox WHERE dedup_key LIKE 'stage-outbox-%'");
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
         await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-df%'");
         await pool.query('DELETE FROM products WHERE id = $1', [pid]);
@@ -40,8 +41,34 @@ test('«Не доставлен»: статус заказа, повторная
     // Этапы остановки: сохраняются, повтор не «меняет», назад («У клиента» → «В пути») нельзя
     const a = await ship('df1', 2);
     assert.equal(await stock(), 8);
-    assert.ok(await db.setStopStage(a.stopId, 'enroute'), 'первое «В пути» меняет этап');
-    assert.equal(await db.setStopStage(a.stopId, 'enroute'), null, 'повтор — без изменения');
+    const { enqueue } = require('../bot/outbox');
+    const stageKey = 'stage-outbox-enroute:' + a.stopId;
+    assert.ok(await db.setStopStage(a.stopId, 'enroute', {
+        afterUpdate: async ({ client, stop, stage }) => {
+            assert.equal(stop.id, a.stopId);
+            assert.equal(stage, 'enroute');
+            await enqueue(client, { bot: 'client', dedupKey: stageKey, payload: { chat_id: '777031', text: 'Курьер выехал' } });
+        }
+    }), 'первое «В пути» меняет этап');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [stageKey])).rows[0].n, 1,
+        'уведомление записано в той же транзакции');
+    let duplicateCallbackCalled = false;
+    assert.equal(await db.setStopStage(a.stopId, 'enroute', {
+        afterUpdate: async () => { duplicateCallbackCalled = true; }
+    }), null, 'повтор — без изменения');
+    assert.equal(duplicateCallbackCalled, false, 'повторный этап не создаёт повторное уведомление');
+
+    const rollbackKey = 'stage-outbox-rollback:' + a.stopId;
+    await assert.rejects(db.setStopStage(a.stopId, 'arrived', {
+        afterUpdate: async ({ client }) => {
+            await enqueue(client, { bot: 'client', dedupKey: rollbackKey, payload: { chat_id: '777031', text: 'rollback' } });
+            throw new Error('simulate outbox failure');
+        }
+    }), /simulate outbox failure/);
+    assert.equal((await pool.query('SELECT stage FROM route_stops WHERE id = $1', [a.stopId])).rows[0].stage, 'enroute',
+        'этап откатывается при ошибке outbox');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM notification_outbox WHERE dedup_key = $1', [rollbackKey])).rows[0].n, 0,
+        'outbox запись откатывается вместе с этапом');
     assert.ok(await db.setStopStage(a.stopId, 'arrived'));
     assert.equal(await db.setStopStage(a.stopId, 'enroute'), null, 'после «У клиента» вернуться в «В пути» нельзя');
     assert.equal(await db.setStopStage(a.stopId, 'bogus'), null);
