@@ -846,7 +846,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
                 const contact = courierPhone
                     ? `Для уточнения времени прибытия позвоните курьеру ${escapeHtml(courier?.name || '')}: ${escapeHtml(courierPhone)}.`
                     : 'Телефон курьера пока не указан. Для уточнения времени прибытия свяжитесь с нами.';
-                queue.notify('client', stop.client_chat_id,
+                await queue.notify('client', stop.client_chat_id,
                     `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер выехал</b>\nКурьер везёт ваш заказ.\n${contact}`,
                     { dedupKey: `stop-enroute:${stopId}` });
             }
@@ -878,7 +878,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
                 // карточка меняется молча, а это сообщение — уведомление на телефон: клиенту нужно выйти навстречу
                 await trackerEvent(trackerPool(), stop.order_number, { stage: 'arrived', eta: '' }).catch(() => {});
-                queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>\nКурьер у вас, встречайте заказ.`,
+                await queue.notify('client', stop.client_chat_id, `<b>Заказ ${escapeHtml(stop.order_number)}</b>\n\nСтатус: <b>Курьер приехал</b>\nКурьер у вас, встречайте заказ.`,
                     { dedupKey: `stop-arrived:${stopId}` });
             }
         } catch (e) { console.error('[DELIVER] notify error:', errorCode(e)); }
