@@ -573,7 +573,7 @@ class DBAdapter {
     // Неудачная попытка доставки — отдельный терминальный результат остановки,
     // но не отмена заказа и не завершение всего маршрута. Заказ получает статус DELIVERY_FAILED
     // («Не доставлен»): он виден в админке отдельной колонкой, оператор решает — повторная отправка или отмена.
-    async failDeliveryStop(stopId, reason) {
+    async failDeliveryStop(stopId, reason, { afterFailure = null } = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -642,6 +642,10 @@ class DBAdapter {
                 [candidate.order_id == null ? '' : String(candidate.order_id), candidate.order_number || '']);
             await this._refreshRouteCompletion(client, candidate.route_id);
             const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [candidate.route_id]);
+            // Обязательные уведомления записываются до COMMIT: бизнес-статус и outbox либо фиксируются вместе, либо откатываются.
+            if (typeof afterFailure === 'function') {
+                await afterFailure({ client, stop: updated.rows[0], route: route.rows[0] });
+            }
             await client.query('COMMIT');
             return { status: 'failed', stop: updated.rows[0], route: route.rows[0] };
         } catch (e) {
