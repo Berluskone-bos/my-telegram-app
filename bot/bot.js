@@ -923,8 +923,15 @@ require('./loyalty-routes').registerLoyaltyRoutes(app, { db, rateLimit, authenti
 // Публичный каталог (без закупочных данных): магазин и админка работают с одной базой
 app.get('/api/catalog', rateLimit(120, 60_000), async (req, res) => {
     try {
-        res.set('Cache-Control', 'no-cache');
-        res.json(await db.getPublicCatalog());
+        // Каталог часто меняется через админку. Не отдаём 304 из-за старого ETag/кэша WebView.
+        res.set({
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+        const products = await db.getPublicCatalog();
+        console.info(`[API /catalog] returned ${products.length} active products`);
+        res.status(200).json(products);
     } catch (e) {
         console.error('[API /catalog]', sanitizeLog(e.message));
         res.status(500).json({ error: 'Internal error' });
