@@ -31,13 +31,15 @@ test('system-status: только после входа, показывает б
     const H = { 'content-type': 'application/json', 'x-forwarded-proto': 'https' };
 
     assert.equal((await fetch(base + '/api/admin/system-status', { headers: H })).status, 401, 'без входа — отказ');
+    assert.equal((await fetch(base + '/api/admin/outbox/1/retry', { method: 'POST', headers: H })).status, 401, 'повтор failed без входа запрещён');
 
     const login = await fetch(base + '/api/admin/login', { method: 'POST', headers: { ...H, 'x-forwarded-for': '9.9.9.7' }, body: JSON.stringify({ key: process.env.ADMIN_API_KEY }) });
     assert.equal(login.status, 200);
     const cookie = login.headers.getSetCookie().find(c => c.startsWith('__Host-admin_session=')).split(';')[0];
 
     await pool.query(`INSERT INTO notification_outbox (bot, payload, status, sent_at) VALUES ('admin', '{}', 'sent', NOW())`);
-    await pool.query(`INSERT INTO notification_outbox (bot, payload, status, last_error) VALUES ('admin', '{}', 'failed', 'chat not found')`);
+    const failed = await pool.query(`INSERT INTO notification_outbox (bot, payload, status, last_error) VALUES ('admin', '{}', 'failed', 'chat not found') RETURNING id`);
+    const failedId = failed.rows[0].id;
     await pool.query(`INSERT INTO notification_outbox (bot, payload, status) VALUES ('admin', '{}', 'pending')`);
 
     const r = await fetch(base + '/api/admin/system-status', { headers: { ...H, cookie } });
@@ -51,4 +53,19 @@ test('system-status: только после входа, показывает б
     assert.equal(s.lastFailed.error, 'chat not found');
     assert.ok(s.lastAdminNotificationAt);
     assert.equal(s.adminPolling.enabled, false, 'опрос выключен переменной ADMIN_POLLING=off');
+
+    const retry = await fetch(base + `/api/admin/outbox/${failedId}/retry`, { method: 'POST', headers: { ...H, cookie }, body: '{}' });
+    assert.equal(retry.status, 202, 'администратор может вернуть failed в очередь');
+    assert.deepEqual(await retry.json(), { success: true, id: failedId, status: 'pending' });
+    const recovered = await pool.query('SELECT status, attempts, last_error, locked_until FROM notification_outbox WHERE id = $1', [failedId]);
+    assert.equal(recovered.rows[0].status, 'pending');
+    assert.equal(recovered.rows[0].attempts, 0);
+    assert.equal(recovered.rows[0].last_error, null);
+    assert.equal(recovered.rows[0].locked_until, null);
+
+    const duplicateRetry = await fetch(base + `/api/admin/outbox/${failedId}/retry`, { method: 'POST', headers: { ...H, cookie }, body: '{}' });
+    assert.equal(duplicateRetry.status, 409, 'нельзя повторно поставить уже pending');
+    assert.equal((await fetch(base + '/api/admin/outbox/999999999/retry', { method: 'POST', headers: { ...H, cookie }, body: '{}' })).status, 404);
+    assert.equal((await fetch(base + '/api/admin/outbox/nope/retry', { method: 'POST', headers: { ...H, cookie }, body: '{}' })).status, 400);
+
 });
