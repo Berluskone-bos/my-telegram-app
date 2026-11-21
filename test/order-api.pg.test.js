@@ -35,6 +35,7 @@ test('заказ через API: сообщения клиенту и админ
         child.kill();
         await pool.query('DELETE FROM notification_outbox');
         await pool.query("DELETE FROM orders WHERE user_id = 777005");
+        await pool.query("DELETE FROM customer_profiles WHERE user_id = 777005");
         await pool.query('DELETE FROM products WHERE id = $1', [pid]);
         await pool.end();
     });
@@ -45,6 +46,20 @@ test('заказ через API: сообщения клиенту и админ
     }
 
     const endpoint = `http://127.0.0.1:${port}/api/order`;
+    const signedUser = signedInitData(token, { id: 777005, first_name: 'Тест' });
+    const profileGet = await fetch(`http://127.0.0.1:${port}/api/profile`, {
+        headers: { 'X-Telegram-Init-Data': signedUser }
+    });
+    assert.equal(profileGet.status, 200);
+    assert.equal(profileGet.headers.get('cache-control'), 'no-store', 'профиль с телефоном не должен кэшироваться');
+    const profilePut = await fetch(`http://127.0.0.1:${port}/api/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedUser },
+        body: JSON.stringify({ phone: '+79991112233' })
+    });
+    assert.equal(profilePut.status, 200);
+    assert.equal(profilePut.headers.get('cache-control'), 'no-store', 'ответ сохранения профиля не должен кэшироваться');
+
     const missingAuth = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
