@@ -91,6 +91,20 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         roleCookies[role] = cookieOf(loggedIn);
     }
 
+    // CSRF: unsafe admin requests require the exact same origin, including a present Origin header.
+    const foreignOrigin = await fetch(base + '/api/admin/staff', {
+        method: 'POST',
+        headers: { ...Hsame, origin: 'https://attacker.example', cookie: roleCookies.admin },
+        body: JSON.stringify({ login: prefix + 'csrf.foreign', displayName: 'CSRF', password, role: 'manager' })
+    });
+    assert.equal(foreignOrigin.status, 403, 'admin session cannot be used from a foreign origin');
+    const missingOrigin = await fetch(base + '/api/admin/staff', {
+        method: 'POST',
+        headers: { ...H, cookie: roleCookies.admin },
+        body: JSON.stringify({ login: prefix + 'csrf.missing', displayName: 'CSRF', password, role: 'manager' })
+    });
+    assert.equal(missingOrigin.status, 403, 'unsafe admin request without Origin is rejected');
+
     const getCases = [
         ['/api/orders', ['admin', 'manager', 'operator', 'warehouse']],
         ['/api/orders/customers', ['admin', 'manager']],
