@@ -43,6 +43,46 @@ const Products = {
         }
     },
 
+    /** Поля из админки /api/catalog → единый вид для витрины */
+    normalize(p) {
+        let specs = p.specs;
+        if (typeof specs === 'string') {
+            try { specs = JSON.parse(specs); } catch (_) { specs = {}; }
+        }
+        if (!specs || typeof specs !== 'object') specs = {};
+        const image = p.image || p.main_image || '';
+        return {
+            ...p,
+            id: p.id,
+            brand: p.brand || p.brand_name || 'Gulf Western Oil',
+            category_id: p.category_id || p.category || '',
+            category: p.category || p.category_id || '',
+            name: p.name || '',
+            full_name: p.full_name || p.name || '',
+            series: p.series || '',
+            sku: p.sku || '',
+            viscosity: p.viscosity || '',
+            oil_type: p.oil_type || '',
+            volume: p.volume || '',
+            api: p.api_std || p.api || '',
+            acea: p.acea || '',
+            ilsac: p.ilsac || '',
+            price: Number(p.price) || 0,
+            old_price: Number(p.old_price) || 0,
+            main_image: image,
+            image: image,
+            description: p.description || '',
+            specs,
+            is_new: !!p.is_new,
+            is_popular: !!p.is_popular,
+            coming_soon: !!p.coming_soon,
+            in_stock: p.in_stock !== false,
+            stock_left: p.stock_left != null ? p.stock_left : null,
+            rating: Number(p.rating) || 0,
+            reviews_count: Number(p.reviews_count) || 0
+        };
+    },
+
     getPictureHtml(imagePath, altText, extraAttrs = '') {
         const safePath = esc(imagePath);
         const safeAlt = esc(altText);
