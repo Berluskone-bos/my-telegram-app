@@ -26,7 +26,7 @@ function instance() {
 }
 
 // Короткая запись: текст в очередь (db — pool или client транзакции)
-function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = null, db = null, throwOnError = false, delaySec = 0 } = {}) {
+function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = null, db = null, throwOnError = true, delaySec = 0 } = {}) {
     if (chatId === null || chatId === undefined || chatId === '') return Promise.resolve(null);
     const payload = { chat_id: String(chatId), text, parse_mode: 'HTML' };
     if (buttons) payload.reply_markup = { inline_keyboard: buttons };
@@ -42,7 +42,7 @@ function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = n
 // Telegram её не примет — уйдёт fallbackText обычным сообщением (null — тогда ничего не отправляется).
 // kind/ref — как карточку найти позже (таблица widget_messages), state — что на ней сейчас показано.
 // Возвращает true, если в очередь поставлена именно карточка.
-function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText = null, buttons = null, dedupKey = null, dependsOn = null, db = null, throwOnError = false } = {}) {
+function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText = null, buttons = null, dedupKey = null, dependsOn = null, db = null, throwOnError = true } = {}) {
     if (chatId === null || chatId === undefined || chatId === '') return Promise.resolve(false);
     const plain = () => fallbackText
         ? notify(bot, chatId, fallbackText, { buttons, dedupKey: dedupKey ? 'fb:' + dedupKey : null, db, throwOnError }).then(() => false)

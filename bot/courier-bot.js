@@ -181,7 +181,7 @@ const stopAdminPolling = () => adminPolling ? adminPolling.stop() : Promise.reso
 
 // ====== Утилиты ======
 
-function notifyAdmin(text, buttons = null, dedupKey = null, db = null, throwOnError = false) {
+function notifyAdmin(text, buttons = null, dedupKey = null, db = null, throwOnError = true) {
     if (!ADMIN_CHAT_ID) return Promise.resolve();
     return queue.notify('admin', ADMIN_CHAT_ID, text, { buttons, dedupKey: dedupKey || undefined, db, throwOnError });
 }
@@ -302,29 +302,39 @@ bot.onText(/\/start/, async (msg) => {
             return;
         }
 
-        const newCourier = await db.createCourier({
-            name: lines[0],
-            phone: lines[1] || '',
-            telegram_id: user.id,
-            telegram_user: user.username || '',
-            vehicle_type: lines[2] || 'легковая',
-            zones: ['spb'],
-            is_active: false,   // активирует администратор после проверки
-            max_orders: 10,
-            rating: 0,
-            rating_count: 0
-        });
+        let newCourier;
+        try {
+            newCourier = await db.createCourier({
+                name: lines[0],
+                phone: lines[1] || '',
+                telegram_id: user.id,
+                telegram_user: user.username || '',
+                vehicle_type: lines[2] || 'легковая',
+                zones: ['spb'],
+                is_active: false,   // активирует администратор после проверки
+                max_orders: 10,
+                rating: 0,
+                rating_count: 0
+            }, {
+                // Заявка курьера и уведомление администратору фиксируются атомарно.
+                afterCreate: async ({ client, courier: created }) => {
+                    const regText = `[КУРЬЕР] Заявка: ${created.name} (@${user.username || '-'})\nТел: ${created.phone}\nТранспорт: ${created.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
+                    const activationButtons = adminBot && ADMIN_CHAT_ID
+                        ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${created.id}` }]]
+                        : null;
+                    await notifyAdmin(regText, activationButtons, `courier-registration:${created.id}`, client, true);
+                }
+            });
+        } catch (e) {
+            console.error('[COURIER] registration transaction failed:', errorCode(e));
+            await bot.sendMessage(chatId, 'Не удалось отправить заявку на регистрацию. Попробуйте позже.').catch(() => {});
+            return;
+        }
 
         bot.sendMessage(chatId,
             `Регистрация завершена!\n\nИмя: ${newCourier.name}\nТелефон: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\n\nАккаунт будет активирован администратором после проверки, затем вы получите маршрутные листы.`,
             { parse_mode: 'HTML' }
         );
-
-        const regText = `[КУРЬЕР] Заявка: ${newCourier.name} (@${user.username || '-'})\nТел: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
-        const activationButtons = adminBot && ADMIN_CHAT_ID
-            ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${newCourier.id}` }]]
-            : null;
-        await notifyAdmin(regText, activationButtons, `courier-registration:${newCourier.id}`);
     });
 });
 

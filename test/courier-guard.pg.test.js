@@ -52,6 +52,51 @@ test('курьерский бот: кнопки отменённого зака�
     const A = require('../bot/db-adapter');
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
     await initDB();
+
+    // Регистрация курьера и outbox-заявка должны коммититься вместе.
+    const testTelegramBase = 900000000000 + (Date.now() % 1000000000);
+    const rollbackTelegramId = testTelegramBase;
+    const successTelegramId = testTelegramBase + 1;
+    const rollbackKey = `courier-registration-rollback:${rollbackTelegramId}`;
+    const successKey = `courier-registration-success:${successTelegramId}`;
+    const makeCourier = telegramId => ({
+        name: 'Тест атомарной регистрации', phone: '+70000000000',
+        telegram_id: telegramId, telegram_user: 'atomic-test', vehicle_type: 'авто',
+        zones: ['spb'], is_active: false
+    });
+    await assert.rejects(
+        db.createCourier(makeCourier(rollbackTelegramId), {
+            afterCreate: async ({ client, courier: created }) => {
+                await client.query(
+                    `INSERT INTO notification_outbox (bot, method, payload, dedup_key)
+                     VALUES ('admin', 'sendMessage', $1::jsonb, $2)`,
+                    [JSON.stringify({ chat_id: '1', text: `courier ${created.id}` }), rollbackKey]
+                );
+                throw new Error('simulated outbox enqueue failure');
+            }
+        }),
+        /simulated outbox enqueue failure/
+    );
+    assert.equal((await pool.query('SELECT 1 FROM couriers WHERE telegram_id = $1', [rollbackTelegramId])).rowCount, 0,
+        'курьер не создаётся, если запись заявки в outbox завершилась ошибкой');
+    assert.equal((await pool.query('SELECT 1 FROM notification_outbox WHERE dedup_key = $1', [rollbackKey])).rowCount, 0,
+        'outbox-запись откатывается вместе с регистрацией');
+
+    const createdAtomic = await db.createCourier(makeCourier(successTelegramId), {
+        afterCreate: async ({ client, courier: created }) => {
+            await client.query(
+                `INSERT INTO notification_outbox (bot, method, payload, dedup_key)
+                 VALUES ('admin', 'sendMessage', $1::jsonb, $2)`,
+                [JSON.stringify({ chat_id: '1', text: `courier ${created.id}` }), successKey]
+            );
+        }
+    });
+    assert.ok(createdAtomic.id);
+    assert.equal((await pool.query('SELECT 1 FROM notification_outbox WHERE dedup_key = $1', [successKey])).rowCount, 1,
+        'заявка администратора сохранена вместе с курьером');
+    await pool.query('DELETE FROM notification_outbox WHERE dedup_key = ANY($1::text[])', [[rollbackKey, successKey]]);
+    await pool.query('DELETE FROM couriers WHERE telegram_id = ANY($1::bigint[])', [[rollbackTelegramId, successTelegramId]]);
+
     require('../bot/courier-bot');
     assert.equal(typeof handlers.callback_query, 'function', 'обработчик кнопок зарегистрирован');
 
