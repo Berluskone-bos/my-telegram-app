@@ -1632,6 +1632,22 @@ class DBAdapter {
         return res.rows;
     }
 
+    async getStockMovements(productId, limit = 100) {
+        const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 500);
+        const res = await pool.query(
+            `SELECT sm.id, sm.product_id, sm.movement_type, sm.qty_delta,
+                    sm.stock_before, sm.stock_after, sm.order_id, o.order_number,
+                    sm.actor_user_id, sm.actor_role, sm.reason, sm.created_at
+               FROM stock_movements sm
+               LEFT JOIN orders o ON o.id = sm.order_id
+              WHERE sm.product_id = $1
+              ORDER BY sm.created_at DESC, sm.id DESC
+              LIMIT $2`,
+            [productId, safeLimit]
+        );
+        return res.rows;
+    }
+
     async createProduct(p) {
         const res = await pool.query(
             `INSERT INTO products (brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac, price, old_price, stock, min_stock, image, description, specs, active, is_new, is_popular)
