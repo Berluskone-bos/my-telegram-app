@@ -209,26 +209,6 @@ async function renderRouteCard(chatId, messageId, routeId, wantedStopId = null) 
 }
 
 // Сообщение админу о шаге доставки: забрал заказ / выехал / на месте / доставил (один раз на шаг)
-async function notifyAdminStep(routeId, stopId, step, query) {
-    try {
-        const labels = {
-            accept: 'курьер принял заказ (забрал со склада)',
-            enroute: 'курьер выехал к клиенту',
-            arrived: 'курьер приехал к клиенту',
-            done: 'заказ доставлен'
-        };
-        const route = await db.getRouteById(routeId);
-        const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
-        if (!stop || stop.status === 'cancelled') return;
-        const who = query && query.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
-        await notifyAdmin(
-            `[ДОСТАВКА] ${escapeHtml(route.route_number)} | ${labels[step]}\n` +
-            `Заказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${(route.stops || []).length})\nАдрес: ${escapeHtml(stop.address || '')}` +
-            (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
-            null, `admin-step-${step}:${stopId}`);
-    } catch (e) { console.error('[DELIVER] admin notify error:', errorCode(e)); }
-}
-
 function generateRouteNumber() {
     return 'RL-' + String(Date.now()).slice(-4);
 }
