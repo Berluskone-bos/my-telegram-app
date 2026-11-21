@@ -26,13 +26,14 @@ function instance() {
 }
 
 // Короткая запись: текст в очередь (db — pool или client транзакции)
-function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = null, db = null } = {}) {
+function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = null, db = null, throwOnError = false } = {}) {
     if (chatId === null || chatId === undefined || chatId === '') return Promise.resolve(null);
     const payload = { chat_id: String(chatId), text, parse_mode: 'HTML' };
     if (buttons) payload.reply_markup = { inline_keyboard: buttons };
     const q = instance();
     return q.enqueue({ bot, payload, dedupKey, onSent }, db).catch(e => {
         console.error('[OUTBOX] не поставлено в очередь:', String(e.code || e.name || 'unknown').slice(0, 40));
+        if (throwOnError) throw e;
         return null;
     });
 }
@@ -41,10 +42,10 @@ function notify(bot, chatId, text, { buttons = null, dedupKey = null, onSent = n
 // Telegram её не примет — уйдёт fallbackText обычным сообщением (null — тогда ничего не отправляется).
 // kind/ref — как карточку найти позже (таблица widget_messages), state — что на ней сейчас показано.
 // Возвращает true, если в очередь поставлена именно карточка.
-function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText = null, buttons = null, dedupKey = null, dependsOn = null, db = null } = {}) {
+function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText = null, buttons = null, dedupKey = null, dependsOn = null, db = null, throwOnError = false } = {}) {
     if (chatId === null || chatId === undefined || chatId === '') return Promise.resolve(false);
     const plain = () => fallbackText
-        ? notify(bot, chatId, fallbackText, { buttons, dedupKey: dedupKey ? 'fb:' + dedupKey : null, db }).then(() => false)
+        ? notify(bot, chatId, fallbackText, { buttons, dedupKey: dedupKey ? 'fb:' + dedupKey : null, db, throwOnError }).then(() => false)
         : Promise.resolve(false);
     let ok = widgets.widgetsEnabled();
     if (ok) { try { widgets.checkWidget(widget); } catch (e) { console.error('[ВИДЖЕТ]', e.message); ok = false; } }
@@ -59,6 +60,7 @@ function notifyWidget(bot, chatId, widget, { kind, ref, state = {}, fallbackText
         widget: { kind, ref, state }, fallback: { method: 'sendMessage', payload: fbPayload }
     }, db).then(() => true).catch(e => {
         console.error('[OUTBOX] карточка не поставлена в очередь:', String(e.code || e.name || 'unknown').slice(0, 40));
+        if (throwOnError) throw e;
         return false;
     });
 }

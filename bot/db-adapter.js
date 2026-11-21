@@ -386,6 +386,10 @@ class DBAdapter {
                 }
             }
 
+            if (typeof route.afterCreate === 'function') {
+                await route.afterCreate({ route: { ...newRoute, stops }, client });
+            }
+
             await client.query('COMMIT');
             return { ...newRoute, stops };
         } catch (e) {

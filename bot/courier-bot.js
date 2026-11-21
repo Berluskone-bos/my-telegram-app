@@ -180,9 +180,9 @@ const stopAdminPolling = () => adminPolling ? adminPolling.stop() : Promise.reso
 
 // ====== Утилиты ======
 
-function notifyAdmin(text, buttons = null, dedupKey = null) {
+function notifyAdmin(text, buttons = null, dedupKey = null, db = null, throwOnError = false) {
     if (!ADMIN_CHAT_ID) return Promise.resolve();
-    return queue.notify('admin', ADMIN_CHAT_ID, text, { buttons, dedupKey: dedupKey || undefined });
+    return queue.notify('admin', ADMIN_CHAT_ID, text, { buttons, dedupKey: dedupKey || undefined, db, throwOnError });
 }
 
 const trackerPool = () => require('./db').pool;
@@ -1204,7 +1204,7 @@ function registerCourierRoutes(app) {
             const courier = (await db.getCouriers()).find(c => c.id === parseInt(courier_id));
             if (!courier) return res.status(404).json({ error: 'Курьер не найден' });
             if (!courier.is_active) return res.status(409).json({ error: 'Курьер не активен' });
-            const out = await routeSvc.buildRoute({ orderIds: order_ids, courier, notifyAdmin: (t) => notifyAdmin(t) });
+            const out = await routeSvc.buildRoute({ orderIds: order_ids, courier, notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true) });
             res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), plan: out.plan, sequence: out.sequence });
         } catch (e) {
             const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
@@ -1413,7 +1413,7 @@ function registerCourierRoutes(app) {
             }
             const courier = couriers.find(x => Number(x.id) === courierId && x.is_active);
             if (!courier) return res.status(404).json({ error: 'Активный курьер не найден' });
-            const out = await routeSvc.buildRoute({ orderIds: [orderId], courier, notifyAdmin: notifyAdmin });
+            const out = await routeSvc.buildRoute({ orderIds: [orderId], courier, notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true) });
             return res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), plan: out.plan, sequence: out.sequence });
         } catch (e) {
             const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];

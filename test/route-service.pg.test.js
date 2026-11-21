@@ -30,12 +30,18 @@ test('маршрут из 4 заказов: порядок по времени �
         return { ok: true, json: async () => ({ code: 'Ok', durations }) };
     } }) };
     const sent = [];
-    const queue = { notify: async (bot, chat, text, opts = {}) => { await new Promise(resolve => setImmediate(resolve)); sent.push({ bot, chat: String(chat), text, opts }); return 1; } };
+    const actualQueue = require('../bot/notify-queue');
+    const queue = { notify: async (bot, chat, text, opts = {}) => {
+        await new Promise(resolve => setImmediate(resolve));
+        sent.push({ bot, chat: String(chat), text, opts });
+        return actualQueue.notify(bot, chat, text, opts);
+    } };
     const clock = { t: new Date('2026-11-15T00:00:00Z') };     // воскресенье 03:00 МСК: коэффициент 1.0
     const svc = createRouteService({ db, geocoder, queue, planner, env: { SERVICE_MINUTES: '5', WAREHOUSE_LAT: '59.94', WAREHOUSE_LON: '30.34' }, now: () => clock.t });
 
     const courier = await db.createCourier({ name: 'Курьер-маршрут', phone: '1', telegram_id: 900010, telegram_user: 'r', vehicle_type: 'авто' });
     t.after(async () => {
+        await pool.query('DELETE FROM notification_outbox');
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
         await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-rs%'");
         await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
@@ -64,9 +70,17 @@ test('маршрут из 4 заказов: порядок по времени �
     await assert.rejects(svc.buildRoute({ orderIds: [cancelled.id], courier }), (e) => e.code === 'CONFLICT');
 
     // сборка маршрута
-    const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: async (x) => { await new Promise(resolve => setImmediate(resolve)); sent.push({ bot: 'admin', text: x }); } });
+    const out = await svc.buildRoute({ orderIds: [oA.id, oB.id, oC.id, oD.id], courier, notifyAdmin: async (x, options = {}) => {
+        await new Promise(resolve => setImmediate(resolve));
+        sent.push({ bot: 'admin', text: x });
+        return actualQueue.notify('admin', '1', x, { db: options.db, dedupKey: options.dedupKey, throwOnError: true });
+    } });
     assert.deepEqual(out.sequence, ['AP-rs3', 'AP-rs1', 'AP-rs2', 'AP-rs4'], 'при равной стоимости допустим любой кратчайший открытый путь; выбран C, A, B, D');
     const stops = (await db.getRouteById(out.route.id)).stops;
+    const routeOutbox = await pool.query(
+        `SELECT bot, dedup_key FROM notification_outbox WHERE dedup_key = $1 OR dedup_key = $2 OR dedup_key = $3 OR dedup_key = $4 OR dedup_key = $5 OR dedup_key = $6`,
+        [`route-sheet:${out.route.id}`, `assign:${stops[0].id}`, `assign:${stops[1].id}`, `assign:${stops[2].id}`, `assign:${stops[3].id}`, `admin-route-assigned:${out.route.id}`]);
+    assert.equal(routeOutbox.rowCount, 6, 'маршрут, маршрутный лист, точки и уведомление администратору записаны вместе');
     assert.deepEqual(stops.map(s => [s.stop_number, s.order_number]), [[1, 'AP-rs3'], [2, 'AP-rs1'], [3, 'AP-rs2'], [4, 'AP-rs4']]);
     assert.equal(stops[0].eta_at, null, 'первая точка не получает ETA от несуществующего склада');
     // Первая ETA неизвестна без GPS; следующие рассчитываются между клиентскими адресами.
@@ -150,4 +164,19 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.equal((await db.acceptRouteStop(cancelRoute.route.id, remaining.id)).status, 'accepted');
     assert.equal((await db.startRouteIfAllAccepted(cancelRoute.route.id)).status, 'started');
     assert.equal((await db.getRouteById(cancelRoute.route.id)).stops.find(s => s.order_number === cancelB.order_number).status, 'cancelled');
+
+    // Ошибка записи уведомления должна откатить создание маршрута и всех его остановок.
+    const rollbackOrder = await mk('10', 'адрес B');
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) await db.updateOrderStatus(rollbackOrder.id, status);
+    const routesBefore = Number((await pool.query('SELECT COUNT(*)::int AS n FROM delivery_routes')).rows[0].n);
+    const failingQueue = { notify: async (_bot, _chat, _text, options = {}) => {
+        if (options.throwOnError) throw new Error('test outbox enqueue failure');
+        return null;
+    } };
+    const failingSvc = createRouteService({ db, geocoder, queue: failingQueue, planner, env: { SERVICE_MINUTES: '5' }, now: () => clock.t });
+    await assert.rejects(failingSvc.buildRoute({ orderIds: [rollbackOrder.id], courier }), /test outbox enqueue failure/);
+    assert.equal(Number((await pool.query('SELECT COUNT(*)::int AS n FROM delivery_routes')).rows[0].n), routesBefore,
+        'маршрут откатился вместе с ошибкой outbox');
+    assert.equal(Number((await pool.query('SELECT COUNT(*)::int AS n FROM route_stops WHERE order_id = $1', [String(rollbackOrder.id)])).rows[0].n), 0,
+        'остановки не остались без уведомлений');
 });
