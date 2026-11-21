@@ -727,7 +727,7 @@ async function handleStartRoute(chatId, routeId, user) {
         console.error('[ROUTE] Не удалось отправить единый маршрут:', errorCode(e));
         bot.sendMessage(chatId, 'Маршрут начат, но не удалось показать маршрутную карточку. Откройте /route для просмотра.');
     }
-    notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
+    await notifyAdmin(`[МАРШРУТ] ${escapeHtml(route.route_number)} начат курьером ${user.first_name || ''}`);
 }
 
 // ====== Flow доставки: accept → enroute → arrived → done ======
