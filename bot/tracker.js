@@ -26,16 +26,33 @@ function trackerItem({ chatId, orderNumber, dependsOn }) {
 }
 
 // Изменить карточку. patch: { stage, courier, eta, rating, canRate }. true — карточка есть и правка поставлена в очередь.
-async function trackerEvent(db, orderNumber, patch) {
+async function trackerEvent(db, orderNumber, patch, enqueueMessage = enqueue) {
     if (!widgets.widgetsEnabled() || !orderNumber) return false;
-    const row = await store.mergeState(db, 'tracker', orderNumber, patch);
-    if (!row) return false;
-    const w = widgets.trackerWidget(orderNumber, row.state);
-    await enqueue(db, {
-        bot: 'client', method: 'editMessageWidgetData', payload: { chat_data: w.chat_data },
-        editRef: `tracker:${orderNumber}`, dependsOn: widgetKey(orderNumber)
-    });
-    return true;
+    // Pool calls own a short transaction so the displayed state cannot advance
+    // unless its edit is durably present in notification_outbox. A PoolClient
+    // supplied by an existing transaction remains owned by the caller.
+    const ownsTransaction = typeof db.connect === 'function' && typeof db.release !== 'function';
+    const client = ownsTransaction ? await db.connect() : db;
+    try {
+        if (ownsTransaction) await client.query('BEGIN');
+        const row = await store.mergeState(client, 'tracker', orderNumber, patch);
+        if (!row) {
+            if (ownsTransaction) await client.query('COMMIT');
+            return false;
+        }
+        const w = widgets.trackerWidget(orderNumber, row.state);
+        await enqueueMessage(client, {
+            bot: 'client', method: 'editMessageWidgetData', payload: { chat_data: w.chat_data },
+            editRef: `tracker:${orderNumber}`, dependsOn: widgetKey(orderNumber)
+        });
+        if (ownsTransaction) await client.query('COMMIT');
+        return true;
+    } catch (e) {
+        if (ownsTransaction) await client.query('ROLLBACK').catch(() => {});
+        throw e;
+    } finally {
+        if (ownsTransaction) client.release();
+    }
 }
 
 // Есть ли рабочая карточка у заказа (для решения «слать ли старые кнопки оценки»)
