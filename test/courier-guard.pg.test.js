@@ -162,7 +162,7 @@ test('курьерский бот: кнопки отменённого зака�
     assert.ok(enroutePrompt, 'после общего старта маршрутная карточка сохранена в outbox');
     assert.ok(enroutePrompt.reply_markup.inline_keyboard.flat().some(button => button.callback_data === `deliver_${b.route.id}_${b.stopId}_enroute`));
     assert.match(enroutePrompt.text, /AP-cg2/);
-    assert.match(enroutePrompt.text, /СПб, ул\\. Т/);
+    assert.match(enroutePrompt.text, /СПб, ул\. Т/);
     await pool.query("DELETE FROM notification_outbox WHERE bot = 'client'");
 
     await press(`deliver_${b.route.id}_${b.stopId}_enroute`);
