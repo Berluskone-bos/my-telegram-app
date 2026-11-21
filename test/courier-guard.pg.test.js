@@ -57,11 +57,12 @@ test('курьерский бот: кнопки отменённого зака�
     await pool.query('DELETE FROM notification_outbox');
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
     const courier = await db.createCourier({ name: 'Курьер-гард', phone: '+7 999 000-00-00', telegram_id: 900002, telegram_user: 'g', vehicle_type: 'авто' });
+    const otherCourier = await db.createCourier({ name: 'Другой курьер', phone: '+7 999 000-00-01', telegram_id: 900003, telegram_user: 'other', vehicle_type: 'авто' });
     t.after(async () => {
         await pool.query('DELETE FROM notification_outbox');
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
         await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-cg%'");
-        await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
+        await pool.query('DELETE FROM couriers WHERE id = ANY($1::int[])', [[courier.id, otherCourier.id]]);
         await pool.end();
     });
 
@@ -73,14 +74,33 @@ test('курьерский бот: кнопки отменённого зака�
             stops: [{ order_id: String(o.id), order_number: o.order_number, address: o.address, phone: '1', client_name: 'К', client_chat_id: o.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
         return { o, route, stopId: route.stops[0].id };
     };
-    const press = async (data, replyMarkup = { inline_keyboard: [] }, messageExtras = {}) => {
+    const press = async (data, replyMarkup = { inline_keyboard: [] }, messageExtras = {}, telegramId = 900002) => {
         calls.length = 0;
-        await handlers.callback_query({ id: 'q1', data, from: { id: 900002, first_name: 'К' }, message: { chat: { id: 900002 }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
+        await handlers.callback_query({ id: 'q1', data, from: { id: telegramId, first_name: 'К' }, message: { chat: { id: telegramId }, message_id: 55, reply_markup: replyMarkup, ...messageExtras } });
         await new Promise(r => setTimeout(r, 150));
     };
     const adminTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'admin' ORDER BY id")).rows.map(r => r.t);
     const clientTexts = async () => (await pool.query("SELECT payload->>'text' AS t FROM notification_outbox WHERE bot = 'client' ORDER BY id")).rows.map(r => r.t);
 
+    // Прямой вызов callback с ID маршрута другого курьера не раскрывает данные и не меняет состояние.
+    const foreignOrder = await db.createOrder({ order_number: 'AP-cg_foreign', user_id: 777099, user_name: 'К', name: 't', phone: '1',
+        address: 'СПб, чужой адрес', zone: 'spb', city: 'c', street: 's', house: '99', items: [], subtotal: 1, total: 1, idempotency_key: 'cg_foreign' });
+    for (const status of ['CONFIRMED', 'ASSEMBLING', 'READY_FOR_SHIPMENT']) assert.equal(await db.updateOrderStatus(foreignOrder.id, status), true);
+    const foreignRoute = await db.createRoute({ route_number: 'RL-CGFOREIGN', route_date: '2026-11-14', courier_id: otherCourier.id,
+        status: 'assigned', total_orders: 1, enforceReadyOrders: true,
+        stops: [{ order_id: String(foreignOrder.id), order_number: foreignOrder.order_number, address: foreignOrder.address, phone: '1',
+            client_name: 'К', client_chat_id: foreignOrder.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
+    const foreignStopId = foreignRoute.stops[0].id;
+    const foreignActions = ['showroute_' + foreignRoute.id, 'startroute_' + foreignRoute.id, 'deliver_' + foreignRoute.id + '_' + foreignStopId + '_accept'];
+    for (const action of foreignActions) {
+        await press(action);
+        const denied = calls.find(x => x[0] === 'answerCallbackQuery');
+        assert.ok(denied, 'чужое действие отклонено');
+        assert.match(denied[2].text, /Нет доступа/);
+        assert.equal(calls.some(x => x[0] === 'sendMessage'), false, 'данные чужого маршрута не отправлены в чат');
+    }
+    assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'чужой маршрут не изменён');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [foreignOrder.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
     const a = await mk('cg1');
     await db.updateOrderStatus(a.o.id, 'CANCELLED');
