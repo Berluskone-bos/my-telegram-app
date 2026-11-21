@@ -254,6 +254,10 @@ test('курьерский бот: кнопки отменённого зака�
     await press(`deliver_${M.route.id}_${s2.id}_arrived`);
     assert.equal((await clientTexts()).length, 2);
     assert.match(lastCard().text, /курьер у клиента/);
+    // Прямая попытка изменить этап через DB adapter тоже блокируется — не только Telegram guard.
+    assert.equal(await db.setStopStage(s3.id, 'enroute'), null,
+        'БД не позволяет начать другой заказ, пока предыдущий имеет stage=arrived');
+    assert.equal((await db.getRouteById(M.route.id)).stops.find(s => Number(s.id) === Number(s3.id)).stage, null);
     // Пока курьер у клиента №2, другой заказ в путь не берём
     await press(`deliver_${M.route.id}_${s3.id}_enroute`);
     const blocked = calls.find(c => c[0] === 'answerCallbackQuery');
