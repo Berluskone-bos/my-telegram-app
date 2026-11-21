@@ -91,4 +91,33 @@ test('system-status: только после входа, показывает б
     });
     assert.equal(invalidStatusId.status, 400, 'ID заказа не принимает суффикс');
 
+    // Strict decimal IDs: Number() alone also accepts 1e3 and 0x10.
+    assert.equal((await fetch(base + '/api/orders/1e3', { headers: { ...H, cookie } })).status, 400,
+        'GET заказа отклоняет scientific notation');
+    assert.equal((await fetch(base + '/api/orders/0x10', { headers: { ...H, cookie } })).status, 400,
+        'GET заказа отклоняет hexadecimal notation');
+    assert.equal((await fetch(base + '/api/orders/1e3/assign', {
+        method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify({ courier_id: '1' })
+    })).status, 400, 'назначение отклоняет не десятичный ID заказа');
+    assert.equal((await fetch(base + '/api/orders/1/assign', {
+        method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify({ courier_id: '1e3' })
+    })).status, 400, 'назначение отклоняет scientific notation в ID курьера');
+    assert.equal((await fetch(base + '/api/products/1e3/stock', {
+        method: 'PATCH', headers: { ...Hsame, cookie }, body: JSON.stringify({ stock: 1, expected_stock: 0 })
+    })).status, 400, 'изменение остатков отклоняет scientific notation');
+    assert.equal((await fetch(base + '/api/products/0x10', {
+        method: 'PUT', headers: { ...Hsame, cookie }, body: JSON.stringify({ name: 'x' })
+    })).status, 400, 'редактирование товара отклоняет hexadecimal notation');
+    for (const suffix of ['/api/admin/staff/1e3', '/api/admin/staff/0x10']) {
+        assert.equal((await fetch(base + suffix, {
+            method: 'PATCH', headers: { ...Hsame, cookie }, body: JSON.stringify({ displayName: 'invalid' })
+        })).status, 400, 'изменение сотрудника принимает только десятичный ID');
+        assert.equal((await fetch(base + suffix + '/password', {
+            method: 'POST', headers: { ...Hsame, cookie }, body: JSON.stringify({ password: 'New-Password-2026!' })
+        })).status, 400, 'сброс пароля принимает только десятичный ID');
+        assert.equal((await fetch(base + suffix + '/revoke-sessions', {
+            method: 'POST', headers: { ...Hsame, cookie }, body: '{}'
+        })).status, 400, 'отзыв сессий принимает только десятичный ID');
+    }
+
 });
