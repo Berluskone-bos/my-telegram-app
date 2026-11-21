@@ -124,4 +124,6 @@ test('склад: отмена и удаление заказов возвращ
     assert.equal(await stock(), 0, 'нехватка товара не меняет остаток');
     assert.equal((await pool.query("SELECT count(*)::int n FROM orders WHERE order_number = 'AP-k8'")).rows[0].n, 0,
         'заказ с недостаточным остатком не сохраняется');
+    await db.deleteAllOrders();
+    assert.equal(await stock(), 6, 'тестовый заказ очищен, остаток восстановлен');
 });
