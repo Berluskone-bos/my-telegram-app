@@ -333,8 +333,9 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         });
 
         app.patch('/api/admin/staff/:id', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
-            const id = Number(req.params.id);
-            if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
+            const rawId = String(req.params.id || '');
+            const id = Number(rawId);
+            if (!/^\\d{1,15}$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
             const body = req.body && typeof req.body === 'object' ? req.body : {};
             const keys = Object.keys(body);
             if (!keys.length || keys.some(k => !['login', 'displayName', 'role', 'isActive'].includes(k))) {
@@ -387,9 +388,10 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         });
 
         app.post('/api/admin/staff/:id/password', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
-            const id = Number(req.params.id);
+            const rawId = String(req.params.id || '');
+            const id = Number(rawId);
             const password = req.body && typeof req.body.password === 'string' ? req.body.password : '';
-            if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
+            if (!/^\\d{1,15}$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
             if (password.length < PASSWORD_MIN || password.length > 128) return res.status(400).json({ error: 'Пароль должен содержать от 12 до 128 символов.' });
             try {
                 const passwordHash = await hashPassword(password);
@@ -408,8 +410,9 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         });
 
         app.post('/api/admin/staff/:id/revoke-sessions', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
-            const id = Number(req.params.id);
-            if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
+            const rawId = String(req.params.id || '');
+            const id = Number(rawId);
+            if (!/^\\d{1,15}$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
             const r = await pool.query('DELETE FROM admin_sessions WHERE staff_user_id = $1', [id]);
             await audit(req, 'staff_sessions_revoked', 200, 'staff_id=' + id);
             res.json({ ok: true, revoked: r.rowCount });
