@@ -1,6 +1,6 @@
-# ARCHITECTURE — как собрано (по состоянию на 20.11.2026; drift-правка: loyalty/referral/admin auth)
+# ARCHITECTURE — как собрано (актуализация 21.11.2026)
 
-Источник истины — репозиторий `Berluskone-bos/my-telegram-app` (публичный) и сервисы Railway (бот и база данных), GitHub Pages. Neon **не используется** (проверено 17.11.2026 по живому Railway, см. `MEMORY.md`). Раньше в этих документах описывался отдельный сервер на VPS: **он не используется**, его файлы лежат в `archive-vps/` и `to-integrate/`.
+Источник истины — репозиторий `Berluskone-bos/my-telegram-app` (публичный) и сервисы Railway (бот и база данных), GitHub Pages. Neon **не используется** (проверено 17.11.2026 по живому Railway, см. `MEMORY.md`). Отдельный сервер на VPS и Neon **не используются**. Исторические материалы VPS сохранены в `project-files/archive-vps/`; устаревшие заготовки `project-files/to-integrate/` удалены в рамках обслуживания, так как действующие модули находятся в `bot/`.
 
 ## Схема
 ```
@@ -131,3 +131,12 @@ PR #54 добавил индивидуальные учётные записи, 
 
 ## Статус «Не доставлен» и карточка маршрута курьера (обновление 38)
 Конечный автомат заказа дополнен `DELIVERY_FAILED`: `SHIPPING → DELIVERY_FAILED → READY_FOR_SHIPMENT | CANCELLED`. Переход в `DELIVERY_FAILED` выполняет только `db.failDeliveryStop` (одна транзакция: заказ → маршрут → остановка), из админки статус недоступен. Курьерский бот показывает маршрут одним сообщением (`bot/courier-card.js`), состояние остановки (`route_stops.stage`) хранится в базе. Админка выводит колонку «Не доставлены» с причиной из `route_stops.fail_reason` (поле `fail_reason` в `GET /api/orders`, доступно всем ролям, у которых есть список заказов).
+
+
+## Production snapshot (21.11.2026)
+- GitHub `main`: commit `833b34b`; PR #73–85 merged; открытых PR на момент проверки нет.
+- GitHub Actions: Tests — SUCCESS (108/108); Deploy to GitHub Pages — SUCCESS.
+- Railway environment `production`: services `gulf-bot` и `Postgres` Online; одна работающая реплика каждого сервиса; недавних падений, активных warnings и critical alerts нет.
+- PostgreSQL и backend развернуты в Railway region `sfo` (США). Это технический факт, не юридическое заключение о соответствии 152-ФЗ.
+- Автоматические резервные копии не подтверждены; см. `docs/BACKUP.md`. До настройки и проверки собственного backup восстановление после потери БД не гарантировано.
+- Основной источник каталога — таблица `products`; `data/catalog.json` используется как резервный источник.
