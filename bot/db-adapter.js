@@ -1595,18 +1595,31 @@ class DBAdapter {
             idx++;
         }
         if (fields.length === 0) return null;
-        // Ручная корректировка остатка явно включает учёт, даже если новое значение — 0.
-        // Ставим флаг до обновления: конкурентный заказ уже увидит включённый контроль.
-        if (Object.prototype.hasOwnProperty.call(p, 'stock') && p.stock !== undefined) {
-            await pool.query(
-                "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
-            );
-        }
         values.push(id);
-        const res = await pool.query(
-            `UPDATE products SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
-            values
-        );
+        const updateSql = `UPDATE products SET ${fields.join(', ')} WHERE id = ${idx} RETURNING *`;
+        const tracksStock = Object.prototype.hasOwnProperty.call(p, 'stock') && p.stock !== undefined;
+        if (tracksStock) {
+            // Обновление товара и включение учёта атомарны. Несуществующий ID не должен
+            // включать складской режим; конкурентный заказ не увидит промежуточное состояние.
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                const res = await client.query(updateSql, values);
+                if (res.rowCount > 0) {
+                    await client.query(
+                        "INSERT INTO app_flags (flag) VALUES ('stock_tracking_enabled') ON CONFLICT (flag) DO NOTHING"
+                    );
+                }
+                await client.query('COMMIT');
+                return res.rows[0] || null;
+            } catch (e) {
+                await client.query('ROLLBACK').catch(() => {});
+                throw e;
+            } finally {
+                client.release();
+            }
+        }
+        const res = await pool.query(updateSql, values);
         return res.rows[0] || null;
     }
 
