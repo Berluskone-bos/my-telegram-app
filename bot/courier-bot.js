@@ -208,7 +208,6 @@ async function renderRouteCard(chatId, messageId, routeId, wantedStopId = null) 
     catch (e) { console.error('[ROUTE] Не удалось отправить карточку маршрута:', errorCode(e)); return false; }
 }
 
-// Сообщение админу о шаге доставки: забрал заказ / выехал / на месте / доставил (один раз на шаг)
 function generateRouteNumber() {
     return 'RL-' + String(Date.now()).slice(-4);
 }
@@ -710,7 +709,6 @@ async function handleStartRoute(chatId, routeId, user) {
         console.error('[ROUTE] Не удалось отправить единый маршрут:', errorCode(e));
         bot.sendMessage(chatId, 'Маршрут начат, но не удалось показать маршрутную карточку. Откройте /route для просмотра.');
     }
-
 }
 
 // ====== Flow доставки: accept → enroute → arrived → done ======
@@ -777,7 +775,6 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try { await bot.editMessageReplyMarkup({ inline_keyboard: nextButtons }, { chat_id: chatId, message_id: msgId }); }
         catch (e) { console.error('[DELIVER] edit error:', errorCode(e)); }
         bot.answerCallbackQuery(query.id, { text: accepted.status === 'already' ? 'Заказ уже принят' : 'Заказ принят. Примите остальные заказы маршрута.' }).catch(() => {});
-
 
         // Явно показываем курьеру кнопку общего старта маршрута после принятия всех активных заказов.
         // Раньше «У клиента» появлялась сразу после принятия одной остановки, а кнопка старта
