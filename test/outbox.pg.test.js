@@ -44,6 +44,8 @@ test('очередь: отправка, повтор после сбоя, дед
     } });
     const row = async (id) => (await pool.query('SELECT * FROM notification_outbox WHERE id = $1', [id])).rows[0];
     const due = (id) => pool.query("UPDATE notification_outbox SET next_attempt_at = NOW() - INTERVAL '1 second' WHERE id = $1", [id]);
+    assert.equal(await q.retryFailed(Number.MAX_SAFE_INTEGER + 1), false, 'unsafe outbox ID is rejected before SQL');
+    assert.equal(await q.retryFailed(0), false, 'non-positive outbox ID is rejected before SQL');
 
     // успех
     const a = await q.enqueue({ bot: 'client', dedupKey: 'k-a', payload: { chat_id: '5', text: 'привет' } });
