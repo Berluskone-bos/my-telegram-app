@@ -223,7 +223,11 @@ async function getCourier(user) {
     return await db.getCourierByTelegramId(user.id);
 }
 
-const { getTodayRoutes } = require('./courier-date');
+const { getTodayRoutes: getTodayRoutesForDb } = require('./courier-date');
+
+async function getTodayRoutes(courierId) {
+    return getTodayRoutesForDb(db, courierId);
+}
 
 async function getActiveRoute(courierId) {
     const routes = await getTodayRoutes(courierId);
