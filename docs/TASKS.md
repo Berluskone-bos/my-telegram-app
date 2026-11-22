@@ -758,3 +758,5 @@
 - [x] Отмена заказа блокирует связанные маршруты до остановок (единый порядок `orders → delivery_routes → route_stops`) и переводит `pending/accepted/in_progress` в `cancelled`. Добавлен PostgreSQL сценарий отмены после принятия заказа курьером.
 - [ ] CI / обязательные проверки PR и production deployment — ожидаются.
 - [ ] Продолжить полный перечень числовых ID write endpoints и конкурентные сценарии отмены/доставки; аудит IDOR/BOLA остаётся открытым.
+
+- [x] Удалён неиспользуемый и недостижимый путь записи `DELIVERED/COMPLETED` из staff order-status API, а также незащищённые DB helpers `updateStopStatus` / `updateRouteStatus`; завершение доступно через транзакционный `completeDeliveryStop`. Тестовые фикстуры теперь меняют состояние напрямую SQL в тестовой БД.
