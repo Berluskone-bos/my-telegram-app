@@ -794,4 +794,4 @@
 - Добавлены PostgreSQL/HTTP тесты на некорректные тела без изменения данных и на параллельные замены без смешивания наборов.
 - CI run `45070263983` SUCCESS; PR #167 объединён, merge commit `d5a1cf5a3a1d65090ec00e6b2594ddbcd0e72549`.
 - Railway deployment `e46ae2f7-cc32-4d89-bfc2-4f0da16813e7` SUCCESS на том же commit; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
-- Следующий finding: `completeDeliveryStop` проверял допустимость завершения только после обновления заказа и допускал pending/accepted stop без проверки статуса маршрута. Исправление и регрессии готовятся в PR #168; IDOR/BOLA аудит остаётся открытым.
+- PR #168: `completeDeliveryStop` теперь требует route `in_progress` и stop `in_progress` до изменения заказа; pending/accepted stop не могут быть завершены преждевременно. Дополнительно запрещён переход DELIVERED/COMPLETED → CANCELLED, чтобы победившее завершение доставки нельзя было затем отменить без возврата товара. Добавлены PostgreSQL регрессии на преждевременное завершение и гонку complete-vs-cancel; CI/merge/deploy ожидаются. IDOR/BOLA аудит остаётся открытым.
