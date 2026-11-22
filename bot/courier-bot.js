@@ -622,8 +622,8 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data === 'refresh_main') {
-        const courier = await getCourier(query.from);
-        if (courier) showMainScreen(chatId, courier);
+        const courier = await requireActiveCourier(query.from, chatId);
+        if (courier) await showMainScreen(chatId, courier);
         bot.answerCallbackQuery(query.id);
         return;
     }
