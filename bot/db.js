@@ -30,7 +30,13 @@ pool.on('error', (err) => {
 // Инициализация таблиц и миграции
 async function initDB() {
     const client = await pool.connect();
+    let initLockAcquired = false;
     try {
+        // Multiple bot/test processes can call initDB() against the same database.
+        // Serialize schema initialization to prevent DDL lock-order deadlocks.
+        await client.query('SELECT pg_advisory_lock(73492184720311)');
+        initLockAcquired = true;
+
         // ─── Базовые таблицы (как было) ───
         await client.query(`
             CREATE TABLE IF NOT EXISTS couriers (
@@ -612,6 +618,13 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
         // и дальнейшая работа идёт по битой схеме.
         throw e;
     } finally {
+        if (initLockAcquired) {
+            try {
+                await client.query('SELECT pg_advisory_unlock(73492184720311)');
+            } catch (unlockError) {
+                console.error('[ОШИБКА] Не удалось снять блокировку initDB:', unlockError.message);
+            }
+        }
         client.release();
     }
 }
