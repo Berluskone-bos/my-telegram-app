@@ -414,10 +414,9 @@ class DBAdapter {
                 }
             }
 
-            // Единый порядок блокировок с запуском маршрута: orders → couriers → route_stops.
-            // Сначала блокируем заказы и проверяем их доступность, затем проверяем курьера.
-            // Это не допускает взаимной блокировки createRoute (courier → orders)
-            // и startRouteIfAllAccepted (orders → route → courier).
+            // Сначала блокируем заказы; затем проверяем занятость их остановок и блокируем курьера.
+            // Это сохраняет общий порядок orders → courier для пересекающихся маршрутов
+            // и не допускает взаимной блокировки с startRouteIfAllAccepted.
             const courierLock = await client.query(
                 'SELECT id FROM couriers WHERE id = $1 AND is_active = true AND archived_at IS NULL FOR UPDATE',
                 [route.courier_id]);
