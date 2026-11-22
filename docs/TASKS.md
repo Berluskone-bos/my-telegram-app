@@ -800,4 +800,4 @@
 ## 23.11.2026 — PR #168: delivery state guard and deployment
 - PR #168 merged; CI run `45071681370` SUCCESS. Regression coverage includes pending/accepted completion rejection, no order/stop mutation on rejection, complete-vs-cancel serialization, and actual existing numeric IDs for orders/routes in RBAC tests.
 - Railway deployment `9382f1e2-03b7-4202-b48d-6058251c57e6` SUCCESS on merge commit `4d0a5a1ecd93ef0b0033dddceaca71a8bacab084`; `gulf-bot` Online 1/1, PostgreSQL Online, no warnings/criticals, no pending work.
-- Next hardening: PR #169 makes DB adapter numeric-ID guards use `Number.isSafeInteger` consistently and validates `updateProduct` IDs before any SQL; tests cover unsafe integer values. Full IDOR/BOLA audit remains open.
+- Next hardening: PR #169 makes DB adapter numeric-ID guards use `Number.isSafeInteger` consistently and validates `updateProduct` IDs before any SQL; outbox retry and courier-message metadata ID writes are guarded too. Tests cover unsafe integer values. Full IDOR/BOLA audit remains open.
