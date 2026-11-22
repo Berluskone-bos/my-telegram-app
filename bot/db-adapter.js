@@ -1336,9 +1336,22 @@ class DBAdapter {
                   WHERE id = $2`, [status, id]);
             if (status === 'CANCELLED') {
                 if (!['DELIVERED', 'COMPLETED'].includes(o.status)) await this._restoreStock(client, o);
+                // Единый порядок блокировок для гонок с курьерскими callback:
+                // заказ (уже FOR UPDATE) → маршруты → остановки. Нельзя сначала
+                // заблокировать route_stops, а затем delivery_routes: setStopStage
+                // блокирует их в обратном для такого порядка порядке (route → stop).
+                const linkedRoutes = await client.query(
+                    'SELECT DISTINCT route_id FROM route_stops WHERE order_number = $1 ORDER BY route_id',
+                    [o.order_number]);
+                const routeIds = linkedRoutes.rows.map(row => row.route_id);
+                if (routeIds.length) {
+                    await client.query(
+                        'SELECT id FROM delivery_routes WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE',
+                        [routeIds]);
+                }
                 await client.query(
                     `UPDATE route_stops SET status = 'cancelled'
-                      WHERE order_number = $1 AND status IN ('pending', 'in_progress')`, [o.order_number]);
+                      WHERE order_number = $1 AND status IN ('pending', 'accepted', 'in_progress')`, [o.order_number]);
                 // сообщения курьеру и клиенту — в той же транзакции: отмена и уведомления либо есть вместе, либо нет
                 await queueCancelNotices(client, o);
                 await this._undoBonuses(client, o);
@@ -1458,13 +1471,24 @@ class DBAdapter {
             // Возвращаем товар на склад, если при заказе остаток списывался
             await this._restoreStock(client, res.rows[0]);
 
-            // Убираем из активных остановок маршрута, чтобы курьер
-            // не приехал по отменённому адресу.
+            // Единый порядок блокировок: заказ (UPDATE выше) → маршруты → остановки.
+            // Сначала блокируем маршруты, иначе параллельный setStopStage (route → stop)
+            // мог бы ждать остановку, пока отмена ждёт маршрут.
+            const linkedRoutes = await client.query(
+                'SELECT DISTINCT route_id FROM route_stops WHERE order_number = $1 ORDER BY route_id',
+                [orderNumber]);
+            const routeIds = linkedRoutes.rows.map(row => row.route_id);
+            if (routeIds.length) {
+                await client.query(
+                    'SELECT id FROM delivery_routes WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE',
+                    [routeIds]);
+            }
+            // Принятый заказ тоже должен стать отменённой остановкой.
             await client.query(
                 `UPDATE route_stops
                     SET status = 'cancelled'
                   WHERE order_number = $1
-                    AND status IN ('pending', 'in_progress')`,
+                    AND status IN ('pending', 'accepted', 'in_progress')`,
                 [orderNumber]
             );
             await queueCancelNotices(client, res.rows[0]);
