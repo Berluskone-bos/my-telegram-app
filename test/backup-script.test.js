@@ -20,7 +20,10 @@ function setup() {
     executable('pg_dump', `#!/bin/sh
 if [ "${1:-}" = "--version" ]; then echo "pg_dump (PostgreSQL) 18"; exit 0; fi
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--file" ]; then shift; OUT="$1"; fi
+  case "$1" in
+    --file) shift; OUT="$1" ;;
+    --file=*) OUT="${1#--file=}" ;;
+  esac
   shift
 done
 dd if=/dev/zero of="$OUT" bs=1024 count=4 2>/dev/null
