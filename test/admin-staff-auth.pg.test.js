@@ -152,9 +152,10 @@ test('сотрудники: индивидуальный вход, роли, о�
     const raceApp = express(); raceApp.set('trust proxy', 1); raceApp.use(express.json()); raceAuth.registerRoutes(raceApp);
     raceServer = await new Promise(resolve => { const srv = raceApp.listen(0, '127.0.0.1', () => resolve(srv)); });
     const raceBase = 'http://127.0.0.1:' + raceServer.address().port;
+    const raceOrigin = 'https://127.0.0.1:' + raceServer.address().port;
     const staleLoginPromise = fetch(raceBase + '/api/admin/login', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-proto': 'https', 'x-forwarded-for': '10.10.10.5', origin },
+        headers: { 'content-type': 'application/json', 'x-forwarded-proto': 'https', 'x-forwarded-for': '10.10.10.5', origin: raceOrigin },
         body: JSON.stringify({ login: 'operator.one', password: 'Operator-Password-2026!' }),
         redirect: 'manual'
     });
