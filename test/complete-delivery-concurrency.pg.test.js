@@ -21,6 +21,20 @@ test('параллельные callback «Доставлен» фиксирую�
     const db = typeof A === 'function' ? new A(pool) : (A.default || A);
     await initDB();
 
+    // DB adapter methods must reject unsafe JS integers before reaching PostgreSQL.
+    const unsafeId = Number.MAX_SAFE_INTEGER + 1;
+    assert.equal(await db.updateOrderStatus(unsafeId, 'CANCELLED'), false);
+    assert.equal(await db.updateProduct(unsafeId, { name: 'must not write' }), null);
+    assert.equal(await db.getOrderById(unsafeId), null);
+    assert.equal(await db.getProductById(unsafeId), null);
+    assert.equal((await db.acceptRouteStop(unsafeId, 1)).status, 'not_found');
+    assert.equal((await db.acceptRouteStop(1, unsafeId)).status, 'not_found');
+    assert.equal((await db.startRouteIfAllAccepted(unsafeId)).status, 'not_found');
+    assert.equal(await db.setStopStage(unsafeId, 'enroute'), null);
+    assert.equal((await db.failDeliveryStop(unsafeId, 'invalid')).status, 'not_found');
+    assert.equal((await db.completeDeliveryStop(unsafeId)).status, 'not_found');
+    assert.equal((await db.rateCourierForStop(unsafeId, 1, 123456, 5)).status, 'invalid');
+
     const suffix = String(Date.now()) + '-' + process.pid;
     const courier = await db.createCourier({
         name: 'Тест конкурентной доставки',
