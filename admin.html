@@ -716,6 +716,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div><h2 style="margin:0">Сотрудники</h2><p style="margin:6px 0 0;color:var(--muted,#667085)">Личные учётные записи и права доступа</p></div>
                 <button type="button" onclick="closeStaffModal()" style="border:0;background:transparent;font-size:28px;cursor:pointer" aria-label="Закрыть">×</button>
             </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 10px"><h3 style="margin:0">Курьеры — заявки и доступ</h3><button type="button" onclick="loadCourierAdminList()" style="padding:7px 10px;border:1px solid #ccd3df;border-radius:8px;background:transparent;cursor:pointer">Обновить</button></div>
+            <div id="courierAdminList" style="display:grid;gap:10px;margin-bottom:20px"><p>Загрузка списка курьеров…</p></div>
+            <div style="border-top:1px solid var(--line,#d8deea);padding-top:16px;margin-top:8px"><h3 style="margin:0 0 10px">Сотрудники админ-панели</h3></div>
             <form id="staffCreateForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;padding:14px;border:1px solid var(--line,#d8deea);border-radius:12px;margin-bottom:18px;">
                 <label>Имя сотрудника<input name="displayName" required maxlength="100" placeholder="Иван Иванов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
                 <label>Логин<input name="login" required minlength="3" maxlength="64" pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="ivanov" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
@@ -786,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="section-body">
                     <table>
-                        <thead><tr><th>Заказ</th><th>Клиент</th><th>Адрес</th><th>Сумма</th><th>Дата</th></tr></thead>
+                        <thead><tr><th>Заказ</th><th>Клиент</th><th>Адрес</th><th>Сумма</th><th><button type="button" onclick="toggleShopOrdersSort()" title="Сортировать по времени" style="border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0">Дата и время ${shopOrdersSort.direction === 'desc' ? '↓' : '↑'}</button></th></tr></thead>
                         <tbody id="unassignedTable"><tr><td colspan="5" class="empty">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
@@ -806,8 +809,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="section-header"><div class="section-title">Курьеры</div></div>
                 <div class="section-body">
                     <table>
-                        <thead><tr><th>Имя</th><th>Телефон</th><th>Транспорт</th><th>Telegram</th><th>Рейтинг</th><th>Статус</th></tr></thead>
-                        <tbody id="couriersTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                        <thead><tr><th>Имя</th><th>Телефон</th><th>Транспорт</th><th>Telegram</th><th>Рейтинг</th><th>Статус</th><th>Действия</th></tr></thead>
+                        <tbody id="couriersTable"><tr><td colspan="7" class="empty">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -1281,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
                         <td>${esc(o.address || '-')}</td>
                         <td>${(o.total || 0).toLocaleString()} руб.</td>
-                        <td>${fmtDate(o.created_at)}</td>
+                        <td>${new Date(o.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                     </tr>`).join('');
 
                 const todayStr = today();
@@ -1303,16 +1306,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         </tr>`;
                     }).join('');
 
+                const canManageCouriers = window.adminHasPermission && window.adminHasPermission('staff.manage');
                 document.getElementById('couriersTable').innerHTML = couriers.length === 0
-                    ? '<tr><td colspan="6" class="empty">Нет курьеров</td></tr>'
-                    : couriers.map(c => `<tr>
-                        <td><strong>${esc(c.name)}</strong></td>
-                        <td>${esc(c.phone || '-')}</td>
-                        <td>${esc(c.vehicle_type || '-')}</td>
-                        <td>@${esc(c.telegram_user || '-')}</td>
-                        <td>${c.rating ? c.rating + '/5 (' + (c.rating_count||0) + ')' : '-'}</td>
-                        <td><span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">${c.is_active ? 'Активен' : 'Неактивен'}</span></td>
-                    </tr>`).join('');
+                    ? '<tr><td colspan="7" class="empty">Нет курьеров</td></tr>'
+                    : couriers.map(c => {
+                        const archived = !!c.archived_at;
+                        const active = !!c.is_active && !archived;
+                        const state = archived ? 'Удалён' : active ? 'Активен' : 'Не активен';
+                        const controls = canManageCouriers && !archived
+                            ? '<button class="btn btn-outline btn-sm" onclick="setCourierActive(' + Number(c.id) + ',' + (!active) + ')">' + (active ? 'Отключить' : 'Активировать') + '</button> ' +
+                              '<button class="btn btn-outline btn-sm" style="color:#b42318" onclick="archiveCourier(' + Number(c.id) + ')">Удалить</button>'
+                            : archived ? '—' : '';
+                        return `<tr>
+                            <td><strong>${esc(c.name)}</strong></td>
+                            <td>${esc(c.phone || '-')}</td>
+                            <td>${esc(c.vehicle_type || '-')}</td>
+                            <td>@${esc(c.telegram_user || '-')}</td>
+                            <td>${c.rating ? c.rating + '/5 (' + (c.rating_count||0) + ')' : '-'}</td>
+                            <td><span class="badge ${archived ? 'badge-grey' : active ? 'badge-green' : 'badge-red'}">${state}</span></td>
+                            <td>${controls}</td>
+                        </tr>`;
+                    }).join('');
             } catch (e) { console.error('Delivery load error:', e); }
         }
 
@@ -1406,7 +1420,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let shopOrdersPage = 1;
-        const SHOP_ORDERS_LIMIT = 50;
+        const SHOP_ORDERS_LIMIT = 25;
+        let shopOrdersSort = { sort: 'created_at', direction: 'desc' };
+        window.toggleShopOrdersSort = () => {
+            shopOrdersSort.direction = shopOrdersSort.direction === 'desc' ? 'asc' : 'desc';
+            shopOrdersPage = 1;
+            loadShopOrders();
+        };
         window.changeShopOrdersPage = delta => {
             shopOrdersPage = Math.max(1, shopOrdersPage + delta);
             loadShopOrders();
@@ -1417,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
                 const canFulfill = window.adminHasPermission && window.adminHasPermission('orders.fulfill');
                 const [ordersResponse, couriers, routes] = await Promise.all([
-                    fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${SHOP_ORDERS_LIMIT}`),
+                    fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${SHOP_ORDERS_LIMIT}&sort=${shopOrdersSort.sort}&direction=${shopOrdersSort.direction}`),
                     canDispatch ? fetch(`${API_BASE}/api/couriers`).then(r => r.json()) : Promise.resolve([]),
                     canDispatch ? fetch(`${API_BASE}/api/routes`).then(r => r.json()) : Promise.resolve([])
                 ]);
@@ -1453,15 +1473,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     : orders.map(o => {
                         const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
                         const courierName = getCourierForOrder(o.id);
-                        const isCompleted = o.status === 'COMPLETED' || o.status === 'PICKED_UP';
-                        const checkmark = isCompleted
-                            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><path d="M20 6L9 17l-5-5"/></svg>'
+                        const isDelivered = ['DELIVERED', 'COMPLETED', 'PICKED_UP'].includes(o.status);
+                        const isNotDelivered = ['DELIVERY_FAILED', 'CANCELLED'].includes(o.status);
+                        const outcomeIcon = isDelivered
+                            ? '<span title="Доставлен / выдан" style="color:#16a34a;font-size:18px;font-weight:800">✓</span>'
+                            : isNotDelivered ? '<span title="Не доставлен / отказ" style="color:#dc2626;font-size:18px;font-weight:800">✕</span>' : '';
+                        const outcomeReason = isNotDelivered
+                            ? '<div style="font-size:11px;color:#b42318;max-width:220px;white-space:normal">' + esc(o.fail_reason || (o.status === 'CANCELLED' ? 'Отказ / отмена (причина не указана)' : 'Причина не указана')) + '</div>'
                             : '';
-                        const rowStyle = isCompleted ? ' style="background:rgba(22,163,74,0.04)"' : '';
                         const canBatch = showAssign && o.delivery_type !== 'pickup' && !courierName;
-                        return `<tr${rowStyle}>
-                            <td>${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" onclick="event.stopPropagation()">` : ''}</td>
-                            <td>${checkmark}<strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
+                        return `<tr>
+                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" onclick="event.stopPropagation()">` : ''}${outcomeReason}</td>
+                            <td><strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
                             <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
                             <td>${esc(o.address || '-')}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
@@ -1664,7 +1687,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 board.innerHTML = BOARD_COLS.map(col => {
                     // статус, которого нет в списке (старые данные), считаем «новым», чтобы заказ не пропал с доски
-                    const list = orders.filter(o => col.st.includes(o.status) || (col.key === 'NEW' && !KNOWN_STATUSES.has(o.status)));
+                    let list = orders.filter(o => col.st.includes(o.status) || (col.key === 'NEW' && !KNOWN_STATUSES.has(o.status)));
+                    if (col.key === 'DONE') {
+                        const todayKey = today();
+                        list = list.filter(o => {
+                            const completedAt = o.delivery_completed_at || o.created_at;
+                            return completedAt && new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(completedAt)) === todayKey;
+                        });
+                    }
                     const sum = list.reduce((s, o) => s + (parseFloat(o.total) || 0), 0);
                     const lim = col.limit || 30;
                     return `<div class="bcol" style="--c:${col.color}"${col.drop ? ` data-drop="${col.drop}"` : ''}>
@@ -2327,7 +2357,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (VIEWS[h] && h !== currentView) go(h, { fromHash: true }); });
 
         // ====== Утилиты ======
-        function today() { return new Date().toISOString().split('T')[0]; }
+        function today() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
         function fmtDate(d) { return d ? new Date(d).toLocaleDateString('ru-RU') : '-'; }
 
         // ====== Инициализация ======
@@ -2415,8 +2445,56 @@ async function openStaffModal() {
     const modal = document.getElementById('staffModal');
     if (!modal) return;
     modal.style.display = 'flex';
-    await loadStaffList();
+    await Promise.all([loadStaffList(), loadCourierAdminList()]);
 }
+async function loadCourierAdminList() {
+    const target = document.getElementById('courierAdminList');
+    if (!target) return;
+    try {
+        const response = await fetch(ADMIN_API + '/api/admin/couriers', { cache: 'no-store' });
+        const rows = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(rows.error || 'Не удалось загрузить курьеров');
+        if (!rows.length) { target.innerHTML = '<p>Заявок и курьеров пока нет.</p>'; return; }
+        target.innerHTML = rows.map(courier => {
+            const archived = !!courier.archived_at;
+            const active = !!courier.is_active && !archived;
+            const state = archived ? 'Удалён из списка' : active ? 'Активен' : 'Ожидает активации / деактивирован';
+            const color = archived ? '#667085' : active ? '#16803d' : '#b54708';
+            const controls = archived
+                ? '<span style="font-size:12px;color:#667085">История сохранена</span>'
+                : '<button type="button" onclick="setCourierActive(' + Number(courier.id) + ',' + (!active) + ')" style="padding:7px 10px;border:0;border-radius:7px;background:' + (active ? '#667085' : '#16803d') + ';color:#fff;cursor:pointer">' + (active ? 'Деактивировать' : 'Активировать') + '</button>' +
+                  '<button type="button" onclick="archiveCourier(' + Number(courier.id) + ')" style="padding:7px 10px;border:1px solid #dc2626;border-radius:7px;background:transparent;color:#b42318;cursor:pointer">Удалить</button>';
+            return '<div style="border:1px solid var(--line,#d8deea);border-radius:10px;padding:11px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
+                '<div><b>' + staffEsc(courier.name) + '</b><div style="font-size:12px;color:var(--muted,#667085)">' + staffEsc(courier.phone || 'Телефон не указан') + ' · @' + staffEsc(courier.telegram_user || '—') + ' · ID ' + Number(courier.id) + '</div><div style="font-size:12px;font-weight:700;color:' + color + ';margin-top:4px">' + state + '</div></div>' +
+                '<div style="display:flex;gap:6px;flex-wrap:wrap">' + controls + '</div></div>';
+        }).join('');
+    } catch (e) {
+        target.innerHTML = '<p style="color:#b42318">' + staffEsc(e.message) + '</p>';
+    }
+}
+async function setCourierActive(id, active) {
+    const action = active ? 'активировать' : 'деактивировать';
+    if (!confirm('Вы действительно хотите ' + action + ' этого курьера?')) return;
+    try {
+        const response = await fetch(ADMIN_API + '/api/admin/couriers/' + id, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: !!active })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Не удалось изменить доступ');
+        await Promise.all([loadCourierAdminList(), loadDeliveryData()]);
+    } catch (e) { alert(e.message); }
+}
+async function archiveCourier(id) {
+    if (!confirm('Удалить курьера из действующего списка? Его история маршрутов и заказов останется в системе.')) return;
+    try {
+        const response = await fetch(ADMIN_API + '/api/admin/couriers/' + id, { method: 'DELETE' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Не удалось удалить курьера');
+        await Promise.all([loadCourierAdminList(), loadDeliveryData(), loadShopOrders()]);
+    } catch (e) { alert(e.message); }
+}
+
 function closeStaffModal() {
     const modal = document.getElementById('staffModal');
     if (modal) modal.style.display = 'none';
