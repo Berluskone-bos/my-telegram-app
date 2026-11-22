@@ -752,7 +752,7 @@
 
 
 ## IDOR/BOLA audit — callback IDs, product approvals, cancellation races (в работе)
-- [x] Courier callback data разбирается строгими форматами: route/stop IDs — только полные положительные десятичные числа; action/reason code должны соответствовать разрешённой форме. Добавлены регрессии на суффиксы после route ID и stop ID.
+- [x] Courier callback data разбирается строгими форматами: route/stop IDs — только полные положительные десятичные числа; action/reason code должны соответствовать разрешённой форме и известному списку причин (либо `other`). Добавлены регрессии на суффиксы после route ID и stop ID.
 - [x] `GET/PUT /api/products/:id/approvals`: проверяется существование товара; неизвестный ID возвращает 404 даже при пустом списке допусков. PUT блокирует строку товара `FOR UPDATE` на время атомарной замены. Все ID в oil routes, включая query-параметры справочников, принимаются только как положительные десятичные safe integers.
 - [x] Матрица ролей для approvals использует существующий product ID: manager/operator/warehouse получают 403, запись не меняется; admin может заменить список. Добавлена проверка 404 для несуществующего товара.
 - [x] Отмена заказа блокирует связанные маршруты до остановок (единый порядок `orders → delivery_routes → route_stops`) и переводит `pending/accepted/in_progress` в `cancelled`. Добавлен PostgreSQL сценарий отмены после принятия заказа курьером.
