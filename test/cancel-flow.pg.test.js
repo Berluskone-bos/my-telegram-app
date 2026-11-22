@@ -170,7 +170,7 @@ test('отмена заказа: курьер получает сообщени�
     assert.ok(['failed', 'cancelled'].includes(failResult.status),
         'failure either commits before cancellation or is rejected after cancellation');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [oFailRace.id])).rows[0].status, 'CANCELLED');
-    assert.ok(['failed', 'cancelled'].includes((await pool.query('SELECT status FROM route_stops WHERE id = $1', [failRace.stopId])).rows[0].status);
+    assert.ok(['failed', 'cancelled'].includes((await pool.query('SELECT status FROM route_stops WHERE id = $1', [failRace.stopId])).rows[0].status));
     assert.equal((await db.getRouteById(failRace.route.id)).status, 'completed');
 
     // ── гонка завершения доставки с отменой: победитель должен оставить согласованное терминальное состояние ──
