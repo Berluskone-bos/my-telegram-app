@@ -1053,10 +1053,42 @@ class DBAdapter {
         return r.rows[0];
     }
 
-    async updateStopPhoto(stopId, photoFileId) {
-        const id = Number(stopId);
-        if (!Number.isInteger(id)) return;
-        await pool.query('UPDATE route_stops SET photo_file_id = $1 WHERE id = $2', [photoFileId, id]);
+    async updateStopPhoto(routeId, stopId, photoFileId, expectedCourierId) {
+        const rid = Number(routeId), id = Number(stopId), courierId = Number(expectedCourierId);
+        if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(id) || id <= 0 ||
+            !Number.isSafeInteger(courierId) || courierId <= 0 || typeof photoFileId !== 'string' || !photoFileId.trim()) return false;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT id, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            if (!route.rowCount || String(route.rows[0].courier_id) !== String(courierId)) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const activeCourier = await client.query(
+                'SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [courierId]);
+            if (!activeCourier.rowCount) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const stop = await client.query(
+                "SELECT id FROM route_stops WHERE id = $1 AND route_id = $2 AND status = 'pending' FOR UPDATE",
+                [id, rid]);
+            if (!stop.rowCount) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const updated = await client.query(
+                "UPDATE route_stops SET photo_file_id = $3 WHERE id = $1 AND route_id = $2 AND status = 'pending' RETURNING id",
+                [id, rid, photoFileId.trim().slice(0, 1024)]);
+            await client.query('COMMIT');
+            return updated.rowCount > 0;
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     // ───────────────────────────────────────────
