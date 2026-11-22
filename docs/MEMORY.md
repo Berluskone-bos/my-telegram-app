@@ -594,3 +594,12 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - По решению владельца автоматическое резервирование PostgreSQL отложено до развёртывания собственного сервера. Внешнее S3-хранилище, расписание и секреты не создавались. Само исправление PR #149 оставлено в `main`.
 - PR #150: в `test/admin-api-rbac.pg.test.js` добавлены проверки `/api/orders/stats`, `/api/orders/kpi`, `/api/analytics/shop` для четырёх ролей. Доступ имеют admin и manager с `sales.view`; operator и warehouse получают 403. PR CI run `45054938625` SUCCESS; merge commit `d71423d3302dee845c0a8f4b38227741902305ca`; main CI run `45055079460` SUCCESS.
 - Railway deployment `904e9666-2fc8-4cfe-8e0e-c5dd20fa9313` SUCCESS; `gulf-bot` Online 1/1, без предупреждений и ошибок. Полный аудит IDOR/BOLA остаётся открытым: эти тесты усиливают матрицу, но не заменяют полный аудит всех маршрутов и объектных границ.
+
+
+## 22.11.2026 — IDOR/BOLA audit, PR #153
+- Найден отложенный callback сценария `failreason_*_other`: после запроса текстовой причины `pendingReasons` хранил только route/stop/message IDs, а следующий текстовый ответ не перепроверял текущую активность курьера и принадлежность маршрута. При отключении курьера или переназначении маршрута до отправки текста прежний курьер мог вызвать `failDeliveryStop(stopId)`.
+- PR #153: отложенный сценарий теперь сохраняет Telegram ID инициатора; обработчик текста проверяет совпадение отправителя, активность курьера, существование маршрута и `route.courier_id === courier.id` непосредственно перед фиксацией. Проверка выполняется и на callback пути.
+- `test/courier-guard.pg.test.js`: добавлены PostgreSQL сценарии переназначения маршрута и деактивации курьера между выбором «Другое» и текстовым ответом; существующий успешный сценарий остаётся зелёным.
+- PR #153 CI run `45057218666` SUCCESS; merge commit `4ea396bcf5ec18fe68cc66e83156507b7870183e`. Railway deployment `721e1c17-2f5d-4e2e-a5cd-6f208e5fff7f` SUCCESS, branch `main`, exact commit matches merge, `gulf-bot` Online 1/1, 0 warnings/criticals.
+- Проверены клиентские API истории/скрытия заказов, бонусов и рефералов, а также tracker widget rating: доступ к данным ограничен подписанным Telegram ID и/или совпадением владельца заказа. Административные staff, order, route и product endpoints защищены staff session + permission guards; продолжить проверку всех изменяющих маршрутов, включая границы между callback, текстовым продолжением и API.
+- Полный IDOR/BOLA аудит остаётся открытым.
