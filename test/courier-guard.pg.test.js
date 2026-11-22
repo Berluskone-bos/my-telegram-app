@@ -200,6 +200,13 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].status, 'pending');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [routeB.o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
 
+    assert.equal(await db.updateStopPhoto(routeA.route.id, routeB.stopId, 'forged-file-id', courier.id), false,
+        'photo attachment must not accept a stop ID from another route');
+    assert.equal((await pool.query('SELECT photo_file_id FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].photo_file_id, null);
+    assert.equal(await db.updateStopPhoto(routeB.route.id, routeB.stopId, 'valid-file-id', courier.id), true,
+        'active courier can attach a photo to a pending stop in their own route');
+    assert.equal((await pool.query('SELECT photo_file_id FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].photo_file_id, 'valid-file-id');
+
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
     const a = await mk('cg1');
     await db.updateOrderStatus(a.o.id, 'CANCELLED');
