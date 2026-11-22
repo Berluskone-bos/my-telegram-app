@@ -125,6 +125,54 @@ test('отмена заказа: курьер получает сообщени�
         'после гонки отмена остаётся терминальным состоянием остановки');
     assert.equal((await checkStopActive(pool, race.stopId)).active, false);
 
+    // ── гонка принятия остановки с отменой ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oAcceptRace = await mkOrder('cf-accept-race');
+    const acceptRace = await assign(oAcceptRace, true);
+    const [acceptResult, acceptCancel] = await Promise.all([
+        db.acceptRouteStop(acceptRace.route.id, acceptRace.stopId, { expectedCourierId: courier.id }),
+        db.updateOrderStatus(oAcceptRace.id, 'CANCELLED')
+    ]);
+    assert.equal(acceptCancel, true);
+    assert.ok(['accepted', 'route_started'].includes(acceptResult.status),
+        'accept either commits before cancellation or is rejected after route closure');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [oAcceptRace.id])).rows[0].status, 'CANCELLED');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [acceptRace.stopId])).rows[0].status, 'cancelled');
+    assert.equal((await db.getRouteById(acceptRace.route.id)).status, 'completed');
+
+    // ── гонка старта маршрута с отменой ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oStartRace = await mkOrder('cf-start-race');
+    const startRace = await assign(oStartRace, true);
+    assert.equal((await db.acceptRouteStop(startRace.route.id, startRace.stopId, { expectedCourierId: courier.id })).status, 'accepted');
+    const [startResult, startCancel] = await Promise.all([
+        db.startRouteIfAllAccepted(startRace.route.id, { expectedCourierId: courier.id }),
+        db.updateOrderStatus(oStartRace.id, 'CANCELLED')
+    ]);
+    assert.equal(startCancel, true);
+    assert.ok(['started', 'forbidden'].includes(startResult.status),
+        'route start either commits before cancellation or sees the closed route');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [oStartRace.id])).rows[0].status, 'CANCELLED');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [startRace.stopId])).rows[0].status, 'cancelled');
+    assert.equal((await db.getRouteById(startRace.route.id)).status, 'completed');
+
+    // ── гонка отказа курьера с отменой ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oFailRace = await mkOrder('cf-fail-race');
+    const failRace = await assign(oFailRace, true);
+    assert.equal((await db.acceptRouteStop(failRace.route.id, failRace.stopId, { expectedCourierId: courier.id })).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(failRace.route.id, { expectedCourierId: courier.id })).status, 'started');
+    const [failResult, failCancel] = await Promise.all([
+        db.failDeliveryStop(failRace.stopId, 'Клиента нет дома', { expectedCourierId: courier.id }),
+        db.updateOrderStatus(oFailRace.id, 'CANCELLED')
+    ]);
+    assert.equal(failCancel, true);
+    assert.ok(['failed', 'cancelled'].includes(failResult.status),
+        'failure either commits before cancellation or is rejected after cancellation');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [oFailRace.id])).rows[0].status, 'CANCELLED');
+    assert.ok(['failed', 'cancelled'].includes((await pool.query('SELECT status FROM route_stops WHERE id = $1', [failRace.stopId])).rows[0].status);
+    assert.equal((await db.getRouteById(failRace.route.id)).status, 'completed');
+
     // ── гонка завершения доставки с отменой: победитель должен оставить согласованное терминальное состояние ──
     await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
     const oCompleteRace = await mkOrder('cf-complete-race');
