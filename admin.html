@@ -789,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="section-body">
                     <table>
-                        <thead><tr><th>Заказ</th><th>Клиент</th><th>Адрес</th><th>Сумма</th><th><button type="button" onclick="toggleShopOrdersSort()" title="Сортировать по времени" style="border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0">Дата и время ${shopOrdersSort.direction === 'desc' ? '↓' : '↑'}</button></th></tr></thead>
+                        <thead><tr><th>Заказ</th><th>Клиент</th><th>Адрес</th><th>Сумма</th><th>Дата</th></tr></thead>
                         <tbody id="unassignedTable"><tr><td colspan="5" class="empty">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
@@ -948,14 +948,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <table>
                         <thead>
                             <tr>
-                                <th title="Отметьте заказы, которые курьер возьмёт одним рейсом">Рейс</th>
+                                <th title="Итог доставки и выбор заказов в маршрут">Итог / рейс</th>
                                 <th>Номер</th>
                                 <th>Клиент</th>
                                 <th>Адрес</th>
                                 <th>Сумма</th>
                                 <th>Статус</th>
                                 <th>Курьер</th>
-                                <th>Дата</th>
+                                <th><button type="button" onclick="toggleShopOrdersSort()" title="Сортировать по времени" style="border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0">Дата и время ${shopOrdersSort.direction === 'desc' ? '↓' : '↑'}</button></th>
                             </tr>
                         </thead>
                         <tbody id="shopOrdersTable"><tr><td colspan="8" class="empty">Загрузка...</td></tr></tbody>
