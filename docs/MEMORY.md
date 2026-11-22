@@ -701,3 +701,9 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 ## 23.11.2026 — PR #169 verified; staff login/reset race
 - PR #169 CI run `45072406175` SUCCESS; merge commit `44eb9329c94ddc7c1945f420db0e25abc7574e4f`; Railway deployment `22bcf7e3-1d70-439d-81e6-4f192800e847` SUCCESS, services online, 0 warnings/criticals.
 - При аудите admin auth выявлена гонка: staff login мог проверить старый password_hash, а затем вставить новую сессию после завершившегося reset/delete sessions. PR #170 сериализует завершение входа с изменением строки admin_users и повторно проверяет hash/active status под FOR UPDATE; детерминированный тест ставит login на паузу после SELECT и выполняет reset.
+
+
+## 23.11.2026 — PR #170 verified
+- PR #170 CI run `45073000793` SUCCESS; merge commit `78b99c6dd56b419b2539cbd29a3fa416e7d44eef`.
+- Исправлена гонка login vs password reset: сессия сотрудника создаётся только после блокировки `admin_users FOR UPDATE` и повторной проверки password hash/is_active. Детерминированный PostgreSQL тест подтверждает 401 для устаревшего входа и отсутствие новой сессии после reset.
+- Railway deployment `a5d233a7-febb-45d7-b1da-ad965d0f7560` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pendingWork empty.

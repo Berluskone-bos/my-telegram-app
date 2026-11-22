@@ -807,3 +807,11 @@
 - PR #169 merged; CI run `45072406175` SUCCESS. DB adapter write/read helpers now reject non-positive or unsafe JavaScript integer IDs; `updateProduct`, outbox retry, and outbox stop-message metadata writes validate IDs internally.
 - Railway deployment `22bcf7e3-1d70-439d-81e6-4f192800e847` SUCCESS on merge commit `44eb9329c94ddc7c1945f420db0e25abc7574e4f`; `gulf-bot` and PostgreSQL Online, no warnings/criticals, pending work empty.
 - Next finding: staff login could create a session from a password hash read before a concurrent password reset/revocation. PR #170 adds row-lock + password-hash revalidation before inserting the session and a deterministic PostgreSQL race test. CI pending.
+
+
+## 23.11.2026 — PR #170: staff login/password-reset race closed
+- PR #170 merged; CI run `45073000793` SUCCESS.
+- Staff login now locks its `admin_users` row and rechecks the current password hash and active status before inserting a session. This closes the race where a login verified a stale hash and inserted a session after a password reset had revoked previous sessions.
+- Added deterministic PostgreSQL integration test: pause login after reading the old hash, reset password and revoke sessions, resume login; expected 401 and zero active sessions for that staff user.
+- Railway deployment `a5d233a7-febb-45d7-b1da-ad965d0f7560` SUCCESS on merge commit `78b99c6dd56b419b2539cbd29a3fa416e7d44eef`; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pending work empty.
+- IDOR/BOLA and numeric-ID write audit continues; completion not yet declared.
