@@ -466,19 +466,6 @@ class DBAdapter {
         }
     }
 
-    async updateRouteStatus(routeId, status, completed, failed) {
-        const id = Number(routeId);
-        if (!Number.isInteger(id)) return null;
-        const res = await pool.query(
-            `UPDATE delivery_routes SET status = $1::text, completed = $2::int, failed = $3::int,
-             started_at = CASE WHEN $1::text = 'in_progress' AND started_at IS NULL THEN NOW() ELSE started_at END,
-             completed_at = CASE WHEN $1::text = 'completed' THEN NOW() ELSE completed_at END
-             WHERE id = $4::int RETURNING *`,
-            [String(status), parseInt(completed) || 0, parseInt(failed) || 0, id]
-        );
-        return res.rows[0] || null;
-    }
-
     // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
     async acceptRouteStop(routeId, stopId, { afterAccept = null, expectedCourierId = undefined } = {}) {
         const rid = Number(routeId), sid = Number(stopId);
@@ -666,20 +653,6 @@ class DBAdapter {
         } finally {
             client.release();
         }
-    }
-
-    async updateStopStatus(stopId, status, reason) {
-        const id = Number(stopId);
-        if (!Number.isInteger(id)) return null;
-        const res = await pool.query(
-            `UPDATE route_stops
-                SET status = $1::text,
-                    fail_reason = $2::text,
-                    delivered_at = CASE WHEN $1::text = 'delivered' THEN NOW() ELSE delivered_at END
-              WHERE id = $3::int RETURNING *`,
-            [String(status), reason ? String(reason) : null, id]
-        );
-        return res.rows[0] || null;
     }
 
     // Неудачная попытка доставки — отдельный терминальный результат остановки,
