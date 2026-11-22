@@ -613,3 +613,13 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Первоначальный CI run `45058863321` выявил не ошибку логики, а устаревший SQL-фильтр теста `route-lock-order.pg.test.js`, который искал только `SELECT id FROM delivery_routes`; монитор обновлён для расширенного SELECT. Повторный полный CI run `45059184894` SUCCESS.
 - PR #155 merge commit `068cf7177e12b24bf4ef9ba603e68b819f90736f`; Railway deploy `e3517248-6805-4e0d-8a1c-13f4dada442c` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - Полный IDOR/BOLA аудит остаётся открытым; следующий фокус — атомарная авторизация принятия остановки, старта маршрута и изменения этапов, а также административное переназначение.
+
+
+## 22.11.2026 — PR #157–#158: courier ownership and lock order
+- PR #157 закрыл object-level authorization для `acceptRouteStop`, `startRouteIfAllAccepted`, `setStopStage`: каждая операция принимает `expectedCourierId`; после блокировки `delivery_routes` сверяет назначение и блокирует активную/неархивированную строку `couriers` `FOR SHARE` до commit.
+- Telegram callback flow повторно проверяет `courierForNotice` и принадлежность маршрута; передаёт внутренний courier ID в accept, start, enroute, arrived.
+- `test/complete-delivery-concurrency.pg.test.js` дополнен сценариями подмены courier ID и деактивации для accept/start/stage. Первоначальный CI выявил только тестовые route_number длиннее `varchar(16)`; тестовые номера укорочены, полный CI run `45060003241` SUCCESS.
+- PR #157 merge commit `e27778ecd5052bfe4dc6d72bccbbb54edc90b4c5`; Railway deployment `d236eaf8-3042-4939-a742-29ed44aa75fb` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online.
+- При последующем анализе найден lock-order inversion: `createRoute` блокировал courier перед orders, а start-route — orders, route, courier. PR #158 перенёс блокировку courier после блокировок заказов и проверки активных остановок.
+- PR #158 CI run `45060319716` SUCCESS; merge commit `7298091e453e7e9afa1bba9ccb18e20a7f9e7ad6`. Railway deploy `6d57a84a-75f9-4f26-85f3-2226576fd633` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- Следующий фокус: административные mutating APIs (`/api/orders/:id/status`, `/api/orders/:id/assign`, `/api/routes/build`, `/api/admin/outbox/:id/retry`), role/object scope и atomicity. Полный IDOR/BOLA аудит не закрыт.

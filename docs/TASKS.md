@@ -720,3 +720,14 @@
 - [x] Исправлен монитор lock-order теста: он учитывает расширенный SQL SELECT с `courier_id`; полный CI run `45059184894` SUCCESS.
 - [x] PR #155 merged, merge commit `068cf7177e12b24bf4ef9ba603e68b819f90736f`; Railway production `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - [ ] Продолжить атомарную object-level авторизацию остальных courier mutations (`acceptRouteStop`, `startRouteIfAllAccepted`, `setStopStage`) и перепроверить административные операции назначения/переназначения.
+
+
+## IDOR/BOLA audit — 22.11.2026 (PR #157–#158)
+- [x] PR #157: `acceptRouteStop`, `startRouteIfAllAccepted`, `setStopStage` проверяют `expectedCourierId` внутри PostgreSQL-транзакций после блокировки маршрута; проверяют активность и отсутствие архивации курьера под `FOR SHARE`.
+- [x] Курьерские Telegram handlers передают ID курьера из записи, найденной по Telegram ID; отсутствие активного владельца закрывает обработку.
+- [x] PostgreSQL regression: чужой ID и неактивный курьер не могут принять остановку, запустить маршрут или изменить этап; корректный курьер проходит сценарий.
+- [x] PR #157 CI run `45060003241` SUCCESS; merge commit `e27778ecd5052bfe4dc6d72bccbbb54edc90b4c5`; Railway deploy `d236eaf8-3042-4939-a742-29ed44aa75fb` SUCCESS, `gulf-bot` Online 1/1, Postgres Online.
+- [x] PR #158: порядок блокировок `createRoute()` согласован с транзакциями старта маршрута, чтобы избежать инверсии блокировок.
+- [x] PR #158 CI run `45060319716` SUCCESS; merge commit `7298091e453e7e9afa1bba9ccb18e20a7f9e7ad6`; Railway deployment `6d57a84a-75f9-4f26-85f3-2226576fd633` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online.
+- [ ] Продолжить аудит административных изменяющих API, включая статусы заказов, назначение маршрутов и идентификаторы уведомлений; проверить object-level scope, роль и транзакционные границы.
+- [ ] Полный IDOR/BOLA аудит остаётся открытым.
