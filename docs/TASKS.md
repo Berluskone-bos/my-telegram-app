@@ -756,7 +756,7 @@
 - [x] `GET/PUT /api/products/:id/approvals`: проверяется существование товара; неизвестный ID возвращает 404 даже при пустом списке допусков. PUT блокирует строку товара `FOR UPDATE` на время атомарной замены. Все ID в oil routes, включая query-параметры справочников, принимаются только как положительные десятичные safe integers.
 - [x] Матрица ролей для approvals использует существующий product ID: manager/operator/warehouse получают 403, запись не меняется; admin может заменить список. Добавлена проверка 404 для несуществующего товара.
 - [x] Отмена заказа блокирует связанные маршруты до остановок (единый порядок `orders → delivery_routes → route_stops`) и переводит `pending/accepted/in_progress` в `cancelled`. Добавлен PostgreSQL сценарий отмены после принятия заказа курьером.
-- [ ] CI / обязательные проверки PR и production deployment — ожидаются.
+- [x] PR #164 CI run `45065001984` SUCCESS; merge commit `4359acb97e52cd855e1c03df837f5db2bc7a0be3`; Railway deployment `94f730de-cd28-4f48-af8c-dfff3a06baa2` SUCCESS на этом commit; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - [ ] Продолжить полный перечень числовых ID write endpoints и конкурентные сценарии отмены/доставки; аудит IDOR/BOLA остаётся открытым.
 
 - [x] Удалён неиспользуемый и недостижимый путь записи `DELIVERED/COMPLETED` из staff order-status API, а также незащищённые DB helpers `updateStopStatus` / `updateRouteStatus`; завершение доступно через транзакционный `completeDeliveryStop`. Тестовые фикстуры теперь меняют состояние напрямую SQL в тестовой БД.
