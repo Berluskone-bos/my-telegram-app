@@ -32,7 +32,7 @@ test('параллельные callback «Доставлен» фиксирую�
 
     const created = [];
     const stopIds = [];
-    const makeShipment = async (tag) => {
+    const makeShipment = async (tag, prepare = true) => {
         const order = await db.createOrder({
             order_number: 'AP-cdr-' + suffix.slice(-12) + '-' + tag,
             user_id: 880000000 + (process.pid % 100000000),
@@ -54,7 +54,7 @@ test('параллельные callback «Доставлен» фиксирую�
             assert.equal(await db.updateOrderStatus(order.id, status), true);
         }
         const route = await db.createRoute({
-            route_number: 'CDR-' + suffix.slice(-8) + '-' + tag,
+            route_number: 'C' + suffix.slice(-6) + '-' + tag.slice(0, 4),
             route_date: new Date().toISOString().slice(0, 10),
             courier_id: courier.id,
             status: 'assigned',
@@ -75,9 +75,11 @@ test('параллельные callback «Доставлен» фиксирую�
         });
         const stopId = route.stops[0].id;
         stopIds.push(stopId);
-        const accepted = await db.acceptRouteStop(route.id, stopId);
-        assert.equal(accepted.status, 'accepted');
-        assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
+        if (prepare) {
+            const accepted = await db.acceptRouteStop(route.id, stopId);
+            assert.equal(accepted.status, 'accepted');
+            assert.equal((await db.startRouteIfAllAccepted(route.id)).status, 'started');
+        }
         return { order, route, stopId };
     };
 
@@ -91,6 +93,29 @@ test('параллельные callback «Доставлен» фиксирую�
         await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
         await pool.end();
     });
+
+    const ownership = await makeShipment('ownership', false);
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].status, 'pending');
+    await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'courier_inactive');
+    await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'accepted');
+
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
+    assert.equal((await db.getRouteById(ownership.route.id)).status, 'assigned');
+    await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id })).status, 'courier_inactive');
+    await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id })).status, 'started');
+
+    assert.equal(await db.setStopStage(ownership.stopId, 'enroute', { expectedCourierId: courier.id + 999999 }), null);
+    assert.equal((await pool.query('SELECT stage FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].stage, null);
+    await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
+    assert.equal(await db.setStopStage(ownership.stopId, 'enroute', { expectedCourierId: courier.id }), null);
+    await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
+    assert.ok(await db.setStopStage(ownership.stopId, 'enroute', { expectedCourierId: courier.id }));
+    assert.ok(await db.setStopStage(ownership.stopId, 'arrived', { expectedCourierId: courier.id }));
 
     const first = await makeShipment('a');
     // Проверка владельца должна выполняться внутри транзакции, а не только в Telegram callback.

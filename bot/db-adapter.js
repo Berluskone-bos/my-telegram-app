@@ -477,14 +477,27 @@ class DBAdapter {
     }
 
     // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
-    async acceptRouteStop(routeId, stopId, { afterAccept = null } = {}) {
+    async acceptRouteStop(routeId, stopId, { afterAccept = null, expectedCourierId = null } = {}) {
         const rid = Number(routeId), sid = Number(stopId);
         if (!Number.isInteger(rid) || rid <= 0 || !Number.isInteger(sid) || sid <= 0) return { status: 'not_found' };
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const route = await client.query('SELECT id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            const route = await client.query('SELECT id, status, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (expectedCourierId !== null) {
+                if (String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+                    await client.query('ROLLBACK');
+                    return { status: 'not_assigned' };
+                }
+                const activeCourier = await client.query(
+                    'SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE',
+                    [expectedCourierId]);
+                if (!activeCourier.rowCount) {
+                    await client.query('ROLLBACK');
+                    return { status: 'courier_inactive' };
+                }
+            }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
             const stop = await client.query('SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [sid, rid]);
             if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
@@ -508,7 +521,7 @@ class DBAdapter {
 
     // Общий старт разрешён только когда каждая неотменённая остановка принята.
     // Блокировка маршрута сериализует одновременные нажатия и отмены/принятия.
-    async startRouteIfAllAccepted(routeId, { afterStart = null } = {}) {
+    async startRouteIfAllAccepted(routeId, { afterStart = null, expectedCourierId = null } = {}) {
         const id = Number(routeId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -523,6 +536,19 @@ class DBAdapter {
             }
             const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [id]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (expectedCourierId !== null) {
+                if (String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+                    await client.query('ROLLBACK');
+                    return { status: 'not_assigned' };
+                }
+                const activeCourier = await client.query(
+                    'SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE',
+                    [expectedCourierId]);
+                if (!activeCourier.rowCount) {
+                    await client.query('ROLLBACK');
+                    return { status: 'courier_inactive' };
+                }
+            }
             if (route.rows[0].status === 'in_progress') { await client.query('COMMIT'); return { status: 'already' }; }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
             await client.query(
@@ -582,8 +608,19 @@ class DBAdapter {
                 return null;
             }
             const routeId = candidate.rows[0].route_id;
-            await client.query(
-                'SELECT id FROM delivery_routes WHERE id = $1 FOR UPDATE', [routeId]);
+            const routeRes = await client.query(
+                'SELECT id, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [routeId]);
+            if (!routeRes.rowCount) { await client.query('ROLLBACK'); return null; }
+            if (options.expectedCourierId !== undefined && options.expectedCourierId !== null) {
+                if (String(routeRes.rows[0].courier_id) !== String(options.expectedCourierId)) {
+                    await client.query('ROLLBACK');
+                    return null;
+                }
+                const activeCourier = await client.query(
+                    'SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE',
+                    [options.expectedCourierId]);
+                if (!activeCourier.rowCount) { await client.query('ROLLBACK'); return null; }
+            }
             const targetRes = await client.query(
                 'SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [id, routeId]);
             if (!targetRes.rowCount || targetRes.rows[0].status !== 'in_progress') {
