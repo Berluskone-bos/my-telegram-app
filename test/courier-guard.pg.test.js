@@ -438,7 +438,7 @@ test('курьерский бот: кнопки отменённого зака�
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'подмена после переназначения' });
     await new Promise(r => setTimeout(r, 100));
     assert.equal(await orderStatus(reassigned.o.id), 'READY_FOR_SHIPMENT', 'старый курьер не меняет заказ после переназначения маршрута');
-    assert.equal((await db.getRouteById(reassigned.route.id)).stops[0].status, 'in_progress');
+    assert.equal((await db.getRouteById(reassigned.route.id)).stops[0].status, 'pending', 'отложенный ответ не меняет состояние остановки');
 
     // Даже если маршрут остался назначен курьеру, его отключение до текстового ответа закрывает доступ.
     const disabled = await mk('cg_other_disabled');
