@@ -59,9 +59,15 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         body: body === undefined ? undefined : JSON.stringify(body)
     });
     const roleCookies = {};
+    let testCourierId = null, testRouteId = null;
 
     t.after(async () => {
         server.close();
+        if (testRouteId) {
+            await pool.query('DELETE FROM route_stops WHERE route_id = $1', [testRouteId]);
+            await pool.query('DELETE FROM delivery_routes WHERE id = $1', [testRouteId]);
+        }
+        if (testCourierId) await pool.query('DELETE FROM couriers WHERE id = $1', [testCourierId]);
         await pool.query('DELETE FROM admin_sessions WHERE staff_user_id IN (SELECT id FROM admin_users WHERE login LIKE $1)', [prefix + '%']);
         await pool.query('DELETE FROM admin_users WHERE login LIKE $1', [prefix + '%']);
         await pool.end();
@@ -91,6 +97,48 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         roleCookies[role] = cookieOf(loggedIn);
     }
 
+    // Courier access is managed from the admin panel, and archive never deletes history.
+    const courierInsert = await pool.query(
+        `INSERT INTO couriers (name, phone, telegram_id, telegram_user, vehicle_type, is_active)
+         VALUES ($1, $2, $3, $4, 'легковая', false) RETURNING id`,
+        ['RBAC courier ' + tag, '70000000000', 900000000 + Number(tag.slice(-6)), 'rbac_' + tag.slice(-6)]);
+    testCourierId = courierInsert.rows[0].id;
+    const courierList = await request('/api/admin/couriers', roleCookies.admin);
+    assert.equal(courierList.status, 200);
+    assert.ok((await courierList.json()).some(c => Number(c.id) === Number(testCourierId)));
+    const activated = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
+        method: 'PATCH', body: { is_active: true }
+    });
+    assert.equal(activated.status, 200, 'admin can activate a courier');
+    const routeInsert = await pool.query(
+        `INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders)
+         VALUES ($1, CURRENT_DATE, $2, 'assigned', 1) RETURNING id`,
+        ['RB' + tag.slice(-10), testCourierId]);
+    testRouteId = routeInsert.rows[0].id;
+    await pool.query(
+        `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, status)
+         VALUES ($1, 'rbac-test', 'RBAC-TEST', 1, 'Тестовый адрес', 'pending')`, [testRouteId]);
+    const blockedDeactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
+        method: 'PATCH', body: { is_active: false }
+    });
+    assert.equal(blockedDeactivate.status, 409, 'cannot deactivate a courier with an unfinished delivery');
+    const blockedArchive = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, { method: 'DELETE' });
+    assert.equal(blockedArchive.status, 409, 'cannot archive a courier with an unfinished delivery');
+    await pool.query("UPDATE route_stops SET status = 'delivered' WHERE route_id = $1", [testRouteId]);
+    const deactivated = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
+        method: 'PATCH', body: { is_active: false }
+    });
+    assert.equal(deactivated.status, 200, 'admin can deactivate a courier after active deliveries finish');
+    const archived = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, { method: 'DELETE' });
+    assert.equal(archived.status, 200, 'admin can archive a courier after route completion');
+    const archivedRow = await pool.query('SELECT is_active, archived_at FROM couriers WHERE id = $1', [testCourierId]);
+    assert.equal(archivedRow.rows[0].is_active, false);
+    assert.ok(archivedRow.rows[0].archived_at, 'archive timestamp is saved without deleting courier history');
+    const cannotReactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
+        method: 'PATCH', body: { is_active: true }
+    });
+    assert.equal(cannotReactivate.status, 404, 'archived courier cannot be reactivated');
+
     // CSRF: unsafe admin requests require the exact same origin, including a present Origin header.
     const foreignOrigin = await fetch(base + '/api/admin/staff', {
         method: 'POST',
@@ -116,6 +164,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         ['/api/admin/system-status', ['admin']],
         ['/api/admin/audit', ['admin']],
         ['/api/admin/staff', ['admin']],
+        ['/api/admin/couriers', ['admin']],
         ['/api/products', ['admin', 'warehouse']]
     ];
     for (const [path, allowed] of getCases) {
@@ -161,6 +210,14 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         },
         {
             name: 'outbox retry', path: '/api/admin/outbox/999999999/retry', method: 'POST', body: {},
+            allowed: ['admin'], allowedStatuses: [404]
+        },
+        {
+            name: 'courier activation', path: '/api/admin/couriers/999999999', method: 'PATCH', body: { is_active: true },
+            allowed: ['admin'], allowedStatuses: [404]
+        },
+        {
+            name: 'courier archive', path: '/api/admin/couriers/999999999', method: 'DELETE', body: {},
             allowed: ['admin'], allowedStatuses: [404]
         },
         {

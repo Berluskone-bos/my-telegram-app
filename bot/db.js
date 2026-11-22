@@ -224,6 +224,7 @@ async function initDB() {
 
         // Госномер курьера: код его уже читает и пишет (регистрация курьера, команда в курьер-боте), а в схеме колонки не было
         await client.query(`ALTER TABLE couriers ADD COLUMN IF NOT EXISTS license_plate VARCHAR(20)`);
+        await client.query(`ALTER TABLE couriers ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ`);
 
         // ─── Очередь уведомлений (см. outbox.js) и ссылка на сообщение курьеру ───
         await client.query(`

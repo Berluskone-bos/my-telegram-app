@@ -283,8 +283,12 @@ bot.onText(/\/start/, async (msg) => {
     const courier = await getCourier(user);
 
     if (courier) {
+        if (courier.archived_at) {
+            bot.sendMessage(chatId, 'Ваш аккаунт курьера удалён из действующего списка. Для повторного допуска обратитесь к администратору.');
+            return;
+        }
         if (!courier.is_active) {
-            bot.sendMessage(chatId, 'Ваш аккаунт деактивирован. Обратитесь к администратору.');
+            bot.sendMessage(chatId, 'Ваш аккаунт ожидает подтверждения или деактивирован. Обратитесь к администратору.');
             return;
         }
         showMainScreen(chatId, courier);
@@ -1280,6 +1284,52 @@ function registerCourierRoutes(app) {
     app.get('/api/couriers', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         try { res.json(filterCouriersForRole(await db.getCouriers(), req.admin && req.admin.role)); } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
+    // Управление заявками и действующими курьерами доступно только администраторам панели.
+    app.get('/api/admin/couriers', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
+        try {
+            res.set('Cache-Control', 'no-store');
+            res.json(await db.getCouriers());
+        } catch (e) {
+            console.error('[API /admin/couriers]', errorCode(e));
+            res.status(500).json({ error: 'Не удалось загрузить курьеров' });
+        }
+    });
+
+    app.patch('/api/admin/couriers/:id', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        if (!req.body || typeof req.body.is_active !== 'boolean') {
+            return res.status(400).json({ error: 'Нужно указать is_active: true или false' });
+        }
+        try {
+            const courier = await db.setCourierActive(id, req.body.is_active);
+            if (!courier) return res.status(404).json({ error: 'Курьер не найден или уже удалён' });
+            res.json({ success: true, courier });
+        } catch (e) {
+            if (e.code === 'COURIER_HAS_ACTIVE_ROUTE') return res.status(409).json({ error: e.message });
+            console.error('[API PATCH /admin/couriers]', errorCode(e));
+            res.status(500).json({ error: 'Не удалось изменить доступ курьера' });
+        }
+    });
+
+    app.delete('/api/admin/couriers/:id', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        try {
+            const courier = await db.archiveCourier(id);
+            if (!courier) return res.status(404).json({ error: 'Курьер не найден' });
+            res.json({ success: true, archived: true });
+        } catch (e) {
+            if (e.code === 'COURIER_HAS_ACTIVE_ROUTE') return res.status(409).json({ error: e.message });
+            console.error('[API DELETE /admin/couriers]', errorCode(e));
+            res.status(500).json({ error: 'Не удалось удалить курьера' });
+        }
+    });
+
 
     // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,
     // который проверяет READY_FOR_SHIPMENT, исключает самовывоз и защищает от двойного назначения.
@@ -1310,7 +1360,7 @@ function registerCourierRoutes(app) {
             const out = await routeSvc.buildRoute({ orderIds: order_ids, courier, notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true) });
             res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), plan: out.plan, sequence: out.sequence });
         } catch (e) {
-            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code];
+            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409, COURIER_INACTIVE: 409 }[e.code];
             if (status) return res.status(status).json({ error: e.message });
             console.error('[API /routes/build]', errorCode(e)); res.status(500).json({ error: 'Internal error' });
         }
@@ -1326,7 +1376,9 @@ function registerCourierRoutes(app) {
         try {
             const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
             const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
-            const result = await db.getOrdersPage(page, limit);
+            const sort = req.query.sort === 'id' ? 'id' : 'created_at';
+            const direction = req.query.direction === 'asc' ? 'asc' : 'desc';
+            const result = await db.getOrdersPage(page, limit, sort, direction);
             result.items = result.items.map(order => filterOrderListItem(order, req.admin && req.admin.role));
             res.set('Cache-Control', 'no-store');
             res.json(result);
