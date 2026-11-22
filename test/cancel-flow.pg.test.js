@@ -93,6 +93,21 @@ test('отмена заказа: курьер получает сообщени�
     assert.equal(sent.filter(s => s.bot === 'client').length, 1, 'клиенту — «Отменён»');
     assert.equal((await outbox()).find(r => r.dedup_key === `assign:${second.stopId}`).status, 'skipped');
 
+    // ── уже принятая курьером остановка также отменяется и гасит кнопки ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oAccepted = await mkOrder('cf-accepted');
+    const accepted = await assign(oAccepted, true);
+    assert.equal((await db.acceptRouteStop(accepted.route.id, accepted.stopId)).status, 'accepted');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [accepted.stopId])).rows[0].status, 'accepted');
+    assert.equal(await db.updateOrderStatus(oAccepted.id, 'CANCELLED'), true);
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [accepted.stopId])).rows[0].status, 'cancelled',
+        'отмена переводит accepted остановку в cancelled');
+    assert.equal((await db.getRouteById(accepted.route.id)).status, 'completed', 'маршрут закрывается после отмены принятой единственной остановки');
+    await q.processOnce();
+    assert.ok(sent.some(s => s.bot === 'courier' && s.method === 'sendMessage' && /Заказ отменён/.test(s.payload.text)),
+        'курьер, уже принявший заказ, получает сообщение об отмене');
+    assert.ok(sent.some(s => s.method === 'editMessageReplyMarkup'), 'кнопки принятой остановки гасятся');
+
     // ── заказ без курьера: только клиент ──
     await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
     const o3 = await mkOrder('cf3');
