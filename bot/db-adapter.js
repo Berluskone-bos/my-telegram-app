@@ -717,18 +717,19 @@ class DBAdapter {
                 return { status: 'not_found' };
             }
             const stop = stopRes.rows[0];
-            // Повторное нажатие «Не доставлено» — «уже отмечено», даже если маршрут успел завершиться
+            // Повторное нажатие «Не доставлено» — «уже отмечено», даже если маршрут успел завершиться.
             if (stop.status === 'failed') {
                 await client.query('COMMIT');
                 return { status: 'already', stop };
             }
-            if (routeRes.rows[0].status !== 'in_progress') {
-                await client.query('ROLLBACK');
-                return { status: 'route_not_started' };
-            }
+            // Отмена остановки имеет приоритет над статусом маршрута: возвращаем точную причину отказа.
             if (stop.status === 'cancelled') {
                 await client.query('ROLLBACK');
                 return { status: 'cancelled' };
+            }
+            if (routeRes.rows[0].status !== 'in_progress') {
+                await client.query('ROLLBACK');
+                return { status: 'route_not_started' };
             }
             if (stop.status !== 'in_progress') {
                 await client.query('ROLLBACK');
