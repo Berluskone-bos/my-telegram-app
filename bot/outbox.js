@@ -69,11 +69,13 @@ async function supersede(db, dedupKey) {
 // Ручное восстановление окончательно не доставленного уведомления после исправления конфигурации.
 // Обновляем ту же строку: dedup_key сохраняется, поэтому повторное событие не создаст дубликат.
 async function retryFailed(db, id) {
+    const rowId = Number(id);
+    if (!Number.isSafeInteger(rowId) || rowId <= 0) return false;
     const r = await db.query(
         `UPDATE notification_outbox
             SET status = 'pending', attempts = 0, next_attempt_at = NOW(), locked_until = NULL, last_error = NULL
           WHERE id = $1 AND status = 'failed'
-          RETURNING id`, [id]);
+          RETURNING id`, [rowId]);
     return r.rowCount > 0;
 }
 
@@ -119,9 +121,12 @@ function createOutbox({ pool, send, batch = 10 }) {
             payload = { ...(payload.message_id ? { chat_id: payload.chat_id, message_id: payload.message_id } : {}), ...fb.payload };
             result = await send(row.bot, method, payload);
         }
-        if (meta.stopId && result && result.message_id) {
-            await pool.query('UPDATE route_stops SET courier_chat_id = $1, courier_message_id = $2 WHERE id = $3',
-                [String(payload.chat_id), result.message_id, meta.stopId]);
+        if (meta.stopId != null && result && result.message_id) {
+            const stopId = Number(meta.stopId);
+            if (Number.isSafeInteger(stopId) && stopId > 0) {
+                await pool.query('UPDATE route_stops SET courier_chat_id = $1, courier_message_id = $2 WHERE id = $3',
+                    [String(payload.chat_id), result.message_id, stopId]);
+            }
         }
         if (meta.widget && method === 'sendWidget' && result && result.message_id) {
             await widgetStore.setMessage(pool, meta.widget.kind, meta.widget.ref, payload.chat_id, result.message_id);
