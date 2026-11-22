@@ -632,3 +632,5 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PostgreSQL regression подтверждает отсутствие изменений при null identity для пяти операций.
 - PR #160 CI run `45061115645` SUCCESS; merge commit `7d90051623f8ecdf1043e4cd1e52790e7a123730`. Railway deployment `77cb169f-1a61-4677-96d4-c66ab48f0b14` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - Остаётся продолжить аудит всех mutation call sites и административных API; полный IDOR/BOLA аудит открыт.
+
+- В текущем production-коде все Telegram courier handlers передают authenticated courier ID в mutation methods; вызовы без ID остаются в integration test helpers и тестовых сценариях. Новые production call sites проверять отдельно.
