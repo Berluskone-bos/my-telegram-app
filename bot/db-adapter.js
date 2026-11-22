@@ -797,7 +797,7 @@ class DBAdapter {
             // setStopStage/failDeliveryStop уже блокируют маршрут до остановки;
             // здесь делаем то же самое, иначе параллельные callback могут deadlock.
             const routeRes = await client.query(
-                'SELECT id, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
+                'SELECT id, status, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
             if (!routeRes.rowCount) {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
@@ -832,6 +832,19 @@ class DBAdapter {
                 await client.query('ROLLBACK');
                 return { status: 'cancelled' };
             }
+
+            // A delivered stop is idempotent. A new completion is only valid after
+            // the route has started and this stop has entered in_progress.
+            // Check before changing the order to COMPLETED.
+            if (stop.status === 'delivered') {
+                await this._refreshRouteCompletion(client, stop.route_id);
+                await client.query('COMMIT');
+                return { status: 'already', stop, orderId: order?.id || null };
+            }
+            if (routeRes.rows[0].status !== 'in_progress' || stop.status !== 'in_progress') {
+                await client.query('ROLLBACK');
+                return { status: 'forbidden' };
+            }
             if (order && order.status !== 'COMPLETED') {
                 if (!orderTransitionAllowed(order.status, 'COMPLETED')) {
                     await client.query('ROLLBACK');
@@ -841,16 +854,6 @@ class DBAdapter {
                     "UPDATE orders SET status = 'COMPLETED', stock_deducted = false WHERE id = $1",
                     [order.id]);
                 await this._grantReferralBonus(client, order);
-            }
-
-            if (stop.status === 'delivered') {
-                await this._refreshRouteCompletion(client, stop.route_id);
-                await client.query('COMMIT');
-                return { status: 'already', stop, orderId: order?.id || null };
-            }
-            if (!['pending', 'accepted', 'in_progress'].includes(stop.status)) {
-                await client.query('ROLLBACK');
-                return { status: 'forbidden' };
             }
 
             const updated = await client.query(

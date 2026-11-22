@@ -98,10 +98,19 @@ test('параллельные callback «Доставлен» фиксирую�
     assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: null })).status, 'not_assigned');
     assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].status, 'pending');
+    assert.equal((await db.completeDeliveryStop(ownership.stopId, { expectedCourierId: courier.id })).status, 'forbidden',
+        'pending stop cannot be completed before courier acceptance and route start');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [ownership.order.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
     assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'courier_inactive');
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'accepted');
+
+    // Accepted is still not deliverable until the route has started.
+    assert.equal((await db.completeDeliveryStop(ownership.stopId, { expectedCourierId: courier.id })).status, 'forbidden');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].status, 'accepted');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [ownership.order.id])).rows[0].status, 'READY_FOR_SHIPMENT',
+        'premature completion must not mutate the order');
 
     assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: null })).status, 'not_assigned');
     assert.equal((await db.getRouteById(ownership.route.id)).status, 'assigned');

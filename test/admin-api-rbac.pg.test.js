@@ -118,6 +118,8 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
             method: 'PATCH', body: { stock: 77, expected_stock: 10 }
         });
         assert.equal(stockDenied.status, 403, role + ' cannot change stock on an existing product ID');
+    }
+    for (const role of roles) {
         const productDenied = await request('/api/products/' + testProductId, roleCookies[role], {
             method: 'PUT', body: { name: 'forbidden product edit' }
         });
@@ -171,8 +173,22 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         });
         assert.equal(statusDenied.status, 403, role + ' cannot write warehouse status on an existing order ID');
     }
+    const warehouseStatus = await request('/api/orders/' + testOrderId + '/status', roleCookies.warehouse, {
+        method: 'PUT', body: { status: 'READY_FOR_SHIPMENT' }
+    });
+    assert.equal(warehouseStatus.status, 409, 'warehouse has permission but cannot move SHIPPING backwards to READY_FOR_SHIPMENT');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [testOrderId])).rows[0].status, 'SHIPPING',
         'forbidden status changes do not mutate an existing order');
+
+    // Existing order IDs are exercised on the route-build path as well: only route managers
+    // reach the handler; the current SHIPPING state must reject assignment with 409.
+    for (const role of ['admin', ...roles]) {
+        const assignExisting = await request('/api/orders/' + testOrderId + '/assign', roleCookies[role], {
+            method: 'POST', body: { courier_id: testCourierId }
+        });
+        assert.equal(assignExisting.status, ['admin', 'operator'].includes(role) ? 409 : 403,
+            role + ' assignment permission on an existing order ID');
+    }
 
     const blockedDeactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
         method: 'PATCH', body: { is_active: false }
@@ -244,7 +260,9 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         ['/api/admin/staff', ['admin']],
         ['/api/admin/couriers', ['admin']],
         ['/api/products', ['admin', 'warehouse']],
-        ['/api/products/' + testProductId + '/approvals', ['admin']]
+        ['/api/products/' + testProductId + '/approvals', ['admin']],
+        ['/api/products/' + testProductId + '/stock-movements', ['admin', 'warehouse']],
+        ['/api/orders/' + testOrderId, ['admin', 'manager', 'operator', 'warehouse']]
     ];
     for (const [path, allowed] of getCases) {
         for (const role of ['admin', ...roles]) {
@@ -306,6 +324,10 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         {
             name: 'route optimization', path: '/api/routes/999999999/optimize', method: 'POST', body: {},
             allowed: ['admin'], allowedStatuses: [404]
+        },
+        {
+            name: 'route optimization on an existing route ID', path: '/api/routes/' + testRouteId + '/optimize', method: 'POST', body: {},
+            allowed: ['admin'], allowedStatuses: [200]
         }
     ];
     for (const item of mutationCases) {

@@ -684,3 +684,9 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Проверен `GET/PUT /api/products/:id/approvals`: staff session + `settings.manage`, строгий numeric ID, 404 для отсутствующего товара, блокировка родительской строки `products FOR UPDATE` до замены списка. Ролевые тесты на существующем product ID уже проверяют запрет записи для manager/operator/warehouse и отсутствие изменений.
 - Выявлена опасная семантика некорректного тела PUT: отсутствующий/non-array approvals считался пустым списком и очищал допуски. Теперь тело валидируется строго (array до 80 непустых строк, каждая до 100 символов); ошибка возвращает 400 без записи. Явный [] остаётся способом очистки.
 - Добавлены регрессии на некорректные тела и параллельные полные замены; ожидание — один из целых наборов, без interleaving. Проверка CI и production deployment будет добавлена после фактического завершения.
+
+
+## 23.11.2026 — PR #167 и следующий delivery-state finding
+- PR #167 исправил fail-open поведение payload `PUT /api/products/:id/approvals`: некорректное/отсутствующее поле больше не становится пустым списком; добавлены malformed-input и concurrent-replacement PostgreSQL/HTTP регрессии.
+- CI run `45070263983` SUCCESS; merge commit `d5a1cf5a3a1d65090ec00e6b2594ddbcd0e72549`; Railway deployment `e46ae2f7-cc32-4d89-bfc2-4f0da16813e7` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- PR #168: `completeDeliveryStop` проверяет статус маршрута и остановки до изменения заказа; преждевременная доставка отклоняется без изменения данных. Существующее поведение отмены после завершения сохранено: `updateOrderStatus` используется для аннулирования реферального бонуса, а статус остановки остаётся delivered. Добавлены PostgreSQL тесты на pending/accepted completion и complete-vs-cancel race, включая оба порядка блокировок; CI/merge/deploy ожидаются.

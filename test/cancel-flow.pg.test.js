@@ -38,7 +38,7 @@ test('отмена заказа: курьер получает сообщени�
         if (afterConfirm === 'CONFIRMED') assert.equal(await db.updateOrderStatus(order.id, 'ASSEMBLING'), true);
         const afterAssembly = (await pool.query('SELECT status FROM orders WHERE id = $1', [order.id])).rows[0].status;
         if (afterAssembly === 'ASSEMBLING') assert.equal(await db.updateOrderStatus(order.id, 'READY_FOR_SHIPMENT'), true);
-        const route = await db.createRoute({ route_number: 'RL-' + order.order_number.slice(-4), route_date: '2026-11-14', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
+        const route = await db.createRoute({ route_number: 'RL-' + String(order.id), route_date: '2026-11-14', courier_id: courier.id, status: 'assigned', total_orders: 1, enforceReadyOrders: true,
             stops: [{ order_id: String(order.id), order_number: order.order_number, address: order.address, phone: '1', client_name: 'Клиент', client_chat_id: order.user_id,
                 amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
         const stopId = route.stops[0].id;
@@ -124,6 +124,32 @@ test('отмена заказа: курьер получает сообщени�
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [race.stopId])).rows[0].status, 'cancelled',
         'после гонки отмена остаётся терминальным состоянием остановки');
     assert.equal((await checkStopActive(pool, race.stopId)).active, false);
+
+    // ── гонка завершения доставки с отменой: победитель должен оставить согласованное терминальное состояние ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oCompleteRace = await mkOrder('cf-complete-race');
+    const completeRace = await assign(oCompleteRace, true);
+    assert.equal((await db.acceptRouteStop(completeRace.route.id, completeRace.stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(completeRace.route.id)).status, 'started');
+    const [completionRace, cancellationRace] = await Promise.all([
+        db.completeDeliveryStop(completeRace.stopId, { expectedCourierId: courier.id }),
+        db.updateOrderStatus(oCompleteRace.id, 'CANCELLED')
+    ]);
+    const completionState = (await pool.query(
+        'SELECT o.status AS order_status, rs.status AS stop_status FROM orders o JOIN route_stops rs ON rs.order_id = o.id::text WHERE o.id = $1',
+        [oCompleteRace.id]
+    )).rows[0];
+    assert.equal(cancellationRace, true);
+    if (completionRace.status === 'cancelled') {
+        assert.equal(completionState.order_status, 'CANCELLED');
+        assert.equal(completionState.stop_status, 'cancelled');
+    } else {
+        assert.equal(completionRace.status, 'completed');
+        // Admin cancellation after completion is an existing business rule used to reverse referral bonuses.
+        // Delivery history remains delivered; the order itself is marked cancelled.
+        assert.equal(completionState.order_status, 'CANCELLED');
+        assert.equal(completionState.stop_status, 'delivered');
+    }
 
     // ── заказ без курьера: только клиент ──
     await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
