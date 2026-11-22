@@ -1213,7 +1213,11 @@ bot.on('photo', async (msg) => {
         const orderNum = (orderMsg.text || '').trim();
         const stop = pendingStops.find(s => s.order_number === orderNum);
         if (stop) {
-            await db.updateStopPhoto(activeRoute.id, stop.id, fileId, courier.id);
+            const saved = await db.updateStopPhoto(activeRoute.id, stop.id, fileId, courier.id);
+            if (!saved) {
+                bot.sendMessage(chatId, 'Не удалось привязать фото: маршрут или доступ курьера изменился. Откройте /route и повторите.');
+                return;
+            }
             bot.sendMessage(chatId, `Фото привязано к заказу ${orderNum}`);
         } else {
             bot.sendMessage(chatId, 'Заказ не найден. Фото сохранено, привяжите позже через /route.');
