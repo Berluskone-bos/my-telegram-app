@@ -172,7 +172,7 @@ test('маршрут из 4 заказов: порядок по времени �
         'в момент постановки карточки уже сохранены ETA, пересчитанные на новое время');
 
     // После фактического завершения остановок пересчёт внутренних ETA также не уведомляет клиентов.
-    await db.updateStopStatus(stops[0].id, 'delivered', '');
+    await pool.query("UPDATE route_stops SET status = 'delivered', delivered_at = NOW() WHERE id = $1", [stops[0].id]);
     clock.t = new Date('2026-11-15T00:16:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'после первой доставки ETA остаётся внутренним');
