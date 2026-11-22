@@ -690,3 +690,9 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PR #167 исправил fail-open поведение payload `PUT /api/products/:id/approvals`: некорректное/отсутствующее поле больше не становится пустым списком; добавлены malformed-input и concurrent-replacement PostgreSQL/HTTP регрессии.
 - CI run `45070263983` SUCCESS; merge commit `d5a1cf5a3a1d65090ec00e6b2594ddbcd0e72549`; Railway deployment `e46ae2f7-cc32-4d89-bfc2-4f0da16813e7` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - PR #168: `completeDeliveryStop` проверяет статус маршрута и остановки до изменения заказа; преждевременная доставка отклоняется без изменения данных. Существующее поведение отмены после завершения сохранено: `updateOrderStatus` используется для аннулирования реферального бонуса, а статус остановки остаётся delivered. Добавлены PostgreSQL тесты на pending/accepted completion и complete-vs-cancel race, включая оба порядка блокировок; CI/merge/deploy ожидаются.
+ 
+
+## 23.11.2026 — PR #168 verified; numeric-ID boundary hardening
+- PR #168 CI run `45071681370` SUCCESS; merged as `4d0a5a1ecd93ef0b0033dddceaca71a8bacab084`.
+- Railway deployment `9382f1e2-03b7-4202-b48d-6058251c57e6` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pendingWork empty.
+- PR #169 hardens DB adapter helpers against unsafe JS integers: positive safe IDs required for courier/route/stop/order/product write methods; `updateProduct` now validates ID internally. PostgreSQL regression tests assert unsafe values are rejected before SQL; CI pending.
