@@ -175,14 +175,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         }
     }
 
-    async function createSession(req, res, user) {
-        const token = crypto.randomBytes(32).toString('base64url');
-        await pool.query(
-            'INSERT INTO admin_sessions (token_hash, role, staff_user_id, expires_at, ip, user_agent) ' +
-            'VALUES ($1,$2,$3,NOW() + ($4::text || \' milliseconds\')::interval,$5,$6)',
-            [hashToken(token), user.role, user.userId || null, String(absoluteMs),
-             String(req.ip || '').slice(0, 64), String(req.headers['user-agent'] || '').slice(0, 200)]
-        );
+    async function finishSession(req, res, user, token) {
         setCookie(req, res, token, absoluteMs);
         req.admin = {
             userId: user.userId || null, role: user.role, login: user.login || null,
@@ -191,6 +184,57 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         };
         await audit(req, 'login_ok', 200, null);
         return res.json({ ok: true });
+    }
+
+    async function createSession(req, res, user) {
+        const token = crypto.randomBytes(32).toString('base64url');
+        await pool.query(
+            'INSERT INTO admin_sessions (token_hash, role, staff_user_id, expires_at, ip, user_agent) ' +
+            'VALUES ($1,$2,$3,NOW() + ($4::text || \' milliseconds\')::interval,$5,$6)',
+            [hashToken(token), user.role, user.userId || null, String(absoluteMs),
+             String(req.ip || '').slice(0, 64), String(req.headers['user-agent'] || '').slice(0, 200)]
+        );
+        return finishSession(req, res, user, token);
+    }
+
+    // Staff login and password/session revocation share the admin_users row lock.
+    // If a reset wins first, a login that verified an old hash is rejected; if login
+    // wins first, the reset waits and then deletes the newly-created session.
+    async function createStaffSession(req, res, user, verifiedPasswordHash) {
+        const client = await pool.connect();
+        const token = crypto.randomBytes(32).toString('base64url');
+        try {
+            await client.query('BEGIN');
+            const current = await client.query(
+                'SELECT id, login, display_name, password_hash, role, is_active FROM admin_users WHERE id = $1 FOR UPDATE',
+                [user.userId]
+            );
+            if (!current.rowCount || current.rows[0].is_active !== true ||
+                current.rows[0].password_hash !== verifiedPasswordHash) {
+                await client.query('ROLLBACK');
+                await audit(req, 'login_fail', 401, 'staff_login_changed');
+                return res.status(401).json({ error: 'Неверный логин или пароль' });
+            }
+            const freshUser = {
+                userId: current.rows[0].id,
+                login: current.rows[0].login,
+                displayName: current.rows[0].display_name,
+                role: current.rows[0].role
+            };
+            await client.query(
+                'INSERT INTO admin_sessions (token_hash, role, staff_user_id, expires_at, ip, user_agent) ' +
+                'VALUES ($1,$2,$3,NOW() + ($4::text || \' milliseconds\')::interval,$5,$6)',
+                [hashToken(token), freshUser.role, freshUser.userId, String(absoluteMs),
+                 String(req.ip || '').slice(0, 64), String(req.headers['user-agent'] || '').slice(0, 200)]
+            );
+            await client.query('COMMIT');
+            return await finishSession(req, res, freshUser, token);
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     function registerRoutes(app) {
@@ -220,9 +264,9 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                     }
                     await clearFails(ip);
                     const user = found.rows[0];
-                    return await createSession(req, res, {
+                    return await createStaffSession(req, res, {
                         role: user.role, userId: user.id, login: user.login, displayName: user.display_name
-                    });
+                    }, user.password_hash);
                 }
                 const key = typeof getKey === 'function' ? getKey() : '';
                 if (!key) return res.status(503).json({ error: 'Вход по ключу отключён. Используйте логин и пароль.' });
