@@ -109,6 +109,7 @@ test('курьерский бот: кнопки отменённого зака�
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
         await pool.query("DELETE FROM orders WHERE order_number LIKE 'AP-cg%'");
         await pool.query('DELETE FROM couriers WHERE id = ANY($1::int[])', [[courier.id, otherCourier.id]]);
+        await pool.query('DELETE FROM couriers WHERE telegram_id = $1', [900004]);
         await pool.end();
     });
 
