@@ -203,6 +203,8 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
     async function createStaffSession(req, res, user, verifiedPasswordHash) {
         const client = await pool.connect();
         const token = crypto.randomBytes(32).toString('base64url');
+        let freshUser = null;
+        let rejected = false;
         try {
             await client.query('BEGIN');
             const current = await client.query(
@@ -212,29 +214,33 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             if (!current.rowCount || current.rows[0].is_active !== true ||
                 current.rows[0].password_hash !== verifiedPasswordHash) {
                 await client.query('ROLLBACK');
-                await audit(req, 'login_fail', 401, 'staff_login_changed');
-                return res.status(401).json({ error: 'Неверный логин или пароль' });
+                rejected = true;
+            } else {
+                freshUser = {
+                    userId: current.rows[0].id,
+                    login: current.rows[0].login,
+                    displayName: current.rows[0].display_name,
+                    role: current.rows[0].role
+                };
+                await client.query(
+                    'INSERT INTO admin_sessions (token_hash, role, staff_user_id, expires_at, ip, user_agent) ' +
+                    'VALUES ($1,$2,$3,NOW() + ($4::text || \' milliseconds\')::interval,$5,$6)',
+                    [hashToken(token), freshUser.role, freshUser.userId, String(absoluteMs),
+                     String(req.ip || '').slice(0, 64), String(req.headers['user-agent'] || '').slice(0, 200)]
+                );
+                await client.query('COMMIT');
             }
-            const freshUser = {
-                userId: current.rows[0].id,
-                login: current.rows[0].login,
-                displayName: current.rows[0].display_name,
-                role: current.rows[0].role
-            };
-            await client.query(
-                'INSERT INTO admin_sessions (token_hash, role, staff_user_id, expires_at, ip, user_agent) ' +
-                'VALUES ($1,$2,$3,NOW() + ($4::text || \' milliseconds\')::interval,$5,$6)',
-                [hashToken(token), freshUser.role, freshUser.userId, String(absoluteMs),
-                 String(req.ip || '').slice(0, 64), String(req.headers['user-agent'] || '').slice(0, 200)]
-            );
-            await client.query('COMMIT');
-            return await finishSession(req, res, freshUser, token);
         } catch (e) {
             await client.query('ROLLBACK').catch(() => {});
             throw e;
         } finally {
             client.release();
         }
+        if (rejected) {
+            await audit(req, 'login_fail', 401, 'staff_login_changed');
+            return res.status(401).json({ error: 'Неверный логин или пароль' });
+        }
+        return finishSession(req, res, freshUser, token);
     }
 
     function registerRoutes(app) {
