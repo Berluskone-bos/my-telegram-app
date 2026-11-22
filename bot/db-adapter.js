@@ -1913,7 +1913,7 @@ class DBAdapter {
                     updateValues
                 );
                 if (res.rowCount === 0 && expectedStock !== undefined) {
-                    const exists = await client.query('SELECT 1 FROM products WHERE id = $1', [id]);
+                    const exists = await client.query('SELECT 1 FROM products WHERE id = $1', [productId]);
                     if (exists.rowCount > 0) {
                         const err = new Error('STOCK_CONFLICT'); err.code = 'STOCK_CONFLICT'; throw err;
                     }
@@ -1927,7 +1927,7 @@ class DBAdapter {
                                 (product_id, movement_type, qty_delta, stock_before, stock_after,
                                  actor_user_id, actor_role, reason, operation_key)
                              VALUES ($1, 'manual_adjustment', $2, $3, $4, $5, $6, $7, $8)`,
-                            [id, stockAfter - stockBefore, stockBefore, stockAfter,
+                            [productId, stockAfter - stockBefore, stockBefore, stockAfter,
                              options.actorId || null, options.actorRole || null, reason || 'Ручная корректировка',
                              'manual:' + require('crypto').randomUUID()]
                         );
@@ -1945,7 +1945,7 @@ class DBAdapter {
                 client.release();
             }
         }
-        const updateValues = [...values, id];
+        const updateValues = [...values, productId];
         const res = await pool.query(
             'UPDATE products SET ' + fields.join(', ') + ` WHERE id = $${idx} RETURNING *`,
             updateValues
