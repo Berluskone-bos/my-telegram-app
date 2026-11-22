@@ -59,7 +59,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         body: body === undefined ? undefined : JSON.stringify(body)
     });
     const roleCookies = {};
-    let testCourierId = null, testRouteId = null;
+    let testCourierId = null, testRouteId = null, testOrderId = null;
 
     t.after(async () => {
         server.close();
@@ -67,6 +67,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
             await pool.query('DELETE FROM route_stops WHERE route_id = $1', [testRouteId]);
             await pool.query('DELETE FROM delivery_routes WHERE id = $1', [testRouteId]);
         }
+        if (testOrderId) await pool.query('DELETE FROM orders WHERE id = $1', [testOrderId]);
         if (testCourierId) await pool.query('DELETE FROM couriers WHERE id = $1', [testCourierId]);
         await pool.query('DELETE FROM admin_sessions WHERE staff_user_id IN (SELECT id FROM admin_users WHERE login LIKE $1)', [prefix + '%']);
         await pool.query('DELETE FROM admin_users WHERE login LIKE $1', [prefix + '%']);
@@ -115,16 +116,22 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
          VALUES ($1, CURRENT_DATE, $2, 'assigned', 1) RETURNING id`,
         ['RB' + tag.slice(-10), testCourierId]);
     testRouteId = routeInsert.rows[0].id;
+    const orderInsert = await pool.query(
+        `INSERT INTO orders (order_number, user_name, status, delivery_type)
+         VALUES ($1, 'RBAC test', 'SHIPPING', 'delivery') RETURNING id`,
+        ['RBAC-TEST-' + tag.slice(-8)]);
+    testOrderId = orderInsert.rows[0].id;
     await pool.query(
         `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, status)
-         VALUES ($1, 'rbac-test', 'RBAC-TEST', 1, 'Тестовый адрес', 'pending')`, [testRouteId]);
+         VALUES ($1, $2, $3, 1, 'Тестовый адрес', 'pending')`, [testRouteId, String(testOrderId), 'RBAC-TEST-' + tag.slice(-8)]);
     const blockedDeactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
         method: 'PATCH', body: { is_active: false }
     });
     assert.equal(blockedDeactivate.status, 409, 'cannot deactivate a courier with an unfinished delivery');
     const blockedArchive = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, { method: 'DELETE' });
     assert.equal(blockedArchive.status, 409, 'cannot archive a courier with an unfinished delivery');
-    await pool.query("UPDATE route_stops SET status = 'delivered' WHERE route_id = $1", [testRouteId]);
+    await pool.query("UPDATE orders SET status = 'COMPLETED' WHERE id = $1", [testOrderId]);
+    // A stale pending route stop must not block archiving when its order is already completed.
     const deactivated = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
         method: 'PATCH', body: { is_active: false }
     });
