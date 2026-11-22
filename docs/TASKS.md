@@ -741,3 +741,11 @@
 - [ ] Продолжить аудит прямых mutation call sites и административных API; полный IDOR/BOLA аудит остаётся открытым.
 
 - [ ] Проверить, что все новые production call sites courier mutations передают authenticated courier ID; внутренние вызовы без ID допустимы только в доверенном серверном коде.
+
+
+## Admin staff object-scope audit — PR #162
+- [x] Проверены ID-based endpoints `/api/admin/staff/:id`, `/password`, `/revoke-sessions`: `staff.manage` обязателен; интеграционные тесты теперь проверяют попытки manager/operator/warehouse воздействовать на существующую запись другого сотрудника и получают 403 без изменения данных.
+- [x] Сброс пароля сотрудника и отзыв всех его сессий теперь выполняются в одной PostgreSQL-транзакции; исключено окно, когда пароль уже сменён, а прежние сессии ещё действуют.
+- [x] Regression подтверждает отзыв старой сессии (401), сохранение сессии администратора и успешный reset администратором.
+- [x] PR #162 CI run `45061745267` SUCCESS; merge commit `84cc92c18bc4369563aa78cd689fdd10915d5e79`; Railway deploy `02424ef7-374b-450c-8b3d-58bb588772aa` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- [ ] Продолжить аудит remaining ID-based APIs и конкурентных административных операций; полный IDOR/BOLA аудит открыт.
