@@ -78,6 +78,11 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.deepEqual(out.sequence, ['AP-rs3', 'AP-rs1', 'AP-rs2', 'AP-rs4'], 'при равной стоимости допустим любой кратчайший открытый путь; выбран C, A, B, D');
     assert.equal(new Date(out.route.route_date).toISOString().slice(0, 10), await db.getMoscowToday(), 'новый маршрут хранится по московской календарной дате');
     const stops = (await db.getRouteById(out.route.id)).stops;
+    const etaBeforeScopeProbe = (await pool.query('SELECT eta_at FROM route_stops WHERE id = $1', [stops[1].id])).rows[0].eta_at;
+    assert.equal(await db.setStopEta(out.route.id + 100000, stops[1].id, new Date('2026-11-15T01:00:00Z'), false), false,
+        'ETA update must fail when the stop does not belong to the supplied route ID');
+    const etaAfterScopeProbe = (await pool.query('SELECT eta_at FROM route_stops WHERE id = $1', [stops[1].id])).rows[0].eta_at;
+    assert.equal(String(etaAfterScopeProbe), String(etaBeforeScopeProbe), 'foreign route ID cannot change stop ETA');
     const routeOutbox = await pool.query(
         `SELECT bot, dedup_key FROM notification_outbox WHERE dedup_key = $1 OR dedup_key = $2 OR dedup_key = $3 OR dedup_key = $4 OR dedup_key = $5 OR dedup_key = $6`,
         [`route-sheet:${out.route.id}`, `assign:${stops[0].id}`, `assign:${stops[1].id}`, `assign:${stops[2].id}`, `assign:${stops[3].id}`, `admin-route-assigned:${out.route.id}`]);
@@ -172,11 +177,11 @@ test('маршрут из 4 заказов: порядок по времени �
         'в момент постановки карточки уже сохранены ETA, пересчитанные на новое время');
 
     // После фактического завершения остановок пересчёт внутренних ETA также не уведомляет клиентов.
-    await db.updateStopStatus(stops[0].id, 'delivered', '');
+    await pool.query("UPDATE route_stops SET status = 'delivered', delivered_at = NOW() WHERE id = $1", [stops[0].id]);
     clock.t = new Date('2026-11-15T00:16:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'после первой доставки ETA остаётся внутренним');
-    await db.updateStopStatus(stops[1].id, 'delivered', '');
+    await pool.query("UPDATE route_stops SET status = 'delivered', delivered_at = NOW() WHERE id = $1", [stops[1].id]);
     clock.t = new Date('2026-11-15T00:50:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'сдвиг расчётного времени не отправляется клиентам');

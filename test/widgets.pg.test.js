@@ -188,7 +188,7 @@ test('виджеты: очередь, запасной вариант, трек�
         stops: [o5, o6].map((o, i) => ({ order_id: String(o.id), order_number: o.order_number, stop_number: i + 1, address: 'Адрес ' + (i + 1), phone: '1', client_name: 'К', client_chat_id: o.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '', eta_at: new Date(Date.now() + 600e3) })) });
     await store.upsert(pool, 'route', route5.id, {}); await store.setMessage(pool, 'route', route5.id, '900101', 660);
     assert.equal(await queueRouteSheetEdit(pool, route5.id, { activeStopId: route5.stops[0].id }), true);
-    await db.updateStopStatus(route5.stops[1].id, 'delivered', '');
+    await pool.query("UPDATE route_stops SET status = 'delivered', delivered_at = NOW() WHERE id = $1", [route5.stops[1].id]);
     assert.equal(await queueRouteSheetEdit(pool, route5.id), true);
     sent.length = 0; await q.processOnce();
     const datas = sent.filter(s => s.method === 'editMessageWidgetData').map(s => JSON.parse(s.payload.chat_data));

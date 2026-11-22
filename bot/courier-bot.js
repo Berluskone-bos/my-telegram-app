@@ -575,10 +575,30 @@ bot.on('callback_query', async (query) => {
 
     // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
     const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
-    if (ROUTE_ACTIONS.some(a => data.startsWith(a))) {
-        const parts = data.split('_');
-        const rId = parseInt(parts[1]);
-        const sId = ['deliver_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'].some(a => data.startsWith(a)) ? parseInt(parts[2]) : null;
+    const routeOnlyMatch = /^(showroute|startroute|optimizeroute)_(\d{1,15})$/.exec(data);
+    const deliveryFlowMatch = /^deliver_(\d{1,15})_(\d{1,15})_(accept|enroute|arrived|done)$/.exec(data);
+    const legacyStopMatch = /^(delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})$/.exec(data);
+    const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([^_]{1,32})$/.exec(data);
+    const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
+    const validFailureReason = failureReasonMatch &&
+        (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]) || Object.values(REASONS).includes(failureReasonMatch[3]));
+    if (isRouteAction && !routeOnlyMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
+        bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
+        return;
+    }
+    if (routeOnlyMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
+        const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
+            : failureReasonMatch ? failureReasonMatch[1]
+                : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
+        const hasStop = !!(deliveryFlowMatch || legacyStopMatch || failureReasonMatch);
+        const sId = hasStop
+            ? Number(failureReasonMatch ? failureReasonMatch[2]
+                : deliveryFlowMatch ? deliveryFlowMatch[2] : legacyStopMatch[3])
+            : null;
+        if (!Number.isSafeInteger(rId) || rId <= 0 || (hasStop && (!Number.isSafeInteger(sId) || sId <= 0))) {
+            bot.answerCallbackQuery(query.id, { text: 'Некорректный номер маршрута или остановки', show_alert: true }).catch(() => {});
+            return;
+        }
         const me = await db.getCourierByTelegramId(query.from.id);
         const accessMessage = getCourierAccessMessage(me);
         if (accessMessage) {
@@ -1193,7 +1213,11 @@ bot.on('photo', async (msg) => {
         const orderNum = (orderMsg.text || '').trim();
         const stop = pendingStops.find(s => s.order_number === orderNum);
         if (stop) {
-            await db.updateStopPhoto(stop.id, fileId);
+            const saved = await db.updateStopPhoto(activeRoute.id, stop.id, fileId, courier.id);
+            if (!saved) {
+                bot.sendMessage(chatId, 'Не удалось привязать фото: маршрут или доступ курьера изменился. Откройте /route и повторите.');
+                return;
+            }
             bot.sendMessage(chatId, `Фото привязано к заказу ${orderNum}`);
         } else {
             bot.sendMessage(chatId, 'Заказ не найден. Фото сохранено, привяжите позже через /route.');
@@ -1570,27 +1594,8 @@ function registerCourierRoutes(app) {
             // Тот же статус уже стоял: повторных сообщений и повторной работы с маршрутом не нужно
             if (changed === 'ALREADY') return res.json({ success: true, unchanged: true });
 
-            // Обновляем маршрут при доставке. Отмена обрабатывается внутри updateOrderStatus (cancel-flow.js):
-            // остановка маршрута помечается «отменена», курьеру и клиенту ставятся в очередь сообщения.
-            if (status === 'DELIVERED' || status === 'COMPLETED') {
-                const routes = await db.getRoutes();
-                for (const route of routes) {
-                    const stop = (route.stops || []).find(s => String(s.order_id) === String(orderId));
-                    if (stop) {
-                        const stopStatus = 'delivered';
-                        await db.updateStopStatus(stop.id, stopStatus, '');
-                        const stops = route.stops || [];
-                        const newCompleted = stops.filter(s => s.status === 'delivered' || (s.id === stop.id && stopStatus === 'delivered')).length;
-                        const newFailed = stops.filter(s => s.status === 'failed' || (s.id === stop.id && stopStatus === 'failed')).length;
-                        const allDone = stops.every(s => s.id === stop.id ? stopStatus !== 'pending' : s.status !== 'pending');
-                        const newRouteStatus = allDone ? 'completed' : route.status;
-                        await db.updateRouteStatus(route.id, newRouteStatus, newCompleted, newFailed);
-                        console.log(`[МАРШРУТ] ${escapeHtml(route.route_number)}: стоп ${stop.id} -> ${stopStatus}, маршрут -> ${newRouteStatus}`);
-                        break;
-                    }
-                }
-            }
-
+            // DELIVERED/COMPLETED намеренно отсутствуют в valid: завершение доставки
+            // доступно только через courier callback + completeDeliveryStop() в транзакции.
             res.json({ success: true });
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });

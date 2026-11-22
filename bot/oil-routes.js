@@ -13,7 +13,13 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
             res.status(502).json({ error: 'Сервис подбора временно недоступен. Попробуйте позже.' });
         }
     };
-    const id = v => { const n = Number(v); if (!Number.isInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true }); return n; };
+    const id = v => {
+        const raw = String(v == null ? '' : v);
+        if (!/^\d{1,15}$/.test(raw)) throw Object.assign(new Error('Некорректный запрос'), { user: true });
+        const n = Number(raw);
+        if (!Number.isSafeInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true });
+        return n;
+    };
 
     // Основной путь — каталог ТО PartsAPI: марка -> модель -> модификация (typeId) -> объёмы и допуски
     app.get('/api/oil/by-vin', limit, wrap(async (req, res) => { res.json(await oc.vinSearch(pool, req.query.vin)); }));
@@ -25,8 +31,17 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
 
     // Допуски товара (админка): список и замена
     app.get('/api/products/:id/approvals', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => {
-        const r = await pool.query('SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [id(req.params.id)]);
-        res.json(r.rows.map(x => x.approval));
+        const pid = id(req.params.id);
+        // Проверяем существование товара тем же запросом, чтобы неизвестный ID
+        // не выглядел как существующий товар с пустым списком допусков.
+        const r = await pool.query(
+            `SELECT p.id, pa.approval
+               FROM products p
+               LEFT JOIN product_approvals pa ON pa.product_id = p.id
+              WHERE p.id = $1
+              ORDER BY pa.approval`, [pid]);
+        if (!r.rowCount) return res.status(404).json({ error: 'Товар не найден' });
+        res.json(r.rows.filter(x => x.approval !== null).map(x => x.approval));
     }));
     app.put('/api/products/:id/approvals', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => {
         const pid = id(req.params.id);
@@ -35,6 +50,13 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            // Блокировка родительского товара не даёт принять пустую замену для
+            // несуществующего ID и сериализует запись допусков с удалением товара.
+            const product = await client.query('SELECT id FROM products WHERE id = $1 FOR UPDATE', [pid]);
+            if (!product.rowCount) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ error: 'Товар не найден' });
+            }
             await client.query('DELETE FROM product_approvals WHERE product_id = $1', [pid]);
             for (const a of list) await client.query('INSERT INTO product_approvals (product_id, approval) VALUES ($1,$2) ON CONFLICT DO NOTHING', [pid, a]);
             await client.query('COMMIT');

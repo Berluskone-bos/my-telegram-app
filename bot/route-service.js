@@ -163,7 +163,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         for (const p of plan.ordered) {
             const stop = pending.find(s => Number(s.id) === Number(p.id));
             // ETA остаётся только внутренним ориентиром курьера; клиентам не сообщается.
-            await db.setStopEta(stop.id, p.etaAt, false);
+            await db.setStopEta(routeId, stop.id, p.etaAt, false);
             // Удаляем ETA, оставшееся в карточке клиента от предыдущей версии маршрута.
             await trackerEvent(poolOf(), stop.order_number, { eta: '' }).catch(() => {});
         }

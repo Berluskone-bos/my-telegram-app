@@ -171,6 +171,42 @@ test('курьерский бот: кнопки отменённого зака�
 
     assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'чужой маршрут не изменён');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [foreignOrder.id])).rows[0].status, 'READY_FOR_SHIPMENT');
+    // Callback ID должен быть строго десятичным: parseInt("123junk") не должен
+    // превращать подменённую строку в действующий ID существующего маршрута/остановки.
+    const malformed = await mk('cg_malformed');
+    for (const payload of [
+        `deliver_${malformed.route.id}junk_${malformed.stopId}_accept`,
+        `deliver_${malformed.route.id}_${malformed.stopId}junk_accept`,
+        `failreason_${malformed.route.id}_${malformed.stopId}junk_nohome`,
+        `failreason_${malformed.route.id}_${malformed.stopId}_invented_reason`,
+        `showroute_${malformed.route.id}junk`
+    ]) {
+        await press(payload);
+        const rejected = calls.find(x => x[0] === 'answerCallbackQuery');
+        assert.ok(rejected, 'malformed callback must be answered');
+        assert.match(rejected[2].text, /Некорректное действие|Некорректный номер/);
+    }
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [malformed.stopId])).rows[0].status, 'pending',
+        'malformed IDs do not mutate a real stop');
+
+    // Подмена stop ID на другую остановку того же курьера тоже запрещена:
+    // недостаточно владеть route ID — stop должен принадлежать именно этому маршруту.
+    const routeA = await mk('cg_cross_route_a');
+    const routeB = await mk('cg_cross_route_b');
+    await press(`deliver_${routeA.route.id}_${routeB.stopId}_accept`);
+    const crossRouteDenied = calls.find(x => x[0] === 'answerCallbackQuery');
+    assert.ok(crossRouteDenied, 'cross-route callback receives a denial');
+    assert.match(crossRouteDenied[2].text, /Нет доступа/);
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].status, 'pending');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [routeB.o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
+
+    assert.equal(await db.updateStopPhoto(routeA.route.id, routeB.stopId, 'forged-file-id', courier.id), false,
+        'photo attachment must not accept a stop ID from another route');
+    assert.equal((await pool.query('SELECT photo_file_id FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].photo_file_id, null);
+    assert.equal(await db.updateStopPhoto(routeB.route.id, routeB.stopId, 'valid-file-id', courier.id), true,
+        'active courier can attach a photo to a pending stop in their own route');
+    assert.equal((await pool.query('SELECT photo_file_id FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].photo_file_id, 'valid-file-id');
+
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
     const a = await mk('cg1');
     await db.updateOrderStatus(a.o.id, 'CANCELLED');
