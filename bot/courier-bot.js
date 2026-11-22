@@ -1297,7 +1297,7 @@ function registerCourierRoutes(app) {
 
     app.patch('/api/admin/couriers/:id', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        if (!/^\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
         if (!req.body || typeof req.body.is_active !== 'boolean') {
@@ -1315,7 +1315,7 @@ function registerCourierRoutes(app) {
 
     app.delete('/api/admin/couriers/:id', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        if (!/^\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
         try {
