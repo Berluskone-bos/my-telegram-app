@@ -1307,9 +1307,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).join('');
 
                 const canManageCouriers = window.adminHasPermission && window.adminHasPermission('staff.manage');
-                document.getElementById('couriersTable').innerHTML = couriers.length === 0
-                    ? '<tr><td colspan="7" class="empty">Нет курьеров</td></tr>'
-                    : couriers.map(c => {
+                const visibleCouriers = couriers.filter(c => !c.archived_at);
+                document.getElementById('couriersTable').innerHTML = visibleCouriers.length === 0
+                    ? '<tr><td colspan="7" class="empty">Нет действующих курьеров</td></tr>'
+                    : visibleCouriers.map(c => {
                         const archived = !!c.archived_at;
                         const active = !!c.is_active && !archived;
                         const state = archived ? 'Удалён' : active ? 'Активен' : 'Не активен';
