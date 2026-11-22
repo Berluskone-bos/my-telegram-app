@@ -623,3 +623,12 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - При последующем анализе найден lock-order inversion: `createRoute` блокировал courier перед orders, а start-route — orders, route, courier. PR #158 перенёс блокировку courier после блокировок заказов и проверки активных остановок.
 - PR #158 CI run `45060319716` SUCCESS; merge commit `7298091e453e7e9afa1bba9ccb18e20a7f9e7ad6`. Railway deploy `6d57a84a-75f9-4f26-85f3-2226576fd633` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - Следующий фокус: административные mutating APIs (`/api/orders/:id/status`, `/api/orders/:id/assign`, `/api/routes/build`, `/api/admin/outbox/:id/retry`), role/object scope и atomicity. Полный IDOR/BOLA аудит не закрыт.
+
+
+## 22.11.2026 — PR #160: fail-closed courier identity
+- Найден fail-open sentinel: courier DB methods пропускали проверку ownership при `expectedCourierId === null`; `handleDeliveryFlow` использовал `courierForNotice?.id ?? null`.
+- Исправлены `acceptRouteStop`, `startRouteIfAllAccepted`, `setStopStage`, `failDeliveryStop`, `completeDeliveryStop`: `undefined` означает сознательно не переданный параметр для доверенных внутренних вызовов; явный `null` отклоняется (`not_assigned`/`null`).
+- Telegram completion handler передаёт `courierForNotice.id` после проверки активности и ownership.
+- PostgreSQL regression подтверждает отсутствие изменений при null identity для пяти операций.
+- PR #160 CI run `45061115645` SUCCESS; merge commit `7d90051623f8ecdf1043e4cd1e52790e7a123730`. Railway deployment `77cb169f-1a61-4677-96d4-c66ab48f0b14` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- Остаётся продолжить аудит всех mutation call sites и административных API; полный IDOR/BOLA аудит открыт.
