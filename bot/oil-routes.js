@@ -45,8 +45,12 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     }));
     app.put('/api/products/:id/approvals', verifyAdmin, requirePermission('settings.manage'), wrap(async (req, res) => {
         const pid = id(req.params.id);
-        const list = [...new Set((Array.isArray(req.body && req.body.approvals) ? req.body.approvals : [])
-            .map(s => String(s).trim().slice(0, 100)).filter(Boolean))].slice(0, 80);
+        const rawApprovals = req.body && req.body.approvals;
+        if (!Array.isArray(rawApprovals) || rawApprovals.length > 80 ||
+            rawApprovals.some(value => typeof value !== 'string' || !value.trim() || value.trim().length > 100)) {
+            throw Object.assign(new Error('Некорректный список допусков'), { user: true });
+        }
+        const list = [...new Set(rawApprovals.map(value => value.trim()))];
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
