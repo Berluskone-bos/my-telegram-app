@@ -18,16 +18,16 @@ function setup() {
     };
 
     executable('pg_dump', `#!/bin/sh
-if [ "${1:-}" = "--version" ]; then echo "pg_dump (PostgreSQL) 18"; exit 0; fi
+if [ "\${1:-}" = "--version" ]; then echo "pg_dump (PostgreSQL) 18"; exit 0; fi
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --file) shift; OUT="$1" ;;
-    --file=*) OUT="${1#--file=}" ;;
+    --file=*) OUT="\${1#--file=}" ;;
   esac
   shift
 done
 dd if=/dev/zero of="$OUT" bs=1024 count=4 2>/dev/null
-[ "${FAKE_PG_DUMP_FAIL:-0}" = "1" ] && exit 42
+[ "\${FAKE_PG_DUMP_FAIL:-0}" = "1" ] && exit 42
 exit 0
 `);
     executable('openssl', `#!/bin/sh
@@ -43,7 +43,7 @@ done
 if [ -n "$OUTPUT" ]; then cp "$INPUT" "$OUTPUT"; else cat "$INPUT"; fi
 `);
     executable('pg_restore', `#!/bin/sh
-[ "${1:-}" = "--list" ] || exit 2
+[ "\${1:-}" = "--list" ] || exit 2
 echo "; TABLE DATA public sample postgres"
 `);
 
