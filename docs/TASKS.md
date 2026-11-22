@@ -775,7 +775,7 @@
 ## Дополнительная проверка numeric-ID writes после PR #164
 - [x] Разделены права изменения профиля и административной активации курьера: `updateCourier` требует собственный Telegram ID и разрешает только `vehicle_type/license_plate`; активация идёт через транзакционный `setCourierActive`.
 - [x] Добавлены PostgreSQL проверки: чужой Telegram ID не меняет профиль, свой Telegram ID не меняет чужой courier ID, самообслуживание не может менять `is_active`.
-- [ ] CI и production deployment PR #165 — ожидаются.
+- [x] PR #165 CI run `45065844281` SUCCESS; merge commit `1bec53c1631a770b40b7a23c97c39361b18267d1`; Railway deployment `4e40cdb7-e76a-4b16-b5ca-ded8ee2ee866` SUCCESS на этом commit; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 
 - [x] `/car` сообщает об успехе только после подтверждённого UPDATE; при деактивации/смене состояния между запросом и ответом возвращает отказ, а не ложное подтверждение.
 

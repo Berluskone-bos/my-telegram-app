@@ -669,3 +669,12 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - `/car` теперь проверяет результат `updateCourier` и не показывает ложное «Обновлено», если курьер отключён или его объект больше не доступен для изменения.
 
 - Дополнена матрица IDOR для numeric-ID endpoints: проверки manager/operator/warehouse теперь используют существующие product, courier, order и failed outbox IDs, а не только фиктивные 999999999. Проверяется 403 и отсутствие изменения данных; администраторский retry переводит реальную failed строку в pending.
+
+
+## 22.11.2026 — PR #165: courier profile and existing-object RBAC
+- `updateCourier` теперь принимает `expectedTelegramId`, ограничивает поля `vehicle_type/license_plate` и обновляет только активную запись с совпадающими `couriers.id + telegram_id`; `/car` передаёт Telegram ID отправителя и проверяет результат UPDATE.
+- Административная активация переведена на `setCourierActive`, который блокирует строку курьера; общий профильный helper больше не меняет `is_active`.
+- `test/courier-guard.pg.test.js` проверяет подмену Telegram ID, подмену courier ID и запрет self-service на `is_active`.
+- `test/admin-api-rbac.pg.test.js` дополнен проверками на реальные существующие product/courier/order/outbox IDs: роли без нужного permission получают 403, данные остаются неизменными; admin retry меняет реальную failed outbox-запись на pending.
+- PR #165 CI run `45065844281` SUCCESS; merge commit `1bec53c1631a770b40b7a23c97c39361b18267d1`; Railway deployment `4e40cdb7-e76a-4b16-b5ca-ded8ee2ee866` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- Полный IDOR/BOLA аудит остаётся открытым: требуется продолжить проверку оставшихся write helpers, async callbacks и race conditions.
