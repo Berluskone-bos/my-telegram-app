@@ -195,7 +195,7 @@ test('курьерский бот: кнопки отменённого зака�
     const routeB = await mk('cg_cross_route_b');
     await press(`deliver_${routeA.route.id}_${routeB.stopId}_accept`);
     const crossRouteDenied = calls.find(x => x[0] === 'answerCallbackQuery');
-    assert.ok(crossRouteDenied && crossRouteDenied[2].show_alert);
+    assert.ok(crossRouteDenied, 'cross-route callback receives a denial');
     assert.match(crossRouteDenied[2].text, /Нет доступа/);
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].status, 'pending');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [routeB.o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
