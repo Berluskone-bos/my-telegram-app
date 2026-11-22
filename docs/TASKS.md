@@ -749,3 +749,12 @@
 - [x] Regression подтверждает отзыв старой сессии (401), сохранение сессии администратора и успешный reset администратором.
 - [x] PR #162 CI run `45061745267` SUCCESS; merge commit `84cc92c18bc4369563aa78cd689fdd10915d5e79`; Railway deploy `02424ef7-374b-450c-8b3d-58bb588772aa` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - [ ] Продолжить аудит remaining ID-based APIs и конкурентных административных операций; полный IDOR/BOLA аудит открыт.
+
+
+## IDOR/BOLA audit — callback IDs, product approvals, cancellation races (в работе)
+- [x] Courier callback data разбирается строгими форматами: route/stop IDs — только полные положительные десятичные числа; action/reason code должны соответствовать разрешённой форме. Добавлены регрессии на суффиксы после route ID и stop ID.
+- [x] `GET/PUT /api/products/:id/approvals`: проверяется существование товара; неизвестный ID возвращает 404 даже при пустом списке допусков. PUT блокирует строку товара `FOR UPDATE` на время атомарной замены.
+- [x] Матрица ролей для approvals использует существующий product ID: manager/operator/warehouse получают 403, запись не меняется; admin может заменить список. Добавлена проверка 404 для несуществующего товара.
+- [x] Отмена заказа блокирует связанные маршруты до остановок (единый порядок `orders → delivery_routes → route_stops`) и переводит `pending/accepted/in_progress` в `cancelled`. Добавлен PostgreSQL сценарий отмены после принятия заказа курьером.
+- [ ] CI / обязательные проверки PR и production deployment — ожидаются.
+- [ ] Продолжить полный перечень числовых ID write endpoints и конкурентные сценарии отмены/доставки; аудит IDOR/BOLA остаётся открытым.
