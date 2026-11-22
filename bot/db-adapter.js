@@ -645,7 +645,7 @@ class DBAdapter {
     // Неудачная попытка доставки — отдельный терминальный результат остановки,
     // но не отмена заказа и не завершение всего маршрута. Заказ получает статус DELIVERY_FAILED
     // («Не доставлен»): он виден в админке отдельной колонкой, оператор решает — повторная отправка или отмена.
-    async failDeliveryStop(stopId, reason, { afterFailure = null } = {}) {
+    async failDeliveryStop(stopId, reason, { afterFailure = null, expectedCourierId = null } = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -670,10 +670,23 @@ class DBAdapter {
                     [candidate.order_id == null ? '' : String(candidate.order_id), candidate.order_number || '']);
             }
             const routeRes = await client.query(
-                'SELECT id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
+                'SELECT id, status, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
             if (!routeRes.rowCount) {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
+            }
+            if (expectedCourierId !== null) {
+                if (String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
+                    await client.query('ROLLBACK');
+                    return { status: 'not_assigned' };
+                }
+                const activeCourier = await client.query(
+                    'SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE',
+                    [expectedCourierId]);
+                if (!activeCourier.rowCount) {
+                    await client.query('ROLLBACK');
+                    return { status: 'courier_inactive' };
+                }
             }
             const stopRes = await client.query(
                 'SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [id, candidate.route_id]);
@@ -731,7 +744,7 @@ class DBAdapter {
     // Завершение доставки — одна транзакция: блокировка остановки/заказа,
     // перевод заказа в COMPLETED, обновление маршрута и постановка уведомления в outbox.
     // Повторный callback получает already и не создаёт второе уведомление.
-    async completeDeliveryStop(stopId, { afterComplete = null } = {}) {
+    async completeDeliveryStop(stopId, { afterComplete = null, expectedCourierId = null } = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -762,10 +775,23 @@ class DBAdapter {
             // setStopStage/failDeliveryStop уже блокируют маршрут до остановки;
             // здесь делаем то же самое, иначе параллельные callback могут deadlock.
             const routeRes = await client.query(
-                'SELECT id FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
+                'SELECT id, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [candidate.route_id]);
             if (!routeRes.rowCount) {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
+            }
+            if (expectedCourierId !== null) {
+                if (String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
+                    await client.query('ROLLBACK');
+                    return { status: 'not_assigned' };
+                }
+                const activeCourier = await client.query(
+                    'SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE',
+                    [expectedCourierId]);
+                if (!activeCourier.rowCount) {
+                    await client.query('ROLLBACK');
+                    return { status: 'courier_inactive' };
+                }
             }
 
             const stopRes = await client.query(

@@ -89,7 +89,7 @@ test('параллельные «В пути» и «Доставлено» ис�
                 `SELECT COUNT(*)::int AS n
                    FROM pg_stat_activity
                   WHERE wait_event_type = 'Lock'
-                    AND query LIKE '%SELECT id FROM delivery_routes WHERE id = $1 FOR UPDATE%'`
+                    AND query LIKE '%FROM delivery_routes WHERE id = $1 FOR UPDATE%'`
             );
             if (r.rows[0].n >= expected) return;
             await new Promise(resolve => setTimeout(resolve, 20));
