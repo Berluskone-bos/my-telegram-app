@@ -9,6 +9,7 @@
 #   BACKUP_DIR              вместо S3 — обычная папка (для проверки на тестовой копии)
 #   KEEP_DAILY=14 KEEP_WEEKLY=8 KEEP_MONTHLY=12   сколько копий хранить
 set -eu
+umask 077
 : "${DATABASE_URL:?нет DATABASE_URL}"
 : "${BACKUP_PASSPHRASE:?нет BACKUP_PASSPHRASE}"
 KEEP_DAILY="${KEEP_DAILY:-14}"; KEEP_WEEKLY="${KEEP_WEEKLY:-8}"; KEEP_MONTHLY="${KEEP_MONTHLY:-12}"
@@ -16,11 +17,15 @@ MIN_BYTES="${MIN_BYTES:-2000}"            # копия меньше этого �
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 FILE="gulf-$STAMP.dump.enc"
+DUMP="$TMP/$FILE.dump"
 
 echo "[backup] $(date -u +%FT%TZ) старт, pg_dump $(pg_dump --version)"
-# -Fc: сжатый формат, восстанавливается pg_restore. Пароль шифрования передаётся через переменную окружения, не в аргументах.
-pg_dump --dbname="$DATABASE_URL" -Fc --no-owner --no-privileges \
-  | BACKUP_PASSPHRASE="$BACKUP_PASSPHRASE" openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE -out "$TMP/$FILE"
+# Сначала создаём дамп отдельным файлом: set -e гарантированно ловит ошибку pg_dump.
+# Не объединять pg_dump и openssl в pipeline без pipefail — иначе частичный дамп может выглядеть успешным.
+pg_dump --dbname="$DATABASE_URL" -Fc --no-owner --no-privileges --file="$DUMP"
+# Шифруем только после успешного завершения pg_dump. Временные файлы закрыты правами umask 077.
+openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE -in "$DUMP" -out "$TMP/$FILE"
+rm -f "$DUMP"
 SIZE="$(wc -c < "$TMP/$FILE")"
 [ "$SIZE" -ge "$MIN_BYTES" ] || { echo "[backup] ОШИБКА: копия подозрительно мала ($SIZE байт)"; exit 1; }
 # Самопроверка: расшифровываем и читаем оглавление копии. Битая копия не должна считаться копией.
