@@ -118,7 +118,7 @@ test('отмена заказа: курьер получает сообщени�
         db.setStopStage(race.stopId, 'enroute', { expectedCourierId: courier.id }),
         db.updateOrderStatus(oRace.id, 'CANCELLED')
     ]);
-    assert.ok(stageRace === null || stageRace, 'курьерский этап завершился без взаимной блокировки');
+    assert.ok(stageRace === null || stageRace.stage === 'enroute', 'курьерский этап либо отклонён после отмены, либо завершился до неё');
     assert.equal(cancelRace, true);
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [oRace.id])).rows[0].status, 'CANCELLED');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [race.stopId])).rows[0].status, 'cancelled',
