@@ -223,9 +223,10 @@ async function getCourier(user) {
     return await db.getCourierByTelegramId(user.id);
 }
 
+const { getTodayRoutes: getTodayRoutesForDb } = require('./courier-date');
+
 async function getTodayRoutes(courierId) {
-    const today = new Date().toISOString().split('T')[0];
-    return await db.getRoutesByDateAndCourier(today, courierId);
+    return getTodayRoutesForDb(db, courierId);
 }
 
 async function getActiveRoute(courierId) {
