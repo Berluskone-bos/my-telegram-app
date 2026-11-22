@@ -739,3 +739,5 @@
 - [x] PostgreSQL regression: null identity не меняет stop/route/order при accept, start, stage, fail и complete.
 - [x] PR #160 CI run `45061115645` SUCCESS; merge commit `7d90051623f8ecdf1043e4cd1e52790e7a123730`.
 - [ ] Продолжить аудит прямых mutation call sites и административных API; полный IDOR/BOLA аудит остаётся открытым.
+
+- [ ] Проверить, что все новые production call sites courier mutations передают authenticated courier ID; внутренние вызовы без ID допустимы только в доверенном серверном коде.
