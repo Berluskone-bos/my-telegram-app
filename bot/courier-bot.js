@@ -1304,10 +1304,11 @@ function registerCourierRoutes(app) {
             return res.status(400).json({ error: 'Нужно указать is_active: true или false' });
         }
         try {
-            const courier = await db.updateCourier(id, { is_active: req.body.is_active });
+            const courier = await db.setCourierActive(id, req.body.is_active);
             if (!courier) return res.status(404).json({ error: 'Курьер не найден или уже удалён' });
             res.json({ success: true, courier });
         } catch (e) {
+            if (e.code === 'COURIER_HAS_ACTIVE_ROUTE') return res.status(409).json({ error: e.message });
             console.error('[API PATCH /admin/couriers]', errorCode(e));
             res.status(500).json({ error: 'Не удалось изменить доступ курьера' });
         }
