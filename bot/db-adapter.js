@@ -145,6 +145,28 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    async setCourierActive(courierId, isActive) {
+        const id = Number(courierId);
+        if (!Number.isSafeInteger(id) || id <= 0 || typeof isActive !== 'boolean') return null;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND archived_at IS NULL FOR UPDATE', [id]);
+            if (!courier.rowCount) { await client.query('ROLLBACK'); return null; }
+            if (!isActive) {
+                const active = await client.query(`SELECT 1 FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id WHERE dr.courier_id = $1 AND rs.status IN ('pending', 'accepted', 'in_progress') LIMIT 1`, [id]);
+                if (active.rowCount) {
+                    const error = new Error('Нельзя деактивировать курьера: у него есть незавершённые доставки');
+                    error.code = 'COURIER_HAS_ACTIVE_ROUTE';
+                    throw error;
+                }
+            }
+            const updated = await client.query('UPDATE couriers SET is_active = $2 WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
+            await client.query('COMMIT');
+            return updated.rows[0] || null;
+        } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+        finally { client.release(); }
+    }
     async archiveCourier(courierId) {
         const id = Number(courierId);
         if (!Number.isSafeInteger(id) || id <= 0) return null;
