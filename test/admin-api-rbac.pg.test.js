@@ -97,6 +97,12 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         assert.equal(loggedIn.status, 200, role + ' authenticates');
         roleCookies[role] = cookieOf(loggedIn);
     }
+    const staffIds = {};
+    for (const role of roles) {
+        const row = await pool.query('SELECT id FROM admin_users WHERE login = $1', [logins[role]]);
+        assert.equal(row.rowCount, 1);
+        staffIds[role] = Number(row.rows[0].id);
+    }
 
     // Courier access is managed from the admin panel, and archive never deletes history.
     const courierInsert = await pool.query(
@@ -248,11 +254,40 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         }
     }
 
+    // Staff object IDs are protected by the staff.manage permission, not just by using a missing ID.
+    const targetStaffId = staffIds.manager;
+    const staffMutationAttempts = [
+        { path: '/api/admin/staff/' + targetStaffId, method: 'PATCH', body: { displayName: 'forbidden edit' } },
+        { path: '/api/admin/staff/' + targetStaffId + '/password', method: 'POST', body: { password: 'Unauthorized-Password-2026!' } },
+        { path: '/api/admin/staff/' + targetStaffId + '/revoke-sessions', method: 'POST', body: {} }
+    ];
+    for (const role of roles) {
+        for (const attempt of staffMutationAttempts) {
+            const response = await request(attempt.path, roleCookies[role], { method: attempt.method, body: attempt.body });
+            assert.equal(response.status, 403, role + ' cannot mutate staff object ' + targetStaffId + ' via ' + attempt.path);
+        }
+    }
+    const untouchedStaff = await pool.query('SELECT display_name FROM admin_users WHERE id = $1', [targetStaffId]);
+    assert.equal(untouchedStaff.rows[0].display_name, 'RBAC manager');
+
+    // Admin password reset and session revocation must commit atomically.
+    const reset = await request('/api/admin/staff/' + targetStaffId + '/password', roleCookies.admin, {
+        method: 'POST', body: { password: 'Reset-Password-2026-Strong!' }
+    });
+    assert.equal(reset.status, 200);
+    assert.equal((await reset.json()).sessionsRevoked, true);
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM admin_sessions WHERE staff_user_id = $1', [targetStaffId])).rows[0].n, 0);
+    assert.equal((await request('/api/orders', roleCookies.manager)).status, 401, 'password reset revokes existing manager session');
+
+    const adminOnlyAfterReset = await request('/api/admin/staff', roleCookies.admin);
+    assert.equal(adminOnlyAfterReset.status, 200, 'admin session remains valid after resetting another staff member');
+
     // Courier-only final delivery states must not be writable through the staff order-status API.
     for (const role of ['admin', 'manager', 'operator', 'warehouse']) {
         const response = await request('/api/orders/999999999/status', roleCookies[role], {
             method: 'PUT', body: { status: 'DELIVERED' }
         });
-        assert.equal(response.status, 403, role + ' cannot mark delivery complete from admin order API');
+        assert.equal(response.status, role === 'manager' ? 401 : 403,
+            role + ' cannot mark delivery complete from admin order API');
     }
 });
