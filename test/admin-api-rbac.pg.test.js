@@ -275,6 +275,11 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
     });
     assert.equal(missingApprovalsWrite.status, 404, 'empty replacement cannot report success for a nonexistent product');
 
+    for (const malformedId of ['1e2', '0x10', '+10', ' 10']) {
+        const response = await request('/api/products/' + encodeURIComponent(malformedId) + '/approvals', roleCookies.admin);
+        assert.equal(response.status, 400, 'non-decimal product ID is rejected: ' + JSON.stringify(malformedId));
+    }
+
     // Staff object IDs are protected by the staff.manage permission, not just by using a missing ID.
     const targetStaffId = staffIds.manager;
     const staffMutationAttempts = [
