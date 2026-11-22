@@ -154,6 +154,20 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal(calls.some(x => x[0] === 'sendMessage'), false, 'в группу не отправляются адреса и данные маршрута');
     assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'групповая кнопка не меняет маршрут');
 
+    // Старая кнопка «Обновить» не должна открывать главный экран отключённому курьеру.
+    const inactiveCourier = await db.createCourier({
+        name: 'Отключённый курьер', phone: '+7 999 000-00-02',
+        telegram_id: 900004, telegram_user: 'inactive', vehicle_type: 'авто', is_active: false
+    });
+    assert.ok(inactiveCourier.id);
+    await press('refresh_main', { inline_keyboard: [] }, {}, 900004);
+    const inactiveRefresh = calls.find(x => x[0] === 'sendMessage');
+    assert.ok(inactiveRefresh, 'отключённому курьеру отправлено сообщение о закрытом доступе');
+    assert.match(inactiveRefresh[2], /ещё не активирован|отключён/i);
+    assert.equal(calls.some(x => x[0] === 'editMessageText'), false, 'главный экран и маршрутная сводка не открываются');
+    assert.equal(calls.some(x => x[0] === 'sendMessage' && /АВТОПРОМОЙЛ — Курьер/.test(x[2])), false,
+        'отключённому курьеру не показывается экран со сводкой');
+
     assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'чужой маршрут не изменён');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [foreignOrder.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
