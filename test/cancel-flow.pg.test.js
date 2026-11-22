@@ -108,6 +108,23 @@ test('отмена заказа: курьер получает сообщени�
         'курьер, уже принявший заказ, получает сообщение об отмене');
     assert.ok(sent.some(s => s.method === 'editMessageReplyMarkup'), 'кнопки принятой остановки гасятся');
 
+    // ── гонка: курьерский этап одновременно с отменой заказа ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oRace = await mkOrder('cf-race');
+    const race = await assign(oRace, true);
+    assert.equal((await db.acceptRouteStop(race.route.id, race.stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(race.route.id)).status, 'started');
+    const [stageRace, cancelRace] = await Promise.all([
+        db.setStopStage(race.stopId, 'enroute', { expectedCourierId: courier.id }),
+        db.updateOrderStatus(oRace.id, 'CANCELLED')
+    ]);
+    assert.ok(stageRace === null || stageRace, 'курьерский этап завершился без взаимной блокировки');
+    assert.equal(cancelRace, true);
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [oRace.id])).rows[0].status, 'CANCELLED');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [race.stopId])).rows[0].status, 'cancelled',
+        'после гонки отмена остаётся терминальным состоянием остановки');
+    assert.equal((await checkStopActive(pool, race.stopId)).active, false);
+
     // ── заказ без курьера: только клиент ──
     await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
     const o3 = await mkOrder('cf3');
