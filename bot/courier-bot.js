@@ -684,7 +684,7 @@ bot.on('callback_query', async (query) => {
         const reason = code === 'other' ? 'Другое' : (REASONS[code] || code);
         // Callback приходит из самого сообщения с выбором причины; reply_to_message Telegram не гарантирует.
         const originMessageId = query.message?.message_id || null;
-        await handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason, originMessageId);
+        await handleDeliveryResult(routeId, stopId, 'failed', chatId, query.id, reason, originMessageId, query.from?.id);
         return;
     }
 
@@ -1048,10 +1048,24 @@ async function showFailureReasons(chatId, routeId, stopId, messageId = null) {
 // ====== Обработка результата: заказ не доставлен ======
 // «Доставлен» обрабатывает handleDeliveryFlow (action done). Здесь — только недоставка.
 
-async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, reason = '', routeMessageId = null) {
+async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQueryId, reason = '', routeMessageId = null, courierTelegramId = null) {
     const toast = (text, alert = false) => callbackQueryId
         ? bot.answerCallbackQuery(callbackQueryId, { text, show_alert: alert }).catch(() => {}) : null;
+    // Повторная object-level проверка обязательна и для отложенного текстового ответа:
+    // между выбором «Другое» и сообщением курьера аккаунт могли отключить или маршрут переназначить.
+    const courier = courierTelegramId ? await db.getCourierByTelegramId(courierTelegramId) : null;
+    const accessMessage = getCourierAccessMessage(courier);
+    if (accessMessage) {
+        if (callbackQueryId) toast(accessMessage, true);
+        else bot.sendMessage(chatId, accessMessage).catch(() => {});
+        return;
+    }
     const route = await db.getRouteById(routeId);
+    if (!courier || !courier.is_active || !route || String(route.courier_id) !== String(courier.id)) {
+        if (callbackQueryId) toast('Нет доступа к этому маршруту', true);
+        else bot.sendMessage(chatId, 'Доступ к этому маршруту закрыт. Обратитесь к администратору.').catch(() => {});
+        return;
+    }
     if (!route) { toast('Маршрут не найден'); return; }
     const stop = (route.stops || []).find(s => s.id === stopId);
     if (!stop) { toast('Остановка не найдена'); return; }
@@ -1064,7 +1078,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     if (reason === 'Другое') {
         // Просим написать причину; ответ ловит один общий обработчик сообщений (pendingReasons), а не «следующее любое сообщение».
-        pendingReasons.set(chatId, { routeId, stopId, messageId: routeMessageId, at: Date.now() });
+        pendingReasons.set(chatId, { routeId, stopId, messageId: routeMessageId, courierTelegramId, at: Date.now() });
         toast('Напишите причину одним сообщением');
         const text = `<b>Заказ №${stop.stop_number} ${escapeHtml(stop.order_number || '')}: причина недоставки</b>\nНапишите причину ответным сообщением.`;
         const opts = { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: 'Назад, заказ не отмечать', callback_data: `pickstop_${routeId}_${stopId}` }]] } };
@@ -1125,7 +1139,8 @@ if (bot) {
         if (msg.text.startsWith('/') || Date.now() - p.at > 15 * 60_000) { pendingReasons.delete(msg.chat.id); return; }
         pendingReasons.delete(msg.chat.id);
         const text = msg.text.trim().slice(0, 300);
-        await handleDeliveryResult(p.routeId, p.stopId, 'failed', msg.chat.id, null, text === 'Другое' ? 'Другое (без пояснения)' : text, p.messageId);
+        if (String(msg.from?.id || '') !== String(p.courierTelegramId || '')) return;
+        await handleDeliveryResult(p.routeId, p.stopId, 'failed', msg.chat.id, null, text === 'Другое' ? 'Другое (без пояснения)' : text, p.messageId, msg.from?.id);
     });
 }
 
