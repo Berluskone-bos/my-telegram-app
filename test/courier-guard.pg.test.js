@@ -171,6 +171,23 @@ test('курьерский бот: кнопки отменённого зака�
 
     assert.equal((await db.getRouteById(foreignRoute.id)).status, 'assigned', 'чужой маршрут не изменён');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [foreignOrder.id])).rows[0].status, 'READY_FOR_SHIPMENT');
+    // Callback ID должен быть строго десятичным: parseInt("123junk") не должен
+    // превращать подменённую строку в действующий ID существующего маршрута/остановки.
+    const malformed = await mk('cg_malformed');
+    for (const payload of [
+        `deliver_${malformed.route.id}junk_${malformed.stopId}_accept`,
+        `deliver_${malformed.route.id}_${malformed.stopId}junk_accept`,
+        `failreason_${malformed.route.id}_${malformed.stopId}junk_nohome`,
+        `showroute_${malformed.route.id}junk`
+    ]) {
+        await press(payload);
+        const rejected = calls.find(x => x[0] === 'answerCallbackQuery');
+        assert.ok(rejected, 'malformed callback must be answered');
+        assert.match(rejected[2].text, /Некорректное действие|Некорректный номер/);
+    }
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [malformed.stopId])).rows[0].status, 'pending',
+        'malformed IDs do not mutate a real stop');
+
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
     const a = await mk('cg1');
     await db.updateOrderStatus(a.o.id, 'CANCELLED');
