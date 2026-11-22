@@ -125,12 +125,17 @@ class DBAdapter {
         return res.rows;
     }
 
-    async updateCourier(courierId, updates) {
-        const allowed = ['name', 'phone', 'telegram_user', 'vehicle_type', 'license_plate', 'zones', 'is_active', 'max_orders'];
+    // Самообслуживание курьера: профиль можно менять только по собственной активной Telegram-сессии.
+    // Административная активация выполняется отдельно через setCourierActive().
+    async updateCourier(courierId, updates, expectedTelegramId) {
+        const id = Number(courierId);
+        const telegramId = String(expectedTelegramId == null ? '' : expectedTelegramId);
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^[0-9]{1,20}$/.test(telegramId)) return null;
+        const allowed = ['vehicle_type', 'license_plate'];
         const setFields = [];
         const values = [];
         let idx = 1;
-        for (const [key, val] of Object.entries(updates)) {
+        for (const [key, val] of Object.entries(updates || {})) {
             if (allowed.includes(key) && val !== undefined) {
                 setFields.push(`${key} = $${idx}`);
                 values.push(toDbValue(val));
@@ -138,9 +143,13 @@ class DBAdapter {
             }
         }
         if (setFields.length === 0) return null;
-        values.push(courierId);
+        values.push(id, telegramId);
         const idPlaceholder = '$' + idx;
-        const query = 'UPDATE couriers SET ' + setFields.join(', ') + ' WHERE id = ' + idPlaceholder + ' AND archived_at IS NULL RETURNING *';
+        const telegramPlaceholder = '$' + (idx + 1);
+        const query = 'UPDATE couriers SET ' + setFields.join(', ') +
+            ' WHERE id = ' + idPlaceholder +
+            ' AND telegram_id = ' + telegramPlaceholder + '::bigint' +
+            ' AND is_active = TRUE AND archived_at IS NULL RETURNING *';
         const res = await pool.query(query, values);
         return res.rows[0] || null;
     }
