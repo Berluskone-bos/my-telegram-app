@@ -587,10 +587,11 @@ bot.on('callback_query', async (query) => {
     if (routeOnlyMatch || deliveryFlowMatch || legacyStopMatch || failureReasonMatch) {
         const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
             : failureReasonMatch ? failureReasonMatch[1]
-                : (deliveryFlowMatch || legacyStopMatch)[1]);
+                : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
         const hasStop = !!(deliveryFlowMatch || legacyStopMatch || failureReasonMatch);
         const sId = hasStop
-            ? Number(failureReasonMatch ? failureReasonMatch[2] : (deliveryFlowMatch || legacyStopMatch)[2])
+            ? Number(failureReasonMatch ? failureReasonMatch[2]
+                : deliveryFlowMatch ? deliveryFlowMatch[2] : legacyStopMatch[3])
             : null;
         if (!Number.isSafeInteger(rId) || rId <= 0 || (hasStop && (!Number.isSafeInteger(sId) || sId <= 0))) {
             bot.answerCallbackQuery(query.id, { text: 'Некорректный номер маршрута или остановки', show_alert: true }).catch(() => {});
