@@ -949,7 +949,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         let completion;
         try {
             completion = await db.completeDeliveryStop(stopId, {
-                expectedCourierId: courierForNotice?.id ?? null,
+                expectedCourierId: courierForNotice.id,
                 afterComplete: async ({ client, stop: deliveredStop, route: deliveredRoute }) => {
                     const who = courierName;
                     await notifyAdmin(

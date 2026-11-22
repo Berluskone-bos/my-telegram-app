@@ -95,6 +95,7 @@ test('параллельные callback «Доставлен» фиксирую�
     });
 
     const ownership = await makeShipment('ownership', false);
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: null })).status, 'not_assigned');
     assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].status, 'pending');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
@@ -102,6 +103,8 @@ test('параллельные callback «Доставлен» фиксирую�
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'accepted');
 
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: null })).status, 'not_assigned');
+    assert.equal((await db.getRouteById(ownership.route.id)).status, 'assigned');
     assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await db.getRouteById(ownership.route.id)).status, 'assigned');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
@@ -109,6 +112,8 @@ test('параллельные callback «Доставлен» фиксирую�
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id })).status, 'started');
 
+    assert.equal(await db.setStopStage(ownership.stopId, 'enroute', { expectedCourierId: null }), null);
+    assert.equal((await pool.query('SELECT stage FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].stage, null);
     assert.equal(await db.setStopStage(ownership.stopId, 'enroute', { expectedCourierId: courier.id + 999999 }), null);
     assert.equal((await pool.query('SELECT stage FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].stage, null);
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
@@ -118,6 +123,8 @@ test('параллельные callback «Доставлен» фиксирую�
     assert.ok(await db.setStopStage(ownership.stopId, 'arrived', { expectedCourierId: courier.id }));
 
     const first = await makeShipment('a');
+    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: null })).status, 'not_assigned');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [first.stopId])).rows[0].status, 'in_progress');
     // Проверка владельца должна выполняться внутри транзакции, а не только в Telegram callback.
     assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [first.stopId])).rows[0].status, 'in_progress',
@@ -171,6 +178,8 @@ test('параллельные callback «Доставлен» фиксирую�
         'административное уведомление фиксируется вместе с доставкой');
 
     const second = await makeShipment('b');
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Нет авторизации', { expectedCourierId: null })).status, 'not_assigned');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [second.stopId])).rows[0].status, 'in_progress');
     assert.equal((await db.failDeliveryStop(second.stopId, 'Подмена владельца', { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [second.stopId])).rows[0].status, 'in_progress',
         'чужой курьер не может отметить остановку недоставленной');
