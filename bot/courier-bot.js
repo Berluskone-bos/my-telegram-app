@@ -1213,7 +1213,7 @@ bot.on('photo', async (msg) => {
         const orderNum = (orderMsg.text || '').trim();
         const stop = pendingStops.find(s => s.order_number === orderNum);
         if (stop) {
-            await db.updateStopPhoto(stop.id, fileId);
+            await db.updateStopPhoto(activeRoute.id, stop.id, fileId, courier.id);
             bot.sendMessage(chatId, `Фото привязано к заказу ${orderNum}`);
         } else {
             bot.sendMessage(chatId, 'Заказ не найден. Фото сохранено, привяжите позже через /route.');
