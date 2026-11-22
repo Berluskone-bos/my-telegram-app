@@ -59,7 +59,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         body: body === undefined ? undefined : JSON.stringify(body)
     });
     const roleCookies = {};
-    let testCourierId = null, testRouteId = null, testOrderId = null;
+    let testCourierId = null, testRouteId = null, testOrderId = null, testProductId = null;
 
     t.after(async () => {
         server.close();
@@ -68,6 +68,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
             await pool.query('DELETE FROM delivery_routes WHERE id = $1', [testRouteId]);
         }
         if (testOrderId) await pool.query('DELETE FROM orders WHERE id = $1', [testOrderId]);
+        if (testProductId) { await pool.query('DELETE FROM product_approvals WHERE product_id = $1', [testProductId]); await pool.query('DELETE FROM products WHERE id = $1', [testProductId]); }
         if (testCourierId) await pool.query('DELETE FROM couriers WHERE id = $1', [testCourierId]);
         await pool.query('DELETE FROM admin_sessions WHERE staff_user_id IN (SELECT id FROM admin_users WHERE login LIKE $1)', [prefix + '%']);
         await pool.query('DELETE FROM admin_users WHERE login LIKE $1', [prefix + '%']);
@@ -103,6 +104,11 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         assert.equal(row.rowCount, 1);
         staffIds[role] = Number(row.rows[0].id);
     }
+
+    const productInsert = await pool.query(
+        "INSERT INTO products (name, price, active, stock) VALUES ($1, 100, true, 10) RETURNING id",
+        ['RBAC approvals ' + tag]);
+    testProductId = Number(productInsert.rows[0].id);
 
     // Courier access is managed from the admin panel, and archive never deletes history.
     const courierInsert = await pool.query(
@@ -182,7 +188,8 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         ['/api/admin/audit', ['admin']],
         ['/api/admin/staff', ['admin']],
         ['/api/admin/couriers', ['admin']],
-        ['/api/products', ['admin', 'warehouse']]
+        ['/api/products', ['admin', 'warehouse']],
+        ['/api/products/' + testProductId + '/approvals', ['admin']]
     ];
     for (const [path, allowed] of getCases) {
         for (const role of ['admin', ...roles]) {
@@ -222,6 +229,10 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
             allowed: ['admin'], allowedStatuses: [404]
         },
         {
+            name: 'product approvals replacement', path: '/api/products/' + testProductId + '/approvals', method: 'PUT',
+            body: { approvals: ['API SP', 'ACEA C3'] }, allowed: ['admin'], allowedStatuses: [200]
+        },
+        {
             name: 'product creation', path: '/api/products', method: 'POST', body: {},
             allowed: ['admin'], allowedStatuses: [400]
         },
@@ -253,6 +264,16 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
             }
         }
     }
+
+    const savedApprovals = await pool.query('SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [testProductId]);
+    assert.deepEqual(savedApprovals.rows.map(row => row.approval), ['ACEA C3', 'API SP'],
+        'manager/operator/warehouse 403 responses must not mutate approvals on a real product');
+    assert.equal((await request('/api/products/999999999/approvals', roleCookies.admin)).status, 404,
+        'GET approvals for a nonexistent product returns 404');
+    const missingApprovalsWrite = await request('/api/products/999999999/approvals', roleCookies.admin, {
+        method: 'PUT', body: { approvals: [] }
+    });
+    assert.equal(missingApprovalsWrite.status, 404, 'empty replacement cannot report success for a nonexistent product');
 
     // Staff object IDs are protected by the staff.manage permission, not just by using a missing ID.
     const targetStaffId = staffIds.manager;
