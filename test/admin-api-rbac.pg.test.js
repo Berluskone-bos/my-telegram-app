@@ -62,7 +62,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         body: body === undefined ? undefined : JSON.stringify(body)
     });
     const roleCookies = {};
-    let testCourierId = null, testRouteId = null, testOrderId = null, testProductId = null;
+    let testCourierId = null, testRouteId = null, testOrderId = null, testProductId = null, testOutboxKey = null;
 
     t.after(async () => {
         server.close();
@@ -72,6 +72,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         }
         if (testOrderId) await pool.query('DELETE FROM orders WHERE id = $1', [testOrderId]);
         if (testProductId) { await pool.query('DELETE FROM product_approvals WHERE product_id = $1', [testProductId]); await pool.query('DELETE FROM products WHERE id = $1', [testProductId]); }
+        if (testOutboxKey) await pool.query('DELETE FROM notification_outbox WHERE dedup_key = $1', [testOutboxKey]);
         if (testCourierId) await pool.query('DELETE FROM couriers WHERE id = $1', [testCourierId]);
         await pool.query('DELETE FROM admin_sessions WHERE staff_user_id IN (SELECT id FROM admin_users WHERE login LIKE $1)', [prefix + '%']);
         await pool.query('DELETE FROM admin_users WHERE login LIKE $1', [prefix + '%']);
@@ -112,6 +113,19 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         "INSERT INTO products (name, price, active, stock) VALUES ($1, 100, true, 10) RETURNING id",
         ['RBAC approvals ' + tag]);
     testProductId = Number(productInsert.rows[0].id);
+    for (const role of ['manager', 'operator']) {
+        const stockDenied = await request('/api/products/' + testProductId + '/stock', roleCookies[role], {
+            method: 'PATCH', body: { stock: 77, expected_stock: 10 }
+        });
+        assert.equal(stockDenied.status, 403, role + ' cannot change stock on an existing product ID');
+        const productDenied = await request('/api/products/' + testProductId, roleCookies[role], {
+            method: 'PUT', body: { name: 'forbidden product edit' }
+        });
+        assert.equal(productDenied.status, 403, role + ' cannot edit an existing product ID');
+    }
+    const untouchedProduct = await pool.query('SELECT name, stock FROM products WHERE id = $1', [testProductId]);
+    assert.equal(untouchedProduct.rows[0].name, 'RBAC approvals ' + tag);
+    assert.equal(Number(untouchedProduct.rows[0].stock), 10, 'forbidden product mutations do not change the row');
 
     // Courier access is managed from the admin panel, and archive never deletes history.
     const courierInsert = await pool.query(
@@ -126,6 +140,18 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         method: 'PATCH', body: { is_active: true }
     });
     assert.equal(activated.status, 200, 'admin can activate a courier');
+    for (const role of roles) {
+        const deniedDeactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies[role], {
+            method: 'PATCH', body: { is_active: false }
+        });
+        assert.equal(deniedDeactivate.status, 403, role + ' cannot deactivate an existing courier ID');
+        const deniedArchive = await request('/api/admin/couriers/' + testCourierId, roleCookies[role], { method: 'DELETE' });
+        assert.equal(deniedArchive.status, 403, role + ' cannot archive an existing courier ID');
+    }
+    const courierAfterDeniedWrites = await pool.query('SELECT is_active, archived_at FROM couriers WHERE id = $1', [testCourierId]);
+    assert.equal(courierAfterDeniedWrites.rows[0].is_active, true);
+    assert.equal(courierAfterDeniedWrites.rows[0].archived_at, null);
+
     const routeInsert = await pool.query(
         `INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders)
          VALUES ($1, CURRENT_DATE, $2, 'assigned', 1) RETURNING id`,
@@ -139,6 +165,15 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
     await pool.query(
         `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, status)
          VALUES ($1, $2, $3, 1, 'Тестовый адрес', 'pending')`, [testRouteId, String(testOrderId), 'RBAC-TEST-' + tag.slice(-8)]);
+    for (const role of ['manager', 'operator']) {
+        const statusDenied = await request('/api/orders/' + testOrderId + '/status', roleCookies[role], {
+            method: 'PUT', body: { status: 'READY_FOR_SHIPMENT' }
+        });
+        assert.equal(statusDenied.status, 403, role + ' cannot write warehouse status on an existing order ID');
+    }
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [testOrderId])).rows[0].status, 'SHIPPING',
+        'forbidden status changes do not mutate an existing order');
+
     const blockedDeactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
         method: 'PATCH', body: { is_active: false }
     });
@@ -160,6 +195,23 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         method: 'PATCH', body: { is_active: true }
     });
     assert.equal(cannotReactivate.status, 404, 'archived courier cannot be reactivated');
+
+    // Outbox retry is admin-only even when the caller knows a real failed row ID.
+    testOutboxKey = 'rbac-outbox-' + tag;
+    const failedOutbox = await pool.query(
+        `INSERT INTO notification_outbox (bot, method, payload, dedup_key, status, last_error)
+         VALUES ('admin', 'sendMessage', $1::jsonb, $2, 'failed', 'RBAC fixture') RETURNING id`,
+        [JSON.stringify({ chat_id: '1', text: 'RBAC fixture' }), testOutboxKey]);
+    const failedOutboxId = Number(failedOutbox.rows[0].id);
+    for (const role of roles) {
+        const deniedRetry = await request('/api/admin/outbox/' + failedOutboxId + '/retry', roleCookies[role], { method: 'POST', body: {} });
+        assert.equal(deniedRetry.status, 403, role + ' cannot retry an existing outbox row ID');
+    }
+    assert.equal((await pool.query('SELECT status FROM notification_outbox WHERE id = $1', [failedOutboxId])).rows[0].status, 'failed',
+        'forbidden outbox retry leaves the failed row unchanged');
+    const adminRetry = await request('/api/admin/outbox/' + failedOutboxId + '/retry', roleCookies.admin, { method: 'POST', body: {} });
+    assert.equal(adminRetry.status, 202, 'admin can retry a real failed outbox row');
+    assert.equal((await pool.query('SELECT status FROM notification_outbox WHERE id = $1', [failedOutboxId])).rows[0].status, 'pending');
 
     // CSRF: unsafe admin requests require the exact same origin, including a present Origin header.
     const foreignOrigin = await fetch(base + '/api/admin/staff', {

@@ -114,7 +114,7 @@ if (process.env.ADMIN_BOT_TOKEN) {
                 return;
             }
             try {
-                const updated = await db.updateCourier(cid, { is_active: true });
+                const updated = await db.setCourierActive(cid, true);
                 if (!updated) {
                     adminBot.answerCallbackQuery(query.id, { text: 'Курьер не найден' });
                     return;
@@ -273,9 +273,13 @@ bot.onText(/\/car/, async (msg) => {
         }
         const updates = { vehicle_type: lines[0] || courier.vehicle_type };
         if (lines[1]) updates.license_plate = lines[1];
-        const updated = await db.updateCourier(courier.id, updates);
+        const updated = await db.updateCourier(courier.id, updates, msg.from.id);
+        if (!updated) {
+            bot.sendMessage(chatId, 'Не удалось обновить профиль: аккаунт курьера отключён или данные маршрута изменились. Обратитесь к администратору.');
+            return;
+        }
         bot.sendMessage(chatId,
-            `Обновлено!\nТранспорт: ${updated?.vehicle_type || updates.vehicle_type}\nРег.номер: ${updated?.license_plate || updates.license_plate || '—'}`,
+            `Обновлено!\nТранспорт: ${updated.vehicle_type || '—'}\nРег.номер: ${updated.license_plate || '—'}`,
             { parse_mode: 'HTML' }
         );
     });

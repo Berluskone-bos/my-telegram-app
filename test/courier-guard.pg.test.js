@@ -104,6 +104,17 @@ test('курьерский бот: кнопки отменённого зака�
     await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes'); await pool.query('DELETE FROM orders');
     const courier = await db.createCourier({ name: 'Курьер-гард', phone: '+7 999 000-00-00', telegram_id: 900002, telegram_user: 'g', vehicle_type: 'авто' });
     const otherCourier = await db.createCourier({ name: 'Другой курьер', phone: '+7 999 000-00-01', telegram_id: 900003, telegram_user: 'other', vehicle_type: 'авто' });
+    const originalVehicle = courier.vehicle_type;
+    assert.equal(await db.updateCourier(courier.id, { vehicle_type: 'чужой транспорт' }, otherCourier.telegram_id), null,
+        'другой Telegram ID не может изменить профиль курьера');
+    assert.equal((await pool.query('SELECT vehicle_type FROM couriers WHERE id = $1', [courier.id])).rows[0].vehicle_type, originalVehicle);
+    assert.equal(await db.updateCourier(courier.id + 100000, { vehicle_type: 'подмена' }, courier.telegram_id), null,
+        'собственный Telegram ID не может изменить другой courier ID');
+    const ownProfileUpdate = await db.updateCourier(courier.id, { vehicle_type: 'пешком' }, courier.telegram_id);
+    assert.equal(ownProfileUpdate.vehicle_type, 'пешком', 'курьер может изменить только собственный профиль');
+    assert.equal(await db.updateCourier(courier.id, { is_active: false }, courier.telegram_id), null,
+        'самообслуживание не может менять административный флаг активности');
+    assert.equal((await pool.query('SELECT is_active FROM couriers WHERE id = $1', [courier.id])).rows[0].is_active, true);
     t.after(async () => {
         await pool.query('DELETE FROM notification_outbox');
         await pool.query('DELETE FROM route_stops'); await pool.query('DELETE FROM delivery_routes');
