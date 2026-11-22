@@ -437,7 +437,7 @@ test('курьерский бот: кнопки отменённого зака�
     await pool.query('UPDATE delivery_routes SET courier_id = $1 WHERE id = $2', [otherCourier.id, reassigned.route.id]);
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'подмена после переназначения' });
     await new Promise(r => setTimeout(r, 100));
-    assert.equal(await orderStatus(reassigned.o.id), 'SHIPPING', 'старый курьер не меняет остановку после переназначения маршрута');
+    assert.equal(await orderStatus(reassigned.o.id), 'READY_FOR_SHIPMENT', 'старый курьер не меняет заказ после переназначения маршрута');
     assert.equal((await db.getRouteById(reassigned.route.id)).stops[0].status, 'in_progress');
 
     // Даже если маршрут остался назначен курьеру, его отключение до текстового ответа закрывает доступ.
@@ -447,7 +447,7 @@ test('курьерский бот: кнопки отменённого зака�
     await pool.query('UPDATE couriers SET is_active = false WHERE id = $1', [courier.id]);
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'ответ после отключения' });
     await new Promise(r => setTimeout(r, 100));
-    assert.equal(await orderStatus(disabled.o.id), 'SHIPPING', 'отключённый курьер не меняет статус через отложенный ответ');
+    assert.equal(await orderStatus(disabled.o.id), 'READY_FOR_SHIPMENT', 'отключённый курьер не меняет статус через отложенный ответ');
     await pool.query('UPDATE couriers SET is_active = true WHERE id = $1', [courier.id]);
 
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'просто сообщение' });
