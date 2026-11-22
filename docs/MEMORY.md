@@ -707,3 +707,8 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PR #170 CI run `45073000793` SUCCESS; merge commit `78b99c6dd56b419b2539cbd29a3fa416e7d44eef`.
 - Исправлена гонка login vs password reset: сессия сотрудника создаётся только после блокировки `admin_users FOR UPDATE` и повторной проверки password hash/is_active. Детерминированный PostgreSQL тест подтверждает 401 для устаревшего входа и отсутствие новой сессии после reset.
 - Railway deployment `a5d233a7-febb-45d7-b1da-ad965d0f7560` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pendingWork empty.
+ 
+
+## 23.11.2026 — PR #171 and courier/cancel race coverage
+- PR #171 merged; docs now record PR #170 CI/deployment and staff login/reset race fix.
+- PR #172 adds PostgreSQL race tests for `acceptRouteStop`, `startRouteIfAllAccepted`, and `failDeliveryStop` concurrent with order cancellation. Existing tests already cover stage-vs-cancel and complete-vs-cancel. Expected invariant: order CANCELLED, no active stop, route completed, no deadlock. CI pending.
