@@ -1421,7 +1421,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let shopOrdersPage = 1;
-        const SHOP_ORDERS_LIMIT = 25;
+        const BOARD_ORDERS_LIMIT = 50;
+        const TABLE_ORDERS_LIMIT = 25;
         let shopOrdersSort = { sort: 'created_at', direction: 'desc' };
         window.toggleShopOrdersSort = () => {
             shopOrdersSort.direction = shopOrdersSort.direction === 'desc' ? 'asc' : 'desc';
@@ -1439,15 +1440,16 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
                 const canFulfill = window.adminHasPermission && window.adminHasPermission('orders.fulfill');
+                const pageLimit = document.getElementById('ordersTableWrap').hidden ? BOARD_ORDERS_LIMIT : TABLE_ORDERS_LIMIT;
                 const [ordersResponse, couriers, routes] = await Promise.all([
-                    fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${SHOP_ORDERS_LIMIT}&sort=${shopOrdersSort.sort}&direction=${shopOrdersSort.direction}`),
+                    fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${pageLimit}&sort=${shopOrdersSort.sort}&direction=${shopOrdersSort.direction}`),
                     canDispatch ? fetch(`${API_BASE}/api/couriers`).then(r => r.json()) : Promise.resolve([]),
                     canDispatch ? fetch(`${API_BASE}/api/routes`).then(r => r.json()) : Promise.resolve([])
                 ]);
                 if (!ordersResponse.ok) throw new Error('Не удалось загрузить заказы');
                 const pageData = await ordersResponse.json();
                 const orders = pageData.items || [];
-                const totalPages = Math.max(1, Math.ceil((pageData.total || 0) / SHOP_ORDERS_LIMIT));
+                const totalPages = Math.max(1, Math.ceil((pageData.total || 0) / pageLimit));
                 if (shopOrdersPage > totalPages) { shopOrdersPage = totalPages; return loadShopOrders(); }
                 allCouriers = couriers;
                 document.getElementById('routeCourier').innerHTML = '<option value="">-- курьер --</option>' +
@@ -1507,7 +1509,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).join('');
                 const pager = `<tr><td colspan="8" style="text-align:right;padding:12px">
                     <button class="btn btn-outline btn-sm" onclick="changeShopOrdersPage(-1)" ${shopOrdersPage <= 1 ? 'disabled' : ''}>Назад</button>
-                    <span style="margin:0 12px">Страница ${shopOrdersPage} из ${totalPages} · Всего: ${pageData.total || 0}</span>
+                    <span style="margin:0 12px">Страница ${shopOrdersPage} из ${totalPages} · Показано по ${pageLimit} · Всего: ${pageData.total || 0}</span>
                     <button class="btn btn-outline btn-sm" onclick="changeShopOrdersPage(1)" ${shopOrdersPage >= totalPages ? 'disabled' : ''}>Вперёд</button>
                 </td></tr>`;
                 document.getElementById('shopOrdersTable').innerHTML = rows + pager;
@@ -1722,7 +1724,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ordersBoardWrap').hidden = v !== 'board';
             document.getElementById('ordersTableWrap').hidden = v !== 'table';
             document.querySelectorAll('#ordersView button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-            if (save) store.set('adminOrdersView', v);
+            if (save) {
+                store.set('adminOrdersView', v);
+                shopOrdersPage = 1;
+                loadShopOrders();
+            }
         }
 
         function initBoard() {
