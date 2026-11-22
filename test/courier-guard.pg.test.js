@@ -428,6 +428,28 @@ test('курьерский бот: кнопки отменённого зака�
     await new Promise(r => setTimeout(r, 150));
     assert.equal(await orderStatus(F.orders[0].id), 'DELIVERY_FAILED');
     assert.equal((await db.getRouteById(F.route.id)).stops[0].fail_reason, 'Домофон не работает');
+
+    // Между выбором причины «Другое» и текстовым ответом маршрут может быть переназначен.
+    // Отложенное сообщение прежнего курьера не должно менять чужую остановку.
+    const reassigned = await mk('cg_other_reassigned');
+    await press(`startroute_${reassigned.route.id}`);
+    await press(`failreason_${reassigned.route.id}_${reassigned.stopId}_other`);
+    await pool.query('UPDATE delivery_routes SET courier_id = $1 WHERE id = $2', [otherCourier.id, reassigned.route.id]);
+    await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'подмена после переназначения' });
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(await orderStatus(reassigned.o.id), 'READY_FOR_SHIPMENT', 'старый курьер не меняет заказ после переназначения маршрута');
+    assert.equal((await db.getRouteById(reassigned.route.id)).stops[0].status, 'pending', 'отложенный ответ не меняет состояние остановки');
+
+    // Даже если маршрут остался назначен курьеру, его отключение до текстового ответа закрывает доступ.
+    const disabled = await mk('cg_other_disabled');
+    await press(`startroute_${disabled.route.id}`);
+    await press(`failreason_${disabled.route.id}_${disabled.stopId}_other`);
+    await pool.query('UPDATE couriers SET is_active = false WHERE id = $1', [courier.id]);
+    await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'ответ после отключения' });
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(await orderStatus(disabled.o.id), 'READY_FOR_SHIPMENT', 'отключённый курьер не меняет статус через отложенный ответ');
+    await pool.query('UPDATE couriers SET is_active = true WHERE id = $1', [courier.id]);
+
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'просто сообщение' });
     assert.equal(await orderStatus(F.orders[1].id), 'SHIPPING', 'посторонние сообщения заказы не трогают');
 });
