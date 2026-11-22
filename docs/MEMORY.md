@@ -695,4 +695,4 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 ## 23.11.2026 — PR #168 verified; numeric-ID boundary hardening
 - PR #168 CI run `45071681370` SUCCESS; merged as `4d0a5a1ecd93ef0b0033dddceaca71a8bacab084`.
 - Railway deployment `9382f1e2-03b7-4202-b48d-6058251c57e6` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pendingWork empty.
-- PR #169 hardens DB adapter helpers against unsafe JS integers: positive safe IDs required for courier/route/stop/order/product write methods; `updateProduct` now validates ID internally. PostgreSQL regression tests assert unsafe values are rejected before SQL; CI pending.
+- PR #169 hardens DB adapter helpers against unsafe JS integers: positive safe IDs required for courier/route/stop/order/product write methods; `updateProduct` now validates ID internally. The outbox retry helper and courier-message stop metadata write also reject unsafe/non-positive IDs. PostgreSQL regression tests assert unsafe values are rejected before SQL; CI pending.
