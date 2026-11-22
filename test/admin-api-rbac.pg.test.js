@@ -113,11 +113,13 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         "INSERT INTO products (name, price, active, stock) VALUES ($1, 100, true, 10) RETURNING id",
         ['RBAC approvals ' + tag]);
     testProductId = Number(productInsert.rows[0].id);
-    for (const role of ['manager', 'operator', 'warehouse']) {
+    for (const role of ['manager', 'operator']) {
         const stockDenied = await request('/api/products/' + testProductId + '/stock', roleCookies[role], {
             method: 'PATCH', body: { stock: 77, expected_stock: 10 }
         });
         assert.equal(stockDenied.status, 403, role + ' cannot change stock on an existing product ID');
+    }
+    for (const role of roles) {
         const productDenied = await request('/api/products/' + testProductId, roleCookies[role], {
             method: 'PUT', body: { name: 'forbidden product edit' }
         });
@@ -165,12 +167,16 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
     await pool.query(
         `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, status)
          VALUES ($1, $2, $3, 1, 'Тестовый адрес', 'pending')`, [testRouteId, String(testOrderId), 'RBAC-TEST-' + tag.slice(-8)]);
-    for (const role of ['manager', 'operator', 'warehouse']) {
+    for (const role of ['manager', 'operator']) {
         const statusDenied = await request('/api/orders/' + testOrderId + '/status', roleCookies[role], {
             method: 'PUT', body: { status: 'READY_FOR_SHIPMENT' }
         });
         assert.equal(statusDenied.status, 403, role + ' cannot write warehouse status on an existing order ID');
     }
+    const warehouseStatus = await request('/api/orders/' + testOrderId + '/status', roleCookies.warehouse, {
+        method: 'PUT', body: { status: 'READY_FOR_SHIPMENT' }
+    });
+    assert.equal(warehouseStatus.status, 409, 'warehouse has permission but cannot move SHIPPING backwards to READY_FOR_SHIPMENT');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [testOrderId])).rows[0].status, 'SHIPPING',
         'forbidden status changes do not mutate an existing order');
 
