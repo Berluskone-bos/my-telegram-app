@@ -815,3 +815,8 @@
 - Added deterministic PostgreSQL integration test: pause login after reading the old hash, reset password and revoke sessions, resume login; expected 401 and zero active sessions for that staff user.
 - Railway deployment `a5d233a7-febb-45d7-b1da-ad965d0f7560` SUCCESS on merge commit `78b99c6dd56b419b2539cbd29a3fa416e7d44eef`; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pending work empty.
 - IDOR/BOLA and numeric-ID write audit continues; completion not yet declared.
+
+
+## 23.11.2026 — PR #171: PR170 completion documentation
+- PR #171 merged; docs/TASKS.md and docs/MEMORY.md now record PR #170 CI run `45073000793`, the login/password-reset race fix, and successful Railway deployment `a5d233a7-febb-45d7-b1da-ad965d0f7560`.
+- Further concurrency coverage in PR #172: deterministic PostgreSQL races for courier accept/start/fail against order cancellation, complementing existing stage-vs-cancel and complete-vs-cancel tests. CI pending.
