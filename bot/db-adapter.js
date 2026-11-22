@@ -166,6 +166,7 @@ class DBAdapter {
         } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
         finally { client.release(); }
     }
+
     async getCourierByTelegramId(telegramId) {
         const res = await pool.query('SELECT * FROM couriers WHERE telegram_id = $1', [telegramId]);
         return res.rows[0] || null;
