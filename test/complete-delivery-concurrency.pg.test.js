@@ -54,7 +54,7 @@ test('параллельные callback «Доставлен» фиксирую�
             assert.equal(await db.updateOrderStatus(order.id, status), true);
         }
         const route = await db.createRoute({
-            route_number: 'CDR-' + suffix.slice(-8) + '-' + tag,
+            route_number: 'C' + suffix.slice(-6) + '-' + tag.slice(0, 4),
             route_date: new Date().toISOString().slice(0, 10),
             courier_id: courier.id,
             status: 'assigned',
