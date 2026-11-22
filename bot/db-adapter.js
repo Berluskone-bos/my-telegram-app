@@ -489,7 +489,7 @@ class DBAdapter {
             const route = await client.query('SELECT id, status, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (expectedCourierId !== undefined) {
-                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+                if (expectedCourierId === null || String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
@@ -540,7 +540,7 @@ class DBAdapter {
             const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [id]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (expectedCourierId !== undefined) {
-                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+                if (expectedCourierId === null || String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
@@ -716,7 +716,7 @@ class DBAdapter {
                 return { status: 'not_found' };
             }
             if (expectedCourierId !== undefined) {
-                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+                if (expectedCourierId === null || String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
@@ -821,7 +821,7 @@ class DBAdapter {
                 return { status: 'not_found' };
             }
             if (expectedCourierId !== undefined) {
-                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+                if (expectedCourierId === null || String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
