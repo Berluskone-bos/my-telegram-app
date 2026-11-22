@@ -712,3 +712,11 @@
 - [x] PostgreSQL regression tests: маршрут переназначен до текстового ответа; курьер отключён до текстового ответа; прежний успешный сценарий «Другое» сохранён.
 - [x] PR #153 CI SUCCESS; merge commit `4ea396bcf5ec18fe68cc66e83156507b7870183e`; Railway deployment `721e1c17-2f5d-4e2e-a5cd-6f208e5fff7f` SUCCESS, `gulf-bot` Online 1/1.
 - [ ] Продолжить полный аудит IDOR/BOLA: оставшиеся callback/async flows, API операций с заказами и маршрутами, административные идентификаторы. Аудит не считать закрытым до проверки всех изменяющих маршрутов и регрессионных тестов.
+
+
+## IDOR/BOLA audit — атомарная авторизация курьерских изменений
+- [x] PR #155: `failDeliveryStop()` и `completeDeliveryStop()` повторно проверяют ожидаемого курьера внутри PostgreSQL-транзакции после блокировки маршрута; проверяются назначение маршрута, `is_active` и `archived_at`, строка курьера блокируется `FOR SHARE`.
+- [x] Telegram handlers передают ID авторизованного курьера; добавлены PostgreSQL регрессии на подмену courier ID и отключённого курьера.
+- [x] Исправлен монитор lock-order теста: он учитывает расширенный SQL SELECT с `courier_id`; полный CI run `45059184894` SUCCESS.
+- [x] PR #155 merged, merge commit `068cf7177e12b24bf4ef9ba603e68b819f90736f`; Railway production `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- [ ] Продолжить атомарную object-level авторизацию остальных courier mutations (`acceptRouteStop`, `startRouteIfAllAccepted`, `setStopStage`) и перепроверить административные операции назначения/переназначения.

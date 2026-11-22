@@ -603,3 +603,13 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PR #153 CI run `45057218666` SUCCESS; merge commit `4ea396bcf5ec18fe68cc66e83156507b7870183e`. Railway deployment `721e1c17-2f5d-4e2e-a5cd-6f208e5fff7f` SUCCESS, branch `main`, exact commit matches merge, `gulf-bot` Online 1/1, 0 warnings/criticals.
 - Проверены клиентские API истории/скрытия заказов, бонусов и рефералов, а также tracker widget rating: доступ к данным ограничен подписанным Telegram ID и/или совпадением владельца заказа. Административные staff, order, route и product endpoints защищены staff session + permission guards; продолжить проверку всех изменяющих маршрутов, включая границы между callback, текстовым продолжением и API.
 - Полный IDOR/BOLA аудит остаётся открытым.
+
+
+## 22.11.2026 — атомарная проверка курьера внутри DB mutation, PR #155
+- Подтверждён TOCTOU-риск: Telegram callback проверял принадлежность маршрута до DB-вызова, а `failDeliveryStop(stopId)` / `completeDeliveryStop(stopId)` не принимали идентичность курьера и не проверяли владельца маршрута внутри транзакции. Между проверкой и записью маршрут мог быть переназначен или курьер деактивирован.
+- PR #155: обе DB-операции принимают `expectedCourierId`; после блокировки `delivery_routes` сверяют `courier_id`, затем блокируют `couriers` через `FOR SHARE` с условиями `is_active = TRUE AND archived_at IS NULL`. При несоответствии транзакция откатывается без изменения заказа/остановки.
+- `bot/courier-bot.js` передаёт DB ID курьера из аутентифицированного Telegram callback / текущего courier lookup.
+- `test/complete-delivery-concurrency.pg.test.js`: прямые вызовы с чужим courier ID и неактивным курьером не меняют stop; существующие тесты параллельного завершения и транзакционного outbox проходят.
+- Первоначальный CI run `45058863321` выявил не ошибку логики, а устаревший SQL-фильтр теста `route-lock-order.pg.test.js`, который искал только `SELECT id FROM delivery_routes`; монитор обновлён для расширенного SELECT. Повторный полный CI run `45059184894` SUCCESS.
+- PR #155 merge commit `068cf7177e12b24bf4ef9ba603e68b819f90736f`; Railway deploy `e3517248-6805-4e0d-8a1c-13f4dada442c` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- Полный IDOR/BOLA аудит остаётся открытым; следующий фокус — атомарная авторизация принятия остановки, старта маршрута и изменения этапов, а также административное переназначение.
