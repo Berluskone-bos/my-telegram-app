@@ -125,6 +125,32 @@ test('отмена заказа: курьер получает сообщени�
         'после гонки отмена остаётся терминальным состоянием остановки');
     assert.equal((await checkStopActive(pool, race.stopId)).active, false);
 
+    // ── гонка завершения доставки с отменой: победитель должен оставить согласованное терминальное состояние ──
+    await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
+    const oCompleteRace = await mkOrder('cf-complete-race');
+    const completeRace = await assign(oCompleteRace, true);
+    assert.equal((await db.acceptRouteStop(completeRace.route.id, completeRace.stopId)).status, 'accepted');
+    assert.equal((await db.startRouteIfAllAccepted(completeRace.route.id)).status, 'started');
+    const [completionRace, cancellationRace] = await Promise.all([
+        db.completeDeliveryStop(completeRace.stopId, { expectedCourierId: courier.id }),
+        db.updateOrderStatus(oCompleteRace.id, 'CANCELLED')
+    ]);
+    const completionState = (await pool.query(
+        'SELECT o.status AS order_status, rs.status AS stop_status FROM orders o JOIN route_stops rs ON rs.order_id = o.id::text WHERE o.id = $1',
+        [oCompleteRace.id]
+    )).rows[0];
+    if (cancellationRace === true) {
+        assert.equal(completionRace.status, 'cancelled');
+        assert.equal(completionState.order_status, 'CANCELLED');
+        assert.equal(completionState.stop_status, 'cancelled');
+    } else {
+        assert.equal(cancellationRace, 'TRANSITION_FORBIDDEN',
+            'completed order cannot be cancelled after delivery wins the lock');
+        assert.equal(completionRace.status, 'completed');
+        assert.equal(completionState.order_status, 'COMPLETED');
+        assert.equal(completionState.stop_status, 'delivered');
+    }
+
     // ── заказ без курьера: только клиент ──
     await pool.query('DELETE FROM notification_outbox'); sent.length = 0;
     const o3 = await mkOrder('cf3');
