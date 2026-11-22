@@ -634,3 +634,11 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Остаётся продолжить аудит всех mutation call sites и административных API; полный IDOR/BOLA аудит открыт.
 
 - В текущем production-коде все Telegram courier handlers передают authenticated courier ID в mutation methods; вызовы без ID остаются в integration test helpers и тестовых сценариях. Новые production call sites проверять отдельно.
+
+
+## 22.11.2026 — PR #162: admin staff object scope and atomic password reset
+- В `admin-auth.js` проверены `/api/admin/staff/:id`, `/password`, `/revoke-sessions`: все требуют `staff.manage`. В `admin-api-rbac.pg.test.js` добавлены тесты на существующий staff ID: manager/operator/warehouse не могут менять запись, сбрасывать пароль или отзывать сессии; ответы 403 и данные не меняются.
+- Найдена гонка/частичная фиксация в password reset: `UPDATE admin_users` и `DELETE admin_sessions` выполнялись отдельными pool queries. Теперь обе операции выполняются в одной транзакции через client; аудит записывается после commit.
+- Тест подтверждает, что администратор сбрасывает пароль, прежняя сессия сотрудника получает 401, сессия администратора остаётся рабочей.
+- PR #162 CI run `45061745267` SUCCESS; merge commit `84cc92c18bc4369563aa78cd689fdd10915d5e79`; Railway deployment `02424ef7-374b-450c-8b3d-58bb588772aa` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
+- Полный IDOR/BOLA аудит открыт; далее проверять оставшиеся ID-based APIs и конкурентные admin mutations.
