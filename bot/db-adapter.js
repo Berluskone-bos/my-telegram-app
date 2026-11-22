@@ -35,8 +35,8 @@ function orderTransitionAllowed(from, to) {
         PICKED_UP: [],
         SHIPPING: ['COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'],
         DELIVERY_FAILED: ['READY_FOR_SHIPMENT', 'CANCELLED'],
-        DELIVERED: ['COMPLETED', 'CANCELLED'],
-        COMPLETED: ['CANCELLED'],
+        DELIVERED: ['COMPLETED'],
+        COMPLETED: [],
         CANCELLED: []
     };
     return Array.isArray(allowed[from]) && allowed[from].includes(to);
