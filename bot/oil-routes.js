@@ -13,7 +13,13 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
             res.status(502).json({ error: 'Сервис подбора временно недоступен. Попробуйте позже.' });
         }
     };
-    const id = v => { const n = Number(v); if (!Number.isInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true }); return n; };
+    const id = v => {
+        const raw = String(v == null ? '' : v);
+        if (!/^\\d{1,15}$/.test(raw)) throw Object.assign(new Error('Некорректный запрос'), { user: true });
+        const n = Number(raw);
+        if (!Number.isSafeInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true });
+        return n;
+    };
 
     // Основной путь — каталог ТО PartsAPI: марка -> модель -> модификация (typeId) -> объёмы и допуски
     app.get('/api/oil/by-vin', limit, wrap(async (req, res) => { res.json(await oc.vinSearch(pool, req.query.vin)); }));
