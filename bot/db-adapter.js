@@ -140,7 +140,8 @@ class DBAdapter {
         if (setFields.length === 0) return null;
         values.push(courierId);
         const query = 'UPDATE couriers SET ' + setFields.join(', ') + ' WHERE id = $' + idx + ' AND archived_at IS NULL RETURNING *';
-        const res = await pool.query(query, values);        return res.rows[0] || null;
+        const res = await pool.query(query, values);
+        return res.rows[0] || null;
     }
 
     async archiveCourier(courierId) {
