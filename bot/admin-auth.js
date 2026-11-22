@@ -393,19 +393,28 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
             const password = req.body && typeof req.body.password === 'string' ? req.body.password : '';
             if (!/^\d{1,15}$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID.' });
             if (password.length < PASSWORD_MIN || password.length > 128) return res.status(400).json({ error: 'Пароль должен содержать от 12 до 128 символов.' });
+            const client = await pool.connect();
             try {
                 const passwordHash = await hashPassword(password);
-                const r = await pool.query(
+                await client.query('BEGIN');
+                const r = await client.query(
                     'UPDATE admin_users SET password_hash=$2, password_changed_at=NOW(), updated_at=NOW() WHERE id=$1 RETURNING id',
                     [id, passwordHash]
                 );
-                if (!r.rowCount) return res.status(404).json({ error: 'Сотрудник не найден.' });
-                await pool.query('DELETE FROM admin_sessions WHERE staff_user_id = $1', [id]);
+                if (!r.rowCount) {
+                    await client.query('ROLLBACK');
+                    return res.status(404).json({ error: 'Сотрудник не найден.' });
+                }
+                const revoked = await client.query('DELETE FROM admin_sessions WHERE staff_user_id = $1', [id]);
+                await client.query('COMMIT');
                 await audit(req, 'staff_password_reset', 200, 'staff_id=' + id);
-                return res.json({ ok: true, sessionsRevoked: true });
+                return res.json({ ok: true, sessionsRevoked: true, revoked: revoked.rowCount });
             } catch (e) {
+                await client.query('ROLLBACK').catch(() => {});
                 console.error('[ADMIN STAFF PASSWORD]', String(e.code || e.name || 'unknown').slice(0, 40));
                 return res.status(500).json({ error: 'Не удалось изменить пароль.' });
+            } finally {
+                client.release();
             }
         });
 
