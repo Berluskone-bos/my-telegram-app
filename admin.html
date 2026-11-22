@@ -955,7 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <th>Сумма</th>
                                 <th>Статус</th>
                                 <th>Курьер</th>
-                                <th><button type="button" onclick="toggleShopOrdersSort()" title="Сортировать по времени" style="border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0">Дата и время ${shopOrdersSort.direction === 'desc' ? '↓' : '↑'}</button></th>
+                                <th><button type="button" onclick="toggleShopOrdersSort()" title="Сортировать по времени" style="border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0">Дата и время <span id="ordersSortArrow" aria-hidden="true">↓</span></button></th>
                             </tr>
                         </thead>
                         <tbody id="shopOrdersTable"><tr><td colspan="8" class="empty">Загрузка...</td></tr></tbody>
@@ -1424,6 +1424,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let shopOrdersSort = { sort: 'created_at', direction: 'desc' };
         window.toggleShopOrdersSort = () => {
             shopOrdersSort.direction = shopOrdersSort.direction === 'desc' ? 'asc' : 'desc';
+            const arrow = document.getElementById('ordersSortArrow');
+            if (arrow) arrow.textContent = shopOrdersSort.direction === 'desc' ? '↓' : '↑';
             shopOrdersPage = 1;
             loadShopOrders();
         };
