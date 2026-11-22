@@ -768,7 +768,7 @@ class DBAdapter {
     // Повторный callback получает already и не создаёт второе уведомление.
     async completeDeliveryStop(stopId, { afterComplete = null, expectedCourierId = undefined } = {}) {
         const id = Number(stopId);
-        if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
+        if (!Number.isSafeInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
