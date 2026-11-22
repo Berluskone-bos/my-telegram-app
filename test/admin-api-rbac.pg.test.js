@@ -110,11 +110,6 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         method: 'PATCH', body: { is_active: true }
     });
     assert.equal(activated.status, 200, 'admin can activate a courier');
-    const deactivated = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
-        method: 'PATCH', body: { is_active: false }
-    });
-    assert.equal(deactivated.status, 200, 'admin can deactivate a courier');
-
     const routeInsert = await pool.query(
         `INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders)
          VALUES ($1, CURRENT_DATE, $2, 'assigned', 1) RETURNING id`,
@@ -123,9 +118,17 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
     await pool.query(
         `INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, status)
          VALUES ($1, 'rbac-test', 'RBAC-TEST', 1, 'Тестовый адрес', 'pending')`, [testRouteId]);
+    const blockedDeactivate = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
+        method: 'PATCH', body: { is_active: false }
+    });
+    assert.equal(blockedDeactivate.status, 409, 'cannot deactivate a courier with an unfinished delivery');
     const blockedArchive = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, { method: 'DELETE' });
     assert.equal(blockedArchive.status, 409, 'cannot archive a courier with an unfinished delivery');
     await pool.query("UPDATE route_stops SET status = 'delivered' WHERE route_id = $1", [testRouteId]);
+    const deactivated = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, {
+        method: 'PATCH', body: { is_active: false }
+    });
+    assert.equal(deactivated.status, 200, 'admin can deactivate a courier after active deliveries finish');
     const archived = await request('/api/admin/couriers/' + testCourierId, roleCookies.admin, { method: 'DELETE' });
     assert.equal(archived.status, 200, 'admin can archive a courier after route completion');
     const archivedRow = await pool.query('SELECT is_active, archived_at FROM couriers WHERE id = $1', [testCourierId]);
