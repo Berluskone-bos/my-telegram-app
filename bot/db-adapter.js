@@ -389,13 +389,6 @@ class DBAdapter {
         try {
             await client.query('BEGIN');
 
-            const courierLock = await client.query(
-                'SELECT id FROM couriers WHERE id = $1 AND is_active = true AND archived_at IS NULL FOR UPDATE',
-                [route.courier_id]);
-            if (!courierLock.rowCount) {
-                throw Object.assign(new Error('Курьер не активен или удалён'), { code: 'COURIER_INACTIVE' });
-            }
-
             // Для построения маршрутного листа блокируем заказы до проверки активных остановок.
             // Это закрывает гонку: один заказ нельзя одновременно включить в два активных маршрута.
             if (route.enforceReadyOrders) {
@@ -419,6 +412,17 @@ class DBAdapter {
                 if (assigned.rowCount) {
                     throw Object.assign(new Error('Один из заказов уже находится в активном маршруте'), { code: 'CONFLICT' });
                 }
+            }
+
+            // Единый порядок блокировок с запуском маршрута: orders → couriers → route_stops.
+            // Сначала блокируем заказы и проверяем их доступность, затем проверяем курьера.
+            // Это не допускает взаимной блокировки createRoute (courier → orders)
+            // и startRouteIfAllAccepted (orders → route → courier).
+            const courierLock = await client.query(
+                'SELECT id FROM couriers WHERE id = $1 AND is_active = true AND archived_at IS NULL FOR UPDATE',
+                [route.courier_id]);
+            if (!courierLock.rowCount) {
+                throw Object.assign(new Error('Курьер не активен или удалён'), { code: 'COURIER_INACTIVE' });
             }
 
             const routeRes = await client.query(
