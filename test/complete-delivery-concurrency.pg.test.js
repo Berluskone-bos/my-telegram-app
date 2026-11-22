@@ -93,6 +93,13 @@ test('параллельные callback «Доставлен» фиксирую�
     });
 
     const first = await makeShipment('a');
+    // Проверка владельца должна выполняться внутри транзакции, а не только в Telegram callback.
+    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [first.stopId])).rows[0].status, 'in_progress',
+        'чужой курьер не может завершить остановку через прямой вызов DB-операции');
+    await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
+    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id })).status, 'courier_inactive');
+    await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     const results = await Promise.all([
         db.completeDeliveryStop(first.stopId),
         db.completeDeliveryStop(first.stopId)
@@ -139,6 +146,12 @@ test('параллельные callback «Доставлен» фиксирую�
         'административное уведомление фиксируется вместе с доставкой');
 
     const second = await makeShipment('b');
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Подмена владельца', { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [second.stopId])).rows[0].status, 'in_progress',
+        'чужой курьер не может отметить остановку недоставленной');
+    await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Курьер отключён', { expectedCourierId: courier.id })).status, 'courier_inactive');
+    await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     const race = await Promise.all([
         db.completeDeliveryStop(second.stopId),
         db.failDeliveryStop(second.stopId, 'Тестовая причина')
