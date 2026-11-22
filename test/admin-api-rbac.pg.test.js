@@ -42,6 +42,9 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
     app.use(express.json());
     auth.registerRoutes(app);
     registerCourierRoutes(app);
+    require('../bot/oil-routes').registerOilRoutes(app, {
+        pool, verifyAdmin: auth.verifyAdmin, rateLimit: () => (_req, _res, next) => next()
+    });
     const server = await new Promise(resolve => {
         const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
