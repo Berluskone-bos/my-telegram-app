@@ -176,7 +176,7 @@ test('маршрут из 4 заказов: порядок по времени �
     clock.t = new Date('2026-11-15T00:16:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'после первой доставки ETA остаётся внутренним');
-    await db.updateStopStatus(stops[1].id, 'delivered', '');
+    await pool.query("UPDATE route_stops SET status = 'delivered', delivered_at = NOW() WHERE id = $1", [stops[1].id]);
     clock.t = new Date('2026-11-15T00:50:00Z');
     await svc.refreshEtas({ routeId: out.route.id, notifyNew: false });
     assert.equal(sent.filter(m => m.bot === 'client').length, 0, 'сдвиг расчётного времени не отправляется клиентам');
