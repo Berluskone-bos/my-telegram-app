@@ -178,6 +178,7 @@ test('курьерский бот: кнопки отменённого зака�
         `deliver_${malformed.route.id}junk_${malformed.stopId}_accept`,
         `deliver_${malformed.route.id}_${malformed.stopId}junk_accept`,
         `failreason_${malformed.route.id}_${malformed.stopId}junk_nohome`,
+        `failreason_${malformed.route.id}_${malformed.stopId}_invented_reason`,
         `showroute_${malformed.route.id}junk`
     ]) {
         await press(payload);
