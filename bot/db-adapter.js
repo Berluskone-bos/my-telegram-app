@@ -669,7 +669,7 @@ class DBAdapter {
     // («Не доставлен»): он виден в админке отдельной колонкой, оператор решает — повторная отправка или отмена.
     async failDeliveryStop(stopId, reason, { afterFailure = null, expectedCourierId = undefined } = {}) {
         const id = Number(stopId);
-        if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
+        if (!Number.isSafeInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
@@ -1781,7 +1781,7 @@ class DBAdapter {
 
     async getProductById(id) {
         const numId = Number(id);
-        if (!Number.isInteger(numId)) return null;
+        if (!Number.isSafeInteger(numId) || numId <= 0) return null;
         const res = await pool.query('SELECT * FROM products WHERE id = $1 AND active = true', [numId]);
         return res.rows[0] || null;
     }
