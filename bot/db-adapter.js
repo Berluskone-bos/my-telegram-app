@@ -139,8 +139,7 @@ class DBAdapter {
         }
         if (setFields.length === 0) return null;
         values.push(courierId);
-        const query = 'UPDATE couriers SET ' + setFields.join(', ') + ' WHERE id = $' + idx + ' AND archived_at IS NULL RETURNING *';
-        const res = await pool.query(query, values);
+        const idPlaceholder = '
         return res.rows[0] || null;
     }
 
@@ -160,8 +159,7 @@ class DBAdapter {
                 return courier.rows[0];
             }
             const active = await client.query(
-                `SELECT 1
-                   FROM route_stops rs
+                `SELECT 1 FROM route_stops rs
                    JOIN delivery_routes dr ON dr.id = rs.route_id
                   WHERE dr.courier_id = $1
                     AND rs.status IN ('pending', 'accepted', 'in_progress')
@@ -182,7 +180,6 @@ class DBAdapter {
             client.release();
         }
     }
-
     async getCourierByTelegramId(telegramId) {
         const res = await pool.query('SELECT * FROM couriers WHERE telegram_id = $1', [telegramId]);
         return res.rows[0] || null;
@@ -1044,7 +1041,6 @@ class DBAdapter {
         ]);
         return { items: rows.rows, total: count.rows[0].total, page: safePage, limit: safeLimit, sort: orderColumn, direction: orderDirection.toLowerCase() };
     }
-
     async getOrderCustomers() {
         const res = await pool.query(
             `SELECT MAX(user_name) AS user_name, phone,
@@ -1889,50 +1885,9 @@ class DBAdapter {
 module.exports = new DBAdapter();
 module.exports.isTransientDbError = isTransientDbError;
  + idx;
-        const res = await pool.query(
-            `UPDATE couriers SET ${setFields.join(', ')} WHERE id = ${idPlaceholder} AND archived_at IS NULL RETURNING *`,
-            values
-        );
+        const query = 'UPDATE couriers SET ' + setFields.join(', ') + ' WHERE id = ' + idPlaceholder + ' AND archived_at IS NULL RETURNING *';
+        const res = await pool.query(query, values);
         return res.rows[0] || null;
-    }
-
-    async archiveCourier(courierId) {
-        const id = Number(courierId);
-        if (!Number.isSafeInteger(id) || id <= 0) return null;
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            const courier = await client.query('SELECT id, archived_at FROM couriers WHERE id = $1 FOR UPDATE', [id]);
-            if (!courier.rowCount) {
-                await client.query('ROLLBACK');
-                return null;
-            }
-            if (courier.rows[0].archived_at) {
-                await client.query('COMMIT');
-                return courier.rows[0];
-            }
-            const active = await client.query(
-                `SELECT 1
-                   FROM route_stops rs
-                   JOIN delivery_routes dr ON dr.id = rs.route_id
-                  WHERE dr.courier_id = $1
-                    AND rs.status IN ('pending', 'accepted', 'in_progress')
-                  LIMIT 1`, [id]);
-            if (active.rowCount) {
-                const error = new Error('Нельзя удалить курьера: у него есть незавершённые доставки');
-                error.code = 'COURIER_HAS_ACTIVE_ROUTE';
-                throw error;
-            }
-            const updated = await client.query(
-                'UPDATE couriers SET is_active = false, archived_at = NOW() WHERE id = $1 RETURNING *', [id]);
-            await client.query('COMMIT');
-            return updated.rows[0] || null;
-        } catch (error) {
-            await client.query('ROLLBACK').catch(() => {});
-            throw error;
-        } finally {
-            client.release();
-        }
     }
 
     async getCourierByTelegramId(telegramId) {
@@ -2134,13 +2089,6 @@ module.exports.isTransientDbError = isTransientDbError;
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-
-            const courierLock = await client.query(
-                'SELECT id FROM couriers WHERE id = $1 AND is_active = true AND archived_at IS NULL FOR UPDATE',
-                [route.courier_id]);
-            if (!courierLock.rowCount) {
-                throw Object.assign(new Error('Курьер не активен или удалён'), { code: 'COURIER_INACTIVE' });
-            }
 
             // Для построения маршрутного листа блокируем заказы до проверки активных остановок.
             // Это закрывает гонку: один заказ нельзя одновременно включить в два активных маршрута.
@@ -2768,33 +2716,23 @@ module.exports.isTransientDbError = isTransientDbError;
     // Заказы
     // ───────────────────────────────────────────
 
-    async getOrdersPage(page = 1, limit = 50, sort = 'created_at', direction = 'desc') {
+    async getOrdersPage(page = 1, limit = 50) {
         const safePage = Math.max(1, Math.min(100000, Number.parseInt(page, 10) || 1));
         const safeLimit = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 50));
         const offset = (safePage - 1) * safeLimit;
-        const orderColumn = sort === 'id' ? 'id' : 'created_at';
-        const orderDirection = String(direction).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
         const [count, rows] = await Promise.all([
             pool.query('SELECT COUNT(*)::int AS total FROM orders'),
             pool.query(
-                `SELECT o.id, o.order_number, o.user_name, o.phone, o.total, o.status, o.delivery_type, o.created_at,
-                        CASE WHEN o.status IN ('DELIVERED', 'COMPLETED') THEN
-                            (SELECT rs.delivered_at FROM route_stops rs
-                              WHERE rs.status = 'delivered' AND rs.order_id = o.id::text
-                              ORDER BY rs.id DESC LIMIT 1)
-                        END AS delivery_completed_at,
-                        CASE WHEN o.status IN ('DELIVERY_FAILED', 'CANCELLED') THEN
+                `SELECT id, order_number, user_name, phone, total, status, delivery_type, created_at,
+                        CASE WHEN status = 'DELIVERY_FAILED' THEN
                             (SELECT rs.fail_reason FROM route_stops rs
-                              WHERE rs.status IN ('failed', 'cancelled') AND rs.order_id = o.id::text
-                              ORDER BY rs.id DESC LIMIT 1)
+                              WHERE rs.status = 'failed' AND rs.order_id = orders.id::text ORDER BY rs.id DESC LIMIT 1)
                         END AS fail_reason
-                   FROM orders o
-                  ORDER BY o.${orderColumn} ${orderDirection}, o.id DESC
-                  LIMIT $1 OFFSET $2`,
+                   FROM orders ORDER BY id DESC LIMIT $1 OFFSET $2`,
                 [safeLimit, offset]
             )
         ]);
-        return { items: rows.rows, total: count.rows[0].total, page: safePage, limit: safeLimit, sort: orderColumn, direction: orderDirection.toLowerCase() };
+        return { items: rows.rows, total: count.rows[0].total, page: safePage, limit: safeLimit };
     }
 
     async getOrderCustomers() {
