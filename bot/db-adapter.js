@@ -154,7 +154,7 @@ class DBAdapter {
             const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND archived_at IS NULL FOR UPDATE', [id]);
             if (!courier.rowCount) { await client.query('ROLLBACK'); return null; }
             if (!isActive) {
-                const active = await client.query(`SELECT 1 FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id WHERE dr.courier_id = $1 AND rs.status IN ('pending', 'accepted', 'in_progress') LIMIT 1`, [id]);
+                const active = await client.query(`SELECT 1 FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id JOIN orders o ON (o.id::text = rs.order_id OR o.order_number = rs.order_number) WHERE dr.courier_id = $1 AND rs.status IN ('pending', 'accepted', 'in_progress') AND o.status IN ('READY_FOR_SHIPMENT', 'SHIPPING') LIMIT 1`, [id]);
                 if (active.rowCount) {
                     const error = new Error('Нельзя деактивировать курьера: у него есть незавершённые доставки');
                     error.code = 'COURIER_HAS_ACTIVE_ROUTE';
@@ -176,7 +176,7 @@ class DBAdapter {
             const courier = await client.query('SELECT id, archived_at FROM couriers WHERE id = $1 FOR UPDATE', [id]);
             if (!courier.rowCount) { await client.query('ROLLBACK'); return null; }
             if (courier.rows[0].archived_at) { await client.query('COMMIT'); return courier.rows[0]; }
-            const active = await client.query(`SELECT 1 FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id WHERE dr.courier_id = $1 AND rs.status IN ('pending', 'accepted', 'in_progress') LIMIT 1`, [id]);
+            const active = await client.query(`SELECT 1 FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id JOIN orders o ON (o.id::text = rs.order_id OR o.order_number = rs.order_number) WHERE dr.courier_id = $1 AND rs.status IN ('pending', 'accepted', 'in_progress') AND o.status IN ('READY_FOR_SHIPMENT', 'SHIPPING') LIMIT 1`, [id]);
             if (active.rowCount) {
                 const error = new Error('Нельзя удалить курьера: у него есть незавершённые доставки');
                 error.code = 'COURIER_HAS_ACTIVE_ROUTE';
