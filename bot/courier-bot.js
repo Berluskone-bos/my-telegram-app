@@ -712,7 +712,12 @@ async function handleStartRoute(chatId, routeId, user) {
     const courierName = String(courier?.name || [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'не указан').trim();
     const route = await db.getRouteById(routeId);
     if (!route) return;
+    if (!courier || !courier.is_active || courier.archived_at || String(route.courier_id) !== String(courier.id)) {
+        bot.sendMessage(chatId, 'Доступ к этому маршруту закрыт. Обратитесь к администратору.').catch(() => {});
+        return;
+    }
     const started = await db.startRouteIfAllAccepted(routeId, {
+        expectedCourierId: courier.id,
         afterStart: async ({ client, route: startedRoute, stops }) => {
             await notifyAdmin(
                 `[МАРШРУТ] ${escapeHtml(startedRoute.route_number)} начат курьером ${escapeHtml(courierName)}`,
@@ -762,6 +767,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     // В Telegram callback имя профиля может отсутствовать; для админ-журнала
     // используем подтверждённое имя курьера из нашей таблицы.
     const courierForNotice = query?.from?.id ? await db.getCourierByTelegramId(query.from.id) : null;
+    if (!courierForNotice || !courierForNotice.is_active || courierForNotice.archived_at || String(currentRoute.courier_id) !== String(courierForNotice.id)) {
+        bot.answerCallbackQuery(query.id, { text: getCourierAccessMessage(courierForNotice) || 'Нет доступа к этому маршруту', show_alert: true }).catch(() => {});
+        return;
+    }
     const courierName = String(courierForNotice?.name || [query?.from?.first_name, query?.from?.last_name].filter(Boolean).join(' ') || query?.from?.username || 'не указан').trim();
     if (action !== 'accept' && currentRoute.status !== 'in_progress') {
         bot.answerCallbackQuery(query.id, { text: 'Сначала курьер должен начать весь маршрут', show_alert: true }).catch(() => {});
@@ -800,6 +809,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
     if (action === 'accept') {
         const accepted = await db.acceptRouteStop(routeId, stopId, {
+            expectedCourierId: courierForNotice.id,
             afterAccept: async ({ client, stop: acceptedStop, route: acceptedRoute, stops }) => {
                 const who = courierName;
                 await notifyAdmin(
@@ -844,6 +854,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         // Этап и обязательные уведомления клиенту/администратору фиксируются одной транзакцией.
         // courierForNotice загружен один раз в начале обработки действия.
         const changed = await db.setStopStage(stopId, 'enroute', {
+            expectedCourierId: courierForNotice.id,
             afterUpdate: async ({ client, stop, route }) => {
                 const who = courierName;
                 await notifyAdmin(
@@ -894,6 +905,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
     else if (action === 'arrived') {
         const changed = await db.setStopStage(stopId, 'arrived', {
+            expectedCourierId: courierForNotice.id,
             afterUpdate: async ({ client, stop, route }) => {
                 const who = courierName;
                 await notifyAdmin(
