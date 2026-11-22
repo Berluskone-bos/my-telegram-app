@@ -731,3 +731,11 @@
 - [x] PR #158 CI run `45060319716` SUCCESS; merge commit `7298091e453e7e9afa1bba9ccb18e20a7f9e7ad6`; Railway deployment `6d57a84a-75f9-4f26-85f3-2226576fd633` SUCCESS, `gulf-bot` Online 1/1, PostgreSQL Online.
 - [ ] Продолжить аудит административных изменяющих API, включая статусы заказов, назначение маршрутов и идентификаторы уведомлений; проверить object-level scope, роль и транзакционные границы.
 - [ ] Полный IDOR/BOLA аудит остаётся открытым.
+
+
+## IDOR/BOLA audit — explicit null courier identity (PR #160)
+- [x] Исправлен fail-open: `expectedCourierId: null` больше не отключает проверку владельца в accept/start/stage/fail/complete delivery mutations. `undefined` оставлен только для внутренних вызовов, которые сознательно не передают identity.
+- [x] `handleDeliveryFlow` передаёт уже проверенный `courierForNotice.id` без `?? null`.
+- [x] PostgreSQL regression: null identity не меняет stop/route/order при accept, start, stage, fail и complete.
+- [x] PR #160 CI run `45061115645` SUCCESS; merge commit `7d90051623f8ecdf1043e4cd1e52790e7a123730`.
+- [ ] Продолжить аудит прямых mutation call sites и административных API; полный IDOR/BOLA аудит остаётся открытым.
