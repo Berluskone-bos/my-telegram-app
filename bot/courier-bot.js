@@ -18,6 +18,7 @@ const { requirePermission, requireOrderStatusPermission, hasPermission } = requi
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
 const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
 const { isPrivateCourierMessage, isPrivateCourierCallback, isSameTelegramSender } = require('./courier-chat-guard');
+const { getCourierAccessMessage } = require('./courier-access');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -231,6 +232,16 @@ async function getCourier(user) {
     return await db.getCourierByTelegramId(user.id);
 }
 
+async function requireActiveCourier(user, chatId) {
+    const courier = await getCourier(user);
+    const message = getCourierAccessMessage(courier);
+    if (message) {
+        await bot.sendMessage(chatId, message);
+        return null;
+    }
+    return courier;
+}
+
 const { getTodayRoutes: getTodayRoutesForDb } = require('./courier-date');
 
 async function getTodayRoutes(courierId) {
@@ -247,11 +258,8 @@ if (bot) {
 bot.onText(/\/car/, async (msg) => {
     if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
-    const courier = await getActiveCourier(msg.from);
-    if (!courier) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Сначала /start');
-        return;
-    }
+    const courier = await requireActiveCourier(msg.from, chatId);
+    if (!courier) return;
     bot.sendMessage(chatId,
         `Текущий транспорт: <b>${escapeHtml(courier.vehicle_type || '—')}</b>\nРег.номер: <b>${escapeHtml(courier.license_plate || '—')}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
         { parse_mode: 'HTML' }
@@ -284,7 +292,7 @@ bot.onText(/\/start/, async (msg) => {
 
     if (courier) {
         if (courier.archived_at) {
-            bot.sendMessage(chatId, 'Ваш аккаунт курьера удалён из действующего списка. Для повторного допуска обратитесь к администратору.');
+            bot.sendMessage(chatId, getCourierAccessMessage(courier));
             return;
         }
         if (!courier.is_active) {
@@ -394,12 +402,8 @@ async function showMainScreen(chatId, courier) {
 bot.onText(/\/today/, async (msg) => {
     if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
-    const courier = await getActiveCourier(msg.from);
-
-    if (!courier) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
-        return;
-    }
+    const courier = await requireActiveCourier(msg.from, chatId);
+    if (!courier) return;
 
     const todayRoutes = await getTodayRoutes(courier.id);
     if (todayRoutes.length === 0) {
@@ -428,12 +432,8 @@ bot.onText(/\/today/, async (msg) => {
 bot.onText(/\/route/, async (msg) => {
     if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
-    const courier = await getActiveCourier(msg.from);
-
-    if (!courier) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
-        return;
-    }
+    const courier = await requireActiveCourier(msg.from, chatId);
+    if (!courier) return;
 
     const activeRoute = await getActiveRoute(courier.id);
     if (!activeRoute) {
@@ -498,12 +498,8 @@ async function sendRouteDetails(chatId, route) {
 bot.onText(/\/done/, async (msg) => {
     if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
-    const courier = await getActiveCourier(msg.from);
-
-    if (!courier) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
-        return;
-    }
+    const courier = await requireActiveCourier(msg.from, chatId);
+    if (!courier) return;
 
     const activeRoute = await getActiveRoute(courier.id);
     if (!activeRoute) {
@@ -524,12 +520,8 @@ bot.onText(/\/done/, async (msg) => {
 bot.onText(/\/status/, async (msg) => {
     if (!isPrivateCourierMessage(msg)) return;
     const chatId = msg.chat.id;
-    const courier = await getActiveCourier(msg.from);
-
-    if (!courier) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Отправьте /start');
-        return;
-    }
+    const courier = await requireActiveCourier(msg.from, chatId);
+    if (!courier) return;
 
     const todayRoutes = await getTodayRoutes(courier.id);
     let totalDelivered = 0, totalFailed = 0, totalCash = 0;
@@ -588,6 +580,11 @@ bot.on('callback_query', async (query) => {
         const rId = parseInt(parts[1]);
         const sId = ['deliver_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'].some(a => data.startsWith(a)) ? parseInt(parts[2]) : null;
         const me = await db.getCourierByTelegramId(query.from.id);
+        const accessMessage = getCourierAccessMessage(me);
+        if (accessMessage) {
+            bot.answerCallbackQuery(query.id, { text: accessMessage, show_alert: true }).catch(() => {});
+            return;
+        }
         const rt = Number.isInteger(rId) ? await db.getRouteById(rId) : null;
         const owns = me && me.is_active && rt && String(rt.courier_id) === String(me.id)
             && (sId === null || (rt.stops || []).some(s => s.id === sId));
