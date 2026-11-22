@@ -937,6 +937,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         let completion;
         try {
             completion = await db.completeDeliveryStop(stopId, {
+                expectedCourierId: courierForNotice?.id ?? null,
                 afterComplete: async ({ client, stop: deliveredStop, route: deliveredRoute }) => {
                     const who = courierName;
                     await notifyAdmin(
@@ -1091,6 +1092,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
     try {
         const safeReason = String(reason || 'Не указана').slice(0, 300);
         failure = await db.failDeliveryStop(stopId, safeReason, {
+            expectedCourierId: courier.id,
             afterFailure: async ({ client, stop: failedStop, route: failedRoute }) => {
                 await notifyAdmin(
                     `[ДОСТАВКА] ${escapeHtml(failedRoute.route_number)} | НЕ ДОСТАВЛЕНО (точка ${failedStop.stop_number} из ${failedRoute.total_orders || ''})\n` +
