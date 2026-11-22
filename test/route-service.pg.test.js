@@ -76,6 +76,7 @@ test('маршрут из 4 заказов: порядок по времени �
         return actualQueue.notify('admin', '1', x, { db: options.db, dedupKey: options.dedupKey, throwOnError: true });
     } });
     assert.deepEqual(out.sequence, ['AP-rs3', 'AP-rs1', 'AP-rs2', 'AP-rs4'], 'при равной стоимости допустим любой кратчайший открытый путь; выбран C, A, B, D');
+    assert.equal(new Date(out.route.route_date).toISOString().slice(0, 10), await db.getMoscowToday(), 'новый маршрут хранится по московской календарной дате');
     const stops = (await db.getRouteById(out.route.id)).stops;
     const routeOutbox = await pool.query(
         `SELECT bot, dedup_key FROM notification_outbox WHERE dedup_key = $1 OR dedup_key = $2 OR dedup_key = $3 OR dedup_key = $4 OR dedup_key = $5 OR dedup_key = $6`,

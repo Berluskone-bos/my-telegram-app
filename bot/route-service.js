@@ -9,6 +9,7 @@ const widgets = require('./widgets');
 const { trackerEvent } = require('./tracker');
 const { queueRouteSheetEdit, sheetKey } = require('./route-sheet');
 const poolOf = () => require('./db').pool;
+const { getMoscowRouteDate } = require('./route-date');
 
 const ACTIVE = ['pending', 'accepted', 'in_progress'];
 
@@ -72,7 +73,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         // Ошибка enqueue откатывает маршрут, чтобы API не оставил назначение без уведомлений.
         const route = await db.createRoute({
             route_number: routeNumber,
-            route_date: now().toISOString().split('T')[0],
+            route_date: await getMoscowRouteDate(db),
             courier_id: courier.id, status: 'assigned', total_orders: sequence.length, enforceReadyOrders: true,
             stops: sequence.map((s, i) => {
                 const o = s.order;
