@@ -698,12 +698,14 @@ bot.on('callback_query', async (query) => {
 // ====== Старт маршрута ======
 
 async function handleStartRoute(chatId, routeId, user) {
+    const courier = user?.id ? await db.getCourierByTelegramId(user.id) : null;
+    const courierName = String(courier?.name || [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'не указан').trim();
     const route = await db.getRouteById(routeId);
     if (!route) return;
     const started = await db.startRouteIfAllAccepted(routeId, {
         afterStart: async ({ client, route: startedRoute, stops }) => {
             await notifyAdmin(
-                `[МАРШРУТ] ${escapeHtml(startedRoute.route_number)} начат курьером ${user.first_name || ''}`,
+                `[МАРШРУТ] ${escapeHtml(startedRoute.route_number)} начат курьером ${escapeHtml(courierName)}`,
                 null, `route-started:${routeId}`, client, true);
             // Уведомление с рабочей карточкой фиксируется в той же транзакции, что и старт маршрута.
             const startedStops = (stops || []).map(stop => ({
@@ -747,6 +749,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     const msgId = query.message.message_id;
     const currentRoute = await db.getRouteById(routeId);
     if (!currentRoute) return;
+    // В Telegram callback имя профиля может отсутствовать; для админ-журнала
+    // используем подтверждённое имя курьера из нашей таблицы.
+    const courierForNotice = query?.from?.id ? await db.getCourierByTelegramId(query.from.id) : null;
+    const courierName = String(courierForNotice?.name || [query?.from?.first_name, query?.from?.last_name].filter(Boolean).join(' ') || query?.from?.username || 'не указан').trim();
     if (action !== 'accept' && currentRoute.status !== 'in_progress') {
         bot.answerCallbackQuery(query.id, { text: 'Сначала курьер должен начать весь маршрут', show_alert: true }).catch(() => {});
         return;
@@ -785,7 +791,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     if (action === 'accept') {
         const accepted = await db.acceptRouteStop(routeId, stopId, {
             afterAccept: async ({ client, stop: acceptedStop, route: acceptedRoute, stops }) => {
-                const who = query && query.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
+                const who = courierName;
                 await notifyAdmin(
                     `[ДОСТАВКА] ${escapeHtml(acceptedRoute.route_number || '')} | курьер принял заказ (забрал со склада)\n` +
                     `Заказ: ${escapeHtml(acceptedStop.order_number || '')} (точка ${acceptedStop.stop_number} из ${acceptedRoute.total_orders || ''})\nАдрес: ${escapeHtml(acceptedStop.address || '')}` +
@@ -826,10 +832,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
     else if (action === 'enroute') {
         // Этап и обязательные уведомления клиенту/администратору фиксируются одной транзакцией.
-        const courierForNotice = await db.getCourierByTelegramId(query.from.id);
+        // courierForNotice загружен один раз в начале обработки действия.
         const changed = await db.setStopStage(stopId, 'enroute', {
             afterUpdate: async ({ client, stop, route }) => {
-                const who = query?.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
+                const who = courierName;
                 await notifyAdmin(
                     `[ДОСТАВКА] ${escapeHtml(route.route_number || '')} | курьер выехал к клиенту\nЗаказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${route.stop_count || 0})\nАдрес: ${escapeHtml(stop.address || '')}` +
                     (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
@@ -879,7 +885,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     else if (action === 'arrived') {
         const changed = await db.setStopStage(stopId, 'arrived', {
             afterUpdate: async ({ client, stop, route }) => {
-                const who = query?.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
+                const who = courierName;
                 await notifyAdmin(
                     `[ДОСТАВКА] ${escapeHtml(route.route_number || '')} | курьер приехал к клиенту\nЗаказ: ${escapeHtml(stop.order_number || '')} (точка ${stop.stop_number} из ${route.stop_count || 0})\nАдрес: ${escapeHtml(stop.address || '')}` +
                     (who ? `\nКурьер: ${escapeHtml(who)}` : ''),
@@ -922,7 +928,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             completion = await db.completeDeliveryStop(stopId, {
                 afterComplete: async ({ client, stop: deliveredStop, route: deliveredRoute }) => {
-                    const who = query && query.from ? [query.from.first_name, query.from.last_name].filter(Boolean).join(' ') : '';
+                    const who = courierName;
                     await notifyAdmin(
                         `[ДОСТАВКА] ${escapeHtml(deliveredRoute.route_number || '')} | заказ доставлен\n` +
                         `Заказ: ${escapeHtml(deliveredStop.order_number || '')} (точка ${deliveredStop.stop_number} из ${deliveredRoute.total_orders || ''})\nАдрес: ${escapeHtml(deliveredStop.address || '')}` +
