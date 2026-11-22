@@ -575,19 +575,21 @@ bot.on('callback_query', async (query) => {
 
     // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
     const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
-    const routeOnlyMatch = /^(showroute|startroute|optimizeroute)_(\\d{1,15})$/.exec(data);
-    const stopActionMatch = /^(deliver|delivered|quickdelivered|failed|pickstop)_(\\d{1,15})_(\\d{1,15})(?:_(accept|enroute|arrived|done))?$/.exec(data);
-    const failureReasonMatch = /^failreason_(\\d{1,15})_(\\d{1,15})_([a-z0-9_]{1,32})$/.exec(data);
+    const routeOnlyMatch = /^(showroute|startroute|optimizeroute)_(\d{1,15})$/.exec(data);
+    const stopActionMatch = /^(deliver|delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})(?:_(accept|enroute|arrived|done))?$/.exec(data);
+    const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([a-z0-9_]{1,32})$/.exec(data);
     const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
     if (isRouteAction && !routeOnlyMatch && !stopActionMatch && !failureReasonMatch) {
         bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
         return;
     }
     if (routeOnlyMatch || stopActionMatch || failureReasonMatch) {
-        const match = routeOnlyMatch || stopActionMatch || failureReasonMatch;
-        const rId = Number(routeOnlyMatch ? routeOnlyMatch[2] : match[2] ? match[2] : match[1]);
+        const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
+            : failureReasonMatch ? failureReasonMatch[1] : stopActionMatch[2]);
         const hasStop = !!(stopActionMatch || failureReasonMatch);
-        const sId = hasStop ? Number(match[3]) : null;
+        const sId = hasStop
+            ? Number(failureReasonMatch ? failureReasonMatch[2] : stopActionMatch[3])
+            : null;
         if (!Number.isSafeInteger(rId) || rId <= 0 || (hasStop && (!Number.isSafeInteger(sId) || sId <= 0))) {
             bot.answerCallbackQuery(query.id, { text: 'Некорректный номер маршрута или остановки', show_alert: true }).catch(() => {});
             return;
