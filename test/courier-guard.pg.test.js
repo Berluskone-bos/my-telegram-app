@@ -189,6 +189,17 @@ test('курьерский бот: кнопки отменённого зака�
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [malformed.stopId])).rows[0].status, 'pending',
         'malformed IDs do not mutate a real stop');
 
+    // Подмена stop ID на другую остановку того же курьера тоже запрещена:
+    // недостаточно владеть route ID — stop должен принадлежать именно этому маршруту.
+    const routeA = await mk('cg_cross_route_a');
+    const routeB = await mk('cg_cross_route_b');
+    await press(`deliver_${routeA.route.id}_${routeB.stopId}_accept`);
+    const crossRouteDenied = calls.find(x => x[0] === 'answerCallbackQuery');
+    assert.ok(crossRouteDenied && crossRouteDenied[2].show_alert);
+    assert.match(crossRouteDenied[2].text, /Нет доступа/);
+    assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [routeB.stopId])).rows[0].status, 'pending');
+    assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [routeB.o.id])).rows[0].status, 'READY_FOR_SHIPMENT');
+
     // заказ отменили, курьер нажимает «Принять заказ» на старом сообщении
     const a = await mk('cg1');
     await db.updateOrderStatus(a.o.id, 'CANCELLED');
