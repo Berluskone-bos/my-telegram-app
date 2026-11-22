@@ -167,6 +167,10 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         ['/api/couriers', ['admin', 'operator']],
         ['/api/dispatch/stats', ['admin', 'operator']],
         ['/api/dispatch/unassigned-orders', ['admin']],
+        // Sales analytics contain revenue/payment metrics: only roles with sales.view may access them.
+        ['/api/orders/stats?from=2026-11-01&to=2026-11-22', ['admin', 'manager']],
+        ['/api/orders/kpi', ['admin', 'manager']],
+        ['/api/analytics/shop?from=2026-11-01&to=2026-11-22', ['admin', 'manager']],
         ['/api/analytics', ['admin']],
         ['/api/admin/system-status', ['admin']],
         ['/api/admin/audit', ['admin']],
