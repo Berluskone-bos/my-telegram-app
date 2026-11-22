@@ -578,10 +578,10 @@ bot.on('callback_query', async (query) => {
     const routeOnlyMatch = /^(showroute|startroute|optimizeroute)_(\d{1,15})$/.exec(data);
     const deliveryFlowMatch = /^deliver_(\d{1,15})_(\d{1,15})_(accept|enroute|arrived|done)$/.exec(data);
     const legacyStopMatch = /^(delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})$/.exec(data);
-    const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([a-z0-9_]{1,32})$/.exec(data);
+    const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([^_]{1,32})$/.exec(data);
     const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
     const validFailureReason = failureReasonMatch &&
-        (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]));
+        (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]) || Object.values(REASONS).includes(failureReasonMatch[3]));
     if (isRouteAction && !routeOnlyMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
         bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
         return;
