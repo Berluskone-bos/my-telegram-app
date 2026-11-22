@@ -210,6 +210,14 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
             allowed: ['admin'], allowedStatuses: [404]
         },
         {
+            name: 'courier activation', path: '/api/admin/couriers/999999999', method: 'PATCH', body: { is_active: true },
+            allowed: ['admin'], allowedStatuses: [404]
+        },
+        {
+            name: 'courier archive', path: '/api/admin/couriers/999999999', method: 'DELETE', body: {},
+            allowed: ['admin'], allowedStatuses: [404]
+        },
+        {
             name: 'route optimization', path: '/api/routes/999999999/optimize', method: 'POST', body: {},
             allowed: ['admin'], allowedStatuses: [404]
         }
