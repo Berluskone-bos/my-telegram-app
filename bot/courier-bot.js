@@ -1590,27 +1590,8 @@ function registerCourierRoutes(app) {
             // Тот же статус уже стоял: повторных сообщений и повторной работы с маршрутом не нужно
             if (changed === 'ALREADY') return res.json({ success: true, unchanged: true });
 
-            // Обновляем маршрут при доставке. Отмена обрабатывается внутри updateOrderStatus (cancel-flow.js):
-            // остановка маршрута помечается «отменена», курьеру и клиенту ставятся в очередь сообщения.
-            if (status === 'DELIVERED' || status === 'COMPLETED') {
-                const routes = await db.getRoutes();
-                for (const route of routes) {
-                    const stop = (route.stops || []).find(s => String(s.order_id) === String(orderId));
-                    if (stop) {
-                        const stopStatus = 'delivered';
-                        await db.updateStopStatus(stop.id, stopStatus, '');
-                        const stops = route.stops || [];
-                        const newCompleted = stops.filter(s => s.status === 'delivered' || (s.id === stop.id && stopStatus === 'delivered')).length;
-                        const newFailed = stops.filter(s => s.status === 'failed' || (s.id === stop.id && stopStatus === 'failed')).length;
-                        const allDone = stops.every(s => s.id === stop.id ? stopStatus !== 'pending' : s.status !== 'pending');
-                        const newRouteStatus = allDone ? 'completed' : route.status;
-                        await db.updateRouteStatus(route.id, newRouteStatus, newCompleted, newFailed);
-                        console.log(`[МАРШРУТ] ${escapeHtml(route.route_number)}: стоп ${stop.id} -> ${stopStatus}, маршрут -> ${newRouteStatus}`);
-                        break;
-                    }
-                }
-            }
-
+            // DELIVERED/COMPLETED намеренно отсутствуют в valid: завершение доставки
+            // доступно только через courier callback + completeDeliveryStop() в транзакции.
             res.json({ success: true });
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
     });
