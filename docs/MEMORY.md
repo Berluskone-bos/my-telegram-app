@@ -655,3 +655,5 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Удалены внутренние универсальные DB-методы `updateStopStatus` и `updateRouteStatus`, которые писали по одному числовому ID без проверки связи с маршрутом; единственный production callsite находился в недостижимой ветке staff API для `DELIVERED/COMPLETED` (эти статусы отсутствуют в allowlist). Ветка удалена: финальное состояние доставки задаётся только транзакционным `completeDeliveryStop`.
 
 - Запись ETA в `route_stops` больше не адресуется одним числовым `stopId`: `setStopEta(routeId, stopId, ...)` включает `route_id` в условие UPDATE и возвращает false при несовпадении. Это внутренний write helper route-service; тест проверяет отказ на чужом route ID.
+
+- `updateStopPhoto` больше не принимает только числовой `stopId`: требуется `routeId` и подтверждённый `expectedCourierId`; транзакция блокирует route → stop, проверяет активного владельца и разрешает запись только для pending остановки. Callback/text handler передаёт маршрут и ID курьера из своей авторизованной сессии.
