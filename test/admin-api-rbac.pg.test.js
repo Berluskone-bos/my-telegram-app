@@ -323,6 +323,46 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
     const savedApprovals = await pool.query('SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [testProductId]);
     assert.deepEqual(savedApprovals.rows.map(row => row.approval), ['ACEA C3', 'API SP'],
         'manager/operator/warehouse 403 responses must not mutate approvals on a real product');
+
+    // Malformed replacement payloads must fail closed instead of silently clearing or truncating data.
+    const invalidApprovalPayloads = [
+        {},
+        { approvals: 'API SP' },
+        { approvals: [123] },
+        { approvals: ['   '] },
+        { approvals: ['A'.repeat(101)] },
+        { approvals: Array.from({ length: 81 }, (_, i) => 'APPROVAL ' + i) }
+    ];
+    for (const body of invalidApprovalPayloads) {
+        const response = await request('/api/products/' + testProductId + '/approvals', roleCookies.admin, {
+            method: 'PUT', body
+        });
+        assert.equal(response.status, 400, 'invalid approval payload must be rejected');
+    }
+    const approvalsAfterInvalidPayloads = await pool.query(
+        'SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [testProductId]);
+    assert.deepEqual(approvalsAfterInvalidPayloads.rows.map(row => row.approval), ['ACEA C3', 'API SP'],
+        'invalid approval payloads must not erase or partially replace existing values');
+
+    // Concurrent full replacements must serialize on the parent product row: no mixed/interleaved set.
+    const approvalSetA = ['API SP', 'ACEA C3', 'BMW LL-04'];
+    const approvalSetB = ['API SN', 'ACEA A3/B4', 'MB 229.5'];
+    const concurrentApprovalWrites = await Promise.all([
+        request('/api/products/' + testProductId + '/approvals', roleCookies.admin, {
+            method: 'PUT', body: { approvals: approvalSetA }
+        }),
+        request('/api/products/' + testProductId + '/approvals', roleCookies.admin, {
+            method: 'PUT', body: { approvals: approvalSetB }
+        })
+    ]);
+    assert.deepEqual(concurrentApprovalWrites.map(response => response.status), [200, 200]);
+    const concurrentApprovalResult = await pool.query(
+        'SELECT approval FROM product_approvals WHERE product_id = $1 ORDER BY approval', [testProductId]);
+    const finalApprovalSet = concurrentApprovalResult.rows.map(row => row.approval);
+    const sortedSetA = [...approvalSetA].sort(), sortedSetB = [...approvalSetB].sort();
+    assert.ok(JSON.stringify(finalApprovalSet) === JSON.stringify(sortedSetA) ||
+        JSON.stringify(finalApprovalSet) === JSON.stringify(sortedSetB),
+        'concurrent replacement must commit one complete set, never a mixed set');
     assert.equal((await request('/api/products/999999999/approvals', roleCookies.admin)).status, 404,
         'GET approvals for a nonexistent product returns 404');
     const missingApprovalsWrite = await request('/api/products/999999999/approvals', roleCookies.admin, {
