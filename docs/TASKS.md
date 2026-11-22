@@ -795,3 +795,9 @@
 - CI run `45070263983` SUCCESS; PR #167 объединён, merge commit `d5a1cf5a3a1d65090ec00e6b2594ddbcd0e72549`.
 - Railway deployment `e46ae2f7-cc32-4d89-bfc2-4f0da16813e7` SUCCESS на том же commit; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals.
 - PR #168: `completeDeliveryStop` теперь требует route `in_progress` и stop `in_progress` до изменения заказа; pending/accepted stop не могут быть завершены преждевременно. Существующее бизнес-правило отмены после завершения сохранено: оно используется для аннулирования реферального бонуса; при этом история остановки остаётся delivered. Добавлены PostgreSQL регрессии на преждевременное завершение и гонку complete-vs-cancel; тест проверяет оба порядка блокировок без deadlock и без промежуточного смешанного состояния. CI/merge/deploy ожидаются. IDOR/BOLA аудит остаётся открытым.
+
+
+## 23.11.2026 — PR #168: delivery state guard and deployment
+- PR #168 merged; CI run `45071681370` SUCCESS. Regression coverage includes pending/accepted completion rejection, no order/stop mutation on rejection, complete-vs-cancel serialization, and actual existing numeric IDs for orders/routes in RBAC tests.
+- Railway deployment `9382f1e2-03b7-4202-b48d-6058251c57e6` SUCCESS on merge commit `4d0a5a1ecd93ef0b0033dddceaca71a8bacab084`; `gulf-bot` Online 1/1, PostgreSQL Online, no warnings/criticals, no pending work.
+- Next hardening: PR #169 makes DB adapter numeric-ID guards use `Number.isSafeInteger` consistently and validates `updateProduct` IDs before any SQL; tests cover unsafe integer values. Full IDOR/BOLA audit remains open.
