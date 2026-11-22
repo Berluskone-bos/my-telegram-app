@@ -580,11 +580,13 @@ bot.on('callback_query', async (query) => {
     const legacyStopMatch = /^(delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})$/.exec(data);
     const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([a-z0-9_]{1,32})$/.exec(data);
     const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
-    if (isRouteAction && !routeOnlyMatch && !deliveryFlowMatch && !legacyStopMatch && !failureReasonMatch) {
+    const validFailureReason = failureReasonMatch &&
+        (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]));
+    if (isRouteAction && !routeOnlyMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
         bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
         return;
     }
-    if (routeOnlyMatch || deliveryFlowMatch || legacyStopMatch || failureReasonMatch) {
+    if (routeOnlyMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
         const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
             : failureReasonMatch ? failureReasonMatch[1]
                 : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
