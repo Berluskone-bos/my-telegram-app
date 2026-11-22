@@ -480,7 +480,7 @@ class DBAdapter {
     }
 
     // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
-    async acceptRouteStop(routeId, stopId, { afterAccept = null, expectedCourierId = null } = {}) {
+    async acceptRouteStop(routeId, stopId, { afterAccept = null, expectedCourierId = undefined } = {}) {
         const rid = Number(routeId), sid = Number(stopId);
         if (!Number.isInteger(rid) || rid <= 0 || !Number.isInteger(sid) || sid <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -488,8 +488,8 @@ class DBAdapter {
             await client.query('BEGIN');
             const route = await client.query('SELECT id, status, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
-            if (expectedCourierId !== null) {
-                if (String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+            if (expectedCourierId !== undefined) {
+                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
@@ -524,7 +524,7 @@ class DBAdapter {
 
     // Общий старт разрешён только когда каждая неотменённая остановка принята.
     // Блокировка маршрута сериализует одновременные нажатия и отмены/принятия.
-    async startRouteIfAllAccepted(routeId, { afterStart = null, expectedCourierId = null } = {}) {
+    async startRouteIfAllAccepted(routeId, { afterStart = null, expectedCourierId = undefined } = {}) {
         const id = Number(routeId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -539,8 +539,8 @@ class DBAdapter {
             }
             const route = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [id]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
-            if (expectedCourierId !== null) {
-                if (String(route.rows[0].courier_id) !== String(expectedCourierId)) {
+            if (expectedCourierId !== undefined) {
+                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
@@ -614,8 +614,8 @@ class DBAdapter {
             const routeRes = await client.query(
                 'SELECT id, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [routeId]);
             if (!routeRes.rowCount) { await client.query('ROLLBACK'); return null; }
-            if (options.expectedCourierId !== undefined && options.expectedCourierId !== null) {
-                if (String(routeRes.rows[0].courier_id) !== String(options.expectedCourierId)) {
+            if (options.expectedCourierId !== undefined) {
+                if (options.expectedCourierId === null || String(routeRes.rows[0].courier_id) !== String(options.expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return null;
                 }
@@ -685,7 +685,7 @@ class DBAdapter {
     // Неудачная попытка доставки — отдельный терминальный результат остановки,
     // но не отмена заказа и не завершение всего маршрута. Заказ получает статус DELIVERY_FAILED
     // («Не доставлен»): он виден в админке отдельной колонкой, оператор решает — повторная отправка или отмена.
-    async failDeliveryStop(stopId, reason, { afterFailure = null, expectedCourierId = null } = {}) {
+    async failDeliveryStop(stopId, reason, { afterFailure = null, expectedCourierId = undefined } = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -715,8 +715,8 @@ class DBAdapter {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
             }
-            if (expectedCourierId !== null) {
-                if (String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
+            if (expectedCourierId !== undefined) {
+                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
@@ -784,7 +784,7 @@ class DBAdapter {
     // Завершение доставки — одна транзакция: блокировка остановки/заказа,
     // перевод заказа в COMPLETED, обновление маршрута и постановка уведомления в outbox.
     // Повторный callback получает already и не создаёт второе уведомление.
-    async completeDeliveryStop(stopId, { afterComplete = null, expectedCourierId = null } = {}) {
+    async completeDeliveryStop(stopId, { afterComplete = null, expectedCourierId = undefined } = {}) {
         const id = Number(stopId);
         if (!Number.isInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -820,8 +820,8 @@ class DBAdapter {
                 await client.query('ROLLBACK');
                 return { status: 'not_found' };
             }
-            if (expectedCourierId !== null) {
-                if (String(routeRes.rows[0].courier_id) !== String(expectedCourierId)) {
+            if (expectedCourierId !== undefined) {
+                if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
                     await client.query('ROLLBACK');
                     return { status: 'not_assigned' };
                 }
