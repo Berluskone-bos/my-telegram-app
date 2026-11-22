@@ -32,7 +32,8 @@ test('сотрудники: индивидуальный вход, роли, о�
     const server = await new Promise(resolve => {
         const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
-    t.after(async () => { server.close(); await pool.end(); });
+    let raceServer = null;
+    t.after(async () => { server.close(); if (raceServer) raceServer.close(); await pool.end(); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const origin = 'https://127.0.0.1:' + server.address().port;
     const call = (path, { method = 'GET', body, cookie, ip = '10.10.10.1' } = {}) => fetch(base + path, {
@@ -130,13 +131,47 @@ test('сотрудники: индивидуальный вход, роли, о�
     const managerCookie = cookieOf(managerLogin);
     assert.equal((await call('/api/test/customers', { cookie: managerCookie })).status, 200);
 
-    // Смена пароля отзывает все активные сессии, старый пароль перестаёт работать.
-    assert.equal((await call('/api/admin/staff/' + operator.id + '/password', {
+    // Race: login has read the old hash, then password reset revokes sessions before login creates one.
+    // The login-side proxy pauses exactly after the SELECT result, making the race deterministic.
+    let releaseLoginQuery;
+    let signalLoginQuery;
+    const loginQueryPaused = new Promise(resolve => { signalLoginQuery = resolve; });
+    const loginQueryRelease = new Promise(resolve => { releaseLoginQuery = resolve; });
+    const loginPool = Object.create(pool);
+    loginPool.query = async (sql, params) => {
+        const result = await pool.query(sql, params);
+        if (String(sql).includes('SELECT id, login, display_name, password_hash, role, is_active FROM admin_users') &&
+            params && params[0] === 'operator.one') {
+            signalLoginQuery();
+            await loginQueryRelease;
+        }
+        return result;
+    };
+    loginPool.connect = (...args) => pool.connect(...args);
+    const raceAuth = createAdminAuth({ pool: loginPool, getKey: () => process.env.ADMIN_API_KEY, failDelayMs: 0 });
+    const raceApp = express(); raceApp.set('trust proxy', 1); raceApp.use(express.json()); raceAuth.registerRoutes(raceApp);
+    raceServer = await new Promise(resolve => { const srv = raceApp.listen(0, '127.0.0.1', () => resolve(srv)); });
+    const raceBase = 'http://127.0.0.1:' + raceServer.address().port;
+    const raceOrigin = 'https://127.0.0.1:' + raceServer.address().port;
+    const staleLoginPromise = fetch(raceBase + '/api/admin/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-proto': 'https', 'x-forwarded-for': '10.10.10.5', origin: raceOrigin },
+        body: JSON.stringify({ login: 'operator.one', password: 'Operator-Password-2026!' }),
+        redirect: 'manual'
+    });
+    await loginQueryPaused;
+    const resetPassword = await call('/api/admin/staff/' + operator.id + '/password', {
         method: 'POST', cookie: adminCookie, body: { password: 'New-Operator-Password-2026!' }
-    })).status, 200);
+    });
+    assert.equal(resetPassword.status, 200);
+    releaseLoginQuery();
+    const staleLogin = await staleLoginPromise;
+    assert.equal(staleLogin.status, 401, 'login verified against a stale password hash must be rejected');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM admin_sessions WHERE staff_user_id = $1', [operator.id])).rows[0].n, 0,
+        'no session may be inserted after the reset transaction revoked existing sessions');
     assert.equal((await call('/api/admin/me', { cookie: managerCookie })).status, 401);
     assert.equal((await call('/api/admin/login', {
-        method: 'POST', body: { login: 'operator.one', password: 'Operator-Password-2026!' }, ip: '10.10.10.5'
+        method: 'POST', body: { login: 'operator.one', password: 'Operator-Password-2026!' }, ip: '10.10.10.6'
     })).status, 401);
 
     // Последнего активного администратора отключить нельзя.

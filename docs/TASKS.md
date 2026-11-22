@@ -801,3 +801,9 @@
 - PR #168 merged; CI run `45071681370` SUCCESS. Regression coverage includes pending/accepted completion rejection, no order/stop mutation on rejection, complete-vs-cancel serialization, and actual existing numeric IDs for orders/routes in RBAC tests.
 - Railway deployment `9382f1e2-03b7-4202-b48d-6058251c57e6` SUCCESS on merge commit `4d0a5a1ecd93ef0b0033dddceaca71a8bacab084`; `gulf-bot` Online 1/1, PostgreSQL Online, no warnings/criticals, no pending work.
 - Next hardening: PR #169 makes DB adapter numeric-ID guards use `Number.isSafeInteger` consistently and validates `updateProduct` IDs before any SQL; outbox retry and courier-message metadata ID writes are guarded too. Tests cover unsafe integer values. Full IDOR/BOLA audit remains open.
+
+
+## 23.11.2026 — PR #169: safe integer IDs and production deployment
+- PR #169 merged; CI run `45072406175` SUCCESS. DB adapter write/read helpers now reject non-positive or unsafe JavaScript integer IDs; `updateProduct`, outbox retry, and outbox stop-message metadata writes validate IDs internally.
+- Railway deployment `22bcf7e3-1d70-439d-81e6-4f192800e847` SUCCESS on merge commit `44eb9329c94ddc7c1945f420db0e25abc7574e4f`; `gulf-bot` and PostgreSQL Online, no warnings/criticals, pending work empty.
+- Next finding: staff login could create a session from a password hash read before a concurrent password reset/revocation. PR #170 adds row-lock + password-hash revalidation before inserting the session and a deterministic PostgreSQL race test. CI pending.

@@ -696,3 +696,8 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PR #168 CI run `45071681370` SUCCESS; merged as `4d0a5a1ecd93ef0b0033dddceaca71a8bacab084`.
 - Railway deployment `9382f1e2-03b7-4202-b48d-6058251c57e6` SUCCESS; `gulf-bot` Online 1/1, PostgreSQL Online, 0 warnings/criticals, pendingWork empty.
 - PR #169 hardens DB adapter helpers against unsafe JS integers: positive safe IDs required for courier/route/stop/order/product write methods; `updateProduct` now validates ID internally. The outbox retry helper and courier-message stop metadata write also reject unsafe/non-positive IDs. PostgreSQL regression tests assert unsafe values are rejected before SQL; CI pending.
+
+
+## 23.11.2026 — PR #169 verified; staff login/reset race
+- PR #169 CI run `45072406175` SUCCESS; merge commit `44eb9329c94ddc7c1945f420db0e25abc7574e4f`; Railway deployment `22bcf7e3-1d70-439d-81e6-4f192800e847` SUCCESS, services online, 0 warnings/criticals.
+- При аудите admin auth выявлена гонка: staff login мог проверить старый password_hash, а затем вставить новую сессию после завершившегося reset/delete sessions. PR #170 сериализует завершение входа с изменением строки admin_users и повторно проверяет hash/active status под FOR UPDATE; детерминированный тест ставит login на паузу после SELECT и выполняет reset.
