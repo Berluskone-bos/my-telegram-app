@@ -15,7 +15,7 @@ function registerOilRoutes(app, { pool, verifyAdmin, rateLimit }) {
     };
     const id = v => {
         const raw = String(v == null ? '' : v);
-        if (!/^\\d{1,15}$/.test(raw)) throw Object.assign(new Error('Некорректный запрос'), { user: true });
+        if (!/^\d{1,15}$/.test(raw)) throw Object.assign(new Error('Некорректный запрос'), { user: true });
         const n = Number(raw);
         if (!Number.isSafeInteger(n) || n <= 0) throw Object.assign(new Error('Некорректный запрос'), { user: true });
         return n;
