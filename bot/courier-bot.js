@@ -203,7 +203,8 @@ const pendingReasons = new Map();
 // Показывает карточку маршрута: правит то же сообщение, а если Telegram не дал — отправляет новое.
 // Карточка одна на маршрут: все заказы пронумерованы, текущий отмечен стрелкой (courier-card.js).
 async function renderRouteCard(chatId, messageId, routeId, wantedStopId = null) {
-    const route = await db.getRouteById(routeId);
+    const courier = await db.getCourierByTelegramId(chatId);
+    const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
     if (!route) return false;
     const card = buildRouteCard(route, wantedStopId);
     const opts = { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { inline_keyboard: card.keyboard } };
@@ -609,7 +610,7 @@ bot.on('callback_query', async (query) => {
             bot.answerCallbackQuery(query.id, { text: accessMessage, show_alert: true }).catch(() => {});
             return;
         }
-        const rt = Number.isInteger(rId) ? await db.getRouteById(rId) : null;
+        const rt = me ? await db.getRouteByIdForCourier(rId, me.id) : null;
         const owns = me && me.is_active && rt && String(rt.courier_id) === String(me.id)
             && (sId === null || (rt.stops || []).some(s => s.id === sId));
         if (!owns) {
@@ -639,7 +640,8 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('showroute_')) {
         const routeId = parseInt(data.split('_')[1]);
-        const route = await db.getRouteById(routeId);
+        const courier = await db.getCourierByTelegramId(query.from.id);
+        const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
         if (route) sendRouteDetails(chatId, route);
         bot.answerCallbackQuery(query.id);
         return;
@@ -734,9 +736,8 @@ bot.on('callback_query', async (query) => {
 async function handleStartRoute(chatId, routeId, user) {
     const courier = user?.id ? await db.getCourierByTelegramId(user.id) : null;
     const courierName = String(courier?.name || [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'не указан').trim();
-    const route = await db.getRouteById(routeId);
-    if (!route) return;
-    if (!courier || !courier.is_active || courier.archived_at || String(route.courier_id) !== String(courier.id)) {
+    const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
+    if (!route || !courier || !courier.is_active || courier.archived_at || String(route.courier_id) !== String(courier.id)) {
         bot.sendMessage(chatId, 'Доступ к этому маршруту закрыт. Обратитесь к администратору.').catch(() => {});
         return;
     }
@@ -786,12 +787,10 @@ async function handleStartRoute(chatId, routeId, user) {
 
 async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     const msgId = query.message.message_id;
-    const currentRoute = await db.getRouteById(routeId);
-    if (!currentRoute) return;
-    // В Telegram callback имя профиля может отсутствовать; для админ-журнала
-    // используем подтверждённое имя курьера из нашей таблицы.
+    // Для чтения маршрута сначала определяем курьера по Telegram ID, затем ограничиваем SQL его активным владением.
     const courierForNotice = query?.from?.id ? await db.getCourierByTelegramId(query.from.id) : null;
-    if (!courierForNotice || !courierForNotice.is_active || courierForNotice.archived_at || String(currentRoute.courier_id) !== String(courierForNotice.id)) {
+    const currentRoute = courierForNotice ? await db.getRouteByIdForCourier(routeId, courierForNotice.id) : null;
+    if (!courierForNotice || !courierForNotice.is_active || courierForNotice.archived_at || !currentRoute || String(currentRoute.courier_id) !== String(courierForNotice.id)) {
         bot.answerCallbackQuery(query.id, { text: getCourierAccessMessage(courierForNotice) || 'Нет доступа к этому маршруту', show_alert: true }).catch(() => {});
         return;
     }
@@ -914,7 +913,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
         // После commit обновляем внутреннюю карточку заказа; клиентское сообщение уже в outbox.
         try {
-            const route = await db.getRouteById(routeId);
+            const route = await db.getRouteByIdForCourier(routeId, courierForNotice.id);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             try {
                 // Обновляем только внутренние ориентиры курьера; ETA клиенту не отправляем.
@@ -962,7 +961,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
 
         // Клиентское уведомление уже записано в outbox вместе с этапом остановки.
         try {
-            const route = await db.getRouteById(routeId);
+            const route = await db.getRouteByIdForCourier(routeId, courierForNotice.id);
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             if (stop?.order_number && stop.status !== 'cancelled') {
                 await trackerEvent(trackerPool(), stop.order_number, { stage: 'arrived', eta: '' }).catch(() => {});
@@ -1016,7 +1015,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         // Клиентское уведомление уже записано в outbox в той же транзакции, что и доставка.
         // Здесь обновляем карточку и, если её нет, один раз ставим отдельный запрос оценки.
         try {
-            const route = await db.getRouteById(routeId);
+            const route = await db.getRouteByIdForCourier(routeId, courierForNotice.id);
             const stop = route?.stops?.find(s => parseInt(s.id) === stopId);
             if (stop?.client_chat_id && stop.status !== 'cancelled') {
                 const onCard = await trackerEvent(trackerPool(), stop.order_number, { stage: 'delivered', eta: '', canRate: true }).catch(() => false);
@@ -1070,7 +1069,8 @@ function buildNavButtons(route, stop, nextState) {
 // ====== Причины не доставки ======
 
 async function showFailureReasons(chatId, routeId, stopId, messageId = null) {
-    const route = await db.getRouteById(routeId);
+    const courier = await db.getCourierByTelegramId(chatId);
+    const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
     if (!route) return;
     // Список причин показываем в том же сообщении, что и карточка: новых сообщений не появляется.
     const picker = buildReasonPicker(route, stopId);
@@ -1100,7 +1100,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         else bot.sendMessage(chatId, accessMessage).catch(() => {});
         return;
     }
-    const route = await db.getRouteById(routeId);
+    const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
     if (!courier || !courier.is_active || !route || String(route.courier_id) !== String(courier.id)) {
         if (callbackQueryId) toast('Нет доступа к этому маршруту', true);
         else bot.sendMessage(chatId, 'Доступ к этому маршруту закрыт. Обратитесь к администратору.').catch(() => {});
@@ -1191,7 +1191,8 @@ if (bot) {
 async function handleOptimizeRoute(chatId, routeId) {
     // Порядок точек строит система при назначении маршрута (route-service.js). Кнопка осталась в старых сообщениях:
     // показываем актуальный маршрутный лист с временем вместо старого подбора по прямой линии.
-    const route = await db.getRouteById(routeId);
+    const courier = await db.getCourierByTelegramId(chatId);
+    const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
     if (!route) return;
     bot.sendMessage(chatId, 'Порядок точек уже рассчитан системой по дорогам. Вот актуальный маршрутный лист:');
     sendRouteDetails(chatId, route);

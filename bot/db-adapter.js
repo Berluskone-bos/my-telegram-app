@@ -369,6 +369,9 @@ class DBAdapter {
                        '[]'::json
                    ) AS stops
             FROM delivery_routes dr
+            JOIN couriers c ON c.id = dr.courier_id
+                           AND c.is_active = TRUE
+                           AND c.archived_at IS NULL
             LEFT JOIN route_stops rs ON rs.route_id = dr.id
             WHERE dr.route_date::date = $1::date AND dr.courier_id = $2
             GROUP BY dr.id
@@ -390,6 +393,29 @@ class DBAdapter {
             WHERE dr.id = $1
             GROUP BY dr.id
         `, [routeId]);
+        return res.rows[0] || null;
+    }
+
+    // Чтение маршрута для курьера: ограничение владельца и активности применяется в SQL,
+    // поэтому чужие адреса/телефоны/заказы даже не попадают в результат запроса.
+    async getRouteByIdForCourier(routeId, courierId) {
+        const rid = Number(routeId), cid = Number(courierId);
+        if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(cid) || cid <= 0) return null;
+        const res = await pool.query(`
+            SELECT dr.*,
+                   COALESCE(
+                       json_agg(rs.* ORDER BY rs.stop_number)
+                       FILTER (WHERE rs.id IS NOT NULL),
+                       '[]'::json
+                   ) AS stops
+            FROM delivery_routes dr
+            JOIN couriers c ON c.id = dr.courier_id
+                           AND c.is_active = TRUE
+                           AND c.archived_at IS NULL
+            LEFT JOIN route_stops rs ON rs.route_id = dr.id
+            WHERE dr.id = $1 AND dr.courier_id = $2
+            GROUP BY dr.id
+        `, [rid, cid]);
         return res.rows[0] || null;
     }
 

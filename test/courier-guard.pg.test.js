@@ -151,6 +151,11 @@ test('курьерский бот: кнопки отменённого зака�
             client_name: 'К', client_chat_id: foreignOrder.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
     const foreignStopId = foreignRoute.stops[0].id;
     const foreignActions = ['showroute_' + foreignRoute.id, 'startroute_' + foreignRoute.id, 'deliver_' + foreignRoute.id + '_' + foreignStopId + '_accept'];
+    assert.equal(await db.getRouteByIdForCourier(foreignRoute.id, courier.id), null,
+        'SQL-метод чтения маршрута не возвращает данные другому курьеру');
+    const scopedOwnerRoute = await db.getRouteByIdForCourier(foreignRoute.id, otherCourier.id);
+    assert.equal(scopedOwnerRoute.id, foreignRoute.id,
+        'SQL-метод возвращает маршрут только его активному владельцу');
     for (const action of foreignActions) {
         await press(action);
         const denied = calls.find(x => x[0] === 'answerCallbackQuery');
@@ -491,7 +496,15 @@ test('курьерский бот: кнопки отменённого зака�
     const disabled = await mk('cg_other_disabled');
     await press(`startroute_${disabled.route.id}`);
     await press(`failreason_${disabled.route.id}_${disabled.stopId}_other`);
+    await assert.rejects(db.setCourierActive(courier.id, false),
+        error => error && error.code === 'COURIER_HAS_ACTIVE_ROUTE',
+        'административная деактивация блокируется, пока у курьера есть незавершённые доставки');
+    await assert.rejects(db.archiveCourier(courier.id),
+        error => error && error.code === 'COURIER_HAS_ACTIVE_ROUTE',
+        'архивирование курьера блокируется, пока у него есть незавершённые доставки');
     await pool.query('UPDATE couriers SET is_active = false WHERE id = $1', [courier.id]);
+    assert.deepEqual(await db.getRoutesByDateAndCourier('2026-11-14', courier.id), [],
+        'после отключения курьер не получает даже историю своих маршрутов через выборку по дате');
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'ответ после отключения' });
     await new Promise(r => setTimeout(r, 100));
     assert.equal(await orderStatus(disabled.o.id), 'READY_FOR_SHIPMENT', 'отключённый курьер не меняет статус через отложенный ответ');
