@@ -841,6 +841,10 @@ try {
         pool: require('./db').pool,
         verifyAdmin: adminAuth.verifyAdmin
     });
+    require('./workspace-calendar').registerWorkspaceCalendarRoutes(app, {
+        pool: require('./db').pool,
+        verifyAdmin: adminAuth.verifyAdmin
+    });
     adminAuth.cleanup();
     setInterval(() => adminAuth.cleanup(), 6 * 3600e3).unref();
     if (!ADMIN_API_KEY) console.log('[INFO] ADMIN_API_KEY не задан — общий вход по ключу отключён; индивидуальные учётные записи сотрудников работают');

@@ -646,6 +646,42 @@ CREATE INDEX IF NOT EXISTS idx_user_garage_tg ON user_garage (telegram_id);`);
             ALTER TABLE admin_audit ADD COLUMN IF NOT EXISTS actor_user_id BIGINT REFERENCES admin_users(id) ON DELETE SET NULL;
             ALTER TABLE admin_audit ADD COLUMN IF NOT EXISTS actor_role VARCHAR(20);
         `);
+        // ─── Рабочий календарь, поручения и показатели компании ───
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS workspace_items (
+                id BIGSERIAL PRIMARY KEY,
+                kind VARCHAR(20) NOT NULL CHECK (kind IN ('task','meeting','contract','logistics','kpi','note')),
+                title VARCHAR(200) NOT NULL,
+                description TEXT,
+                starts_at TIMESTAMPTZ,
+                due_at TIMESTAMPTZ,
+                all_day BOOLEAN NOT NULL DEFAULT FALSE,
+                status VARCHAR(20) NOT NULL DEFAULT 'planned'
+                    CHECK (status IN ('planned','in_progress','done','cancelled')),
+                priority VARCHAR(20) NOT NULL DEFAULT 'normal'
+                    CHECK (priority IN ('low','normal','high','urgent')),
+                assigned_to BIGINT REFERENCES admin_users(id) ON DELETE SET NULL,
+                created_by BIGINT REFERENCES admin_users(id) ON DELETE SET NULL,
+                company_visible BOOLEAN NOT NULL DEFAULT TRUE,
+                location VARCHAR(250),
+                counterparty VARCHAR(250),
+                amount NUMERIC(14,2),
+                metric_name VARCHAR(120),
+                metric_value NUMERIC(16,3),
+                metric_target NUMERIC(16,3),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CHECK (starts_at IS NULL OR due_at IS NULL OR due_at >= starts_at)
+            );
+            CREATE INDEX IF NOT EXISTS workspace_items_starts_idx
+                ON workspace_items (starts_at);
+            CREATE INDEX IF NOT EXISTS workspace_items_due_idx
+                ON workspace_items (due_at);
+            CREATE INDEX IF NOT EXISTS workspace_items_assignee_due_idx
+                ON workspace_items (assigned_to, due_at) WHERE kind = 'task';
+            CREATE INDEX IF NOT EXISTS workspace_items_kind_status_idx
+                ON workspace_items (kind, status);
+        `);
         console.log('[OK] База данных инициализирована');
     } catch (e) {
         console.error('[ОШИБКА] Инициализация БД:', e.message);
