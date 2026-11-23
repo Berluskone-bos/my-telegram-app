@@ -712,3 +712,10 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 ## 23.11.2026 — PR #171 and courier/cancel race coverage
 - PR #171 merged; docs now record PR #170 CI/deployment and staff login/reset race fix.
 - PR #172 adds PostgreSQL race tests for `acceptRouteStop`, `startRouteIfAllAccepted`, and `failDeliveryStop` concurrent with order cancellation. Existing tests already cover stage-vs-cancel and complete-vs-cancel. Expected invariant: order CANCELLED, no active stop, route completed, no deadlock. CI pending.
+
+
+## 23.11.2026 — IDOR/BOLA: bind courier callback mutations to route ID (in progress)
+- Re-audited Telegram courier callbacks: strict full-string callback formats, positive safe-integer route/stop IDs, active courier lookup, route ownership and stop membership checks. Client rating callback separately binds the Telegram user to the order owner and the stop to the courier.
+- Found an additional TOCTOU gap: setStopStage, failDeliveryStop, and completeDeliveryStop verified courier ownership inside the transaction but did not require the route ID carried by the original callback. A stale callback could still target a stop after it moved to another route assigned to the same courier.
+- In progress: courier DB mutations now require expectedRouteId whenever expectedCourierId is supplied and compare it to the stop's route inside the transaction before writing. Telegram handlers pass the callback route ID. PostgreSQL regressions cover missing and mismatched route IDs, including two routes assigned to the same courier.
+- Cancellation-race tests now pass both expected identifiers. CI/merge/deployment are not yet confirmed; production is unchanged.
