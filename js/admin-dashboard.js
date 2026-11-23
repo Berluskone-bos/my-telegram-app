@@ -198,7 +198,7 @@
     // Значения datetime-local в форме календаря трактуются как московское время независимо от часового пояса устройства.
     function workcalMskInputToIso(value) {
         if (!value) return null;
-        const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/.exec(value);
+        const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
         if (!match) return null;
         const [, y, m, d, h, minute] = match.map(Number);
         return new Date(Date.UTC(y, m - 1, d, h - 3, minute)).toISOString();
