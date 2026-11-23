@@ -624,6 +624,7 @@ bot.on('callback_query', async (query) => {
             return;
         }
         const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+        if (!remaining) { bot.answerCallbackQuery(query.id, { text: 'В маршруте нет оставшихся заказов', show_alert: true }).catch(() => {}); return; }
         pendingReasons.delete(chatId);
         courierConversations.set(chatId, query.from.id, 'route_issue_location', { routeId: route.id, reason });
         await bot.sendMessage(chatId,
@@ -1189,6 +1190,8 @@ if (bot) {
                     await bot.sendMessage(chatId, 'Маршрут уже изменился или передан. Обратитесь к диспетчеру.');
                     return;
                 }
+                const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+                if (!remaining) { await bot.sendMessage(chatId, 'В маршруте уже нет оставшихся заказов.'); return; }
                 const locationText = text.slice(0, 300);
                 const location = msg.location
                     ? `геопозиция: ${Number(msg.location.latitude).toFixed(6)}, ${Number(msg.location.longitude).toFixed(6)} (https://yandex.ru/maps/?text=${msg.location.latitude},${msg.location.longitude})`
@@ -1199,7 +1202,6 @@ if (bot) {
                     return;
                 }
                 const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
-                const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
                 await notifyAdmin(
                     `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[conversation.payload.reason] || conversation.payload.reason)}\nМесто передачи: ${escapeHtml(location)}\n\nОткройте раздел «Доставка» в админ-панели и назначьте свободного курьера.`,
                     null, `route-issue:${route.id}:${conversation.payload.reason}:${Date.now()}`, null, true
