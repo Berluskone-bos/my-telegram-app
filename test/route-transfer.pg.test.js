@@ -25,6 +25,8 @@ test('аварийная передача: история первого кур�
     t.after(async () => {
         if (routeIds.length) {
             await pool.query('DELETE FROM route_transfer_events WHERE source_route_id = ANY($1::int[]) OR target_route_id = ANY($1::int[])', [routeIds]);
+            await pool.query('UPDATE route_stops SET transferred_to_stop_id = NULL WHERE route_id = ANY($1::int[])', [routeIds]);
+            await pool.query('UPDATE delivery_routes SET transferred_to_route_id = NULL WHERE id = ANY($1::int[])', [routeIds]);
             await pool.query('DELETE FROM route_stops WHERE route_id = ANY($1::int[])', [routeIds]);
             await pool.query('DELETE FROM delivery_routes WHERE id = ANY($1::int[])', [routeIds]);
         }
