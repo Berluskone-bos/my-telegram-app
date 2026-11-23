@@ -150,6 +150,11 @@ test('параллельные callback «Доставлен» фиксирую�
         null, 'a callback from another route cannot change this stop stage');
 
     const first = await makeShipment('a');
+    assert.equal(await db.setStopStage(first.stopId, 'enroute', { expectedCourierId: courier.id }),
+        null, 'stage mutation must fail closed when expectedRouteId is omitted');
+    assert.equal(await db.setStopStage(first.stopId, 'enroute', { expectedCourierId: courier.id, expectedRouteId: ownership.route.id }),
+        null, 'stage mutation must reject a stop bound to another route');
+    assert.equal((await pool.query('SELECT stage FROM route_stops WHERE id = $1', [first.stopId])).rows[0].stage, null);
     assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id })).status, 'not_assigned',
         'courier-scoped mutation must fail closed when expectedRouteId is omitted');
     assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'not_assigned',
@@ -209,6 +214,8 @@ test('параллельные callback «Доставлен» фиксирую�
         'административное уведомление фиксируется вместе с доставкой');
 
     const second = await makeShipment('b');
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Без маршрута', { expectedCourierId: courier.id })).status, 'not_assigned',
+        'failure mutation must fail closed when expectedRouteId is omitted');
     assert.equal((await db.failDeliveryStop(second.stopId, 'Подмена маршрута', { expectedCourierId: courier.id, expectedRouteId: first.route.id })).status, 'not_assigned',
         'a stop from another route assigned to the same courier cannot be marked failed');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [second.stopId])).rows[0].status, 'in_progress');
