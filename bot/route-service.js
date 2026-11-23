@@ -193,7 +193,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 if (sourceCourier?.telegram_id) await queue.notify('courier', sourceCourier.telegram_id,
                     `<b>Маршрут передан другому курьеру</b>\nМаршрут: ${escapeHtml(source.route_number)}\nОставшиеся заказы переданы. Новые действия по этим заказам в старом маршрутном листе недоступны.`,
                     { dedupKey: `route-transfer-old:${sourceRouteId}`, db: client, throwOnError: true });
-                if (notifyAdmin) await notifyAdmin(`<b>Передача маршрута завершена</b>\nСтарый маршрут: ${escapeHtml(source.route_number)}\nНовый маршрут: ${escapeHtml(createdRoute.route_number)}\nНовый курьер: ${escapeHtml(targetCourier.name)}\nПередано заказов: ${stops.length}\nПричина: ${escapeHtml(reason)}${approx}`, { db: client, dedupKey: `route-transfer:${sourceRouteId}` });
+                if (notifyAdmin) await notifyAdmin(`<b>Передача маршрута завершена</b>\nСтарый маршрут: ${escapeHtml(source.route_number)}\nНовый маршрут: ${escapeHtml(createdRoute.route_number)}\nНовый курьер: ${escapeHtml(targetCourier.name)}\nПередано заказов: ${stops.length}\nПричина: ${escapeHtml(reason)}\nМесто передачи: ${escapeHtml(handoffLocation)}${approx}`, { db: client, dedupKey: `route-transfer:${sourceRouteId}` });
             }
         });
         if (route.status !== 'transferred') {
