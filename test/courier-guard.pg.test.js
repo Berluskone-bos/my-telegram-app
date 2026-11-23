@@ -150,6 +150,8 @@ test('курьерский бот: кнопки отменённого зака�
         stops: [{ order_id: String(foreignOrder.id), order_number: foreignOrder.order_number, address: foreignOrder.address, phone: '1',
             client_name: 'К', client_chat_id: foreignOrder.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
     const foreignStopId = foreignRoute.stops[0].id;
+    assert.equal(await db.getRouteStopAtClient(foreignRoute.id, foreignStopId, courier.id), null,
+        'чужой курьер не получает данные остановки через вспомогательное чтение');
     const foreignActions = ['showroute_' + foreignRoute.id, 'startroute_' + foreignRoute.id, 'deliver_' + foreignRoute.id + '_' + foreignStopId + '_accept'];
     assert.equal(await db.getRouteByIdForCourier(foreignRoute.id, courier.id), null,
         'SQL-метод чтения маршрута не возвращает данные другому курьеру');
