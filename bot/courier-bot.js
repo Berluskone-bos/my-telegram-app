@@ -1436,7 +1436,31 @@ function registerCourierRoutes(app) {
     });
 
 
-    // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,
+    // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,    // Аварийная передача оставшихся остановок другому курьеру.
+    app.post('/api/routes/:id/transfer', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+        const rawRouteId = String(req.params.id || ''), rawCourierId = String(req.body?.courier_id ?? '');
+        if (!/^\\d{1,15}$/.test(rawRouteId) || !/^\\d{1,15}$/.test(rawCourierId)) return res.status(400).json({ error: 'Некорректный ID маршрута или курьера' });
+        const routeId = Number(rawRouteId), courierId = Number(rawCourierId);
+        if (!Number.isSafeInteger(routeId) || routeId <= 0 || !Number.isSafeInteger(courierId) || courierId <= 0) return res.status(400).json({ error: 'Некорректный ID маршрута или курьера' });
+        const reason = req.body?.reason;
+        if (!['breakdown', 'fuel', 'accident', 'other'].includes(reason)) return res.status(400).json({ error: 'Выберите причину передачи' });
+        try {
+            const couriers = await db.getCouriers();
+            const courier = couriers.find(x => Number(x.id) === courierId && x.is_active && !x.archived_at);
+            if (!courier) return res.status(409).json({ error: 'Новый курьер не активен или не найден' });
+            const out = await routeSvc.transferRemainingRoute({
+                sourceRouteId: routeId, sourceCourierId: null, targetCourier: courier, reason,
+                actorLogin: req.admin?.login || req.admin?.username || null,
+                notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true)
+            });
+            return res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), transferred_count: out.transferredCount, sequence: out.sequence });
+        } catch (e) {
+            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code] || 500;
+            console.error('[API /routes/:id/transfer]', errorCode(e));
+            return res.status(status).json({ error: status === 500 ? 'Не удалось передать маршрут' : e.message });
+        }
+    });
+
     // который проверяет READY_FOR_SHIPMENT, исключает самовывоз и защищает от двойного назначения.
     app.post('/api/routes', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
         return res.status(410).json({ error: 'Используйте построение маршрутного листа через /api/routes/build' });
