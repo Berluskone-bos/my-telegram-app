@@ -171,13 +171,15 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     `<b>Место получения заказов:</b> ${escapeHtml(handoffLocation)}`,
                     { dedupKey: `route-handoff:${createdRoute.id}`, db: client, throwOnError: true });
                 const ll = sequence.filter(s => s.lat != null && s.lon != null).map(s => ({ lat: s.lat, lon: s.lon }));
-                const coordMatch = String(handoffLocation).match(/(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/);
+                const coordMatch = String(handoffLocation).match(/^(?:геопозиция:\s*)?(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)(?:\s*\(https?:\/\/[^)]*\))?$/i);
                 const pickupPoint = coordMatch && Math.abs(Number(coordMatch[1])) <= 90 && Math.abs(Number(coordMatch[2])) <= 180
                     ? { lat: Number(coordMatch[1]), lon: Number(coordMatch[2]) }
                     : String(handoffLocation).replace(/^геопозиция:\s*/i, '').replace(/\s*\(https?:\/\/[^)]*\)\s*$/, '').trim();
                 const nav = ll.length ? MapLinks.allRoute(ll, pickupPoint) : null;
                 const sheetButtons = [];
-                if (nav) sheetButtons.push([{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]);
+                if (nav) sheetButtons.push(typeof pickupPoint === 'object'
+                    ? [{ text: 'Весь маршрут: Яндекс', url: nav.yandex }, { text: 'Google Maps', url: nav.google }, { text: '2GIS', url: nav.gis2 }]
+                    : [{ text: 'Весь маршрут: Яндекс', url: nav.yandex }, { text: 'Google Maps', url: nav.google }]);
                 if (pickupPoint && typeof pickupPoint === 'object') {
                     sheetButtons.unshift([{ text: 'К месту получения: Яндекс', url: MapLinks.yandex('Место получения', pickupPoint.lat, pickupPoint.lon) },
                         { text: '2GIS', url: MapLinks.gis2(pickupPoint.lat, pickupPoint.lon) }]);
@@ -196,7 +198,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     const text = `<b>Передача заказа ${i + 1} из ${stops.length}</b>\n\nЗаказ: ${escapeHtml(st.order_number || '')}\nАдрес: ${escapeHtml(st.address || '')}\n` +
                         `Сумма: ${Number(st.amount_to_pay || 0).toLocaleString()} руб.${st.payment_status === 'pending' ? ' (оплата на месте)' : ''}\n` +
                         (st.phone ? `Телефон: ${escapeHtml(st.phone)}\n` : '') + (st.comment ? `Комментарий: ${escapeHtml(st.comment)}\n` : '') +
-                        `\nСначала получите этот заказ у предыдущего курьера, затем нажмите «Принять заказ».`;
+                        `\nСначала сверьте отправление: нажмите «Отправление получено». После сверки всего комплекта подтвердите получение в маршрутном листе, затем принимайте заказы.`;
                     const buttons = [];
                     if (st.lat && st.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(st.address, st.lat, st.lon) }, { text: '2GIS', url: MapLinks.gis2(st.lat, st.lon) }]);
                     if (createdRoute.transferred_from_route_id) buttons.push([{ text: 'Отправление получено', callback_data: `handoffitem_${createdRoute.id}_${st.id}` }]);
