@@ -624,6 +624,7 @@ bot.on('callback_query', async (query) => {
             return;
         }
         const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+        pendingReasons.delete(chatId);
         courierConversations.set(chatId, query.from.id, 'route_issue_location', { routeId: route.id, reason });
         await bot.sendMessage(chatId,
             'Укажите место, где второй курьер сможет забрать заказы.\n\nОтправьте геопозицию через скрепку → «Геопозиция» или напишите точный адрес/ориентир. Не отправляйте геопозицию текущего клиента, если вы находитесь не там.');
