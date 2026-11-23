@@ -777,7 +777,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         }
         if (action !== 'done') {
             // Читаем актуальную остановку напрямую из БД, а не из снимка currentRoute.
-            const atClient = await db.getRouteStopAtClient(routeId, stopId);
+            const atClient = await db.getRouteStopAtClient(routeId, stopId, courierForNotice.id);
             if (atClient) {
                 bot.answerCallbackQuery(query.id, {
                     text: `Сначала закончите заказ №${atClient.stop_number} (${atClient.order_number || ''}): вы у клиента. Нажмите «Доставлен» или «Не доставлено».`,
@@ -856,7 +856,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             }
         });
         if (!changed) {
-            const atClient = await db.getRouteStopAtClient(routeId, stopId);
+            const atClient = await db.getRouteStopAtClient(routeId, stopId, courierForNotice.id);
             if (atClient) {
                 bot.answerCallbackQuery(query.id, {
                     text: `Сначала закончите заказ №${atClient.stop_number} (${atClient.order_number || ''}): вы у клиента. Нажмите «Доставлен» или «Не доставлено».`,
@@ -904,7 +904,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             }
         });
         if (!changed) {
-            const atClient = await db.getRouteStopAtClient(routeId, stopId);
+            const atClient = await db.getRouteStopAtClient(routeId, stopId, courierForNotice.id);
             if (atClient) {
                 bot.answerCallbackQuery(query.id, {
                     text: `Сначала закончите заказ №${atClient.stop_number} (${atClient.order_number || ''}): вы у клиента. Нажмите «Доставлен» или «Не доставлено».`,
