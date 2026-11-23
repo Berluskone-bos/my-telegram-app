@@ -501,7 +501,7 @@ class DBAdapter {
             await client.query('BEGIN');
             // Общий порядок блокировок: orders -> route -> stops.
             const refs = await client.query('SELECT order_id FROM route_stops WHERE route_id = $1', [sourceId]);
-            const orderIds = [...new Set(refs.rows.map(x => String(x.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+            const orderIds = [...new Set(refs.rows.map(x => String(x.order_id || '')).filter(x => /^\d+$/.test(x)))];
             if (orderIds.length) await client.query('SELECT id FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE', [orderIds]);
             const source = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [sourceId]);
             if (!source.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
@@ -516,7 +516,7 @@ class DBAdapter {
             const remaining = lockedStops.rows.filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
             if (!remaining.length) { await client.query('ROLLBACK'); return { status: 'nothing_to_transfer' }; }
             const expectedOrderStatus = sourceRoute.status === 'in_progress' ? 'SHIPPING' : 'READY_FOR_SHIPMENT';
-            const ids = [...new Set(remaining.map(s => String(s.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+            const ids = [...new Set(remaining.map(s => String(s.order_id || '')).filter(x => /^\d+$/.test(x)))];
             if (ids.length !== remaining.length) { await client.query('ROLLBACK'); return { status: 'invalid_order_reference' }; }
             const orders = await client.query('SELECT id, status, delivery_type FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id', [ids]);
             if (orders.rowCount !== remaining.length || orders.rows.some(o => o.status !== expectedOrderStatus || o.delivery_type === 'pickup')) {
