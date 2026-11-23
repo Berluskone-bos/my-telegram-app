@@ -938,3 +938,12 @@
 - [x] PR #190 слит в main, merge commit `250e59ae1f3f72a82ae5ad9d3ab3bafd6678ec00`; Railway production `gulf-bot`, deployment `8fce482e-6914-485b-ac9b-bf4284e4fe91` — SUCCESS, сервис live.
 - [~] Следующий слой: привязать ETA read/write к активному владельцу маршрута внутри SQL. Реализовано в ветке `security/scope-route-eta-read-write-by-courier`; CI/PR/deploy ожидают проверки.
 - [ ] Полный IDOR/BOLA аудит остаётся открытым.
+
+
+## 23.11.2026 — PR #191 и дополнительный sweep DB helpers
+- [x] PR #191: ETA-пересчёт читает маршрут через `getRouteByIdForCourier`; `setStopEta` проверяет route ID, courier ID, активность и отсутствие архива непосредственно в SQL.
+- [x] GitHub Actions run #721 — SUCCESS: синтаксис, npm audit high/critical, Gitleaks и полный набор PostgreSQL-тестов.
+- [x] PR #191 слит в main, merge commit `fa8e81b161509cbade105e2e900546ba39f6d987`; Railway deployment `f395e1e9-e512-4d6f-9675-e4c0d6eebadc` — SUCCESS, `gulf-bot` live.
+- [x] Дополнительно просмотрены прямые SQL-записи в `db.js`, `admin-auth.js`, `partsapi-cache.js`: миграции — системные; персонал — `verifyAdmin + staff.manage` и транзакции; PartsAPI пишет кэш по проверенному car ID, не пользовательские данные. `user_garage` не имеет production call sites. Telegram `widget_query` связывает отправителя с личным чатом и конкретным сообщением, проверяет владельца и доставленный статус; DB повторно проверяет оценку.
+- [~] Новый hardening в ветке `security/scope-route-sheet-to-courier`: `route-sheet.loadSheet` и обновление карточки требуют ожидаемый courier ID и активного владельца в SQL; cancellation flow и ETA refresh передают ID из проверенного контекста. PostgreSQL-регрессия запрещает чужому курьеру обновлять карточку. PR/CI/deploy ожидают.
+- [ ] Полный IDOR/BOLA аудит остаётся открытым.
