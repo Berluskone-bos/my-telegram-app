@@ -808,3 +808,11 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Найден вспомогательный метод `getRouteStopAtClient(routeId, exceptStopId)`: он использовался после основной проверки callback и не менял данные, но сам не подтверждал владельца маршрута. При конкурентном изменении контекста мог вернуть метаданные чужой остановки для предупреждения.
 - Метод усилен: теперь принимает `expectedCourierId`, проверяет его в SQL через `delivery_routes.courier_id` и требует активного, неархивного курьера. Все callback-пути передают ID курьера из авторизованного контекста.
 - Добавлена регрессия PostgreSQL на отказ при запросе чужого маршрута. CI/deploy ожидают проверки; аудит продолжается.
+
+
+## 23.11.2026 — PR #190 и следующий проход ETA
+- PR #190 ограничил `getRouteStopAtClient` владельцем активного маршрута; добавлена PostgreSQL-регрессия на чужого курьера.
+- CI run #719 прошёл полностью: syntax, npm audit high/critical, Gitleaks и PostgreSQL-backed `npm test` — SUCCESS.
+- PR #190 merged в main: `250e59ae1f3f72a82ae5ad9d3ab3bafd6678ec00`. Railway production deployment `8fce482e-6914-485b-ac9b-bf4284e4fe91` — SUCCESS; `gulf-bot` live.
+- Следующий проход: `route-service.refreshEtas` теперь должен читать маршрут через `getRouteByIdForCourier`, а `setStopEta` — проверять маршрут, активного курьера и владельца в SQL. Все production callback передают courier ID из проверенной сессии; добавлены PostgreSQL-регрессии на чужой courier ID и отказ чтения/записи. Изменения в ветке, проверки ещё ожидаются.
+- Полный IDOR/BOLA аудит не закрыт.
