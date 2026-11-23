@@ -97,7 +97,7 @@ test('аварийная передача: история первого кур�
     assert.equal(queueMessages.filter(m => m.bot === 'courier' && m.chat === String(courierB.telegram_id)).length, 3,
         'второму курьеру поставлены маршрутный лист и две карточки заказов');
     const statuses = await pool.query('SELECT status FROM orders WHERE id = ANY($1::int[]) ORDER BY id', [orders.map(o => o.id)]);
-    assert.equal(statuses.rows.filter(x => x.status === 'DELIVERED').length, 1);
+    assert.equal(statuses.rows.filter(x => x.status === 'COMPLETED').length, 1);
     assert.equal(statuses.rows.filter(x => x.status === 'SHIPPING').length, 2,
         'переданные заказы не возвращаются в READY_FOR_SHIPMENT');
 
