@@ -1300,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const failedDetails = failedStops.map(s => esc((s.order_number || 'Заказ') + ': ' + (s.fail_reason || 'Причина не указана'))).join('<br>');
                         const remaining = (r.stops || []).filter(s => ['pending','accepted','in_progress'].includes(s.status)).length;
                         const canTransfer = canTransferRoutes && ['assigned','in_progress'].includes(r.status) && remaining > 0;
-                        const courierOptions = couriers.filter(x => x.is_active && !x.archived_at && Number(x.id) !== Number(r.courier_id))
+                        const courierOptions = couriers.filter(x => x.is_active && !x.archived_at && Number(x.id) !== Number(r.courier_id) && !routes.some(active => Number(active.courier_id) === Number(x.id) && ['assigned','in_progress'].includes(active.status)))
                             .map(x => '<option value="' + Number(x.id) + '">' + esc(x.name) + '</option>').join('');
                         const transferControl = canTransfer
                             ? '<div style="min-width:190px"><select id="transferCourier-' + Number(r.id) + '" class="status-select"><option value="">Новый курьер</option>' + courierOptions + '</select>' +
