@@ -1752,7 +1752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${failed ? `<div class="bcard-note" style="color:#b91c1c"><strong>Не доставлен:</strong> ${esc(failReason)}<br>Верните заказ на склад и отправьте повторно или отмените.</div>` : ''}
                 ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'PICKED_UP' ? '✓ Выдан клиенту' : (o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен')}</div>` : ''}
                 ${act}
-                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}"> в рейс</label>` : ''}
+                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''}> в рейс</label>` : ''}
             </div>`;
         }
 
