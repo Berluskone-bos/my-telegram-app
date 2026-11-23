@@ -268,7 +268,10 @@ async function initDB() {
                 ADD COLUMN IF NOT EXISTS transferred_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS transferred_from_route_id INTEGER REFERENCES delivery_routes(id),
                 ADD COLUMN IF NOT EXISTS transferred_to_route_id INTEGER REFERENCES delivery_routes(id),
-                ADD COLUMN IF NOT EXISTS transfer_reason TEXT;
+                ADD COLUMN IF NOT EXISTS transfer_reason TEXT,
+                ADD COLUMN IF NOT EXISTS transfer_requested_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS transfer_request_reason TEXT,
+                ADD COLUMN IF NOT EXISTS transfer_handoff_location TEXT;
             ALTER TABLE route_stops
                 ADD COLUMN IF NOT EXISTS transferred_to_stop_id INTEGER REFERENCES route_stops(id);
             CREATE TABLE IF NOT EXISTS route_transfer_events (
@@ -279,6 +282,7 @@ async function initDB() {
                 target_courier_id INTEGER NOT NULL REFERENCES couriers(id),
                 reason TEXT NOT NULL CHECK (reason IN ('breakdown', 'fuel', 'accident', 'other')),
                 transferred_stops INTEGER NOT NULL CHECK (transferred_stops > 0),
+                handoff_location TEXT NOT NULL,
                 actor_login TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE (source_route_id)
