@@ -879,6 +879,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         // courierForNotice загружен один раз в начале обработки действия.
         const changed = await db.setStopStage(stopId, 'enroute', {
             expectedCourierId: courierForNotice.id,
+            expectedRouteId: routeId,
             afterUpdate: async ({ client, stop, route }) => {
                 const who = courierName;
                 await notifyAdmin(
@@ -930,6 +931,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     else if (action === 'arrived') {
         const changed = await db.setStopStage(stopId, 'arrived', {
             expectedCourierId: courierForNotice.id,
+            expectedRouteId: routeId,
             afterUpdate: async ({ client, stop, route }) => {
                 const who = courierName;
                 await notifyAdmin(
@@ -974,6 +976,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         try {
             completion = await db.completeDeliveryStop(stopId, {
                 expectedCourierId: courierForNotice.id,
+                expectedRouteId: routeId,
                 afterComplete: async ({ client, stop: deliveredStop, route: deliveredRoute }) => {
                     const who = courierName;
                     await notifyAdmin(
@@ -1129,6 +1132,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         const safeReason = String(reason || 'Не указана').slice(0, 300);
         failure = await db.failDeliveryStop(stopId, safeReason, {
             expectedCourierId: courier.id,
+            expectedRouteId: routeId,
             afterFailure: async ({ client, stop: failedStop, route: failedRoute }) => {
                 await notifyAdmin(
                     `[ДОСТАВКА] ${escapeHtml(failedRoute.route_number)} | НЕ ДОСТАВЛЕНО (точка ${failedStop.stop_number} из ${failedRoute.total_orders || ''})\n` +
