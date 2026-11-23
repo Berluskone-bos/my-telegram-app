@@ -352,6 +352,7 @@ async function showMainScreen(chatId, courier) {
             buttons.push([{ text: 'Поехал!', callback_data: `startroute_${activeRoute.id}` }]);
         }
         buttons.push([{ text: 'Маршрутный лист', callback_data: `showroute_${activeRoute.id}` }]);
+        buttons.push([{ text: 'Не могу продолжить маршрут', callback_data: `reportroute_${activeRoute.id}` }]);
     }
     buttons.push([{ text: 'Обновить', callback_data: 'refresh_main' }]);
 
@@ -546,14 +547,15 @@ bot.on('callback_query', async (query) => {
     const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
     const validFailureReason = failureReasonMatch &&
         (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]) || Object.values(REASONS).includes(failureReasonMatch[3]));
-    if (isRouteAction && !routeOnlyMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
+    if (isRouteAction && !routeOnlyMatch && !routeIssueMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
         bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
         return;
     }
-    if (routeOnlyMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
+    if (routeOnlyMatch || routeIssueMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
         const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
-            : failureReasonMatch ? failureReasonMatch[1]
-                : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
+            : routeIssueMatch ? routeIssueMatch[1]
+                : failureReasonMatch ? failureReasonMatch[1]
+                    : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
         const hasStop = !!(deliveryFlowMatch || legacyStopMatch || failureReasonMatch);
         const sId = hasStop
             ? Number(failureReasonMatch ? failureReasonMatch[2]
@@ -597,6 +599,38 @@ bot.on('callback_query', async (query) => {
         }
     }
 
+    if (data.startsWith('reportroute_')) {
+        const routeId = Number(data.split('_')[1]);
+        const keyboard = [[
+            { text: 'Поломка автомобиля', callback_data: `routeissue_${routeId}_breakdown` },
+            { text: 'Закончилось топливо', callback_data: `routeissue_${routeId}_fuel` }
+        ], [
+            { text: 'ДТП', callback_data: `routeissue_${routeId}_accident` },
+            { text: 'Другая причина', callback_data: `routeissue_${routeId}_other` }
+        ]];
+        await bot.sendMessage(chatId, 'Почему вы не можете продолжить маршрут?', { reply_markup: { inline_keyboard: keyboard } });
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
+    if (data.startsWith('routeissue_')) {
+        const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
+        const [, routeId, reason] = data.split('_');
+        const courier = await db.getCourierByTelegramId(query.from.id);
+        const route = courier ? await db.getRouteByIdForCourier(Number(routeId), courier.id) : null;
+        if (!route || !['assigned', 'in_progress'].includes(route.status)) {
+            bot.answerCallbackQuery(query.id, { text: 'Маршрут уже недоступен', show_alert: true }).catch(() => {});
+            return;
+        }
+        const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+        await notifyAdmin(
+            `<b>Курьер не может продолжить маршрут</b>\\nКурьер: ${escapeHtml(courier.name)}\\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\\nОсталось заказов: ${remaining}\\nПричина: ${escapeHtml(reasons[reason] || reason)}\\n\\nОткройте раздел «Доставка» в админ-панели и выполните передачу оставшихся заказов другому курьеру.`,
+            null, `route-issue:${route.id}:${reason}`, null, true
+        );
+        await bot.sendMessage(chatId, 'Сообщение отправлено диспетчеру. Ожидайте, пока вам сообщат о дальнейших действиях.');
+        bot.answerCallbackQuery(query.id, { text: 'Диспетчер уведомлён' }).catch(() => {});
+        return;
+    }
     if (data.startsWith('showroute_')) {
         const routeId = parseInt(data.split('_')[1]);
         const courier = await db.getCourierByTelegramId(query.from.id);
