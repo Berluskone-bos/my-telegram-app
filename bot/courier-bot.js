@@ -282,7 +282,32 @@ if (bot) {
         const courier = await getCourier(user);
         if (courier) {
             if (courier.archived_at || !courier.is_active) {
-                await bot.sendMessage(chatId, getCourierAccessMessage(courier));
+                try {
+                    const requested = await db.requestCourierReactivation(user.id, crypto.randomBytes(16).toString('hex'));
+                    if (!requested) {
+                        await bot.sendMessage(chatId, 'Не удалось создать заявку на восстановление доступа. Обратитесь к администратору.');
+                        return;
+                    }
+                    if (requested.status === 'active') {
+                        await showMainScreen(chatId, requested.courier);
+                        return;
+                    }
+                    const pending = requested.courier;
+                    const activationButtons = adminBot && ADMIN_CHAT_ID
+                        ? [[{ text: 'Подтвердить восстановление курьера', callback_data: `activate_courier_${pending.id}_${pending.activation_token}` }]]
+                        : null;
+                    await notifyAdmin(
+                        `[КУРЬЕР] Запрос на восстановление доступа: ${escapeHtml(pending.name)} (@${escapeHtml(pending.telegram_user || '-')})\\nТел: ${escapeHtml(pending.phone || '—')}\\nСтатус записи: ${pending.archived_at ? 'архивная' : 'деактивирована'}\\nТребуется подтверждение администратора.`,
+                        activationButtons,
+                        `courier-reactivation:${pending.id}:${pending.activation_token}`,
+                        null,
+                        true
+                    );
+                    await bot.sendMessage(chatId, 'Запрос на восстановление доступа отправлен администратору. Доступ к маршрутам откроется после подтверждения.');
+                } catch (e) {
+                    console.error('[COURIER] reactivation request failed:', errorCode(e));
+                    await bot.sendMessage(chatId, 'Не удалось отправить запрос на восстановление. Попробуйте позже.');
+                }
                 return;
             }
             await showMainScreen(chatId, courier);
