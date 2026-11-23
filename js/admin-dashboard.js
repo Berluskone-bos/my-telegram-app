@@ -146,7 +146,7 @@
         const cards = [
             ['Заказы сегодня', s.orders, s.newOrders + ' новых'],
             ['Выручка сегодня', rub.format(s.revenue), 'Без отменённых заказов'],
-            ['Товары в каталоге', s.products, s.lowStockCount + ' с низким остатком'],
+            ['Позиций на складе', s.products, s.lowStockCount + ' с низким остатком'],
             ['Клиенты', s.customers, 'Уникальные покупатели']
         ];
         document.getElementById('dashKpis').innerHTML = cards.map(([label, value, note]) =>
@@ -180,7 +180,12 @@
     const WORKCAL_MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
     const workcalCanManage = () => typeof window.adminHasPermission === 'function' && window.adminHasPermission('workspace.manage');
     const workcalCanUpdate = () => typeof window.adminHasPermission === 'function' && window.adminHasPermission('workspace.update_self');
-    let workcalDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+    function workcalMoscowToday() {
+        const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+        const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+        return new Date(Number(values.year), Number(values.month) - 1, Number(values.day));
+    }
+    let workcalDate = workcalMoscowToday();
     let workcalSelected = null;
     let workcalData = { days: [], items: [] };
     let workcalStaff = [];
@@ -361,7 +366,7 @@
     }
     document.getElementById('workcalPrev')?.addEventListener('click',()=>{workcalDate=new Date(workcalDate.getFullYear(),workcalDate.getMonth()-1,1);loadWorkspaceCalendar();});
     document.getElementById('workcalNext')?.addEventListener('click',()=>{workcalDate=new Date(workcalDate.getFullYear(),workcalDate.getMonth()+1,1);loadWorkspaceCalendar();});
-    document.getElementById('workcalToday')?.addEventListener('click',()=>{workcalDate=new Date(new Date().toLocaleString('en-US',{timeZone:'Europe/Moscow'}));workcalSelected=workcalDateKey(workcalDate);loadWorkspaceCalendar();});
+    document.getElementById('workcalToday')?.addEventListener('click',()=>{workcalDate=workcalMoscowToday();workcalSelected=workcalDateKey(workcalDate);loadWorkspaceCalendar();});
     let loading = false;
     window.loadAdminDashboard = async function loadAdminDashboard() {
         if (loading) return;
