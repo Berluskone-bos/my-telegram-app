@@ -115,7 +115,7 @@ test('отмена заказа: курьер получает сообщени�
     assert.equal((await db.acceptRouteStop(race.route.id, race.stopId)).status, 'accepted');
     assert.equal((await db.startRouteIfAllAccepted(race.route.id)).status, 'started');
     const [stageRace, cancelRace] = await Promise.all([
-        db.setStopStage(race.stopId, 'enroute', { expectedCourierId: courier.id }),
+        db.setStopStage(race.stopId, 'enroute', { expectedCourierId: courier.id, expectedRouteId: race.route.id }),
         db.updateOrderStatus(oRace.id, 'CANCELLED')
     ]);
     assert.ok(stageRace === null || stageRace.stage === 'enroute', 'курьерский этап либо отклонён после отмены, либо завершился до неё');
@@ -163,7 +163,7 @@ test('отмена заказа: курьер получает сообщени�
     assert.equal((await db.acceptRouteStop(failRace.route.id, failRace.stopId, { expectedCourierId: courier.id })).status, 'accepted');
     assert.equal((await db.startRouteIfAllAccepted(failRace.route.id, { expectedCourierId: courier.id })).status, 'started');
     const [failResult, failCancel] = await Promise.all([
-        db.failDeliveryStop(failRace.stopId, 'Клиента нет дома', { expectedCourierId: courier.id }),
+        db.failDeliveryStop(failRace.stopId, 'Клиента нет дома', { expectedCourierId: courier.id, expectedRouteId: failRace.route.id }),
         db.updateOrderStatus(oFailRace.id, 'CANCELLED')
     ]);
     assert.equal(failCancel, true);
@@ -180,7 +180,7 @@ test('отмена заказа: курьер получает сообщени�
     assert.equal((await db.acceptRouteStop(completeRace.route.id, completeRace.stopId)).status, 'accepted');
     assert.equal((await db.startRouteIfAllAccepted(completeRace.route.id)).status, 'started');
     const [completionRace, cancellationRace] = await Promise.all([
-        db.completeDeliveryStop(completeRace.stopId, { expectedCourierId: courier.id }),
+        db.completeDeliveryStop(completeRace.stopId, { expectedCourierId: courier.id, expectedRouteId: completeRace.route.id }),
         db.updateOrderStatus(oCompleteRace.id, 'CANCELLED')
     ]);
     const completionState = (await pool.query(
