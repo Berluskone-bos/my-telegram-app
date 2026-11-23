@@ -979,3 +979,11 @@
 - [~] В ветке `security/recheck-admin-session-after-read` обновление `last_seen` сделано условным: сессия должна существовать, не истечь по абсолютному TTL и не превысить idle TTL; нулевой `rowCount` возвращает 401.
 - [~] Добавлен детерминированный PostgreSQL-тест: пауза после SELECT, отзыв сессии, продолжение middleware; защищённый обработчик не должен запускаться.
 - [ ] CI/PR/deploy ожидают. После проверки обновить статус.
+
+
+## 23.11.2026 — подтверждение PR #196
+- [x] PR #196 слит в main, merge commit `cb723c8f661c053eee23043af9b1e22b98d0d6d5`.
+- [x] GitHub Actions run #731 — SUCCESS: синтаксис, npm audit, Gitleaks и PostgreSQL-набор тестов, включая детерминированную гонку отзыва сессии.
+- [x] Railway production deployment `f3c76b75-1f87-4b45-bfd2-99fcaa523d93` — SUCCESS; `gulf-bot` live.
+- [x] Условный UPDATE с проверкой срока и `rowCount` не пропускает запрос, если сессия отозвана между SELECT и обновлением `last_seen`.
+- [ ] Продолжить инвентаризацию оставшихся административных и внутренних DB/API операций; общий IDOR/BOLA аудит открыт.
