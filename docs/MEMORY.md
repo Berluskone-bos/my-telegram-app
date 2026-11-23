@@ -840,3 +840,11 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Реферальный check не принимает телефон из query, исключая oracle для проверки номера владельца реферального кода.
 - Добавлены регрессионные тесты в ветке `security/test-customer-bonus-id-spoofing`: подмена `userId` в теле заказа и query параметре бонусного API должна быть проигнорирована.
 - CI/PR ожидаются; подтверждённых новых IDOR/BOLA в этом проходе не обнаружено. Полный аудит не закрывать.
+
+
+## 23.11.2026 — PR #194 CI и production
+- PR #194 merged: `120cbe9515b87788bb5f5f5bdee3daffeb51230c`.
+- GitHub Actions run #727 SUCCESS: syntax, npm audit, Gitleaks и весь набор PostgreSQL-backed тестов.
+- Railway deployment `966cb9e9-f318-49c4-ba6e-79ebe1b7f0a3` SUCCESS; `gulf-bot` live.
+- Регрессионно подтверждено: `userId` в body заказа и query бонусного API не меняет владельца, который берётся из подписанного Telegram initData.
+- Остальные DB/API helpers и конкурентные сценарии остаются в плане; аудит не закрыт.

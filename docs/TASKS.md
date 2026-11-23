@@ -964,3 +964,11 @@
 - [x] В ветке `security/test-customer-bonus-id-spoofing` добавлены регрессионные проверки: чужой `userId` в теле заказа не меняет владельца заказа; `?userId=` не меняет владельца ответа бонусного API.
 - [ ] CI/PR ещё ожидаются. Подтверждённых новых IDOR/BOLA в этом проходе пока нет.
 - [ ] Полный аудит остаётся открытым.
+
+
+## 23.11.2026 — подтверждение PR #194
+- [x] PR #194 слит в main, merge commit `120cbe9515b87788bb5f5f5bdee3daffeb51230c`.
+- [x] GitHub Actions run #727 — SUCCESS: установка зависимостей, синтаксис, npm audit, Gitleaks и весь набор тестов с PostgreSQL.
+- [x] Railway production deployment `966cb9e9-f318-49c4-ba6e-79ebe1b7f0a3` — SUCCESS; сервис `gulf-bot` live.
+- [x] Регрессии подтвердили: поддельный `userId` в теле заказа не меняет владельца; `userId` в query бонусного API не меняет владельца бонусного профиля.
+- [ ] Продолжить оставшиеся DB/API helpers и конкурентные сценарии; полный IDOR/BOLA аудит открыт.
