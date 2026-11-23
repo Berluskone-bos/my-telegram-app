@@ -833,3 +833,10 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PR #192 merged: `12cae527533f60113c53449eb2e6c7358fe4af75`; Railway deployment `0ff0c1cc-730c-47c1-bb80-6b7b5b442f7f` — SUCCESS; `gulf-bot` live.
 - После PR #191/#192 все найденные production route read/write paths и вспомогательные ETA/route-sheet операции ограничены владельцем на уровне SQL. Универсальный `getRouteById` остаётся только в защищённом admin endpoint оптимизации маршрута (`verifyAdmin + settings.manage`); остальные call sites в тестах.
 - Полный IDOR/BOLA аудит остаётся открытым; продолжить остальные менее частые API/DB helpers и конкурентные сценарии.
+
+
+## 23.11.2026 — customer/bonus ID spoofing audit
+- Проверены клиентские API профиля, бонусов, реферального кода, лояльности и оформления заказа. Владелец берётся из проверенного Telegram initData; query/body не управляют ID пользователя.
+- Реферальный check не принимает телефон из query, исключая oracle для проверки номера владельца реферального кода.
+- Добавлены регрессионные тесты в ветке `security/test-customer-bonus-id-spoofing`: подмена `userId` в теле заказа и query параметре бонусного API должна быть проигнорирована.
+- CI/PR ожидаются; подтверждённых новых IDOR/BOLA в этом проходе не обнаружено. Полный аудит не закрывать.
