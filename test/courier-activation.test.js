@@ -1,20 +1,4 @@
 'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { parseCourierActivationId } = require('../bot/courier-activation');
-
-test('принимает точный callback активации с положительным ID из диапазона SERIAL', () => {
-    assert.equal(parseCourierActivationId('activate_courier_123'), 123);
-    assert.equal(parseCourierActivationId('activate_courier_1'), 1);
-    assert.equal(parseCourierActivationId('activate_courier_2147483647'), 2147483647);
-});
-
-test('отклоняет callback с хвостом, пропущенным ID и ID вне диапазона SERIAL', () => {
-    for (const value of [
-        'activate_courier_123abc', 'activate_courier_123_456', 'activate_courier_',
-        'activate_courier_0', 'activate_courier_-1', 'activate_courier_2147483648',
-        'activate_courier_99999999999', 'activate_courier_123.0',
-        'xactivate_courier_123', null, undefined, 123
-    ]) assert.equal(parseCourierActivationId(value), null, String(value));
-});
+const test=require('node:test');const assert=require('node:assert/strict');const {parseCourierActivation}=require('../bot/courier-activation');
+test('разбирает callback активации с положительным ID и одноразовым токеном',()=>{const token=Array.from({length:32},(_,i)=>'0123456789abcdef'[i%16]).join('');assert.deepEqual(parseCourierActivation(`activate_courier_123_${token}`),{id:123,token});assert.deepEqual(parseCourierActivation(`activate_courier_2147483647_${token}`),{id:2147483647,token});});
+test('отклоняет callback без токена, с повреждённым токеном и ID вне диапазона',()=>{const token=Array.from({length:32},(_,i)=>'fedcba9876543210'[i%16]).join('');for(const value of ['activate_courier_123',`activate_courier_123_${token}tail`,'activate_courier_123_not-a-token','activate_courier_0_'+token,'activate_courier_2147483648_'+token,'activate_courier_-1_'+token,null,undefined,123])assert.equal(parseCourierActivation(value),null,String(value));});
