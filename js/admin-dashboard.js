@@ -109,6 +109,7 @@
                 <div class="workcal-legend"><span><i class="workcal-dot task"></i> Задачи</span><span><i class="workcal-dot meeting"></i> Встречи</span><span><i class="workcal-dot contract"></i> Договоры</span><span><i class="workcal-dot logistics"></i> Логистика</span><span><i class="workcal-dot kpi"></i> KPI</span></div>
                 <div class="workcal-detail" id="workcalDetail"><div class="workcal-empty">Выберите день в календаре, чтобы увидеть его план и показатели.</div></div>
               </section>
+              <section class="dash-panel"><div class="dash-panel-head"><div class="dash-panel-title" id="workcalTaskTitle">Мои задачи</div><span class="dash-pill" id="workcalTaskCount">0</span></div><div class="dash-panel-body" id="workcalTaskOverview"><div class="dash-empty">Загрузка задач…</div></div></section>
               <section class="dash-panel"><div class="dash-panel-head"><div class="dash-panel-title">Контроль остатков склада</div><span class="dash-pill" id="dashLowStockCount">0</span></div><div class="dash-panel-body" id="dashLowStock"><div class="dash-empty">Загрузка…</div></div></section>
               <div hidden><span id="dashOrdersCount">0</span><div id="dashRecentOrders"></div></div>
             </div>
@@ -268,6 +269,29 @@
         target.querySelectorAll('[data-task-status]').forEach(button=>button.addEventListener('click',()=>updateWorkcalItem(button.dataset.taskStatus,{status:button.dataset.status})));
         target.querySelectorAll('[data-item-cancel]').forEach(button=>button.addEventListener('click',()=>cancelWorkcalItem(button.dataset.itemCancel)));
     }
+    function renderWorkcalTasks() {
+        const target=document.getElementById('workcalTaskOverview');
+        if(!target)return;
+        const tasks=(workcalData.items||[]).filter(item=>item.kind==='task'&&item.status!=='cancelled')
+            .sort((a,b)=>String(a.dueAt||'').localeCompare(String(b.dueAt||'')));
+        const today=workcalDateKey(workcalMoscowToday());
+        const open=tasks.filter(item=>item.status!=='done');
+        const title=document.getElementById('workcalTaskTitle');
+        if(title)title.textContent=workcalCanManage()?'Задачи сотрудников':'Мои задачи';
+        document.getElementById('workcalTaskCount').textContent=String(open.length)+' активных';
+        if(!tasks.length){target.innerHTML='<div class="dash-empty">На этот месяц задач нет.</div>';return;}
+        target.innerHTML=tasks.slice(0,30).map(item=>{
+            const date=workcalItemDate(item);
+            const overdue=date<today&&item.status!=='done';
+            return '<div class="dash-row"><div><div class="dash-main">'+esc(item.title)+'</div><div class="dash-sub">'+(overdue?'<b style="color:#dc2626">Просрочено · </b>':'')+esc(date?workcalFmtDate(date):'Без срока')+' · '+esc(WORKCAL_STATUSES[item.status]||item.status)+(item.assigneeName?' · '+esc(item.assigneeName):'')+'</div></div><div class="dash-value"><button type="button" class="workcal-action" data-open-task-date="'+esc(date)+'">Открыть</button></div></div>';
+        }).join('')+(tasks.length>30?'<div class="dash-empty">Показаны первые 30 задач месяца.</div>':'');
+        target.querySelectorAll('[data-open-task-date]').forEach(button=>button.addEventListener('click',()=>{
+            const date=button.dataset.openTaskDate;
+            if(!date)return;
+            if(!date.startsWith(workcalMonthKey(workcalDate))){workcalDate=workcalParseDate(date);loadWorkspaceCalendar();}
+            else selectWorkcalDay(date);
+        }));
+    }
     async function selectWorkcalDay(dateKey) {
         workcalSelected=dateKey;
         document.querySelectorAll('.workcal-day').forEach(button=>button.classList.toggle('selected',button.dataset.date===dateKey));
@@ -365,8 +389,12 @@
             if(!response.ok)throw new Error(data.error||'Не удалось загрузить календарь');
             workcalData=data;
             renderWorkcal();
-            if(!workcalSelected||!workcalSelected.startsWith(month))workcalSelected=workcalDateKey(new Date(workcalDate.getFullYear(),workcalDate.getMonth(),1));
+            if(!workcalSelected||!workcalSelected.startsWith(month)) {
+                const today=workcalMoscowToday();
+                workcalSelected=workcalMonthKey(today)===month?workcalDateKey(today):workcalDateKey(new Date(workcalDate.getFullYear(),workcalDate.getMonth(),1));
+            }
             renderWorkcalDay(workcalSelected);
+            renderWorkcalTasks();
         }catch(error){
             const grid=document.getElementById('workcalGrid');
             if(grid)grid.innerHTML='<div class="workcal-empty">'+esc(error.message||'Ошибка загрузки')+'</div>';
