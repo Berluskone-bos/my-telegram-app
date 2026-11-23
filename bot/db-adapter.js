@@ -665,6 +665,74 @@ class DBAdapter {
         }
     }
 
+    // Отметить фактическое получение одного отправления при аварийной передаче.
+    // Блокировка маршрута сериализует сверку с подтверждением и принятием заказов.
+    async markRouteHandoffStopReceived(routeId, stopId, { expectedCourierId } = {}) {
+        const rid = Number(routeId), sid = Number(stopId), cid = Number(expectedCourierId);
+        if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(sid) || sid <= 0 ||
+            !Number.isSafeInteger(cid) || cid <= 0) return { status: 'invalid' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT id, courier_id, status, transferred_from_route_id, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            const r = route.rows[0];
+            if (String(r.courier_id) !== String(cid)) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
+            if (!r.transferred_from_route_id) { await client.query('ROLLBACK'); return { status: 'not_required' }; }
+            if (r.handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'already_confirmed' }; }
+            if (r.status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
+            const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [cid]);
+            if (!courier.rowCount) { await client.query('ROLLBACK'); return { status: 'courier_inactive' }; }
+            const stop = await client.query('SELECT id, status, handoff_received_at FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [sid, rid]);
+            if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (stop.rows[0].handoff_received_at) {
+                const counts = await client.query("SELECT COUNT(*) FILTER (WHERE status NOT IN ('cancelled','delivered','failed'))::int AS total, COUNT(*) FILTER (WHERE status NOT IN ('cancelled','delivered','failed') AND handoff_received_at IS NOT NULL)::int AS received FROM route_stops WHERE route_id = $1", [rid]);
+                await client.query('COMMIT');
+                return { status: 'already', total: counts.rows[0].total, received: counts.rows[0].received };
+            }
+            if (stop.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
+            await client.query('UPDATE route_stops SET handoff_received_at = NOW() WHERE id = $1 AND route_id = $2', [sid, rid]);
+            const counts = await client.query("SELECT COUNT(*) FILTER (WHERE status NOT IN ('cancelled','delivered','failed'))::int AS total, COUNT(*) FILTER (WHERE status NOT IN ('cancelled','delivered','failed') AND handoff_received_at IS NOT NULL)::int AS received FROM route_stops WHERE route_id = $1", [rid]);
+            await client.query('COMMIT');
+            return { status: 'received', total: counts.rows[0].total, received: counts.rows[0].received };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally { client.release(); }
+    }
+
+    // Подтвердить сверку можно только после отметки каждого активного отправления.
+    async confirmRouteHandoff(routeId, { expectedCourierId } = {}) {
+        const rid = Number(routeId), cid = Number(expectedCourierId);
+        if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(cid) || cid <= 0) return { status: 'invalid' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT id, courier_id, status, transferred_from_route_id, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            const r = route.rows[0];
+            if (String(r.courier_id) !== String(cid)) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
+            if (!r.transferred_from_route_id) { await client.query('ROLLBACK'); return { status: 'not_required' }; }
+            if (r.handoff_confirmed_at) { await client.query('COMMIT'); return { status: 'already' }; }
+            if (r.status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
+            const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [cid]);
+            if (!courier.rowCount) { await client.query('ROLLBACK'); return { status: 'courier_inactive' }; }
+            const stops = await client.query("SELECT id, status, handoff_received_at FROM route_stops WHERE route_id = $1 AND status NOT IN ('cancelled','delivered','failed') ORDER BY stop_number FOR UPDATE", [rid]);
+            if (!stops.rowCount) { await client.query('ROLLBACK'); return { status: 'empty' }; }
+            const received = stops.rows.filter(s => !!s.handoff_received_at).length;
+            if (received !== stops.rowCount) {
+                await client.query('ROLLBACK');
+                return { status: 'incomplete', total: stops.rowCount, received };
+            }
+            await client.query('UPDATE delivery_routes SET handoff_confirmed_at = NOW() WHERE id = $1', [rid]);
+            await client.query('COMMIT');
+            return { status: 'confirmed', total: stops.rowCount, received };
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+        } finally { client.release(); }
+    }
+
     // Индивидуальное принятие остановки курьером. Маршрут остаётся assigned.
     async acceptRouteStop(routeId, stopId, { afterAccept = null, expectedCourierId = undefined } = {}) {
         const rid = Number(routeId), sid = Number(stopId);
@@ -672,7 +740,7 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const route = await client.query('SELECT id, status, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            const route = await client.query('SELECT id, status, courier_id, transferred_from_route_id, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (expectedCourierId !== undefined) {
                 if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
@@ -688,6 +756,7 @@ class DBAdapter {
                 }
             }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
+            if (route.rows[0].transferred_from_route_id && !route.rows[0].handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'handoff_required' }; }
             const stop = await client.query('SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [sid, rid]);
             if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
@@ -738,6 +807,7 @@ class DBAdapter {
                     return { status: 'courier_inactive' };
                 }
             }
+            if (route.rows[0].transferred_from_route_id && !route.rows[0].handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'handoff_required' }; }
             if (route.rows[0].status === 'in_progress') { await client.query('COMMIT'); return { status: 'already' }; }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
             await client.query(
