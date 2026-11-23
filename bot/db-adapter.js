@@ -170,7 +170,7 @@ class DBAdapter {
                     throw error;
                 }
             }
-            const updated = await client.query('UPDATE couriers SET is_active = $2 WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
+            const updated = await client.query('UPDATE couriers SET is_active = $2, activation_token = CASE WHEN $2 = FALSE THEN NULL ELSE activation_token END WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
             await client.query('COMMIT');
             return updated.rows[0] || null;
         } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
@@ -191,7 +191,7 @@ class DBAdapter {
                 error.code = 'COURIER_HAS_ACTIVE_ROUTE';
                 throw error;
             }
-            const updated = await client.query('UPDATE couriers SET is_active = false, archived_at = NOW() WHERE id = $1 RETURNING *', [id]);
+            const updated = await client.query('UPDATE couriers SET is_active = false, archived_at = NOW(), activation_token = NULL WHERE id = $1 RETURNING *', [id]);
             await client.query('COMMIT');
             return updated.rows[0] || null;
         } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
@@ -203,18 +203,29 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    async activateCourier(courierId, token) {
+        const id = Number(courierId);
+        if (!Number.isSafeInteger(id) || id <= 0 || typeof token !== 'string' || !/^[a-f0-9]{32}$/.test(token)) return null;
+        const result = await pool.query(
+            `UPDATE couriers SET is_active = TRUE, activation_token = NULL
+              WHERE id = $1 AND activation_token = $2 AND is_active = FALSE AND archived_at IS NULL
+              RETURNING *`, [id, token]);
+        return result.rows[0] || null;
+    }
+
     async createCourier(courier, { afterCreate } = {}) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
             const res = await client.query(
-                `INSERT INTO couriers (name, phone, telegram_id, telegram_user, vehicle_type, license_plate, zones, is_active, max_orders, rating, rating_count)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+                `INSERT INTO couriers (name, phone, telegram_id, telegram_user, vehicle_type, license_plate, zones, is_active, max_orders, rating, rating_count, activation_token)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
                 [courier.name, courier.phone, courier.telegram_id, courier.telegram_user,
                  courier.vehicle_type, courier.license_plate || null,
                  toDbValue(courier.zones || ['spb']),        // массив, не JSON
                  courier.is_active !== false,
-                 courier.max_orders || 10, courier.rating || 0, courier.rating_count || 0]
+                 courier.max_orders || 10, courier.rating || 0, courier.rating_count || 0,
+                 courier.activation_token || null]
             );
             const created = res.rows[0];
             if (typeof afterCreate === 'function') await afterCreate({ client, courier: created });
