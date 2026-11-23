@@ -106,6 +106,21 @@ test('аварийная передача: история первого кур�
         'второму курьеру отправлены место получения, маршрутный лист и две карточки заказов');
     assert.ok(queueMessages.some(m => m.chat === String(courierB.telegram_id) && m.text.includes('Площадка у Тестовой улицы, 1')),
         'маршрутный лист содержит точное место получения отправлений');
+    assert.equal((await db.acceptRouteStop(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id })).status, 'handoff_required',
+        'нельзя принять заказ до сверки всех отправлений');
+    assert.equal((await db.startRouteIfAllAccepted(newRoute.id, { expectedCourierId: courierB.id })).status, 'handoff_required',
+        'нельзя начать маршрут до сверки всех отправлений');
+    const firstReceived = await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id });
+    assert.equal(firstReceived.status, 'received');
+    assert.equal(firstReceived.received, 1);
+    assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'incomplete',
+        'подтверждение всей передачи блокируется, пока не сверены все отправления');
+    for (const stop of newRoute.stops.slice(1)) {
+        assert.equal((await db.markRouteHandoffStopReceived(newRoute.id, stop.id, { expectedCourierId: courierB.id })).status, 'received');
+    }
+    assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'confirmed');
+    assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'already',
+        'повторное подтверждение идемпотентно');
     const statuses = await pool.query('SELECT status FROM orders WHERE id = ANY($1::int[]) ORDER BY id', [orders.map(o => o.id)]);
     assert.equal(statuses.rows.filter(x => x.status === 'COMPLETED').length, 1);
     assert.equal(statuses.rows.filter(x => x.status === 'SHIPPING').length, 2,
@@ -133,6 +148,11 @@ test('аварийная передача: история первого кур�
     assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM route_transfer_events WHERE source_route_id = ANY($1::int[]) AND length(btrim(handoff_location)) > 0", [routeIds])).rows[0].n >= 2, true,
         'каждая передача записана в журнал');
 
+    for (const stop of finalRoute.stops) {
+        assert.equal((await db.markRouteHandoffStopReceived(finalRoute.id, stop.id, { expectedCourierId: courierC.id })).status, 'received');
+    }
+    assert.equal((await db.confirmRouteHandoff(finalRoute.id, { expectedCourierId: courierC.id })).status, 'confirmed',
+        'повторно назначенный третий курьер тоже подтверждает получение');
     for (const stop of finalRoute.stops) {
         assert.equal((await db.acceptRouteStop(finalRoute.id, stop.id, { expectedCourierId: courierC.id })).status, 'accepted');
     }
