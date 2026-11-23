@@ -61,6 +61,7 @@ test('аварийная передача: история первого кур�
 
     const initial = await svc.buildRoute({ orderIds: orders.map(o => o.id), courier: courierA });
     routeIds.push(initial.route.id);
+    await pool.query('UPDATE route_stops SET lat = 59.93 + stop_number * 0.01, lon = 30.33 + stop_number * 0.01 WHERE route_id = $1', [initial.route.id]);
     const originalStops = (await db.getRouteById(initial.route.id)).stops;
     for (const stop of originalStops) {
         assert.equal((await db.acceptRouteStop(initial.route.id, stop.id, { expectedCourierId: courierA.id })).status, 'accepted');
@@ -97,6 +98,7 @@ test('аварийная передача: история первого кур�
     assert.equal(oldRemaining.length, 2);
     assert.ok(oldRemaining.every(s => s.transferred_to_stop_id), 'сохраняется связь старых и новых остановок');
     assert.equal(newRoute.status, 'assigned');
+    assert.equal(newRoute.handoff_required, true, 'новый переданный маршрут требует сверки');
     assert.equal(Number(newRoute.courier_id), Number(courierB.id));
     assert.equal(newRoute.stops.length, 2);
     assert.deepEqual(newRoute.stops.map(s => s.order_number), transferred.sequence,
@@ -106,6 +108,36 @@ test('аварийная передача: история первого кур�
         'второму курьеру отправлены место получения, маршрутный лист и две карточки заказов');
     assert.ok(queueMessages.some(m => m.chat === String(courierB.telegram_id) && m.text.includes('Площадка у Тестовой улицы, 1')),
         'маршрутный лист содержит точное место получения отправлений');
+    const routeSheetMessage = queueMessages.find(m => m.chat === String(courierB.telegram_id) && m.text.includes('Переданный маршрут'));
+    assert.ok(routeSheetMessage, 'второй курьер получил маршрутный лист');
+    const routeSheetButtons = (routeSheetMessage.options.buttons || []).flat();
+    assert.ok(routeSheetButtons.some(b => b.text === 'Google Maps' && decodeURIComponent(b.url).includes('origin=Площадка у Тестовой улицы, 1')),
+        'Google Maps строит маршрут от места получения');
+    assert.ok(routeSheetButtons.some(b => b.callback_data === `handoffconfirm_${newRoute.id}`),
+        'в маршрутном листе есть кнопка подтверждения комплекта');
+    assert.ok(queueMessages.some(m => m.chat === String(courierB.telegram_id) &&
+        (m.options.buttons || []).flat().some(b => b.callback_data === `handoffitem_${newRoute.id}_${newRoute.stops[0].id}`)),
+        'на карточке отправления есть отдельная отметка получения');
+    assert.equal((await db.acceptRouteStop(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id })).status, 'handoff_required',
+        'нельзя принять заказ до сверки всех отправлений');
+    assert.equal((await db.startRouteIfAllAccepted(newRoute.id, { expectedCourierId: courierB.id })).status, 'handoff_required',
+        'нельзя начать маршрут до сверки всех отправлений');
+    assert.equal((await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierA.id })).status, 'not_assigned',
+        'первый курьер не может отметить получение в маршруте второго');
+    const firstReceived = await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id });
+    assert.equal(firstReceived.status, 'received');
+    assert.equal(firstReceived.received, 1);
+    const duplicateReceived = await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id });
+    assert.equal(duplicateReceived.status, 'already', 'повторное нажатие не увеличивает число полученных отправлений');
+    assert.equal(duplicateReceived.received, 1);
+    assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'incomplete',
+        'подтверждение всей передачи блокируется, пока не сверены все отправления');
+    for (const stop of newRoute.stops.slice(1)) {
+        assert.equal((await db.markRouteHandoffStopReceived(newRoute.id, stop.id, { expectedCourierId: courierB.id })).status, 'received');
+    }
+    assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'confirmed');
+    assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'already',
+        'повторное подтверждение идемпотентно');
     const statuses = await pool.query('SELECT status FROM orders WHERE id = ANY($1::int[]) ORDER BY id', [orders.map(o => o.id)]);
     assert.equal(statuses.rows.filter(x => x.status === 'COMPLETED').length, 1);
     assert.equal(statuses.rows.filter(x => x.status === 'SHIPPING').length, 2,
@@ -133,6 +165,11 @@ test('аварийная передача: история первого кур�
     assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM route_transfer_events WHERE source_route_id = ANY($1::int[]) AND length(btrim(handoff_location)) > 0", [routeIds])).rows[0].n >= 2, true,
         'каждая передача записана в журнал');
 
+    for (const stop of finalRoute.stops) {
+        assert.equal((await db.markRouteHandoffStopReceived(finalRoute.id, stop.id, { expectedCourierId: courierC.id })).status, 'received');
+    }
+    assert.equal((await db.confirmRouteHandoff(finalRoute.id, { expectedCourierId: courierC.id })).status, 'confirmed',
+        'повторно назначенный третий курьер тоже подтверждает получение');
     for (const stop of finalRoute.stops) {
         assert.equal((await db.acceptRouteStop(finalRoute.id, stop.id, { expectedCourierId: courierC.id })).status, 'accepted');
     }

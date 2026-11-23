@@ -544,8 +544,10 @@ bot.on('callback_query', async (query) => {
     console.log('[CALLBACK] Получено действие курьера');
 
     // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
-    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'reportroute_', 'routeissue_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
+    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'reportroute_', 'routeissue_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_', 'handoffitem_', 'handoffconfirm_'];
     const routeOnlyMatch = /^(showroute|startroute|optimizeroute|reportroute)_(\d{1,15})$/.exec(data);
+    const handoffItemMatch = /^handoffitem_(\d{1,15})_(\d{1,15})$/.exec(data);
+    const handoffConfirmMatch = /^handoffconfirm_(\d{1,15})$/.exec(data);
     const routeIssueMatch = /^routeissue_(\d{1,15})_(breakdown|fuel|accident|other)$/.exec(data);
     const deliveryFlowMatch = /^deliver_(\d{1,15})_(\d{1,15})_(accept|enroute|arrived|done)$/.exec(data);
     const legacyStopMatch = /^(delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})$/.exec(data);
@@ -553,19 +555,22 @@ bot.on('callback_query', async (query) => {
     const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
     const validFailureReason = failureReasonMatch &&
         (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]) || Object.values(REASONS).includes(failureReasonMatch[3]));
-    if (isRouteAction && !routeOnlyMatch && !routeIssueMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
+    if (isRouteAction && !routeOnlyMatch && !routeIssueMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason && !handoffItemMatch && !handoffConfirmMatch) {
         bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
         return;
     }
-    if (routeOnlyMatch || routeIssueMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
+    if (routeOnlyMatch || routeIssueMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason || handoffItemMatch || handoffConfirmMatch) {
         const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
             : routeIssueMatch ? routeIssueMatch[1]
                 : failureReasonMatch ? failureReasonMatch[1]
-                    : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
-        const hasStop = !!(deliveryFlowMatch || legacyStopMatch || failureReasonMatch);
+                    : deliveryFlowMatch ? deliveryFlowMatch[1]
+                        : handoffItemMatch ? handoffItemMatch[1]
+                            : handoffConfirmMatch ? handoffConfirmMatch[1] : legacyStopMatch[2]);
+        const hasStop = !!(deliveryFlowMatch || legacyStopMatch || failureReasonMatch || handoffItemMatch);
         const sId = hasStop
             ? Number(failureReasonMatch ? failureReasonMatch[2]
-                : deliveryFlowMatch ? deliveryFlowMatch[2] : legacyStopMatch[3])
+                : deliveryFlowMatch ? deliveryFlowMatch[2]
+                    : handoffItemMatch ? handoffItemMatch[2] : legacyStopMatch[3])
             : null;
         if (!Number.isSafeInteger(rId) || rId <= 0 || (hasStop && (!Number.isSafeInteger(sId) || sId <= 0))) {
             bot.answerCallbackQuery(query.id, { text: 'Некорректный номер маршрута или остановки', show_alert: true }).catch(() => {});
@@ -603,6 +608,55 @@ bot.on('callback_query', async (query) => {
             bot.answerCallbackQuery(query.id, { text: 'Сначала необходимо начать весь маршрут', show_alert: true }).catch(() => {});
             return;
         }
+    }
+
+    if (handoffItemMatch) {
+        const routeId = Number(handoffItemMatch[1]), stopId = Number(handoffItemMatch[2]);
+        const courier = await db.getCourierByTelegramId(query.from.id);
+        const result = await db.markRouteHandoffStopReceived(routeId, stopId, { expectedCourierId: courier.id });
+        if (!['received', 'already'].includes(result.status)) {
+            bot.answerCallbackQuery(query.id, { text: result.status === 'already_confirmed'
+                ? 'Сверка уже подтверждена' : 'Не удалось отметить получение: ' + result.status, show_alert: true }).catch(() => {});
+            return;
+        }
+        const remainingButtons = (query.message.reply_markup?.inline_keyboard || [])
+            .filter(row => !row.some(button => button.callback_data === data));
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: remainingButtons }, { chat_id: chatId, message_id: query.message.message_id }); }
+        catch (e) { console.error('[HANDOFF] Не удалось обновить карточку отправления:', errorCode(e)); }
+        bot.answerCallbackQuery(query.id, {
+            text: `Получено отправлений: ${result.received} из ${result.total}`
+        }).catch(() => {});
+        return;
+    }
+
+    if (handoffConfirmMatch) {
+        const routeId = Number(handoffConfirmMatch[1]);
+        const courier = await db.getCourierByTelegramId(query.from.id);
+        const result = await db.confirmRouteHandoff(routeId, { expectedCourierId: courier.id });
+        if (result.status === 'incomplete') {
+            bot.answerCallbackQuery(query.id, {
+                text: `Сверены не все отправления: ${result.received} из ${result.total}`,
+                show_alert: true
+            }).catch(() => {});
+            return;
+        }
+        if (!['confirmed', 'already'].includes(result.status)) {
+            bot.answerCallbackQuery(query.id, { text: 'Не удалось подтвердить получение: ' + result.status, show_alert: true }).catch(() => {});
+            return;
+        }
+        const remainingButtons = (query.message.reply_markup?.inline_keyboard || [])
+            .filter(row => !row.some(button => button.callback_data === data));
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: remainingButtons }, { chat_id: chatId, message_id: query.message.message_id }); }
+        catch (e) { console.error('[HANDOFF] Не удалось обновить маршрутный лист:', errorCode(e)); }
+        await bot.sendMessage(chatId,
+            `Сверка завершена: получено ${result.received} из ${result.total} отправлений. Теперь можно принимать заказы и начинать маршрут.`);
+        const confirmedRoute = await db.getRouteById(routeId).catch(() => null);
+        await notifyAdmin(
+            `[ПЕРЕДАЧА] ${escapeHtml(confirmedRoute?.route_number || routeId)}: курьер ${escapeHtml(courier.name || '')} подтвердил получение всех ${result.total} отправлений.`,
+            null, `route-handoff-confirmed:${routeId}`, null, true
+        ).catch(e => console.error('[HANDOFF] Не удалось уведомить диспетчера:', errorCode(e)));
+        bot.answerCallbackQuery(query.id, { text: 'Получение всех отправлений подтверждено' }).catch(() => {});
+        return;
     }
 
     if (data.startsWith('reportroute_')) {
@@ -756,6 +810,10 @@ async function handleStartRoute(chatId, routeId, user) {
             });
         }
     });
+    if (started.status === 'handoff_required') {
+        bot.sendMessage(chatId, 'Сначала сверьте все отправления и подтвердите их получение. Начать маршрут пока нельзя.');
+        return;
+    }
     if (started.status === 'not_ready') {
         bot.sendMessage(chatId, `Сначала примите все заказы маршрута. Осталось принять: ${started.waiting}.`);
         return;
@@ -857,7 +915,10 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             }
         });
         if (!['accepted', 'already'].includes(accepted.status)) {
-            bot.answerCallbackQuery(query.id, { text: 'Не удалось принять заказ: ' + accepted.status, show_alert: true }).catch(() => {});
+            const message = accepted.status === 'handoff_required'
+                ? 'Сначала получите и сверьте все отправления, затем подтвердите получение.'
+                : 'Не удалось принять заказ: ' + accepted.status;
+            bot.answerCallbackQuery(query.id, { text: message, show_alert: true }).catch(() => {});
             return;
         }
         // До общего старта маршрута у принятого заказа не должно быть кнопки «У клиента».
