@@ -365,7 +365,6 @@ if (bot) {
         );
         courierConversations.set(chatId, msg.from.id, 'car', { courierId: courier.id });
     });
-}
 
 // ====== /start — Регистрация ======
 if (bot) {
