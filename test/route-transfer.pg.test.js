@@ -61,6 +61,7 @@ test('аварийная передача: история первого кур�
 
     const initial = await svc.buildRoute({ orderIds: orders.map(o => o.id), courier: courierA });
     routeIds.push(initial.route.id);
+    await pool.query('UPDATE route_stops SET lat = 59.93 + stop_number * 0.01, lon = 30.33 + stop_number * 0.01 WHERE route_id = $1', [initial.route.id]);
     const originalStops = (await db.getRouteById(initial.route.id)).stops;
     for (const stop of originalStops) {
         assert.equal((await db.acceptRouteStop(initial.route.id, stop.id, { expectedCourierId: courierA.id })).status, 'accepted');
