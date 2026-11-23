@@ -488,14 +488,37 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Зафиксировать сообщение курьера о проблеме и месте фактической передачи.
+    async recordRouteTransferRequest(routeId, expectedCourierId, reason, handoffLocation) {
+        const rid = Number(routeId), cid = Number(expectedCourierId);
+        const allowed = ['breakdown', 'fuel', 'accident', 'other'];
+        const location = typeof handoffLocation === 'string' ? handoffLocation.trim().slice(0, 500) : '';
+        if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(cid) || cid <= 0 || !allowed.includes(reason) || !location) return { status: 'invalid' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const route = await client.query('SELECT id, courier_id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            if (Number(route.rows[0].courier_id) !== cid) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
+            if (!['assigned', 'in_progress'].includes(route.rows[0].status)) { await client.query('ROLLBACK'); return { status: 'route_not_transferable' }; }
+            const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [cid]);
+            if (!courier.rowCount) { await client.query('ROLLBACK'); return { status: 'courier_inactive' }; }
+            const remaining = await client.query("SELECT 1 FROM route_stops WHERE route_id = $1 AND status IN ('pending','accepted','in_progress') LIMIT 1", [rid]);
+            if (!remaining.rowCount) { await client.query('ROLLBACK'); return { status: 'nothing_to_transfer' }; }
+            await client.query('UPDATE delivery_routes SET transfer_requested_at = NOW(), transfer_request_reason = $2, transfer_handoff_location = $3 WHERE id = $1', [rid, reason, location]);
+            await client.query('COMMIT');
+            return { status: 'requested' };
+        } catch (e) { await client.query('ROLLBACK').catch(() => {}); throw e; }
+        finally { client.release(); }
+    }
     // Атомарная аварийная передача незавершённых остановок другому активному курьеру.
     // Статус заказа не сбрасывается: маршрут уже отправлен.
-    async transferRemainingRoute({ sourceRouteId, expectedSourceCourierId, targetCourierId, routeNumber, routeDate, reason, orderedStopIds = null, actorLogin = null, afterTransfer = null }) {
+    async transferRemainingRoute({ sourceRouteId, expectedSourceCourierId, targetCourierId, routeNumber, routeDate, reason, handoffLocation, orderedStopIds = null, actorLogin = null, afterTransfer = null }) {
         const sourceId = Number(sourceRouteId), sourceCourierId = Number(expectedSourceCourierId), targetId = Number(targetCourierId);
         const allowedReasons = ['breakdown', 'fuel', 'accident', 'other'];
         if (!Number.isSafeInteger(sourceId) || sourceId <= 0 || !Number.isSafeInteger(sourceCourierId) || sourceCourierId <= 0 ||
             !Number.isSafeInteger(targetId) || targetId <= 0 || sourceCourierId === targetId ||
-            typeof routeNumber !== 'string' || !/^TR-[A-Z0-9-]{5,13}$/.test(routeNumber) || !routeDate || !allowedReasons.includes(reason)) return { status: 'invalid' };
+            typeof routeNumber !== 'string' || !/^TR-[A-Z0-9-]{5,13}$/.test(routeNumber) || !routeDate || !allowedReasons.includes(reason) || typeof handoffLocation !== 'string' || !handoffLocation.trim() || handoffLocation.trim().length > 500) return { status: 'invalid' };
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
@@ -552,8 +575,8 @@ class DBAdapter {
                 [old.id, stopMap.get(Number(old.id)), sourceId]);
             await client.query(`UPDATE delivery_routes SET status = 'transferred', transferred_at = NOW(), transferred_to_route_id = $2, transfer_reason = $3 WHERE id = $1`,
                 [sourceId, newRoute.id, reason]);
-            await client.query(`INSERT INTO route_transfer_events (source_route_id, target_route_id, source_courier_id, target_courier_id, reason, transferred_stops, actor_login) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-                [sourceId, newRoute.id, sourceCourierId, targetId, reason, newStops.length, typeof actorLogin === 'string' ? actorLogin.slice(0, 100) : null]);
+            await client.query(`INSERT INTO route_transfer_events (source_route_id, target_route_id, source_courier_id, target_courier_id, reason, transferred_stops, handoff_location, actor_login) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                [sourceId, newRoute.id, sourceCourierId, targetId, reason, newStops.length, handoffLocation.trim().slice(0, 500), typeof actorLogin === 'string' ? actorLogin.slice(0, 100) : null]);
             if (typeof afterTransfer === 'function') await afterTransfer({ client, sourceRoute, route: newRoute, stops: newStops, sourceCourierId, sourceCourier: oldCourier.rows[0], targetCourier: targetCourier.rows[0], transferredCount: newStops.length, reason });
             await client.query('COMMIT');
             return { status: 'transferred', sourceRouteId: sourceId, route: { ...newRoute, stops: newStops }, sourceCourierId, targetCourier: targetCourier.rows[0], transferredCount: newStops.length };
