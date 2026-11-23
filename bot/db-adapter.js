@@ -712,7 +712,7 @@ class DBAdapter {
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             const r = route.rows[0];
             if (String(r.courier_id) !== String(cid)) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
-            if (!r.transferred_from_route_id) { await client.query('ROLLBACK'); return { status: 'not_required' }; }
+            if (!r.handoff_required) { await client.query('ROLLBACK'); return { status: 'not_required' }; }
             if (r.handoff_confirmed_at) { await client.query('COMMIT'); return { status: 'already' }; }
             if (r.status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
             const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [cid]);
