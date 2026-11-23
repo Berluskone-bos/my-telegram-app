@@ -104,6 +104,8 @@ test('аварийная передача: история первого кур�
     assert.ok(newRoute.stops.every(s => s.status === 'pending'));
     assert.equal(queueMessages.filter(m => m.bot === 'courier' && m.chat === String(courierB.telegram_id)).length, 3,
         'второму курьеру поставлены маршрутный лист и две карточки заказов');
+    assert.ok(queueMessages.some(m => m.chat === String(courierB.telegram_id) && m.text.includes('Площадка у Тестовой улицы, 1')),
+        'маршрутный лист содержит точное место получения отправлений');
     const statuses = await pool.query('SELECT status FROM orders WHERE id = ANY($1::int[]) ORDER BY id', [orders.map(o => o.id)]);
     assert.equal(statuses.rows.filter(x => x.status === 'COMPLETED').length, 1);
     assert.equal(statuses.rows.filter(x => x.status === 'SHIPPING').length, 2,
@@ -126,7 +128,9 @@ test('аварийная передача: история первого кур�
     assert.ok(finalRoute.stops.every(s => s.status === 'pending'));
     assert.equal(queueMessages.filter(m => m.bot === 'courier' && m.chat === String(courierC.telegram_id)).length, 3,
         'третьему курьеру также отправлены маршрутный лист и карточки заказов');
-    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM route_transfer_events WHERE source_route_id = ANY($1::int[])', [routeIds])).rows[0].n >= 2, true,
+    assert.ok(queueMessages.some(m => m.chat === String(courierC.telegram_id) && m.text.includes('АЗС на перекрёстке')),
+        'место повторной передачи также попадает в новый маршрутный лист');
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM route_transfer_events WHERE source_route_id = ANY($1::int[]) AND length(btrim(handoff_location)) > 0", [routeIds])).rows[0].n >= 2, true,
         'каждая передача записана в журнал');
 
     for (const stop of finalRoute.stops) {
