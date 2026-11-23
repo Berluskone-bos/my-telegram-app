@@ -166,8 +166,8 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\n');
                 const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
                     `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\n\n${stopTextList}`;
-                const ll = sequence.map(s => ({ lat: s.lat, lon: s.lon }));
-                const nav = sequence.some(s => s.lat && s.lon) ? MapLinks.allRoute(ll) : null;
+                const ll = sequence.filter(s => s.lat != null && s.lon != null).map(s => ({ lat: s.lat, lon: s.lon }));
+                const nav = ll.length ? MapLinks.allRoute(ll) : null;
                 const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
                 if (queue.notifyWidget && widgets.widgetsEnabled()) {
                     const card = widgets.routeSheetWidget(createdRoute.route_number, stops.map((s, i) => ({ order_number: s.order_number, address: s.address || '', status: 'pending', clock: '' })));
@@ -176,7 +176,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     await queue.notify('courier', targetCourier.telegram_id, sheet, { dedupKey: `route-sheet:${createdRoute.id}`, buttons: sheetButtons, db: client, throwOnError: true });
                 }
                 for (let i = 0; i < stops.length; i++) {
-                    const st = stops[i], old = sequence[i];
+                    const st = stops[i];
                     const text = `<b>Передача заказа ${i + 1} из ${stops.length}</b>\n\nЗаказ: ${escapeHtml(st.order_number || '')}\nАдрес: ${escapeHtml(st.address || '')}\n` +
                         `Сумма: ${Number(st.amount_to_pay || 0).toLocaleString()} руб.${st.payment_status === 'pending' ? ' (оплата на месте)' : ''}\n` +
                         (st.phone ? `Телефон: ${escapeHtml(st.phone)}\n` : '') + (st.comment ? `Комментарий: ${escapeHtml(st.comment)}\n` : '') +
