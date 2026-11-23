@@ -1207,6 +1207,11 @@ if (bot) {
                     return;
                 }
                 const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
+                const report = await db.recordRouteTransferRequest(route.id, courier.id, conversation.payload.reason, location);
+                if (report.status !== 'requested') {
+                    await bot.sendMessage(chatId, 'Не удалось зафиксировать запрос передачи: маршрут уже изменился. Обратитесь к диспетчеру.');
+                    return;
+                }
                 await notifyAdmin(
                     `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[conversation.payload.reason] || conversation.payload.reason)}\nМесто передачи: ${escapeHtml(location)}\n\nОткройте раздел «Доставка» в админ-панели и назначьте свободного курьера.`,
                     null, `route-issue:${route.id}:${conversation.payload.reason}:${Date.now()}`, null, true
@@ -1516,8 +1521,10 @@ function registerCourierRoutes(app) {
             if (!courier) return res.status(409).json({ error: 'Новый курьер не активен или не найден' });
             const sourceRoute = await db.getRouteById(routeId);
             if (!sourceRoute) return res.status(404).json({ error: 'Исходный маршрут не найден' });
+            const handoffLocation = String(req.body?.handoff_location || '').trim();
+            if (!handoffLocation || handoffLocation.length > 500) return res.status(400).json({ error: 'Укажите место получения заказов (не более 500 символов)' });
             const out = await routeSvc.transferRemainingRoute({
-                sourceRouteId: routeId, sourceCourierId: Number(sourceRoute.courier_id), targetCourier: courier, reason,
+                sourceRouteId: routeId, sourceCourierId: Number(sourceRoute.courier_id), targetCourier: courier, reason, handoffLocation,
                 actorLogin: req.admin?.login || req.admin?.username || null,
                 notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true)
             });
