@@ -10,11 +10,15 @@ const { enqueue } = require('./outbox');
 const sheetKey = (routeId) => `route-sheet:${routeId}`;
 
 // Состояние для карточки по данным из базы. activeStopId — точка, к которой курьер только что выехал (если в базе ещё не отмечена).
-async function loadSheet(db, routeId, { activeStopId = null, now = new Date() } = {}) {
+async function loadSheet(db, routeId, { expectedCourierId, activeStopId = null, now = new Date() } = {}) {
+    const rid = Number(routeId), cid = Number(expectedCourierId);
+    if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(cid) || cid <= 0) return null;
     const r = await db.query(
         `SELECT rs.id, rs.order_number, rs.address, rs.status, rs.eta_at, dr.route_number
-           FROM route_stops rs JOIN delivery_routes dr ON dr.id = rs.route_id
-          WHERE rs.route_id = $1 ORDER BY rs.stop_number`, [routeId]);
+           FROM route_stops rs
+           JOIN delivery_routes dr ON dr.id = rs.route_id AND dr.courier_id = $2
+           JOIN couriers c ON c.id = dr.courier_id AND c.is_active = TRUE AND c.archived_at IS NULL
+          WHERE rs.route_id = $1 ORDER BY rs.stop_number`, [rid, cid]);
     if (!r.rows.length) return null;
     const stops = r.rows.map(s => ({
         order_number: s.order_number, address: s.address,
