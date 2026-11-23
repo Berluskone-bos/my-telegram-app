@@ -44,3 +44,14 @@ test('список сотрудников включает все типы со�
     assert.ok(renderer.includes('data-open-workcal-date'));
     assert.ok(renderer.includes('Задачи и события сотрудников'));
 });
+
+
+test('кнопка «Открыть» раскрывает подробную карточку конкретной задачи или события', () => {
+    assert.ok(dashboard.includes('data-open-workcal-item'));
+    assert.ok(dashboard.includes('button.dataset.openWorkcalItem'));
+    assert.ok(dashboard.includes('const openedItem=workcalOpenedItemId==null?null:items.find'));
+    assert.ok(dashboard.includes('Подробности записи'));
+    assert.ok(dashboard.includes('openedItem.description'));
+    assert.ok(dashboard.includes('workcalCloseOpenedItem'));
+    assert.ok(!dashboard.includes('data-open-workcal-date'));
+});
