@@ -17,10 +17,11 @@ const { filterProductsForRole, validateStockUpdate } = require('./admin-product-
 const { requirePermission, requireOrderStatusPermission, hasPermission } = require('./admin-permissions');
 const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visibility');
 const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
-const { isPrivateCourierMessage, isPrivateCourierCallback, isSameTelegramSender } = require('./courier-chat-guard');
+const { isPrivateCourierMessage, isPrivateCourierCallback } = require('./courier-chat-guard');
 const { getCourierAccessMessage } = require('./courier-access');
 const { createConversationStore } = require('./courier-conversations');
 const courierConversations = createConversationStore({ ttlMs: 15 * 60_000 });
+const crypto = require('crypto');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -260,123 +261,43 @@ async function getActiveRoute(courierId) {
 
 // ====== /car — Изменить авто и регномер ======
 if (bot) {
-bot.onText(/\/car/, async (msg) => {
-    if (!isPrivateCourierMessage(msg)) return;
-    const chatId = msg.chat.id;
-    const courier = await requireActiveCourier(msg.from, chatId);
-    if (!courier) return;
-    bot.sendMessage(chatId,
-        `Текущий транспорт: <b>${escapeHtml(courier.vehicle_type || '—')}</b>\nРег.номер: <b>${escapeHtml(courier.license_plate || '—')}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
-        { parse_mode: 'HTML' }
-    );
-    courierConversations.set(chatId, msg.from.id, 'car', { courierId: courier.id });
-});
-
-/* Устаревший глобальный обработчик once('message') удалён. Ввод обрабатывает общий диспетчер ниже.
-    bot.once('message', async (updMsg) => {
-        if (!isPrivateCourierMessage(updMsg) || !isSameTelegramSender(updMsg, msg) || String(updMsg.chat.id) !== String(chatId) || (updMsg.text || '').startsWith('/')) return;
-        const lines = (updMsg.text || '').split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 1) {
-            bot.sendMessage(chatId, 'Нужно указать хотя бы тип транспорта. Попробуйте /car заново.');
-            return;
-        }
-        const updates = { vehicle_type: lines[0] || courier.vehicle_type };
-        if (lines[1]) updates.license_plate = lines[1];
-        const updated = await db.updateCourier(courier.id, updates, msg.from.id);
-        if (!updated) {
-            bot.sendMessage(chatId, 'Не удалось обновить профиль: аккаунт курьера отключён или данные маршрута изменились. Обратитесь к администратору.');
-            return;
-        }
-        bot.sendMessage(chatId,
-            `Обновлено!\nТранспорт: ${updated.vehicle_type || '—'}\nРег.номер: ${updated.license_plate || '—'}`,
+    bot.onText(/\/car/, async (msg) => {
+        if (!isPrivateCourierMessage(msg)) return;
+        const chatId = msg.chat.id;
+        const courier = await requireActiveCourier(msg.from, chatId);
+        if (!courier) return;
+        await bot.sendMessage(chatId,
+            `Текущий транспорт: <b>${escapeHtml(courier.vehicle_type || '—')}</b>\nРег.номер: <b>${escapeHtml(courier.license_plate || '—')}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
             { parse_mode: 'HTML' }
         );
+        courierConversations.set(chatId, msg.from.id, 'car', { courierId: courier.id });
     });
-});
-*/
+}
 
 // ====== /start — Регистрация ======
-
 if (bot) {
-bot.onText(/\/start/, async (msg) => {
-    if (!isPrivateCourierMessage(msg)) return;
-    const chatId = msg.chat.id;
-    const user = msg.from;
-    const courier = await getCourier(user);
-
-    if (courier) {
-        if (courier.archived_at) {
-            bot.sendMessage(chatId, getCourierAccessMessage(courier));
+    bot.onText(/\/start/, async (msg) => {
+        if (!isPrivateCourierMessage(msg)) return;
+        const chatId = msg.chat.id, user = msg.from;
+        const courier = await getCourier(user);
+        if (courier) {
+            if (courier.archived_at || !courier.is_active) {
+                await bot.sendMessage(chatId, getCourierAccessMessage(courier));
+                return;
+            }
+            await showMainScreen(chatId, courier);
             return;
         }
-        if (!courier.is_active) {
-            bot.sendMessage(chatId, 'Ваш аккаунт ожидает подтверждения или деактивирован. Обратитесь к администратору.');
-            return;
-        }
-        showMainScreen(chatId, courier);
-        return;
-    }
-
-    bot.sendMessage(chatId,
-        'Добро пожаловать в систему доставки АВТОПРОМОЙЛ!\n\n' +
-        'Для регистрации отправьте ваши данные в формате:\n\n' +
-        '<b>Имя Фамилия</b>\n' +
-        '<b>Телефон</b>\n' +
-        '<b>Транспорт</b> (легковая/грузовая/пешком)\n\n' +
-        'Пример:\nИванов Иван\n+79001234567\nлегковая',
-        { parse_mode: 'HTML' }
-    );
-
-    courierConversations.set(chatId, user.id, 'registration', { username: user.username || '' });
-    /* Устаревший глобальный обработчик удалён.
-    bot.once('message', async (regMsg) => {
-        if (!isPrivateCourierMessage(regMsg) || !isSameTelegramSender(regMsg, msg) || String(regMsg.chat.id) !== String(chatId)) return;
-        if (regMsg.text && regMsg.text.startsWith('/')) return;
-
-        const lines = (regMsg.text || '').split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 2) {
-            bot.sendMessage(chatId, 'Нужно указать минимум имя и телефон. Попробуйте /start заново.');
-            return;
-        }
-
-        let newCourier;
-        try {
-            newCourier = await db.createCourier({
-                name: lines[0],
-                phone: lines[1] || '',
-                telegram_id: user.id,
-                telegram_user: user.username || '',
-                vehicle_type: lines[2] || 'легковая',
-                zones: ['spb'],
-                is_active: false,   // активирует администратор после проверки
-                max_orders: 10,
-                rating: 0,
-                rating_count: 0
-            }, {
-                // Заявка курьера и уведомление администратору фиксируются атомарно.
-                afterCreate: async ({ client, courier: created }) => {
-                    const regText = `[КУРЬЕР] Заявка: ${created.name} (@${user.username || '-'})\nТел: ${created.phone}\nТранспорт: ${created.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
-                    const activationToken = crypto.randomBytes(16).toString('hex');
-                    await client.query('UPDATE couriers SET activation_token = $2 WHERE id = $1 AND is_active = FALSE AND archived_at IS NULL', [created.id, activationToken]);
-                    const activationButtons = adminBot && ADMIN_CHAT_ID
-                        ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${created.id}_${activationToken}` }]]
-                        : null;
-                    await notifyAdmin(regText, activationButtons, `courier-registration:${created.id}`, client, true);
-                }
-            });
-        } catch (e) {
-            console.error('[COURIER] registration transaction failed:', errorCode(e));
-            await bot.sendMessage(chatId, 'Не удалось отправить заявку на регистрацию. Попробуйте позже.').catch(() => {});
-            return;
-        }
-
-        bot.sendMessage(chatId,
-            `Регистрация завершена!\n\nИмя: ${newCourier.name}\nТелефон: ${newCourier.phone}\nТранспорт: ${newCourier.vehicle_type}\n\nАккаунт будет активирован администратором после проверки, затем вы получите маршрутные листы.`,
+        await bot.sendMessage(chatId,
+            'Добро пожаловать в систему доставки АВТОПРОМОЙЛ!\n\n' +
+            'Для регистрации отправьте ваши данные в формате:\n\n' +
+            '<b>Имя Фамилия</b>\n<b>Телефон</b>\n<b>Транспорт</b> (легковая/грузовая/пешком)\n\n' +
+            'Пример:\nИванов Иван\n+79001234567\nлегковая',
             { parse_mode: 'HTML' }
         );
+        courierConversations.set(chatId, user.id, 'registration', { username: user.username || '' });
     });
-    */
-});
+}
 
 // ====== Главный экран курьера ======
 
@@ -1293,46 +1214,24 @@ async function handleOptimizeRoute(chatId, routeId) {
 }
 
 // ====== Обработка фото ======
-
-bot.on('photo', async (msg) => {
-    if (!isPrivateCourierMessage(msg)) return;
-    const chatId = msg.chat.id;
-    const courier = await getActiveCourier(msg.from);
-    if (!courier) return;
-
-    const activeRoute = await getActiveRoute(courier.id);
-    if (!activeRoute) return;
-
-    const pendingStops = (activeRoute.stops || []).filter(s => s.status === 'pending');
-    if (pendingStops.length === 0) return;
-
-    const photo = msg.photo[msg.photo.length - 1];
-    const fileId = photo.file_id;
-
-    bot.sendMessage(chatId, 'Фото получено. К какому заказу привязать?\n\nОтправьте номер заказа (например: AP-000001) или нажмите /route для выбора.', { parse_mode: 'HTML' });
-
-    courierConversations.set(chatId, msg.from.id, 'photo_order', {
-        courierId: courier.id, routeId: activeRoute.id, fileId,
-        orderNumbers: pendingStops.map(s => s.order_number)
+if (bot) {
+    bot.on('photo', async (msg) => {
+        if (!isPrivateCourierMessage(msg)) return;
+        const chatId = msg.chat.id;
+        const courier = await getActiveCourier(msg.from);
+        if (!courier) return;
+        const activeRoute = await getActiveRoute(courier.id);
+        if (!activeRoute) return;
+        const pendingStops = (activeRoute.stops || []).filter(stop => stop.status === 'pending');
+        if (!pendingStops.length) return;
+        const photo = msg.photo[msg.photo.length - 1];
+        await bot.sendMessage(chatId, 'Фото получено. К какому заказу привязать?\n\nОтправьте номер заказа (например: AP-000001) или нажмите /route для отмены.');
+        courierConversations.set(chatId, msg.from.id, 'photo_order', {
+            courierId: courier.id, routeId: activeRoute.id, fileId: photo.file_id,
+            orderNumbers: pendingStops.map(stop => stop.order_number)
+        });
     });
-    /* Устаревший глобальный обработчик удалён.
-    bot.once('message', async (orderMsg) => {
-        if (!isPrivateCourierMessage(orderMsg) || !isSameTelegramSender(orderMsg, msg) || String(orderMsg.chat.id) !== String(chatId)) return;
-        const orderNum = (orderMsg.text || '').trim();
-        const stop = pendingStops.find(s => s.order_number === orderNum);
-        if (stop) {
-            const saved = await db.updateStopPhoto(activeRoute.id, stop.id, fileId, courier.id);
-            if (!saved) {
-                bot.sendMessage(chatId, 'Не удалось привязать фото: маршрут или доступ курьера изменился. Откройте /route и повторите.');
-                return;
-            }
-            bot.sendMessage(chatId, `Фото привязано к заказу ${orderNum}`);
-        } else {
-            bot.sendMessage(chatId, 'Заказ не найден. Фото сохранено, привяжите позже через /route.');
-        }
-    });
-    */
-});
+}
 
 // ====== Настройка команд ======
 
