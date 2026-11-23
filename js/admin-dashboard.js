@@ -40,7 +40,7 @@
       .workcal-month{min-width:150px;text-align:center;font-size:14px;font-weight:700}
       .workcal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:10px;gap:5px}
       .workcal-weekday{text-align:center;color:var(--muted);font-size:11px;font-weight:700;padding:8px 2px}
-      .workcal-day{min-height:94px;border:1px solid var(--border,#e7eaf0);border-radius:10px;background:var(--white,#fff);padding:7px;text-align:left;cursor:pointer;min-width:0;color:var(--text,#25282B);transition:border-color .15s,background .15s}
+      .workcal-day{position:relative;min-height:94px;border:1px solid var(--border,#e7eaf0);border-radius:10px;background:var(--white,#fff);padding:7px;text-align:left;cursor:pointer;min-width:0;color:var(--text,#25282B);transition:border-color .15s,background .15s}
       .workcal-hover{display:none;position:absolute;z-index:30;left:0;top:calc(100% + 3px);width:230px;max-width:min(230px,75vw);padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--white);box-shadow:0 12px 28px rgba(0,0,0,.18);font-size:10px;line-height:1.45;color:var(--text);white-space:normal;pointer-events:none}
       .workcal-day:hover .workcal-hover,.workcal-day:focus-visible .workcal-hover{display:grid;gap:4px}
       .workcal-hover b{font-size:11px}
