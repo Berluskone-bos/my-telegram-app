@@ -33,3 +33,14 @@ test('задача сохраняется по сроку, а событие о�
     assert.ok(dashboard.includes("const value = item.kind === 'task' ? (item.dueAt || item.startsAt) : (item.startsAt || item.dueAt)"));
     assert.ok(calendarApi.includes("CASE WHEN w.kind = 'task' THEN w.due_at ELSE COALESCE(w.starts_at, w.due_at) END"));
 });
+
+test('список сотрудников включает все типы событий, а не только задачи', () => {
+    const start = dashboard.indexOf('function renderWorkcalTasks()');
+    const end = dashboard.indexOf('async function selectWorkcalDay', start);
+    const renderer = dashboard.slice(start, end);
+    assert.ok(renderer.includes(".filter(item=>item.status!=='cancelled')"));
+    assert.ok(!renderer.includes("item.kind==='task'&&item.status!=='cancelled'"));
+    assert.ok(renderer.includes('WORKCAL_KINDS[item.kind]||item.kind'));
+    assert.ok(renderer.includes('data-open-workcal-date'));
+    assert.ok(renderer.includes('Задачи и события сотрудников'));
+});
