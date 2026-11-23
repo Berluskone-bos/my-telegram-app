@@ -271,9 +271,11 @@ async function initDB() {
                 ADD COLUMN IF NOT EXISTS transfer_reason TEXT,
                 ADD COLUMN IF NOT EXISTS transfer_requested_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS transfer_request_reason TEXT,
-                ADD COLUMN IF NOT EXISTS transfer_handoff_location TEXT;
+                ADD COLUMN IF NOT EXISTS transfer_handoff_location TEXT,
+                ADD COLUMN IF NOT EXISTS handoff_confirmed_at TIMESTAMPTZ;
             ALTER TABLE route_stops
-                ADD COLUMN IF NOT EXISTS transferred_to_stop_id INTEGER REFERENCES route_stops(id);
+                ADD COLUMN IF NOT EXISTS transferred_to_stop_id INTEGER REFERENCES route_stops(id),
+                ADD COLUMN IF NOT EXISTS handoff_received_at TIMESTAMPTZ;
             CREATE TABLE IF NOT EXISTS route_transfer_events (
                 id BIGSERIAL PRIMARY KEY,
                 source_route_id INTEGER NOT NULL REFERENCES delivery_routes(id),
