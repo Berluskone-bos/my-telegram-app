@@ -539,8 +539,9 @@ bot.on('callback_query', async (query) => {
     console.log('[CALLBACK] Получено действие курьера');
 
     // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
-    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
-    const routeOnlyMatch = /^(showroute|startroute|optimizeroute)_(\d{1,15})$/.exec(data);
+    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'reportroute_', 'routeissue_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
+    const routeOnlyMatch = /^(showroute|startroute|optimizeroute|reportroute)_(\d{1,15})$/.exec(data);
+    const routeIssueMatch = /^routeissue_(\d{1,15})_(breakdown|fuel|accident|other)$/.exec(data);
     const deliveryFlowMatch = /^deliver_(\d{1,15})_(\d{1,15})_(accept|enroute|arrived|done)$/.exec(data);
     const legacyStopMatch = /^(delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})$/.exec(data);
     const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([^_]{1,32})$/.exec(data);
@@ -624,7 +625,7 @@ bot.on('callback_query', async (query) => {
         }
         const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
         await notifyAdmin(
-            `<b>Курьер не может продолжить маршрут</b>\\nКурьер: ${escapeHtml(courier.name)}\\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\\nОсталось заказов: ${remaining}\\nПричина: ${escapeHtml(reasons[reason] || reason)}\\n\\nОткройте раздел «Доставка» в админ-панели и выполните передачу оставшихся заказов другому курьеру.`,
+            `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[reason] || reason)}\n\nОткройте раздел «Доставка» в админ-панели и выполните передачу оставшихся заказов другому курьеру.`,
             null, `route-issue:${route.id}:${reason}`, null, true
         );
         await bot.sendMessage(chatId, 'Сообщение отправлено диспетчеру. Ожидайте, пока вам сообщат о дальнейших действиях.');
