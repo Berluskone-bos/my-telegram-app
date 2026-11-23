@@ -1044,14 +1044,23 @@ class DBAdapter {
     }
 
     // Расчётное время приезда на точку; told = true — это время только что сообщили клиенту
-    async setStopEta(routeId, stopId, etaAt, told = false) {
-        const rid = Number(routeId), id = Number(stopId);
-        if (!Number.isSafeInteger(rid) || rid <= 0 || !Number.isSafeInteger(id) || id <= 0) return false;
+    async setStopEta(routeId, stopId, etaAt, told = false, expectedCourierId) {
+        const rid = Number(routeId), id = Number(stopId), cid = Number(expectedCourierId);
+        if (!Number.isSafeInteger(rid) || rid <= 0 ||
+            !Number.isSafeInteger(id) || id <= 0 ||
+            !Number.isSafeInteger(cid) || cid <= 0) return false;
         const updated = await pool.query(
-            `UPDATE route_stops SET eta_at = $2::timestamptz,
-                    eta_told_at = CASE WHEN $3::boolean THEN $2::timestamptz ELSE eta_told_at END
-              WHERE id = $1 AND route_id = $4 RETURNING id`,
-            [id, etaAt || null, !!told, rid]);
+            `UPDATE route_stops rs
+                SET eta_at = $2::timestamptz,
+                    eta_told_at = CASE WHEN $3::boolean THEN $2::timestamptz ELSE rs.eta_told_at END
+               FROM delivery_routes dr
+               JOIN couriers c ON c.id = dr.courier_id
+                              AND c.is_active = TRUE
+                              AND c.archived_at IS NULL
+              WHERE rs.id = $1 AND rs.route_id = $4
+                AND dr.id = rs.route_id AND dr.courier_id = $5
+              RETURNING rs.id`,
+            [id, etaAt || null, !!told, rid, cid]);
         return updated.rowCount > 0;
     }
 
