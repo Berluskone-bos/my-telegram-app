@@ -909,3 +909,10 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Задачи календаря группируются по сроку dueAt, события — по началу startsAt; эта же логика применяется SQL API и дневным сводкам.
 - Выходные окрашены полупрозрачным красным, все цветные маркеры событий, в том числе KPI, имеют одинаковый размер 6×6 px.
 - Добавлены статические регрессионные проверки test/workspace-calendar-ui.test.js. Production/CI ещё не подтверждены.
+
+## 23.11.2026 — production release исправлений рабочего календаря
+- PR #206 объединён в main: `b3571100944203d2304803b8c8da29ca2becf5f6`.
+- CI run #823 SUCCESS: синтаксис серверного кода, npm audit, Gitleaks и полный набор из 176 тестов (0 ошибок).
+- Railway production deployment `1815b33d-9d6e-4565-ad5d-35c49ae99564` SUCCESS; `gulf-bot` online 1/1, Postgres online, 0 crashes, 0 warnings, 0 critical issues, pendingWork пуст.
+- Startup logs подтверждают инициализацию базы данных и получение Telegram polling lock новым экземпляром.
+- Ручная браузерная проверка визуального интерфейса остаётся незакрытой; не утверждать, что она выполнена.
