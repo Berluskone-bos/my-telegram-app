@@ -626,7 +626,7 @@ bot.on('callback_query', async (query) => {
         const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
         courierConversations.set(chatId, query.from.id, 'route_issue_location', { routeId: route.id, reason });
         await bot.sendMessage(chatId,
-            'Укажите место, где второй курьер сможет забрать заказы.\\n\\nОтправьте геопозицию через скрепку → «Геопозиция» или напишите точный адрес/ориентир. Не отправляйте геопозицию текущего клиента, если вы находитесь не там.');
+            'Укажите место, где второй курьер сможет забрать заказы.\n\nОтправьте геопозицию через скрепку → «Геопозиция» или напишите точный адрес/ориентир. Не отправляйте геопозицию текущего клиента, если вы находитесь не там.');
         bot.answerCallbackQuery(query.id, { text: 'Ожидаю место передачи' }).catch(() => {});
         return;
     }
@@ -1200,7 +1200,7 @@ if (bot) {
                 const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
                 const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
                 await notifyAdmin(
-                    `<b>Курьер не может продолжить маршрут</b>\\nКурьер: ${escapeHtml(courier.name)}\\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\\nОсталось заказов: ${remaining}\\nПричина: ${escapeHtml(reasons[conversation.payload.reason] || conversation.payload.reason)}\\nМесто передачи: ${escapeHtml(location)}\\n\\nОткройте раздел «Доставка» в админ-панели и назначьте свободного курьера.`,
+                    `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[conversation.payload.reason] || conversation.payload.reason)}\nМесто передачи: ${escapeHtml(location)}\n\nОткройте раздел «Доставка» в админ-панели и назначьте свободного курьера.`,
                     null, `route-issue:${route.id}:${conversation.payload.reason}:${Date.now()}`, null, true
                 );
                 await bot.sendMessage(chatId, 'Диспетчер уведомлён и получил место передачи. Ожидайте подтверждения.');
