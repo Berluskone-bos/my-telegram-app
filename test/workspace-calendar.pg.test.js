@@ -133,7 +133,9 @@ test('рабочий календарь: задачи видны назначе�
     assert.equal(operatorData.items.some(item => item.id === warehouseTask.id), false,
         'employee must not see another employee private task');
     const orderDay = operatorData.days.find(day => day.orders > 0);
-    if (orderDay) assert.equal(orderDay.revenue, null, 'operator must not receive sales totals');
+    assert.ok(orderDay);
+    assert.equal(typeof orderDay.stockMovements, 'number', 'daily stock indicators must be present');
+    assert.equal(orderDay.revenue, null, 'operator must not receive sales totals');
 
     const managerData = await (await request(path, manager.cookie)).json();
     assert.ok(managerData.items.some(item => item.id === operatorTask.id));
