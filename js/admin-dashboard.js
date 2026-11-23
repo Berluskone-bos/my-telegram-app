@@ -41,6 +41,11 @@
       .workcal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:10px;gap:5px}
       .workcal-weekday{text-align:center;color:var(--muted);font-size:11px;font-weight:700;padding:8px 2px}
       .workcal-day{min-height:94px;border:1px solid var(--border,#e7eaf0);border-radius:10px;background:var(--white,#fff);padding:7px;text-align:left;cursor:pointer;min-width:0;color:var(--text,#25282B);transition:border-color .15s,background .15s}
+      .workcal-hover{display:none;position:absolute;z-index:30;left:0;top:calc(100% + 3px);width:230px;max-width:min(230px,75vw);padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--white);box-shadow:0 12px 28px rgba(0,0,0,.18);font-size:10px;line-height:1.45;color:var(--text);white-space:normal;pointer-events:none}
+      .workcal-day:hover .workcal-hover,.workcal-day:focus-visible .workcal-hover{display:grid;gap:4px}
+      .workcal-hover b{font-size:11px}
+      .workcal-hover-line{overflow-wrap:anywhere}
+
       .workcal-day:hover{border-color:#00AFC7;background:rgba(0,175,199,.045)}
       .workcal-day.other{opacity:.38}.workcal-day.today{border-color:#00AFC7;box-shadow:inset 0 0 0 1px #00AFC7}
       .workcal-day.selected{background:rgba(0,175,199,.09);border-color:#00AFC7}
@@ -236,10 +241,12 @@
             const items=itemMap.get(key)||[];
             const taskCount=items.filter(x=>x.kind==='task'&&x.status!=='cancelled').length;
             const eventCount=items.filter(x=>x.kind!=='task'&&x.status!=='cancelled').length;
-            const tooltip=[(summary.orders||0)+' заказов',(summary.revenue==null?'Выручка скрыта':workcalFmtMoney(summary.revenue)),'Задач: '+taskCount,'Событий: '+eventCount].join(' · ');
+            const tooltip=[(summary.orders||0)+' заказов',(summary.revenue==null?'Выручка скрыта':workcalFmtMoney(summary.revenue)),'Новых: '+(summary.newOrders||0),'В доставке: '+(summary.shipping||0),'Доставлено: '+(summary.delivered||0),'Отменено: '+(summary.cancelled||0),'Задач: '+taskCount,'Событий: '+eventCount].join(' · ');
             const dots=items.filter(x=>x.status!=='cancelled').slice(0,7).map(x=>'<i class="workcal-dot '+esc(x.kind)+'"></i>').join('');
             const metrics=(summary.orders||summary.revenue!=null)?'<span>'+integer.format(summary.orders||0)+' зак.</span><span>'+(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</span>':'<span>—</span>';
-            html+='<button type="button" class="workcal-day '+(!inMonth?'other ':'')+(key===todayKey?'today ':'')+(key===workcalSelected?'selected':'')+'" data-date="'+key+'" title="'+esc(tooltip)+'" aria-label="'+esc(workcalFmtDate(key)+'. '+tooltip)+'"><span class="workcal-daynum">'+date.getDate()+'</span><span class="workcal-daymetrics">'+metrics+'<span>Задач: '+taskCount+' · Событий: '+eventCount+'</span></span><span class="workcal-dots">'+dots+'</span></button>';
+            const hoverItems=items.filter(x=>x.status!=='cancelled').slice(0,6).map(x=>'<span class="workcal-hover-line">'+esc(WORKCAL_KINDS[x.kind]||x.kind)+': '+esc(x.title)+'</span>').join('');
+            const hover='<span><b>'+esc(workcalFmtDate(key))+'</b></span><span>Заказы: '+integer.format(summary.orders||0)+' · Новые: '+integer.format(summary.newOrders||0)+'</span><span>Доставка: '+integer.format(summary.shipping||0)+' · Доставлено: '+integer.format(summary.delivered||0)+'</span><span>Отменено: '+integer.format(summary.cancelled||0)+' · Выручка: '+(summary.revenue==null?'—':esc(workcalFmtMoney(summary.revenue)))+'</span>'+(hoverItems||'<span>Задач и событий нет</span>');
+            html+='<button type="button" class="workcal-day '+(!inMonth?'other ':'')+(key===todayKey?'today ':'')+(key===workcalSelected?'selected':'')+'" data-date="'+key+'" title="'+esc(tooltip)+'" aria-label="'+esc(workcalFmtDate(key)+'. '+tooltip)+'"><span class="workcal-daynum">'+date.getDate()+'</span><span class="workcal-daymetrics">'+metrics+'<span>Задач: '+taskCount+' · Событий: '+eventCount+'</span></span><span class="workcal-dots">'+dots+'</span><span class="workcal-hover">'+hover+'</span></button>';
         }
         grid.innerHTML=html;
         grid.querySelectorAll('button[data-date]').forEach(button=>button.addEventListener('click',()=>selectWorkcalDay(button.dataset.date)));
@@ -254,7 +261,7 @@
         const completed=tasks.filter(x=>x.status==='done').length;
         const events=items.filter(x=>x.kind!=='task'&&x.status!=='cancelled');
         let html='<div class="workcal-detail-head"><div class="workcal-detail-title">'+esc(workcalFmtDate(dateKey))+'</div>'+(workcalCanManage()?'<button type="button" class="workcal-action workcal-primary" id="workcalAddTask">+ Новая задача / событие</button>':'')+'</div>';
-        html+='<div class="workcal-daystats"><span class="workcal-stat">Заказы: <b>'+integer.format(summary.orders||0)+'</b></span><span class="workcal-stat">Выручка: <b>'+esc(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</b></span><span class="workcal-stat">В доставке: <b>'+integer.format(summary.shipping||0)+'</b></span><span class="workcal-stat">Доставлено: <b>'+integer.format(summary.delivered||0)+'</b></span><span class="workcal-stat">Задачи: <b>'+completed+'/'+tasks.length+'</b></span><span class="workcal-stat">События: <b>'+events.length+'</b></span></div>';
+        html+='<div class="workcal-daystats"><span class="workcal-stat">Заказы: <b>'+integer.format(summary.orders||0)+'</b></span><span class="workcal-stat">Выручка: <b>'+esc(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</b></span><span class="workcal-stat">Новые: <b>'+integer.format(summary.newOrders||0)+'</b></span><span class="workcal-stat">В доставке: <b>'+integer.format(summary.shipping||0)+'</b></span><span class="workcal-stat">Доставлено: <b>'+integer.format(summary.delivered||0)+'</b></span><span class="workcal-stat">Отменено: <b>'+integer.format(summary.cancelled||0)+'</b></span><span class="workcal-stat">Задачи: <b>'+completed+'/'+tasks.length+'</b></span><span class="workcal-stat">События: <b>'+events.length+'</b></span></div>';
         if(!items.length)html+='<div class="workcal-empty">На этот день пока нет задач и событий.</div>';
         else html+='<div class="workcal-items">'+items.map(item=>{
             const isTask=item.kind==='task';
