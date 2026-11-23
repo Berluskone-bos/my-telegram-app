@@ -490,7 +490,7 @@ class DBAdapter {
 
     // Атомарная аварийная передача незавершённых остановок другому активному курьеру.
     // Статус заказа не сбрасывается: маршрут уже отправлен.
-    async transferRemainingRoute({ sourceRouteId, expectedSourceCourierId, targetCourierId, routeNumber, routeDate, reason, actorLogin = null, afterTransfer = null }) {
+    async transferRemainingRoute({ sourceRouteId, expectedSourceCourierId, targetCourierId, routeNumber, routeDate, reason, orderedStopIds = null, actorLogin = null, afterTransfer = null }) {
         const sourceId = Number(sourceRouteId), sourceCourierId = Number(expectedSourceCourierId), targetId = Number(targetCourierId);
         const allowedReasons = ['breakdown', 'fuel', 'accident', 'other'];
         if (!Number.isSafeInteger(sourceId) || sourceId <= 0 || !Number.isSafeInteger(sourceCourierId) || sourceCourierId <= 0 ||
@@ -513,8 +513,20 @@ class DBAdapter {
             const targetCourier = await client.query('SELECT * FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR UPDATE', [targetId]);
             if (!targetCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'target_courier_inactive' }; }
             const lockedStops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number, id FOR UPDATE', [sourceId]);
-            const remaining = lockedStops.rows.filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
+            let remaining = lockedStops.rows.filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
             if (!remaining.length) { await client.query('ROLLBACK'); return { status: 'nothing_to_transfer' }; }
+            if (orderedStopIds != null) {
+                const requestedOrder = orderedStopIds.map(Number);
+                const currentIds = remaining.map(s => Number(s.id));
+                if (!Array.isArray(orderedStopIds) || requestedOrder.length !== currentIds.length ||
+                    new Set(requestedOrder).size !== requestedOrder.length ||
+                    requestedOrder.some(id => !currentIds.includes(id))) {
+                    await client.query('ROLLBACK');
+                    return { status: 'invalid_stop_order' };
+                }
+                const byId = new Map(remaining.map(s => [Number(s.id), s]));
+                remaining = requestedOrder.map(id => byId.get(id));
+            }
             const expectedOrderStatus = sourceRoute.status === 'in_progress' ? 'SHIPPING' : 'READY_FOR_SHIPMENT';
             const ids = [...new Set(remaining.map(s => String(s.order_id || '')).filter(x => /^\d+$/.test(x)))];
             if (ids.length !== remaining.length) { await client.query('ROLLBACK'); return { status: 'invalid_order_reference' }; }
