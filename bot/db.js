@@ -272,6 +272,7 @@ async function initDB() {
                 ADD COLUMN IF NOT EXISTS transfer_requested_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS transfer_request_reason TEXT,
                 ADD COLUMN IF NOT EXISTS transfer_handoff_location TEXT,
+                ADD COLUMN IF NOT EXISTS handoff_required BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS handoff_confirmed_at TIMESTAMPTZ;
             ALTER TABLE route_stops
                 ADD COLUMN IF NOT EXISTS transferred_to_stop_id INTEGER REFERENCES route_stops(id),
