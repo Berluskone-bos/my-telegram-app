@@ -115,7 +115,7 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
         const canManage = hasPermission(req.admin && req.admin.role, 'workspace.manage');
         const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
         try {
-            const [orders, items, stock] = await Promise.all([
+            const [orders, stock, items] = await Promise.all([
                 pool.query(
                     `SELECT TO_CHAR((o.created_at AT TIME ZONE 'Europe/Moscow')::date, 'YYYY-MM-DD') AS day,
                             COUNT(*)::int AS orders,
