@@ -166,7 +166,7 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
         assert.equal(deniedTransfer.status, 403, role + ' cannot transfer a route without routes.manage');
     }
     const operatorTransferConflict = await request('/api/routes/' + testRouteId + '/transfer', roleCookies.operator, {
-        method: 'POST', body: { courier_id: testCourierId, reason: 'breakdown' }
+        method: 'POST', body: { courier_id: testCourierId, reason: 'breakdown', handoff_location: 'Тестовое место передачи' }
     });
     assert.equal(operatorTransferConflict.status, 409, 'operator with routes.manage reaches the handler but cannot assign the route back to its current courier');
     assert.equal((await pool.query('SELECT status FROM delivery_routes WHERE id = $1', [testRouteId])).rows[0].status, 'assigned',
