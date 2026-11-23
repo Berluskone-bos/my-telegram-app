@@ -282,7 +282,32 @@ if (bot) {
         const courier = await getCourier(user);
         if (courier) {
             if (courier.archived_at || !courier.is_active) {
-                await bot.sendMessage(chatId, getCourierAccessMessage(courier));
+                try {
+                    const requested = await db.requestCourierReactivation(user.id, crypto.randomBytes(16).toString('hex'));
+                    if (!requested) {
+                        await bot.sendMessage(chatId, 'Не удалось создать заявку на восстановление доступа. Обратитесь к администратору.');
+                        return;
+                    }
+                    if (requested.status === 'active') {
+                        await showMainScreen(chatId, requested.courier);
+                        return;
+                    }
+                    const pending = requested.courier;
+                    const activationButtons = adminBot && ADMIN_CHAT_ID
+                        ? [[{ text: 'Подтвердить восстановление курьера', callback_data: `activate_courier_${pending.id}_${pending.activation_token}` }]]
+                        : null;
+                    await notifyAdmin(
+                        `[КУРЬЕР] Запрос на восстановление доступа: ${escapeHtml(pending.name)} (@${escapeHtml(pending.telegram_user || '-')})\nТел: ${escapeHtml(pending.phone || '—')}\nСтатус записи: ${pending.archived_at ? 'архивная' : 'деактивирована'}\nТребуется подтверждение администратора.`,
+                        activationButtons,
+                        `courier-reactivation:${pending.id}:${pending.activation_token}`,
+                        null,
+                        true
+                    );
+                    await bot.sendMessage(chatId, 'Запрос на восстановление доступа отправлен администратору. Доступ к маршрутам откроется после подтверждения.');
+                } catch (e) {
+                    console.error('[COURIER] reactivation request failed:', errorCode(e));
+                    await bot.sendMessage(chatId, 'Не удалось отправить запрос на восстановление. Попробуйте позже.');
+                }
                 return;
             }
             await showMainScreen(chatId, courier);
@@ -1346,7 +1371,13 @@ function registerCourierRoutes(app) {
     app.get('/api/admin/couriers', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
         try {
             res.set('Cache-Control', 'no-store');
-            res.json(await db.getCouriers());
+            const rows = await db.getCouriers();
+            // Не отдаём в браузер activation_token, Telegram ID и внутренние поля.
+            res.json(rows.map(c => ({
+                id: c.id, name: c.name, phone: c.phone, telegram_user: c.telegram_user,
+                vehicle_type: c.vehicle_type, is_active: c.is_active,
+                archived_at: c.archived_at, activation_requested: !!c.activation_token
+            })));
         } catch (e) {
             console.error('[API /admin/couriers]', errorCode(e));
             res.status(500).json({ error: 'Не удалось загрузить курьеров' });
@@ -1369,6 +1400,22 @@ function registerCourierRoutes(app) {
             if (e.code === 'COURIER_HAS_ACTIVE_ROUTE') return res.status(409).json({ error: e.message });
             console.error('[API PATCH /admin/couriers]', errorCode(e));
             res.status(500).json({ error: 'Не удалось изменить доступ курьера' });
+        }
+    });
+
+    app.post('/api/admin/couriers/:id/reactivate', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        try {
+            const courier = await db.approveCourierReactivation(id);
+            if (!courier) return res.status(409).json({ error: 'Нет ожидающей заявки на восстановление или она уже обработана' });
+            res.set('Cache-Control', 'no-store');
+            return res.json({ success: true, courier: { id: courier.id, is_active: courier.is_active, archived_at: courier.archived_at } });
+        } catch (e) {
+            console.error('[API POST /admin/couriers/reactivate]', errorCode(e));
+            return res.status(500).json({ error: 'Не удалось восстановить доступ курьера' });
         }
     });
 

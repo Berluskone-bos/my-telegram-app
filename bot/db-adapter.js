@@ -170,7 +170,7 @@ class DBAdapter {
                     throw error;
                 }
             }
-            const updated = await client.query('UPDATE couriers SET is_active = $2, activation_token = CASE WHEN $2 = FALSE THEN NULL ELSE activation_token END WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
+            const updated = await client.query('UPDATE couriers SET is_active = $2, activation_token = NULL WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
             await client.query('COMMIT');
             return updated.rows[0] || null;
         } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
@@ -203,12 +203,70 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Курьер повторно запрашивает доступ. Telegram ID берётся только из msg.from.id;
+    // токен создаёт сервер, а повторный /start возвращает уже ожидающую заявку.
+    async requestCourierReactivation(telegramId, token) {
+        const tgId = String(telegramId == null ? '' : telegramId);
+        if (!/^[0-9]{1,20}$/.test(tgId) || typeof token !== 'string' || !/^[a-f0-9]{32}$/.test(token)) return null;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const found = await client.query('SELECT * FROM couriers WHERE telegram_id = $1::bigint FOR UPDATE', [tgId]);
+            if (!found.rowCount) { await client.query('ROLLBACK'); return null; }
+            const current = found.rows[0];
+            if (current.is_active && !current.archived_at) {
+                await client.query('COMMIT');
+                return { status: 'active', courier: current };
+            }
+            let courier = current;
+            if (!current.activation_token) {
+                const updated = await client.query(
+                    'UPDATE couriers SET activation_token = $2 WHERE id = $1 AND is_active = FALSE RETURNING *',
+                    [current.id, token]
+                );
+                if (!updated.rowCount) { await client.query('ROLLBACK'); return null; }
+                courier = updated.rows[0];
+            }
+            await client.query('COMMIT');
+            return { status: 'pending', courier };
+        } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally { client.release(); }
+    }
+
+    // Подтверждение из админ-панели: восстанавливает архивную запись только при наличии
+    // действующей заявки; блокировка строки исключает гонку с повторным запросом/отменой.
+    async approveCourierReactivation(courierId) {
+        const id = Number(courierId);
+        if (!Number.isSafeInteger(id) || id <= 0) return null;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const found = await client.query(
+                'SELECT id FROM couriers WHERE id = $1 AND is_active = FALSE AND activation_token IS NOT NULL FOR UPDATE',
+                [id]
+            );
+            if (!found.rowCount) { await client.query('ROLLBACK'); return null; }
+            const updated = await client.query(
+                'UPDATE couriers SET is_active = TRUE, archived_at = NULL, activation_token = NULL WHERE id = $1 AND is_active = FALSE AND activation_token IS NOT NULL RETURNING *',
+                [id]
+            );
+            if (!updated.rowCount) { await client.query('ROLLBACK'); return null; }
+            await client.query('COMMIT');
+            return updated.rows[0];
+        } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally { client.release(); }
+    }
+
     async activateCourier(courierId, token) {
         const id = Number(courierId);
         if (!Number.isSafeInteger(id) || id <= 0 || typeof token !== 'string' || !/^[a-f0-9]{32}$/.test(token)) return null;
         const result = await pool.query(
-            `UPDATE couriers SET is_active = TRUE, activation_token = NULL
-              WHERE id = $1 AND activation_token = $2 AND is_active = FALSE AND archived_at IS NULL
+            `UPDATE couriers SET is_active = TRUE, archived_at = NULL, activation_token = NULL
+              WHERE id = $1 AND activation_token = $2 AND is_active = FALSE
               RETURNING *`, [id, token]);
         return result.rows[0] || null;
     }
