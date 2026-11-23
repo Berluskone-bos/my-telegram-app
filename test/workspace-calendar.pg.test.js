@@ -120,9 +120,7 @@ test('рабочий календарь: задачи видны назначе�
     });
     orderId = createdOrder.id;
 
-    const month = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit'
-    }).format(now);
+    const month = (await pool.query("SELECT TO_CHAR(NOW() AT TIME ZONE 'Europe/Moscow', 'YYYY-MM') AS month")).rows[0].month;
     const path = '/api/admin/workspace/calendar?month=' + month;
     const operatorCalendar = await request(path, operator.cookie);
     assert.equal(operatorCalendar.status, 200);
