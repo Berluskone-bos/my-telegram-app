@@ -816,3 +816,11 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - PR #190 merged в main: `250e59ae1f3f72a82ae5ad9d3ab3bafd6678ec00`. Railway production deployment `8fce482e-6914-485b-ac9b-bf4284e4fe91` — SUCCESS; `gulf-bot` live.
 - Следующий проход: `route-service.refreshEtas` теперь должен читать маршрут через `getRouteByIdForCourier`, а `setStopEta` — проверять маршрут, активного курьера и владельца в SQL. Все production callback передают courier ID из проверенной сессии; добавлены PostgreSQL-регрессии на чужой courier ID и отказ чтения/записи. Изменения в ветке, проверки ещё ожидаются.
 - Полный IDOR/BOLA аудит не закрыт.
+
+
+## 23.11.2026 — PR #191 и проверка служебных SQL helpers
+- PR #191 закрыл неограниченный ETA helper: `refreshEtas` загружает маршрут через `getRouteByIdForCourier`; `setStopEta` в SQL требует совпадения маршрута и владельца, а также активного/неархивного курьера.
+- CI run #721 — SUCCESS (синтаксис, npm audit high/critical, Gitleaks, PostgreSQL integration tests). PR #191 merged: `fa8e81b161509cbade105e2e900546ba39f6d987`; Railway deployment `f395e1e9-e512-4d6f-9675-e4c0d6eebadc` — SUCCESS, `gulf-bot` live.
+- Дополнительно проверены SQL-записи `db.js` (системные миграции), `admin-auth.js` (staff endpoints защищены `verifyAdmin + staff.manage`, транзакциями и проверками ролей), `partsapi-cache.js` (кэш по существующему car ID, без доступа к персональным объектам). `user_garage` — таблица без production call sites. `widget_query` оценки привязан к Telegram sender/chat, конкретной активной карточке, владельцу и доставленному заказу; DB повторно валидирует оценку.
+- Новый остаточный helper: `route-sheet.loadSheet` читал остановки только по route ID; `queueRouteSheetEdit` вызывался из ETA и cancellation flows. В ветке `security/scope-route-sheet-to-courier` чтение ограничено expectedCourierId и активностью владельца в SQL; cancellation flow получает courier ID из связанного маршрута, ETA передаёт ID из проверенного callback. Добавлена PostgreSQL-регрессия на отказ чужому курьеру. PR/CI/deploy ожидают.
+- Полный IDOR/BOLA аудит остаётся открытым.
