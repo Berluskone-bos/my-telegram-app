@@ -162,7 +162,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const route = await db.transferRemainingRoute({
             sourceRouteId, expectedSourceCourierId: sourceCourierId, targetCourierId: targetCourier.id,
             routeNumber, routeDate, reason, orderedStopIds: sequence.map(s => s.id), actorLogin,
-            afterTransfer: async ({ client, route: createdRoute, stops }) => {
+            afterTransfer: async ({ client, route: createdRoute, stops, sourceCourier }) => {
                 const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\n');
                 const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
                     `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\n\n${stopTextList}`;
@@ -186,6 +186,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                     buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${createdRoute.id}_${st.id}_accept` }]);
                     await queue.notify('courier', targetCourier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id }, db: client, throwOnError: true });
                 }
+                if (sourceCourier?.telegram_id) await queue.notify('courier', sourceCourier.telegram_id,
+                    `<b>Маршрут передан другому курьеру</b>\nМаршрут: ${escapeHtml(source.route_number)}\nОставшиеся заказы переданы. Новые действия по этим заказам в старом маршрутном листе недоступны.`,
+                    { dedupKey: `route-transfer-old:${sourceRouteId}`, db: client, throwOnError: true });
                 if (notifyAdmin) await notifyAdmin(`<b>Передача маршрута завершена</b>\nСтарый маршрут: ${escapeHtml(source.route_number)}\nНовый маршрут: ${escapeHtml(createdRoute.route_number)}\nНовый курьер: ${escapeHtml(targetCourier.name)}\nПередано заказов: ${stops.length}\nПричина: ${escapeHtml(reason)}${approx}`, { db: client, dedupKey: `route-transfer:${sourceRouteId}` });
             }
         });
