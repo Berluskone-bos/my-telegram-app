@@ -32,8 +32,8 @@ test('сотрудники: индивидуальный вход, роли, о�
     const server = await new Promise(resolve => {
         const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
-    let raceServer = null;
-    t.after(async () => { server.close(); if (raceServer) raceServer.close(); await pool.end(); });
+    let raceServer = null, verifyRaceServer = null;
+    t.after(async () => { server.close(); if (raceServer) raceServer.close(); if (verifyRaceServer) verifyRaceServer.close(); await pool.end(); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const origin = 'https://127.0.0.1:' + server.address().port;
     const call = (path, { method = 'GET', body, cookie, ip = '10.10.10.1' } = {}) => fetch(base + path, {
@@ -195,8 +195,7 @@ test('сотрудники: индивидуальный вход, роли, о�
         protectedHandlerCalls++;
         res.json({ ok: true });
     });
-    const verifyRaceServer = await new Promise(resolve => { const srv = verifyRaceApp.listen(0, '127.0.0.1', () => resolve(srv)); });
-    raceServer = verifyRaceServer;
+    verifyRaceServer = await new Promise(resolve => { const srv = verifyRaceApp.listen(0, '127.0.0.1', () => resolve(srv)); });
     const verifyRaceRequest = fetch('http://127.0.0.1:' + verifyRaceServer.address().port + '/api/test/revocation-race', {
         headers: { 'x-forwarded-proto': 'https', 'cookie': ownerCookie }
     });
