@@ -19,6 +19,8 @@ const { filterOrderListItem, filterOrderDetails } = require('./admin-order-visib
 const { filterCouriersForRole, filterRoutesForRole, filterRouteForRole } = require('./admin-dispatch-visibility');
 const { isPrivateCourierMessage, isPrivateCourierCallback, isSameTelegramSender } = require('./courier-chat-guard');
 const { getCourierAccessMessage } = require('./courier-access');
+const { createConversationStore } = require('./courier-conversations');
+const courierConversations = createConversationStore({ ttlMs: 15 * 60_000 });
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -30,6 +32,7 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || (Number(ADMIN_CHAT_ID) > 0
     .split(',').map(s => s.trim()).filter(Boolean);
 function isTrustedAdmin(userId) { return userId != null && ADMIN_USER_IDS.includes(String(userId)); }
 const { escapeHtml } = require('./services/notifier');
+const crypto = require('crypto');
 const YANDEX_GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 
 function errorCode(err) {
@@ -108,13 +111,14 @@ if (process.env.ADMIN_BOT_TOKEN) {
             return;
         }
         if (data && data.startsWith('activate_courier_')) {
-            const cid = require('./courier-activation').parseCourierActivationId(data);
+            const activation = require('./courier-activation').parseCourierActivation(data);
+            const cid = activation && activation.id;
             if (cid === null) {
                 adminBot.answerCallbackQuery(query.id, { text: 'Некорректный номер курьера' });
                 return;
             }
             try {
-                const updated = await db.setCourierActive(cid, true);
+                const updated = await db.activateCourier(cid, activation.token);
                 if (!updated) {
                     adminBot.answerCallbackQuery(query.id, { text: 'Курьер не найден' });
                     return;
@@ -265,6 +269,10 @@ bot.onText(/\/car/, async (msg) => {
         `Текущий транспорт: <b>${escapeHtml(courier.vehicle_type || '—')}</b>\nРег.номер: <b>${escapeHtml(courier.license_plate || '—')}</b>\n\nОтправьте новый текст в формате:\n<b>Тип транспорта</b> (легковая/грузовая/пешком)\n<b>Рег. номер</b> (например: А 123 БВ 77)\n\nПример:\nлегковая\nА 777 ББ 97`,
         { parse_mode: 'HTML' }
     );
+    courierConversations.set(chatId, msg.from.id, 'car', { courierId: courier.id });
+});
+
+/* Устаревший глобальный обработчик once('message') удалён. Ввод обрабатывает общий диспетчер ниже.
     bot.once('message', async (updMsg) => {
         if (!isPrivateCourierMessage(updMsg) || !isSameTelegramSender(updMsg, msg) || String(updMsg.chat.id) !== String(chatId) || (updMsg.text || '').startsWith('/')) return;
         const lines = (updMsg.text || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -285,6 +293,7 @@ bot.onText(/\/car/, async (msg) => {
         );
     });
 });
+*/
 
 // ====== /start — Регистрация ======
 
@@ -318,6 +327,8 @@ bot.onText(/\/start/, async (msg) => {
         { parse_mode: 'HTML' }
     );
 
+    courierConversations.set(chatId, user.id, 'registration', { username: user.username || '' });
+    /* Устаревший глобальный обработчик удалён.
     bot.once('message', async (regMsg) => {
         if (!isPrivateCourierMessage(regMsg) || !isSameTelegramSender(regMsg, msg) || String(regMsg.chat.id) !== String(chatId)) return;
         if (regMsg.text && regMsg.text.startsWith('/')) return;
@@ -345,8 +356,10 @@ bot.onText(/\/start/, async (msg) => {
                 // Заявка курьера и уведомление администратору фиксируются атомарно.
                 afterCreate: async ({ client, courier: created }) => {
                     const regText = `[КУРЬЕР] Заявка: ${created.name} (@${user.username || '-'})\nТел: ${created.phone}\nТранспорт: ${created.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
+                    const activationToken = crypto.randomBytes(16).toString('hex');
+                    await client.query('UPDATE couriers SET activation_token = $2 WHERE id = $1 AND is_active = FALSE AND archived_at IS NULL', [created.id, activationToken]);
                     const activationButtons = adminBot && ADMIN_CHAT_ID
-                        ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${created.id}` }]]
+                        ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${created.id}_${activationToken}` }]]
                         : null;
                     await notifyAdmin(regText, activationButtons, `courier-registration:${created.id}`, client, true);
                 }
@@ -362,6 +375,7 @@ bot.onText(/\/start/, async (msg) => {
             { parse_mode: 'HTML' }
         );
     });
+    */
 });
 
 // ====== Главный экран курьера ======
@@ -1172,17 +1186,97 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         : (shown ? `Заказ №${stop.stop_number} отмечен как не доставленный.` : 'Недоставка сохранена, но карточку не удалось обновить. Откройте /route.'));
 }
 
-// Текст причины для «Другое»: принимаем следующее текстовое сообщение курьера (команды отменяют ожидание)
+// Единый диспетчер входящих сообщений. Состояние диалога привязано к паре chat_id + from.id;
+// сообщение постороннего пользователя не снимает и не потребляет чужое ожидание.
 if (bot) {
     bot.on('message', async (msg) => {
-        if (!isPrivateCourierMessage(msg)) return;
-        const p = msg && msg.chat ? pendingReasons.get(msg.chat.id) : null;
-        if (!p || !msg.text) return;
-        if (msg.text.startsWith('/') || Date.now() - p.at > 15 * 60_000) { pendingReasons.delete(msg.chat.id); return; }
-        pendingReasons.delete(msg.chat.id);
-        const text = msg.text.trim().slice(0, 300);
-        if (String(msg.from?.id || '') !== String(p.courierTelegramId || '')) return;
-        await handleDeliveryResult(p.routeId, p.stopId, 'failed', msg.chat.id, null, text === 'Другое' ? 'Другое (без пояснения)' : text, p.messageId, msg.from?.id);
+        if (!isPrivateCourierMessage(msg) || !msg.from || !msg.chat) return;
+        const chatId = msg.chat.id;
+        const telegramId = msg.from.id;
+        if (typeof msg.text === 'string' && msg.text.startsWith('/')) {
+            courierConversations.clear(chatId, telegramId);
+            pendingReasons.delete(chatId);
+            return;
+        }
+
+        const conversation = courierConversations.take(chatId, telegramId);
+        if (conversation) {
+            const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+            if (conversation.type === 'registration') {
+                const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+                if (lines.length < 2) {
+                    await bot.sendMessage(chatId, 'Нужно указать минимум имя и телефон. Отправьте данные ещё раз или начните заново командой /start.');
+                    courierConversations.set(chatId, telegramId, 'registration', conversation.payload);
+                    return;
+                }
+                try {
+                    const activationToken = crypto.randomBytes(16).toString('hex');
+                    await db.createCourier({
+                        name: lines[0], phone: lines[1], telegram_id: telegramId,
+                        telegram_user: conversation.payload.username || '',
+                        vehicle_type: lines[2] || 'легковая', zones: ['spb'],
+                        is_active: false, activation_token: activationToken,
+                        max_orders: 10, rating: 0, rating_count: 0
+                    }, {
+                        afterCreate: async ({ client, courier: created }) => {
+                            const regText = `[КУРЬЕР] Заявка: ${created.name} (@${conversation.payload.username || '-'})\nТел: ${created.phone}\nТранспорт: ${created.vehicle_type}\nАккаунт НЕ активен до подтверждения.`;
+                            const activationButtons = adminBot && ADMIN_CHAT_ID
+                                ? [[{ text: 'Активировать курьера', callback_data: `activate_courier_${created.id}_${activationToken}` }]]
+                                : null;
+                            await notifyAdmin(regText, activationButtons, `courier-registration:${created.id}`, client, true);
+                        }
+                    });
+                    await bot.sendMessage(chatId, 'Регистрация завершена! Заявка передана администратору. Аккаунт будет активирован после проверки.');
+                } catch (e) {
+                    console.error('[COURIER] registration transaction failed:', errorCode(e));
+                    await bot.sendMessage(chatId, 'Не удалось отправить заявку на регистрацию. Попробуйте позже.').catch(() => {});
+                }
+                return;
+            }
+            if (conversation.type === 'car') {
+                const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+                if (!lines.length) {
+                    await bot.sendMessage(chatId, 'Укажите тип транспорта. Повторите команду /car.');
+                    return;
+                }
+                const updates = { vehicle_type: lines[0] };
+                if (lines[1]) updates.license_plate = lines[1];
+                const updated = await db.updateCourier(conversation.payload.courierId, updates, telegramId);
+                if (!updated) {
+                    await bot.sendMessage(chatId, 'Не удалось обновить профиль: аккаунт курьера отключён или данные маршрута изменились. Обратитесь к администратору.');
+                    return;
+                }
+                await bot.sendMessage(chatId, `Обновлено!\nТранспорт: ${updated.vehicle_type || '—'}\nРег.номер: ${updated.license_plate || '—'}`);
+                return;
+            }
+            if (conversation.type === 'photo_order') {
+                const orderNumber = text;
+                if (!conversation.payload.orderNumbers.includes(orderNumber)) {
+                    await bot.sendMessage(chatId, 'Заказ не найден среди открытых остановок этого маршрута. Отправьте корректный номер или /route для отмены.');
+                    courierConversations.set(chatId, telegramId, 'photo_order', conversation.payload);
+                    return;
+                }
+                const saved = await db.updateStopPhoto(conversation.payload.routeId,
+                    (await db.getRouteByIdForCourier(conversation.payload.routeId, conversation.payload.courierId))?.stops
+                        ?.find(stop => stop.order_number === orderNumber)?.id,
+                    conversation.payload.fileId, conversation.payload.courierId);
+                if (!saved) {
+                    await bot.sendMessage(chatId, 'Не удалось привязать фото: маршрут или доступ курьера изменился. Откройте /route и повторите.');
+                    return;
+                }
+                await bot.sendMessage(chatId, `Фото привязано к заказу ${orderNumber}`);
+                return;
+            }
+        }
+
+        const pending = pendingReasons.get(chatId);
+        if (!pending || !msg.text) return;
+        if (Date.now() - pending.at > 15 * 60_000) { pendingReasons.delete(chatId); return; }
+        if (String(telegramId) !== String(pending.courierTelegramId || '')) return;
+        pendingReasons.delete(chatId);
+        const reason = msg.text.trim().slice(0, 300);
+        await handleDeliveryResult(pending.routeId, pending.stopId, 'failed', chatId, null,
+            reason === 'Другое' ? 'Другое (без пояснения)' : reason, pending.messageId, telegramId);
     });
 }
 
@@ -1217,6 +1311,11 @@ bot.on('photo', async (msg) => {
 
     bot.sendMessage(chatId, 'Фото получено. К какому заказу привязать?\n\nОтправьте номер заказа (например: AP-000001) или нажмите /route для выбора.', { parse_mode: 'HTML' });
 
+    courierConversations.set(chatId, msg.from.id, 'photo_order', {
+        courierId: courier.id, routeId: activeRoute.id, fileId,
+        orderNumbers: pendingStops.map(s => s.order_number)
+    });
+    /* Устаревший глобальный обработчик удалён.
     bot.once('message', async (orderMsg) => {
         if (!isPrivateCourierMessage(orderMsg) || !isSameTelegramSender(orderMsg, msg) || String(orderMsg.chat.id) !== String(chatId)) return;
         const orderNum = (orderMsg.text || '').trim();
@@ -1232,6 +1331,7 @@ bot.on('photo', async (msg) => {
             bot.sendMessage(chatId, 'Заказ не найден. Фото сохранено, привяжите позже через /route.');
         }
     });
+    */
 });
 
 // ====== Настройка команд ======
