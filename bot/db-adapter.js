@@ -562,7 +562,7 @@ class DBAdapter {
                 await client.query('ROLLBACK'); return { status: 'order_state_changed' };
             }
             const cash = remaining.reduce((sum, s) => sum + (s.payment_status === 'pending' ? Number(s.amount_to_pay || 0) : 0), 0);
-            const created = await client.query(`INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance, transferred_from_route_id) VALUES ($1,$2,$3,'assigned',$4,0,0,$5,0,NULL,$6) RETURNING *`,
+            const created = await client.query(`INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance, transferred_from_route_id, handoff_required) VALUES ($1,$2,$3,'assigned',$4,0,0,$5,0,NULL,$6,TRUE) RETURNING *`,
                 [routeNumber, routeDate, targetId, remaining.length, cash, sourceId]);
             const newRoute = created.rows[0], newStops = [], stopMap = new Map();
             for (let i = 0; i < remaining.length; i++) {
@@ -674,11 +674,11 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const route = await client.query('SELECT id, courier_id, status, transferred_from_route_id, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            const route = await client.query('SELECT id, courier_id, status, transferred_from_route_id, handoff_required, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             const r = route.rows[0];
             if (String(r.courier_id) !== String(cid)) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
-            if (!r.transferred_from_route_id) { await client.query('ROLLBACK'); return { status: 'not_required' }; }
+            if (!r.handoff_required) { await client.query('ROLLBACK'); return { status: 'not_required' }; }
             if (r.handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'already_confirmed' }; }
             if (r.status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
             const courier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [cid]);
@@ -756,7 +756,7 @@ class DBAdapter {
                 }
             }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'route_started' }; }
-            if (route.rows[0].transferred_from_route_id && !route.rows[0].handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'handoff_required' }; }
+            if (route.rows[0].handoff_required && !route.rows[0].handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'handoff_required' }; }
             const stop = await client.query('SELECT * FROM route_stops WHERE id = $1 AND route_id = $2 FOR UPDATE', [sid, rid]);
             if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
