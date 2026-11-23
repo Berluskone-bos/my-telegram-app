@@ -151,10 +151,10 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                             w.created_at AS "createdAt", w.updated_at AS "updatedAt"
                        FROM workspace_items w
                        LEFT JOIN admin_users u ON u.id = w.assigned_to
-                      WHERE COALESCE(w.due_at, w.starts_at) IS NOT NULL
-                        AND (COALESCE(w.due_at, w.starts_at) AT TIME ZONE 'Europe/Moscow')::date BETWEEN $1::date AND $2::date
+                      WHERE (CASE WHEN w.kind = 'task' THEN w.due_at ELSE COALESCE(w.starts_at, w.due_at) END) IS NOT NULL
+                        AND ((CASE WHEN w.kind = 'task' THEN w.due_at ELSE COALESCE(w.starts_at, w.due_at) END) AT TIME ZONE 'Europe/Moscow')::date BETWEEN $1::date AND $2::date
                         AND ($3::boolean OR w.assigned_to = $4 OR (w.kind <> 'task' AND w.company_visible = TRUE))
-                      ORDER BY COALESCE(w.due_at, w.starts_at), w.priority DESC, w.id`,
+                      ORDER BY CASE WHEN w.kind = 'task' THEN w.due_at ELSE COALESCE(w.starts_at, w.due_at) END, w.priority DESC, w.id`,
                     [from, to, canManage, req.admin.userId || null, canSeeSales]
                 )
             ]);
@@ -179,7 +179,7 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                 });
             }
             for (const item of items.rows) {
-                const rawDate = item.dueAt || item.startsAt;
+                const rawDate = item.kind === 'task' ? (item.dueAt || item.startsAt) : (item.startsAt || item.dueAt);
                 const day = new Intl.DateTimeFormat('en-CA', {
                     timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit'
                 }).format(new Date(rawDate));
