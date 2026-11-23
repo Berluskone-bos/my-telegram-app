@@ -2467,12 +2467,18 @@ async function loadCourierAdminList() {
         target.innerHTML = rows.map(courier => {
             const archived = !!courier.archived_at;
             const active = !!courier.is_active && !archived;
-            const state = archived ? 'Удалён из списка' : active ? 'Активен' : 'Ожидает активации / деактивирован';
-            const color = archived ? '#667085' : active ? '#16803d' : '#b54708';
-            const controls = archived
-                ? '<span style="font-size:12px;color:#667085">История сохранена</span>'
-                : '<button type="button" onclick="setCourierActive(' + Number(courier.id) + ',' + (!active) + ')" style="padding:7px 10px;border:0;border-radius:7px;background:' + (active ? '#667085' : '#16803d') + ';color:#fff;cursor:pointer">' + (active ? 'Деактивировать' : 'Активировать') + '</button>' +
-                  '<button type="button" onclick="archiveCourier(' + Number(courier.id) + ')" style="padding:7px 10px;border:1px solid #dc2626;border-radius:7px;background:transparent;color:#b42318;cursor:pointer">Удалить</button>';
+            const requested = !!courier.activation_requested;
+            const state = active ? 'Активен' : requested ? 'Заявка на восстановление ожидает подтверждения' : archived ? 'Удалён из списка — ожидается запрос курьера' : 'Деактивирован';
+            const color = active ? '#16803d' : requested ? '#b54708' : '#667085';
+            const controls = active
+                ? '<button type="button" onclick="setCourierActive(' + Number(courier.id) + ',false)" style="padding:7px 10px;border:0;border-radius:7px;background:#667085;color:#fff;cursor:pointer">Деактивировать</button>' +
+                  '<button type="button" onclick="archiveCourier(' + Number(courier.id) + ')" style="padding:7px 10px;border:1px solid #dc2626;border-radius:7px;background:transparent;color:#b42318;cursor:pointer">Удалить</button>'
+                : requested
+                    ? '<button type="button" onclick="approveCourierReactivation(' + Number(courier.id) + ')" style="padding:7px 10px;border:0;border-radius:7px;background:#16803d;color:#fff;cursor:pointer">Подтвердить и активировать</button>'
+                    : archived
+                        ? '<span style="font-size:12px;color:#667085">Заявки пока нет</span>'
+                        : '<button type="button" onclick="setCourierActive(' + Number(courier.id) + ',true)" style="padding:7px 10px;border:0;border-radius:7px;background:#16803d;color:#fff;cursor:pointer">Активировать вручную</button>' +
+                          '<button type="button" onclick="archiveCourier(' + Number(courier.id) + ')" style="padding:7px 10px;border:1px solid #dc2626;border-radius:7px;background:transparent;color:#b42318;cursor:pointer">Удалить</button>';
             return '<div style="border:1px solid var(--line,#d8deea);border-radius:10px;padding:11px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
                 '<div><b>' + staffEsc(courier.name) + '</b><div style="font-size:12px;color:var(--muted,#667085)">' + staffEsc(courier.phone || 'Телефон не указан') + ' · @' + staffEsc(courier.telegram_user || '—') + ' · ID ' + Number(courier.id) + '</div><div style="font-size:12px;font-weight:700;color:' + color + ';margin-top:4px">' + state + '</div></div>' +
                 '<div style="display:flex;gap:6px;flex-wrap:wrap">' + controls + '</div></div>';
@@ -2492,6 +2498,16 @@ async function setCourierActive(id, active) {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Не удалось изменить доступ');
         await Promise.all([loadCourierAdminList(), loadDeliveryData()]);
+    } catch (e) { alert(e.message); }
+}
+async function approveCourierReactivation(id) {
+    if (!confirm('Подтвердить запрос курьера и восстановить доступ к маршрутам?')) return;
+    try {
+        const response = await fetch(ADMIN_API + '/api/admin/couriers/' + id + '/reactivate', { method: 'POST' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Не удалось восстановить доступ');
+        await Promise.all([loadCourierAdminList(), loadDeliveryData()]);
+        alert('Курьер восстановлен и активирован.');
     } catch (e) { alert(e.message); }
 }
 async function archiveCourier(id) {
