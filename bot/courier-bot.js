@@ -1371,7 +1371,13 @@ function registerCourierRoutes(app) {
     app.get('/api/admin/couriers', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
         try {
             res.set('Cache-Control', 'no-store');
-            res.json(await db.getCouriers());
+            const rows = await db.getCouriers();
+            // Не отдаём в браузер activation_token, Telegram ID и внутренние поля.
+            res.json(rows.map(c => ({
+                id: c.id, name: c.name, phone: c.phone, telegram_user: c.telegram_user,
+                vehicle_type: c.vehicle_type, is_active: c.is_active,
+                archived_at: c.archived_at, activation_requested: !!c.activation_token
+            })));
         } catch (e) {
             console.error('[API /admin/couriers]', errorCode(e));
             res.status(500).json({ error: 'Не удалось загрузить курьеров' });
@@ -1394,6 +1400,22 @@ function registerCourierRoutes(app) {
             if (e.code === 'COURIER_HAS_ACTIVE_ROUTE') return res.status(409).json({ error: e.message });
             console.error('[API PATCH /admin/couriers]', errorCode(e));
             res.status(500).json({ error: 'Не удалось изменить доступ курьера' });
+        }
+    });
+
+    app.post('/api/admin/couriers/:id/reactivate', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        try {
+            const courier = await db.approveCourierReactivation(id);
+            if (!courier) return res.status(409).json({ error: 'Нет ожидающей заявки на восстановление или она уже обработана' });
+            res.set('Cache-Control', 'no-store');
+            return res.json({ success: true, courier: { id: courier.id, is_active: courier.is_active, archived_at: courier.archived_at } });
+        } catch (e) {
+            console.error('[API POST /admin/couriers/reactivate]', errorCode(e));
+            return res.status(500).json({ error: 'Не удалось восстановить доступ курьера' });
         }
     });
 
