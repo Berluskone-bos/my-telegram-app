@@ -113,6 +113,7 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
         const toDate = new Date(Date.UTC(year, monthNumber, 0));
         const to = toDate.toISOString().slice(0, 10);
         const canManage = hasPermission(req.admin && req.admin.role, 'workspace.manage');
+        const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
         try {
             const [orders, items] = await Promise.all([
                 pool.query(
@@ -133,7 +134,7 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                             w.due_at AS "dueAt", w.all_day AS "allDay", w.status, w.priority,
                             w.assigned_to AS "assignedTo", u.display_name AS "assigneeName",
                             w.created_by AS "createdBy", w.company_visible AS "companyVisible",
-                            w.location, w.counterparty, w.amount, w.metric_name AS "metricName",
+                            w.location, w.counterparty, CASE WHEN $5::boolean THEN w.amount ELSE NULL END AS amount, w.metric_name AS "metricName",
                             w.metric_value AS "metricValue", w.metric_target AS "metricTarget",
                             w.created_at AS "createdAt", w.updated_at AS "updatedAt"
                        FROM workspace_items w
@@ -142,11 +143,10 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                         AND (COALESCE(w.due_at, w.starts_at) AT TIME ZONE 'Europe/Moscow')::date BETWEEN $1::date AND $2::date
                         AND ($3::boolean OR w.assigned_to = $4 OR (w.kind <> 'task' AND w.company_visible = TRUE))
                       ORDER BY COALESCE(w.due_at, w.starts_at), w.priority DESC, w.id`,
-                    [from, to, canManage, req.admin.userId || null]
+                    [from, to, canManage, req.admin.userId || null, canSeeSales]
                 )
             ]);
             const dayMap = new Map();
-            const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
             for (const row of orders.rows) dayMap.set(row.day, {
                 date: row.day, orders: row.orders, newOrders: row.new_orders,
                 shipping: row.shipping, delivered: row.delivered, cancelled: row.cancelled,
