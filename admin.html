@@ -1302,9 +1302,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const canTransfer = canTransferRoutes && ['assigned','in_progress'].includes(r.status) && remaining > 0;
                         const courierOptions = couriers.filter(x => x.is_active && !x.archived_at && Number(x.id) !== Number(r.courier_id) && !routes.some(active => Number(active.courier_id) === Number(x.id) && ['assigned','in_progress'].includes(active.status)))
                             .map(x => '<option value="' + Number(x.id) + '">' + esc(x.name) + '</option>').join('');
+                        const reason = r.transfer_request_reason || 'breakdown';
+                        const reasonOptions = [['breakdown','Поломка автомобиля'],['fuel','Закончилось топливо'],['accident','ДТП'],['other','Другая причина']]
+                            .map(([value,label]) => '<option value="' + value + '"' + (reason === value ? ' selected' : '') + '>' + label + '</option>').join('');
                         const transferControl = canTransfer
-                            ? '<div style="min-width:190px"><select id="transferCourier-' + Number(r.id) + '" class="status-select"><option value="">Новый курьер</option>' + courierOptions + '</select>' +
-                              '<select id="transferReason-' + Number(r.id) + '" class="status-select" style="margin-top:4px"><option value="breakdown">Поломка автомобиля</option><option value="fuel">Закончилось топливо</option><option value="accident">ДТП</option><option value="other">Другая причина</option></select>' +
+                            ? '<div style="min-width:220px"><select id="transferCourier-' + Number(r.id) + '" class="status-select"><option value="">Новый курьер</option>' + courierOptions + '</select>' +
+                              '<select id="transferReason-' + Number(r.id) + '" class="status-select" style="margin-top:4px">' + reasonOptions + '</select>' +
+                              '<textarea id="transferLocation-' + Number(r.id) + '" rows="2" maxlength="500" class="status-select" style="margin-top:4px;width:100%" placeholder="Место получения заказов (обязательно)">' + esc(r.transfer_handoff_location || '') + '</textarea>' +
                               '<button class="btn btn-outline btn-sm" style="margin-top:4px" onclick="transferRoute(' + Number(r.id) + ',' + remaining + ')">Передать ' + remaining + ' заказов</button></div>'
                             : '—';
                         return `<tr>
@@ -1346,12 +1350,14 @@ document.addEventListener('DOMContentLoaded', () => {
         async function transferRoute(routeId, remainingCount) {
             const courierId = Number(document.getElementById('transferCourier-' + routeId)?.value || 0);
             const reason = document.getElementById('transferReason-' + routeId)?.value || 'other';
+            const handoffLocation = String(document.getElementById('transferLocation-' + routeId)?.value || '').trim();
             if (!courierId) { alert('Выберите второго курьера.'); return; }
+            if (!handoffLocation) { alert('Укажите место, где второй курьер должен забрать отправления.'); return; }
             if (!confirm('Передать ' + remainingCount + ' оставшихся заказов другому курьеру? Первый маршрут будет закрыт как переданный.')) return;
             try {
                 const response = await fetch(`${API_BASE}/api/routes/${routeId}/transfer`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ courier_id: courierId, reason })
+                    body: JSON.stringify({ courier_id: courierId, reason, handoff_location: handoffLocation })
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) { alert(data.error || 'Не удалось передать маршрут. Обновите страницу.'); return; }
