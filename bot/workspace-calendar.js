@@ -115,7 +115,7 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
         const canManage = hasPermission(req.admin && req.admin.role, 'workspace.manage');
         const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
         try {
-            const [orders, items] = await Promise.all([
+            const [orders, items, stock] = await Promise.all([
                 pool.query(
                     `SELECT TO_CHAR((o.created_at AT TIME ZONE 'Europe/Moscow')::date, 'YYYY-MM-DD') AS day,
                             COUNT(*)::int AS orders,
@@ -126,6 +126,18 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                             COALESCE(SUM(o.total) FILTER (WHERE o.status <> 'CANCELLED'), 0)::float8 AS revenue
                        FROM orders o
                       WHERE (o.created_at AT TIME ZONE 'Europe/Moscow')::date BETWEEN $1::date AND $2::date
+                      GROUP BY 1 ORDER BY 1`,
+                    [from, to]
+                ),
+                pool.query(
+                    `SELECT TO_CHAR((created_at AT TIME ZONE 'Europe/Moscow')::date, 'YYYY-MM-DD') AS day,
+                            COUNT(*)::int AS movements,
+                            COUNT(*) FILTER (WHERE qty_delta < 0)::int AS "outMovements",
+                            COUNT(*) FILTER (WHERE qty_delta > 0)::int AS "inMovements",
+                            COALESCE(SUM(-qty_delta) FILTER (WHERE qty_delta < 0), 0)::int AS "qtyOut",
+                            COALESCE(SUM(qty_delta) FILTER (WHERE qty_delta > 0), 0)::int AS "qtyIn"
+                       FROM stock_movements
+                      WHERE (created_at AT TIME ZONE 'Europe/Moscow')::date BETWEEN $1::date AND $2::date
                       GROUP BY 1 ORDER BY 1`,
                     [from, to]
                 ),
@@ -151,8 +163,21 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                 date: row.day, orders: row.orders, newOrders: row.new_orders,
                 shipping: row.shipping, delivered: row.delivered, cancelled: row.cancelled,
                 revenue: canSeeSales ? (Number(row.revenue) || 0) : null, tasks: 0, tasksDone: 0,
-                meetings: 0, contracts: 0, logistics: 0, kpi: 0
+                meetings: 0, contracts: 0, logistics: 0, kpi: 0,
+                stockMovements: 0, outMovements: 0, inMovements: 0, qtyOut: 0, qtyIn: 0
             });
+            for (const row of stock.rows) {
+                if (!dayMap.has(row.day)) dayMap.set(row.day, {
+                    date: row.day, orders: 0, newOrders: 0, shipping: 0, delivered: 0,
+                    cancelled: 0, revenue: canSeeSales ? 0 : null, tasks: 0, tasksDone: 0,
+                    meetings: 0, contracts: 0, logistics: 0, kpi: 0,
+                    stockMovements: 0, outMovements: 0, inMovements: 0, qtyOut: 0, qtyIn: 0
+                });
+                Object.assign(dayMap.get(row.day), {
+                    stockMovements: row.movements, outMovements: row.outMovements,
+                    inMovements: row.inMovements, qtyOut: row.qtyOut, qtyIn: row.qtyIn
+                });
+            }
             for (const item of items.rows) {
                 const rawDate = item.dueAt || item.startsAt;
                 const day = new Intl.DateTimeFormat('en-CA', {
@@ -160,8 +185,9 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                 }).format(new Date(rawDate));
                 if (!dayMap.has(day)) dayMap.set(day, {
                     date: day, orders: 0, newOrders: 0, shipping: 0, delivered: 0,
-                    cancelled: 0, revenue: 0, tasks: 0, tasksDone: 0,
-                    meetings: 0, contracts: 0, logistics: 0, kpi: 0
+                    cancelled: 0, revenue: canSeeSales ? 0 : null, tasks: 0, tasksDone: 0,
+                    meetings: 0, contracts: 0, logistics: 0, kpi: 0,
+                    stockMovements: 0, outMovements: 0, inMovements: 0, qtyOut: 0, qtyIn: 0
                 });
                 const summary = dayMap.get(day);
                 if (item.kind === 'task') {
