@@ -151,6 +151,11 @@ test('курьерский бот: кнопки отменённого зака�
             client_name: 'К', client_chat_id: foreignOrder.user_id, amount_to_pay: 0, payment_status: 'paid', status: 'pending', comment: '' }] });
     const foreignStopId = foreignRoute.stops[0].id;
     const foreignActions = ['showroute_' + foreignRoute.id, 'startroute_' + foreignRoute.id, 'deliver_' + foreignRoute.id + '_' + foreignStopId + '_accept'];
+    assert.equal(await db.getRouteByIdForCourier(foreignRoute.id, courier.id), null,
+        'SQL-метод чтения маршрута не возвращает данные другому курьеру');
+    const scopedOwnerRoute = await db.getRouteByIdForCourier(foreignRoute.id, otherCourier.id);
+    assert.equal(scopedOwnerRoute.id, foreignRoute.id,
+        'SQL-метод возвращает маршрут только его активному владельцу');
     for (const action of foreignActions) {
         await press(action);
         const denied = calls.find(x => x[0] === 'answerCallbackQuery');
