@@ -109,16 +109,16 @@ test('параллельные callback «Доставлен» фиксирую�
     });
 
     const ownership = await makeShipment('ownership', false);
-    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: null, expectedRouteId: ownership.route.id })).status, 'not_assigned');
-    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id + 999999, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: null })).status, 'not_assigned');
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].status, 'pending');
     assert.equal((await db.completeDeliveryStop(ownership.stopId, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'forbidden',
         'pending stop cannot be completed before courier acceptance and route start');
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [ownership.order.id])).rows[0].status, 'READY_FOR_SHIPMENT');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
-    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'courier_inactive');
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'courier_inactive');
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
-    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'accepted');
+    assert.equal((await db.acceptRouteStop(ownership.route.id, ownership.stopId, { expectedCourierId: courier.id })).status, 'accepted');
 
     // Accepted is still not deliverable until the route has started.
     assert.equal((await db.completeDeliveryStop(ownership.stopId, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'forbidden');
@@ -126,14 +126,14 @@ test('параллельные callback «Доставлен» фиксирую�
     assert.equal((await pool.query('SELECT status FROM orders WHERE id = $1', [ownership.order.id])).rows[0].status, 'READY_FOR_SHIPMENT',
         'premature completion must not mutate the order');
 
-    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: null, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: null })).status, 'not_assigned');
     assert.equal((await db.getRouteById(ownership.route.id)).status, 'assigned');
-    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id + 999999, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id + 999999 })).status, 'not_assigned');
     assert.equal((await db.getRouteById(ownership.route.id)).status, 'assigned');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
-    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'courier_inactive');
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id })).status, 'courier_inactive');
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
-    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id, expectedRouteId: ownership.route.id })).status, 'started');
+    assert.equal((await db.startRouteIfAllAccepted(ownership.route.id, { expectedCourierId: courier.id })).status, 'started');
 
     assert.equal(await db.setStopStage(ownership.stopId, 'enroute', { expectedCourierId: null, expectedRouteId: ownership.route.id }), null);
     assert.equal((await pool.query('SELECT stage FROM route_stops WHERE id = $1', [ownership.stopId])).rows[0].stage, null);
@@ -146,14 +146,14 @@ test('параллельные callback «Доставлен» фиксирую�
     assert.ok(await db.setStopStage(ownership.stopId, 'arrived', { expectedCourierId: courier.id, expectedRouteId: ownership.route.id }));
 
     const first = await makeShipment('a');
-    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: null, expectedRouteId: first.route.id, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: null, expectedRouteId: first.route.id })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [first.stopId])).rows[0].status, 'in_progress');
     // Проверка владельца должна выполняться внутри транзакции, а не только в Telegram callback.
-    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id + 999999, expectedRouteId: first.route.id, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id + 999999, expectedRouteId: first.route.id })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [first.stopId])).rows[0].status, 'in_progress',
         'чужой курьер не может завершить остановку через прямой вызов DB-операции');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
-    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id, expectedRouteId: first.route.id, expectedRouteId: ownership.route.id })).status, 'courier_inactive');
+    assert.equal((await db.completeDeliveryStop(first.stopId, { expectedCourierId: courier.id, expectedRouteId: first.route.id })).status, 'courier_inactive');
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     const results = await Promise.all([
         db.completeDeliveryStop(first.stopId),
@@ -201,13 +201,13 @@ test('параллельные callback «Доставлен» фиксирую�
         'административное уведомление фиксируется вместе с доставкой');
 
     const second = await makeShipment('b');
-    assert.equal((await db.failDeliveryStop(second.stopId, 'Нет авторизации', { expectedCourierId: null, expectedRouteId: second.route.id, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Нет авторизации', { expectedCourierId: null, expectedRouteId: second.route.id })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [second.stopId])).rows[0].status, 'in_progress');
-    assert.equal((await db.failDeliveryStop(second.stopId, 'Подмена владельца', { expectedCourierId: courier.id + 999999, expectedRouteId: second.route.id, expectedRouteId: ownership.route.id })).status, 'not_assigned');
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Подмена владельца', { expectedCourierId: courier.id + 999999, expectedRouteId: second.route.id })).status, 'not_assigned');
     assert.equal((await pool.query('SELECT status FROM route_stops WHERE id = $1', [second.stopId])).rows[0].status, 'in_progress',
         'чужой курьер не может отметить остановку недоставленной');
     await pool.query('UPDATE couriers SET is_active = FALSE WHERE id = $1', [courier.id]);
-    assert.equal((await db.failDeliveryStop(second.stopId, 'Курьер отключён', { expectedCourierId: courier.id, expectedRouteId: second.route.id, expectedRouteId: ownership.route.id })).status, 'courier_inactive');
+    assert.equal((await db.failDeliveryStop(second.stopId, 'Курьер отключён', { expectedCourierId: courier.id, expectedRouteId: second.route.id })).status, 'courier_inactive');
     await pool.query('UPDATE couriers SET is_active = TRUE WHERE id = $1', [courier.id]);
     const race = await Promise.all([
         db.completeDeliveryStop(second.stopId),
