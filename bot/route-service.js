@@ -186,7 +186,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 } else if (pickupPoint) {
                     sheetButtons.unshift([{ text: 'К месту получения: Яндекс', url: `https://yandex.ru/maps/?text=${encodeURIComponent(pickupPoint)}` }]);
                 }
-                if (createdRoute.transferred_from_route_id) sheetButtons.push([{ text: 'Подтвердить сверку отправлений', callback_data: `handoffconfirm_${createdRoute.id}` }]);
+                if (createdRoute.handoff_required) sheetButtons.push([{ text: 'Подтвердить сверку отправлений', callback_data: `handoffconfirm_${createdRoute.id}` }]);
                 if (queue.notifyWidget && widgets.widgetsEnabled()) {
                     const card = widgets.routeSheetWidget(createdRoute.route_number, stops.map((s, i) => ({ order_number: s.order_number, address: s.address || '', status: 'pending', clock: '' })));
                     await queue.notifyWidget('courier', targetCourier.telegram_id, card, { kind: 'route', ref: createdRoute.id, state: {}, fallbackText: sheet, buttons: sheetButtons, dedupKey: sheetKey(createdRoute.id), db: client, throwOnError: true });
@@ -201,7 +201,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                         `\nСначала сверьте отправление: нажмите «Отправление получено». После сверки всего комплекта подтвердите получение в маршрутном листе, затем принимайте заказы.`;
                     const buttons = [];
                     if (st.lat && st.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(st.address, st.lat, st.lon) }, { text: '2GIS', url: MapLinks.gis2(st.lat, st.lon) }]);
-                    if (createdRoute.transferred_from_route_id) buttons.push([{ text: 'Отправление получено', callback_data: `handoffitem_${createdRoute.id}_${st.id}` }]);
+                    if (createdRoute.handoff_required) buttons.push([{ text: 'Отправление получено', callback_data: `handoffitem_${createdRoute.id}_${st.id}` }]);
                     buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${createdRoute.id}_${st.id}_accept` }]);
                     await queue.notify('courier', targetCourier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id }, db: client, throwOnError: true });
                 }
