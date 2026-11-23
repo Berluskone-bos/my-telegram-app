@@ -288,7 +288,7 @@
         target.querySelectorAll('[data-open-task-date]').forEach(button=>button.addEventListener('click',()=>{
             const date=button.dataset.openTaskDate;
             if(!date)return;
-            if(!date.startsWith(workcalMonthKey(workcalDate))){workcalDate=workcalParseDate(date);loadWorkspaceCalendar();}
+            if(!date.startsWith(workcalMonthKey(workcalDate))){workcalDate=workcalParseDate(date);workcalSelected=date;loadWorkspaceCalendar();}
             else selectWorkcalDay(date);
         }));
     }
