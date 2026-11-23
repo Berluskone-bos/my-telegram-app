@@ -824,3 +824,12 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Дополнительно проверены SQL-записи `db.js` (системные миграции), `admin-auth.js` (staff endpoints защищены `verifyAdmin + staff.manage`, транзакциями и проверками ролей), `partsapi-cache.js` (кэш по существующему car ID, без доступа к персональным объектам). `user_garage` — таблица без production call sites. `widget_query` оценки привязан к Telegram sender/chat, конкретной активной карточке, владельцу и доставленному заказу; DB повторно валидирует оценку.
 - Новый остаточный helper: `route-sheet.loadSheet` читал остановки только по route ID; `queueRouteSheetEdit` вызывался из ETA и cancellation flows. В ветке `security/scope-route-sheet-to-courier` чтение ограничено expectedCourierId и активностью владельца в SQL; cancellation flow получает courier ID из связанного маршрута, ETA передаёт ID из проверенного callback. Добавлена PostgreSQL-регрессия на отказ чужому курьеру. PR/CI/deploy ожидают.
 - Полный IDOR/BOLA аудит остаётся открытым.
+
+
+## 23.11.2026 — PR #192: маршрутный лист привязан к активному владельцу
+- `route-sheet.loadSheet` теперь проверяет в SQL route ID, expectedCourierId, активность и отсутствие архива; чужой курьер не получает остановки для карточки. `queueRouteSheetEdit` fail-closed без ожидаемого владельца.
+- ETA refresh передаёт ID из проверенного callback. Cancellation flow передаёт courier_id, прочитанный из той же транзакции, где обрабатывается отмена заказа.
+- PostgreSQL-регрессия подтверждает отказ чужому курьеру при обновлении карточки. GitHub Actions run #723 — SUCCESS.
+- PR #192 merged: `12cae527533f60113c53449eb2e6c7358fe4af75`; Railway deployment `0ff0c1cc-730c-47c1-bb80-6b7b5b442f7f` — SUCCESS; `gulf-bot` live.
+- После PR #191/#192 все найденные production route read/write paths и вспомогательные ETA/route-sheet операции ограничены владельцем на уровне SQL. Универсальный `getRouteById` остаётся только в защищённом admin endpoint оптимизации маршрута (`verifyAdmin + settings.manage`); остальные call sites в тестах.
+- Полный IDOR/BOLA аудит остаётся открытым; продолжить остальные менее частые API/DB helpers и конкурентные сценарии.
