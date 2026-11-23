@@ -737,3 +737,8 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Customer object scope is derived from verified Telegram initData. Courier route commands and callbacks validate private-chat sender, active courier, route ownership and stop membership before exposing route data; deferred failure-reason text handling repeats courier/route checks. Tracker ratings bind message/chat, order owner, delivery status and courier/stop in the DB layer.
 - Admin list/detail/dashboard fields are filtered by role-specific allowlists and permission checks. No new confirmed read-side IDOR/BOLA was found in the reviewed call sites.
 - getRouteById(routeId) remains a generic internal helper without an owner predicate; reviewed Telegram call sites authorize before exposing its result, while mutation methods recheck route/courier scope transactionally. Continue checking every helper call site and concurrent route ownership transitions. Full audit remains open.
+
+## 23.11.2026 — SQL-ограничение чтения маршрутов курьером
+- В `bot/db-adapter.js` добавлен `getRouteByIdForCourier`: SQL одновременно проверяет ID маршрута, ID владельца, активность курьера и отсутствие архива. При отказе возвращается `null`, без выдачи остановок.
+- Курьерские пользовательские пути чтения переведены на этот метод; общий `getRouteById` оставлен для внутренних/административных вызовов.
+- Добавлен PostgreSQL regression test на запрет чтения чужого маршрута и разрешение владельцу. Это defense-in-depth hardening, а не исправление подтверждённой эксплуатации.
