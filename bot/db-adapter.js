@@ -676,14 +676,24 @@ class DBAdapter {
 
     // Возвращает другую остановку маршрута, у которой курьер уже находится у клиента.
     // Отдельный запрос нужен для понятного предупреждения; окончательная защита — внутри setStopStage.
-    async getRouteStopAtClient(routeId, exceptStopId) {
+    async getRouteStopAtClient(routeId, exceptStopId, expectedCourierId) {
+        const rid = Number(routeId), sid = Number(exceptStopId), cid = Number(expectedCourierId);
+        if (!Number.isSafeInteger(rid) || rid <= 0 ||
+            !Number.isSafeInteger(sid) || sid <= 0 ||
+            !Number.isSafeInteger(cid) || cid <= 0) return null;
         const res = await pool.query(
-            `SELECT * FROM route_stops
-              WHERE route_id = $1 AND id <> $2
-                AND status = 'in_progress' AND stage = 'arrived'
-              ORDER BY stop_number
+            `SELECT rs.*
+               FROM route_stops rs
+               JOIN delivery_routes dr ON dr.id = rs.route_id
+               JOIN couriers c ON c.id = dr.courier_id
+                                  AND c.is_active = TRUE
+                                  AND c.archived_at IS NULL
+              WHERE rs.route_id = $1 AND rs.id <> $2
+                AND dr.courier_id = $3
+                AND rs.status = 'in_progress' AND rs.stage = 'arrived'
+              ORDER BY rs.stop_number
               LIMIT 1`,
-            [Number(routeId), Number(exceptStopId)]);
+            [rid, sid, cid]);
         return res.rows[0] || null;
     }
 
