@@ -381,9 +381,10 @@ bot.onText(/\/today/, async (msg) => {
     todayRoutes.forEach(route => {
         const stops = route.stops || [];
         const delivered = stops.filter(s => s.status === 'delivered').length;
-        text += `<b>${escapeHtml(route.route_number)}</b> — ${stops.length} остановок (${delivered} доставлено)\n`;
+        const routeLabel = route.status === 'transferred' ? ' — передан другому курьеру' : '';
+        text += `<b>${escapeHtml(route.route_number)}</b> — ${stops.length} остановок (${delivered} доставлено)${routeLabel}\n`;
         stops.forEach((stop, idx) => {
-            const icon = stop.status === 'delivered' ? '[OK]' : stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
+            const icon = stop.status === 'delivered' ? '[OK]' : stop.status === 'failed' ? '[X]' : stop.status === 'transferred' ? '[ПЕРЕДАН]' : `[${idx + 1}]`;
             text += `  ${icon} ${escapeHtml(stop.order_number || '')} ${escapeHtml(stop.address)}\n`;
         });
         text += '\n';
@@ -418,12 +419,16 @@ async function sendRouteDetails(chatId, route) {
 
     let text = `<b>Маршрут ${escapeHtml(route.route_number)}</b>\n`;
     text += `Дата: ${escapeHtml(route.route_date)}\n`;
+    const routeStatusLabel = ({ assigned: 'Назначен', in_progress: 'В пути', completed: 'Завершён', transferred: 'Передан другому курьеру' })[route.status] || route.status;
+    text += `Статус: ${escapeHtml(routeStatusLabel)}\n`;
+    if (route.status === 'transferred') text += 'Этот маршрут закрыт. Оставшиеся заказы переданы другому курьеру; старые действия недоступны.\n';
     text += `Остановок: ${stops.length} | Доставлено: ${completed} | Не доставлено: ${failed}\n\n`;
 
     stops.forEach((stop, idx) => {
         const statusIcon = stop.status === 'delivered' ? '[ДОСТАВЛЕН]' :
                           stop.status === 'failed' ? '[НЕ ДОСТАВЛЕН]' :
-                          stop.status === 'cancelled' ? '[ОТМЕНЁН]' : `[${stop.stop_number || idx + 1}]`;
+                          stop.status === 'cancelled' ? '[ОТМЕНЁН]' :
+                          stop.status === 'transferred' ? '[ПЕРЕДАН]' : `[${stop.stop_number || idx + 1}]`;
         text += `<b>${statusIcon} ${escapeHtml(stop.order_number || '')}</b>\n`;
         text += `Адрес: ${escapeHtml(stop.address)}\n`;
         if (stop.items_count) text += `Товаров: ${escapeHtml(stop.items_count)}\n`;
