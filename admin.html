@@ -799,8 +799,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="section-header"><div class="section-title">Маршруты сегодня</div></div>
                 <div class="section-body">
                     <table>
-                        <thead><tr><th>Маршрут</th><th>Курьер</th><th>Остановок</th><th>Доставлено</th><th>Статус</th><th>Наличные</th></tr></thead>
-                        <tbody id="routesTable"><tr><td colspan="6" class="empty">Загрузка...</td></tr></tbody>
+                        <thead><tr><th>Маршрут</th><th>Курьер</th><th>Остановок</th><th>Доставлено</th><th>Статус</th><th>Наличные</th><th>Передача</th></tr></thead>
+                        <tbody id="routesTable"><tr><td colspan="7" class="empty">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -1289,13 +1289,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const todayStr = today();
                 const todayRoutes = routes.filter(r => r.route_date && r.route_date.startsWith(todayStr));
+                const canTransferRoutes = window.adminHasPermission && window.adminHasPermission('routes.manage');
                 document.getElementById('routesTable').innerHTML = todayRoutes.length === 0
-                    ? '<tr><td colspan="6" class="empty">Нет маршрутов на сегодня</td></tr>'
+                    ? '<tr><td colspan="7" class="empty">Нет маршрутов на сегодня</td></tr>'
                     : todayRoutes.map(r => {
                         const c = couriers.find(x => x.id === r.courier_id);
                         const sc = r.status === 'completed' ? 'badge-green' : r.status === 'in_progress' ? 'badge-orange' : r.status === 'assigned' ? 'badge-blue' : 'badge-grey';
                         const failedStops = (r.stops || []).filter(s => s.status === 'failed');
                         const failedDetails = failedStops.map(s => esc((s.order_number || 'Заказ') + ': ' + (s.fail_reason || 'Причина не указана'))).join('<br>');
+                        const remaining = (r.stops || []).filter(s => ['pending','accepted','in_progress'].includes(s.status)).length;
+                        const canTransfer = canTransferRoutes && ['assigned','in_progress'].includes(r.status) && remaining > 0;
+                        const courierOptions = couriers.filter(x => x.is_active && !x.archived_at && Number(x.id) !== Number(r.courier_id))
+                            .map(x => '<option value="' + Number(x.id) + '">' + esc(x.name) + '</option>').join('');
+                        const transferControl = canTransfer
+                            ? '<div style="min-width:190px"><select id="transferCourier-' + Number(r.id) + '" class="status-select"><option value="">Новый курьер</option>' + courierOptions + '</select>' +
+                              '<select id="transferReason-' + Number(r.id) + '" class="status-select" style="margin-top:4px"><option value="breakdown">Поломка автомобиля</option><option value="fuel">Закончилось топливо</option><option value="accident">ДТП</option><option value="other">Другая причина</option></select>' +
+                              '<button class="btn btn-outline btn-sm" style="margin-top:4px" onclick="transferRoute(' + Number(r.id) + ',' + remaining + ')">Передать ' + remaining + ' заказов</button></div>'
+                            : '—';
                         return `<tr>
                             <td><strong>${esc(r.route_number)}</strong></td>
                             <td>${esc(c ? c.name : '-')}</td>
@@ -1303,6 +1313,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${r.completed || 0} / ${r.total_orders || 0}${failedStops.length ? '<br><small class="text-danger">Не доставлено: ' + failedDetails + '</small>' : ''}</td>
                             <td><span class="badge ${sc}">${esc(r.status)}</span></td>
                             <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
+                            <td>${transferControl}</td>
                         </tr>`;
                     }).join('');
 
@@ -1331,6 +1342,23 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { console.error('Delivery load error:', e); }
         }
 
+        async function transferRoute(routeId, remainingCount) {
+            const courierId = Number(document.getElementById('transferCourier-' + routeId)?.value || 0);
+            const reason = document.getElementById('transferReason-' + routeId)?.value || 'other';
+            if (!courierId) { alert('Выберите второго курьера.'); return; }
+            if (!confirm('Передать ' + remainingCount + ' оставшихся заказов другому курьеру? Первый маршрут будет закрыт как переданный.')) return;
+            try {
+                const response = await fetch(`${API_BASE}/api/routes/${routeId}/transfer`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courier_id: courierId, reason })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) { alert(data.error || 'Не удалось передать маршрут. Обновите страницу.'); return; }
+                alert('Передача выполнена. Новый маршрут ' + data.route.route_number + ' отправлен курьеру. Заказов: ' + data.transferred_count + '.');
+                await loadDeliveryData();
+                await loadShopOrders();
+            } catch (e) { console.error('Route transfer error:', e); alert('Нет связи с сервером. Передача не подтверждена. Обновите данные перед повтором.'); }
+        }
         // ====== Аналитика магазина: топ товаров и способы получения ======
         const an = { period: '30', seq: 0 };
         const DELIVERY_LABELS = { delivery: ['Курьером', '#00AFC7'], pickup: ['Самовывоз', '#ea580c'] };
