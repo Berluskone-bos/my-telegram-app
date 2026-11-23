@@ -369,6 +369,9 @@ class DBAdapter {
                        '[]'::json
                    ) AS stops
             FROM delivery_routes dr
+            JOIN couriers c ON c.id = dr.courier_id
+                           AND c.is_active = TRUE
+                           AND c.archived_at IS NULL
             LEFT JOIN route_stops rs ON rs.route_id = dr.id
             WHERE dr.route_date::date = $1::date AND dr.courier_id = $2
             GROUP BY dr.id
