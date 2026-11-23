@@ -113,14 +113,14 @@ if (process.env.ADMIN_BOT_TOKEN) {
         if (data && data.startsWith('activate_courier_')) {
             const activation = require('./courier-activation').parseCourierActivation(data);
             const cid = activation && activation.id;
-            if (cid === null) {
+            if (!activation) {
                 adminBot.answerCallbackQuery(query.id, { text: 'Некорректный номер курьера' });
                 return;
             }
             try {
                 const updated = await db.activateCourier(cid, activation.token);
                 if (!updated) {
-                    adminBot.answerCallbackQuery(query.id, { text: 'Курьер не найден' });
+                    adminBot.answerCallbackQuery(query.id, { text: 'Заявка уже обработана или устарела' });
                     return;
                 }
                 adminBot.answerCallbackQuery(query.id, { text: 'Курьер активирован' });
@@ -390,7 +390,6 @@ if (bot) {
         );
         courierConversations.set(chatId, user.id, 'registration', { username: user.username || '' });
     });
-}
 
 // ====== Главный экран курьера ======
 
