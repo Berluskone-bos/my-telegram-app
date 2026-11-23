@@ -624,12 +624,10 @@ bot.on('callback_query', async (query) => {
             return;
         }
         const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
-        await notifyAdmin(
-            `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[reason] || reason)}\n\nОткройте раздел «Доставка» в админ-панели и выполните передачу оставшихся заказов другому курьеру.`,
-            null, `route-issue:${route.id}:${reason}:${query.id}`, null, true
-        );
-        await bot.sendMessage(chatId, 'Сообщение отправлено диспетчеру. Ожидайте, пока вам сообщат о дальнейших действиях.');
-        bot.answerCallbackQuery(query.id, { text: 'Диспетчер уведомлён' }).catch(() => {});
+        courierConversations.set(chatId, query.from.id, 'route_issue_location', { routeId: route.id, reason });
+        await bot.sendMessage(chatId,
+            'Укажите место, где второй курьер сможет забрать заказы.\\n\\nОтправьте геопозицию через скрепку → «Геопозиция» или напишите точный адрес/ориентир. Не отправляйте геопозицию текущего клиента, если вы находитесь не там.');
+        bot.answerCallbackQuery(query.id, { text: 'Ожидаю место передачи' }).catch(() => {});
         return;
     }
     if (data.startsWith('showroute_')) {
@@ -1183,6 +1181,31 @@ if (bot) {
         const conversation = courierConversations.take(chatId, telegramId);
         if (conversation) {
             const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+            if (conversation.type === 'route_issue_location') {
+                const courier = await db.getCourierByTelegramId(telegramId);
+                const route = courier ? await db.getRouteByIdForCourier(conversation.payload.routeId, courier.id) : null;
+                if (!route || !['assigned', 'in_progress'].includes(route.status)) {
+                    await bot.sendMessage(chatId, 'Маршрут уже изменился или передан. Обратитесь к диспетчеру.');
+                    return;
+                }
+                const locationText = text.slice(0, 300);
+                const location = msg.location
+                    ? `геопозиция: ${Number(msg.location.latitude).toFixed(6)}, ${Number(msg.location.longitude).toFixed(6)} (https://yandex.ru/maps/?text=${msg.location.latitude},${msg.location.longitude})`
+                    : locationText;
+                if (!location) {
+                    await bot.sendMessage(chatId, 'Не получил место передачи. Отправьте геопозицию или напишите адрес/ориентир.');
+                    courierConversations.set(chatId, telegramId, 'route_issue_location', conversation.payload);
+                    return;
+                }
+                const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
+                const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+                await notifyAdmin(
+                    `<b>Курьер не может продолжить маршрут</b>\\nКурьер: ${escapeHtml(courier.name)}\\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\\nОсталось заказов: ${remaining}\\nПричина: ${escapeHtml(reasons[conversation.payload.reason] || conversation.payload.reason)}\\nМесто передачи: ${escapeHtml(location)}\\n\\nОткройте раздел «Доставка» в админ-панели и назначьте свободного курьера.`,
+                    null, `route-issue:${route.id}:${conversation.payload.reason}:${Date.now()}`, null, true
+                );
+                await bot.sendMessage(chatId, 'Диспетчер уведомлён и получил место передачи. Ожидайте подтверждения.');
+                return;
+            }
             if (conversation.type === 'registration') {
                 const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
                 if (lines.length < 2) {
