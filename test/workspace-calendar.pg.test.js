@@ -143,10 +143,10 @@ test('рабочий календарь: задачи видны назначе�
         method: 'PATCH', body: JSON.stringify({ status: 'in_progress' })
     });
     assert.equal(selfUpdate.status, 200);
-    const чужаяЗадача = await request('/api/admin/workspace/items/' + warehouseTask.id, operator.cookie, {
+    const otherTaskUpdate = await request('/api/admin/workspace/items/' + warehouseTask.id, operator.cookie, {
         method: 'PATCH', body: JSON.stringify({ status: 'done' })
     });
-    assert.equal(чужаяЗадача.status, 404, 'employee cannot update another employee task');
+    assert.equal(otherTaskUpdate.status, 404, 'employee cannot update another employee task');
 
     const forbiddenCreate = await request('/api/admin/workspace/items', operator.cookie, {
         method: 'POST', body: JSON.stringify({
