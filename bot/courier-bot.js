@@ -297,7 +297,7 @@ if (bot) {
                         ? [[{ text: 'Подтвердить восстановление курьера', callback_data: `activate_courier_${pending.id}_${pending.activation_token}` }]]
                         : null;
                     await notifyAdmin(
-                        `[КУРЬЕР] Запрос на восстановление доступа: ${escapeHtml(pending.name)} (@${escapeHtml(pending.telegram_user || '-')})\\nТел: ${escapeHtml(pending.phone || '—')}\\nСтатус записи: ${pending.archived_at ? 'архивная' : 'деактивирована'}\\nТребуется подтверждение администратора.`,
+                        `[КУРЬЕР] Запрос на восстановление доступа: ${escapeHtml(pending.name)} (@${escapeHtml(pending.telegram_user || '-')})\nТел: ${escapeHtml(pending.phone || '—')}\nСтатус записи: ${pending.archived_at ? 'архивная' : 'деактивирована'}\nТребуется подтверждение администратора.`,
                         activationButtons,
                         `courier-reactivation:${pending.id}:${pending.activation_token}`,
                         null,
@@ -1405,7 +1405,7 @@ function registerCourierRoutes(app) {
 
     app.post('/api/admin/couriers/:id/reactivate', verifyAdmin, requirePermission('staff.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
+        if (!/^\d{1,10}$/.test(rawId)) return res.status(400).json({ error: 'Некорректный ID курьера' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID курьера' });
         try {
