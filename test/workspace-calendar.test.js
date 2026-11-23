@@ -32,7 +32,7 @@ test('задача требует название, исполнителя и с
     assert.equal(valid.error, undefined);
     assert.equal(valid.value.assignedTo, 7);
     assert.equal(valid.value.status, 'planned');
-    assert.equal(normalizeItem({ kind: 'task', title: 'Задача', dueAt: '2026-11-24T15:00:00.000Z' }).error, undefined);
+    assert.equal(normalizeItem({ kind: 'task', title: 'Задача', dueAt: '2026-11-24T15:00:00.000Z' }).error, 'Для задачи выберите сотрудника.');
     assert.equal(normalizeItem({ kind: 'task', title: 'Задача' }).error, 'Для задачи укажите срок выполнения.');
 });
 
