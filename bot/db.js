@@ -287,6 +287,7 @@ async function initDB() {
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE (source_route_id)
             );
+            ALTER TABLE route_transfer_events ADD COLUMN IF NOT EXISTS handoff_location TEXT NOT NULL DEFAULT 'Не указано';
             CREATE INDEX IF NOT EXISTS route_transfer_target_idx ON route_transfer_events(target_route_id);
         `);
 
