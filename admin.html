@@ -1446,6 +1446,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ====== МАГАЗИН ======
         let allCouriers = [];
+        // Состояние выбора не теряется при автообновлении и повторной загрузке таблицы.
+        const selectedRouteOrderIds = new Set();
+        let selectedRouteCourierId = '';
+        let shopOrdersLoadSequence = 0;
+        document.addEventListener('change', event => {
+            const checkbox = event.target && event.target.closest && event.target.closest('.route-pick');
+            if (checkbox) {
+                const id = String(checkbox.value);
+                if (checkbox.checked) selectedRouteOrderIds.add(id);
+                else selectedRouteOrderIds.delete(id);
+            }
+            if (event.target && event.target.id === 'routeCourier') selectedRouteCourierId = event.target.value || '';
+        });
 
         async function loadShopData() {
             const jobs = [loadShopOrders()];
@@ -1472,23 +1485,49 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         async function loadShopOrders() {
+            const requestSequence = ++shopOrdersLoadSequence;
             try {
                 const canDispatch = window.adminHasPermission && window.adminHasPermission('routes.manage');
                 const canFulfill = window.adminHasPermission && window.adminHasPermission('orders.fulfill');
                 const pageLimit = document.getElementById('ordersTableWrap').hidden ? BOARD_ORDERS_LIMIT : TABLE_ORDERS_LIMIT;
                 const [ordersResponse, couriers, routes] = await Promise.all([
                     fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${pageLimit}&sort=${shopOrdersSort.sort}&direction=${shopOrdersSort.direction}`),
-                    canDispatch ? fetch(`${API_BASE}/api/couriers`).then(r => r.json()) : Promise.resolve([]),
-                    canDispatch ? fetch(`${API_BASE}/api/routes`).then(r => r.json()) : Promise.resolve([])
+                    canDispatch ? fetch(`${API_BASE}/api/couriers`).then(async response => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) throw new Error(data.error || 'Не удалось загрузить список курьеров');
+                        return data;
+                    }) : Promise.resolve([]),
+                    canDispatch ? fetch(`${API_BASE}/api/routes`).then(async response => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) throw new Error(data.error || 'Не удалось загрузить список маршрутов');
+                        return data;
+                    }) : Promise.resolve([])
                 ]);
                 if (!ordersResponse.ok) throw new Error('Не удалось загрузить заказы');
+                // Более старый запрос не должен перерисовать страницу поверх свежего ответа.
+                if (requestSequence !== shopOrdersLoadSequence) return;
+                if (!Array.isArray(couriers) || !Array.isArray(routes)) {
+                    throw new Error('Сервер вернул некорректный список курьеров или маршрутов');
+                }
                 const pageData = await ordersResponse.json();
                 const orders = pageData.items || [];
                 const totalPages = Math.max(1, Math.ceil((pageData.total || 0) / pageLimit));
                 if (shopOrdersPage > totalPages) { shopOrdersPage = totalPages; return loadShopOrders(); }
                 allCouriers = couriers;
-                document.getElementById('routeCourier').innerHTML = '<option value="">-- курьер --</option>' +
-                    couriers.filter(c => c.is_active).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+                const routeCourierSelect = document.getElementById('routeCourier');
+                if (routeCourierSelect) {
+                    const activeCouriers = couriers.filter(c => c && c.is_active === true && !c.archived_at);
+                    const selectedStillAvailable = activeCouriers.some(c => String(c.id) === String(selectedRouteCourierId));
+                    routeCourierSelect.innerHTML = '<option value="">-- выберите свободного курьера --</option>' +
+                        (activeCouriers.length
+                            ? activeCouriers.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('')
+                            : '<option value="" disabled>Нет активных курьеров</option>');
+                    routeCourierSelect.value = selectedStillAvailable ? String(selectedRouteCourierId) : '';
+                    if (!selectedStillAvailable) selectedRouteCourierId = '';
+                    routeCourierSelect.title = activeCouriers.length
+                        ? 'Выберите курьера для отмеченных заказов'
+                        : 'Нет активных курьеров. Проверьте статус курьера и доступ к диспетчеризации.';
+                }
 
                 const statusLabels = {
                     'NEW': 'Новый', 'CONFIRMED': 'Подтверждён', 'ASSEMBLING': 'Сборка',
@@ -1498,12 +1537,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const warehouseOnly = window.adminHasPermission && window.adminHasPermission('orders.fulfill')
                     && !window.adminHasPermission('orders.process');
                 function getCourierForOrder(orderId) {
-                    for (const r of routes) {
-                        if (r.status === 'transferred') continue;
-                        const stops = r.stops || [];
-                        if (stops.some(s => String(s.order_id) === String(orderId) && s.status !== 'transferred')) {
-                            const c = couriers.find(x => x.id === r.courier_id);
-                            return c ? c.name : null;
+                    // Старые остановки failed/cancelled не должны блокировать повторную отправку.
+                    for (const route of routes) {
+                        if (!['assigned', 'in_progress'].includes(route.status)) continue;
+                        const activeStop = (route.stops || []).some(stop =>
+                            String(stop.order_id) === String(orderId) &&
+                            ['pending', 'accepted', 'in_progress'].includes(stop.status)
+                        );
+                        if (activeStop) {
+                            const courier = couriers.find(item => String(item.id) === String(route.courier_id));
+                            return courier ? courier.name : null;
                         }
                     }
                     return null;
@@ -1524,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             : '';
                         const canBatch = showAssign && o.delivery_type !== 'pickup' && !courierName;
                         return `<tr>
-                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" onclick="event.stopPropagation()">` : ''}${outcomeReason}</td>
+                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''} onclick="event.stopPropagation()">` : ''}${outcomeReason}</td>
                             <td><strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
                             <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
                             <td>${esc(o.address || '-')}</td>
@@ -1552,7 +1595,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 window._orders = orders;
                 renderBoard(orders, couriers, getCourierForOrder);
                 refreshPageSub();
-            } catch (e) { console.error('Shop orders error:', e); }
+            } catch (e) {
+                if (requestSequence !== shopOrdersLoadSequence) return;
+                console.error('Shop orders error:', e);
+                const routeCourierSelect = document.getElementById('routeCourier');
+                if (routeCourierSelect) {
+                    routeCourierSelect.innerHTML = '<option value="">Ошибка загрузки курьеров — обновите данные</option>';
+                    selectedRouteCourierId = '';
+                }
+                if (typeof toast === 'function') toast(e.message || 'Не удалось загрузить заказы и список курьеров', true);
+            }
         }
 
         async function assignCourier(orderId, courierId) {
@@ -1572,8 +1624,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Несколько заказов одному курьеру: система сама выстроит порядок и время (маршрутный лист придёт курьеру в бот)
         async function buildRoute() {
-            const ids = [...new Set([...document.querySelectorAll('.route-pick:checked')].map(c => parseInt(c.value)))];
-            const courierId = parseInt(document.getElementById('routeCourier').value);
+            const ids = [...selectedRouteOrderIds].map(Number).filter(Number.isSafeInteger);
+            const courierId = parseInt(document.getElementById('routeCourier')?.value || selectedRouteCourierId, 10);
             if (!ids.length) { alert('Отметьте заказы галочками в первой колонке.'); return; }
             if (!courierId) { alert('Выберите курьера в списке над таблицей.'); return; }
             const btn = document.getElementById('buildRouteBtn');
@@ -1589,6 +1641,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Маршрут ' + data.route.route_number + ' отправлен курьеру. Порядок: ' + data.sequence.join(' → ') +
                       (data.plan.totalMin ? '\nВ пути около ' + data.plan.totalMin + ' мин.' : '') +
                       (data.plan.start === 'default' ? '\nВнимание: склад не задан, старт принят за центр города.' : ''));
+                selectedRouteOrderIds.clear();
+                selectedRouteCourierId = '';
                 loadShopOrders();
                 loadDeliveryData();
             } catch (e) { console.error('Build route error:', e); alert('Нет связи с сервером. Попробуйте ещё раз.'); }
@@ -1715,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${failed ? `<div class="bcard-note" style="color:#b91c1c"><strong>Не доставлен:</strong> ${esc(failReason)}<br>Верните заказ на склад и отправьте повторно или отмените.</div>` : ''}
                 ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'PICKED_UP' ? '✓ Выдан клиенту' : (o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен')}</div>` : ''}
                 ${act}
-                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}"> в рейс</label>` : ''}
+                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''}> в рейс</label>` : ''}
             </div>`;
         }
 
