@@ -20,6 +20,7 @@ test('аварийная передача: история первого кур�
     const prefix = 'AP-xfer' + tag.slice(-7);
     const courierA = await db.createCourier({ name: 'Курьер передачи А', phone: '1', telegram_id: 990001, telegram_user: 'xfera', vehicle_type: 'авто' });
     const courierB = await db.createCourier({ name: 'Курьер передачи Б', phone: '2', telegram_id: 990002, telegram_user: 'xferb', vehicle_type: 'авто' });
+    const courierC = await db.createCourier({ name: 'Курьер передачи В', phone: '3', telegram_id: 990003, telegram_user: 'xferc', vehicle_type: 'авто' });
     const createdOrders = [];
     let routeIds = [];
     t.after(async () => {
@@ -31,7 +32,7 @@ test('аварийная передача: история первого кур�
             await pool.query('DELETE FROM delivery_routes WHERE id = ANY($1::int[])', [routeIds]);
         }
         if (createdOrders.length) await pool.query('DELETE FROM orders WHERE id = ANY($1::int[])', [createdOrders]);
-        await pool.query('DELETE FROM couriers WHERE id = ANY($1::int[])', [[courierA.id, courierB.id]]);
+        await pool.query('DELETE FROM couriers WHERE id = ANY($1::int[])', [[courierA.id, courierB.id, courierC.id]]);
         await pool.end();
     });
 
@@ -105,12 +106,34 @@ test('аварийная передача: история первого кур�
     assert.equal(statuses.rows.filter(x => x.status === 'SHIPPING').length, 2,
         'переданные заказы не возвращаются в READY_FOR_SHIPMENT');
 
-    for (const stop of newRoute.stops) {
-        assert.equal((await db.acceptRouteStop(newRoute.id, stop.id, { expectedCourierId: courierB.id })).status, 'accepted');
+    // Если второй курьер тоже не может продолжить, те же заказы можно передать третьему.
+    const secondTransfer = await svc.transferRemainingRoute({
+        sourceRouteId: newRoute.id, sourceCourierId: courierB.id, targetCourier: courierC, reason: 'fuel'
+    });
+    routeIds.push(secondTransfer.route.id);
+    const middleRoute = await db.getRouteById(newRoute.id);
+    const finalRoute = await db.getRouteById(secondTransfer.route.id);
+    assert.equal(middleRoute.status, 'transferred');
+    assert.equal(Number(finalRoute.transferred_from_route_id), Number(middleRoute.id));
+    assert.equal(Number(finalRoute.courier_id), Number(courierC.id));
+    assert.equal(finalRoute.stops.length, 2);
+    assert.ok(finalRoute.stops.every(s => s.status === 'pending'));
+    assert.equal(queueMessages.filter(m => m.bot === 'courier' && m.chat === String(courierC.telegram_id)).length, 3,
+        'третьему курьеру также отправлены маршрутный лист и карточки заказов');
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM route_transfer_events')).rows[0].n >= 2, true,
+        'каждая передача записана в журнал');
+
+    for (const stop of finalRoute.stops) {
+        assert.equal((await db.acceptRouteStop(finalRoute.id, stop.id, { expectedCourierId: courierC.id })).status, 'accepted');
     }
-    assert.equal((await db.startRouteIfAllAccepted(newRoute.id, { expectedCourierId: courierB.id })).status, 'started',
-        'второй курьер может принять и начать переданный маршрут');
+    assert.equal((await db.startRouteIfAllAccepted(finalRoute.id, { expectedCourierId: courierC.id })).status, 'started',
+        'новый курьер может принять и начать повторно переданный маршрут');
     assert.equal(await db.setStopStage(oldRemaining[0].id, 'enroute', {
         expectedCourierId: courierA.id, expectedRouteId: initial.route.id
-    }), null, 'старый курьер не может продолжить работу с переданной остановкой');
+    }), null, 'первый курьер не может продолжить работу с переданной остановкой');
+    const middleTransferred = middleRoute.stops.find(s => s.status === 'transferred');
+    assert.ok(middleTransferred);
+    assert.equal(await db.setStopStage(middleTransferred.id, 'enroute', {
+        expectedCourierId: courierB.id, expectedRouteId: middleRoute.id
+    }), null, 'второй курьер также теряет доступ после повторной передачи');
 });
