@@ -11,7 +11,7 @@ test('архивный курьер подаёт заявку, админист�
     const db = typeof Adapter === 'function' ? new Adapter(pool) : (Adapter.default || Adapter);
     await initDB();
     const telegramId = 920000000000 + (Date.now() % 1000000000);
-    const token = 'abcdef0123456789abcdef0123456789';
+    const token = require('crypto').randomBytes(16).toString('hex');
     const courier = await db.createCourier({
         name: 'Тест восстановления курьера', phone: '+70000000001',
         telegram_id: telegramId, telegram_user: 'reactivation-test',
@@ -28,7 +28,7 @@ test('архивный курьер подаёт заявку, админист�
     assert.ok(request.courier.archived_at);
     assert.equal(request.courier.activation_token, token);
 
-    const repeated = await db.requestCourierReactivation(telegramId, '11111111111111111111111111111111');
+    const repeated = await db.requestCourierReactivation(telegramId, require('crypto').randomBytes(16).toString('hex'));
     assert.equal(repeated.courier.activation_token, token, 'повторный /start не заменяет действующий токен');
 
     const restored = await db.approveCourierReactivation(courier.id);
@@ -55,7 +55,7 @@ test('повторный запрос деактивированного, но �
         await pool.query('DELETE FROM couriers WHERE id = $1', [courier.id]);
         await pool.end();
     });
-    const request = await db.requestCourierReactivation(telegramId, '0123456789abcdef0123456789abcdef');
+    const request = await db.requestCourierReactivation(telegramId, require('crypto').randomBytes(16).toString('hex'));
     assert.equal(request.status, 'pending');
     assert.equal(request.courier.is_active, false);
     const restored = await db.approveCourierReactivation(courier.id);
