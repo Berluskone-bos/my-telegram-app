@@ -2536,7 +2536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadDeliveryData();
         loadAnalytics();
         setInterval(loadDeliveryData, 30000);
-        { const h = location.hash.slice(1); go(VIEWS[h] ? h : 'delivery', { fromHash: true, initial: true }); }   // открыть раздел из адреса (#orders) или «Доставку»
+        { const h = location.hash.slice(1); go(VIEWS[h] && h !== 'dashboard' ? h : 'delivery', { fromHash: true, initial: true }); }   // Обзор создаётся отдельным скриптом после загрузки страницы
     </script>
     <script>
 
