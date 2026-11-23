@@ -839,3 +839,12 @@
 - Просмотрены regression tests: foreign courier route denial, cross-route stop substitution, stale callback after reassignment, inactive courier rejection, duplicate/replayed callback idempotency, order-owner rating, callback cancellation races. Существующие тесты покрывают эти инварианты.
 - В этом sweep нового подтверждённого IDOR/BOLA не найдено; это не означает завершение полного аудита. Остались углублённая проверка менее частых SQL write helpers, read-side object scope и конкурентных сценариев для операций, которые могут менять route/order ownership.
 - PR #174 docs-only CI run 45108299299 SUCCESS; merge commit 7bc58fd6d8e6fb5a6044c4c646a2b8fc4f18e531; Railway deployment 2ebbef02-2d86-4db6-a086-c3154bdf487c SUCCESS, pendingWork empty.
+
+
+## 23.11.2026 — IDOR/BOLA: read-side scope sweep
+- Проверены read-side API: клиентская история/профиль/бонусы/referral/loyalty; admin order list/detail; courier routes; product catalog/approvals/stock movements; dashboard and dispatch views. Клиентские ответы привязаны к Telegram user ID из проверенного initData; административные ответы закрыты сессией и role permissions.
+- Проверены Telegram route reads: /route/today используют выборку по authenticated courier ID; callback route actions до выдачи данных проверяют private chat, active courier, route owner и stop membership. Отложенная причина недоставки повторно проверяет courier и route owner перед чтением адреса/остановки и записью результата.
+- Проверен tracker widget rating: запрос привязан к сообщению в том же Telegram chat, затем к owner user_id и завершённому заказу; DB rating helper повторно проверяет owner, courier, stop status и идемпотентность в транзакции.
+- Ролевые ответы order details и dashboard проходят через field allowlists/permission matrix; manager/operator/warehouse имеют разные поля. Это role-based видимость, не cross-user BOLA в текущей модели единого магазина.
+- В проверенном read-side наборе нового подтверждённого IDOR/BOLA не найдено. getRouteById(routeId) остаётся общим внутренним DB helper без owner-фильтра; все проверенные Telegram entry points выполняют object-level authorization до выдачи данных, а критические writes повторяют проверку в транзакции. Отдельно продолжить аудит всех call sites helper и конкурентных изменений route ownership.
+- Полный IDOR/BOLA аудит остаётся открытым; далее — менее частые DB helpers, callback/text continuation, а также гонки archive/deactivate/order-cancel против read/write действий.
