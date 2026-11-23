@@ -80,14 +80,15 @@ test('заказ через API: сообщения клиенту и админ
     const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData(token, { id: 777005, first_name: 'Тест' }) },
-        body: JSON.stringify({ userName: 'Поддельное имя', items: [{ productId: pid, qty: 2 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5, корп. 2, эт. 3', city: 'Санкт-Петербург', street: 'Тестовая',
+        body: JSON.stringify({ userId: 777006, userName: 'Поддельное имя', items: [{ productId: pid, qty: 2 }], phone: '+79991112233', address: 'Санкт-Петербург, ул. Тестовая, д. 5, корп. 2, эт. 3', city: 'Санкт-Петербург', street: 'Тестовая',
             house: '5', building: '2', structure: '4', floor: '3', zone: 'spb', deliveryType: 'delivery', payment: 'cash' })
     });
     const body = await res.json();
     assert.equal(res.status, 200, JSON.stringify(body) + '\n' + log.slice(-800));
     assert.match(body.orderId, /^AP-\d{12,14}$/);
 
-    const order = (await pool.query('SELECT id, user_name, building, floor FROM orders WHERE order_number = $1', [body.orderId])).rows[0];
+    const order = (await pool.query('SELECT id, user_id, user_name, building, floor FROM orders WHERE order_number = $1', [body.orderId])).rows[0];
+    assert.equal(String(order.user_id), '777005', 'владелец заказа берётся из подписанного Telegram initData, а не из userId в теле запроса');
     assert.equal(order.user_name, 'Тест', 'имя заказа берётся из подписанного профиля Telegram, а не из тела запроса');
     assert.equal(order.building, '2'); assert.equal(order.floor, '3');
     const rows = (await pool.query('SELECT bot, status, payload FROM notification_outbox ORDER BY id')).rows;

@@ -956,3 +956,11 @@
 - [x] GitHub Actions run #723 — SUCCESS. PR #192 merged, merge commit `12cae527533f60113c53449eb2e6c7358fe4af75`; Railway production deployment `0ff0c1cc-730c-47c1-bb80-6b7b5b442f7f` — SUCCESS, `gulf-bot` live.
 - [x] После PR #191 и #192 все проверенные Telegram route read/write paths и route-sheet/ETA helpers используют owner-scoped SQL. Универсальный `getRouteById` в production остаётся только в административном endpoint оптимизации маршрута (`verifyAdmin + settings.manage)); остальные найденные вызовы — тестовые.
 - [ ] Продолжить оставшийся IDOR/BOLA аудит остальных менее частых API/DB helpers и конкурентных сценариев. Полный аудит не закрывать.
+
+
+## 23.11.2026 — проверка подмены клиентского ID в бонусах и заказах
+- [x] Проверены `GET /api/profile`, `PUT /api/profile`, `GET /api/bonuses`, `GET /api/referral/check`, `GET /api/loyalty` и `POST /api/order`: владелец определяется по валидному подписанному Telegram initData, не по userId из query/body.
+- [x] `/api/referral/check` намеренно игнорирует переданный телефон; совпадение телефона проверяется только при оформлении заказа, чтобы не допустить телефонный oracle.
+- [x] В ветке `security/test-customer-bonus-id-spoofing` добавлены регрессионные проверки: чужой `userId` в теле заказа не меняет владельца заказа; `?userId=` не меняет владельца ответа бонусного API.
+- [ ] CI/PR ещё ожидаются. Подтверждённых новых IDOR/BOLA в этом проходе пока нет.
+- [ ] Полный аудит остаётся открытым.
