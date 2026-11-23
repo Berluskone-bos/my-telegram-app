@@ -1295,6 +1295,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : todayRoutes.map(r => {
                         const c = couriers.find(x => x.id === r.courier_id);
                         const sc = r.status === 'completed' ? 'badge-green' : r.status === 'in_progress' ? 'badge-orange' : r.status === 'assigned' ? 'badge-blue' : 'badge-grey';
+                        const routeStatusLabel = ({ completed: 'Завершён', in_progress: 'В пути', assigned: 'Назначен', transferred: 'Передан', draft: 'Черновик' })[r.status] || r.status;
                         const failedStops = (r.stops || []).filter(s => s.status === 'failed');
                         const failedDetails = failedStops.map(s => esc((s.order_number || 'Заказ') + ': ' + (s.fail_reason || 'Причина не указана'))).join('<br>');
                         const remaining = (r.stops || []).filter(s => ['pending','accepted','in_progress'].includes(s.status)).length;
@@ -1311,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${esc(c ? c.name : '-')}</td>
                             <td>${r.total_orders || 0}</td>
                             <td>${r.completed || 0} / ${r.total_orders || 0}${failedStops.length ? '<br><small class="text-danger">Не доставлено: ' + failedDetails + '</small>' : ''}</td>
-                            <td><span class="badge ${sc}">${esc(r.status)}</span></td>
+                            <td><span class="badge ${sc}">${esc(routeStatusLabel)}</span></td>
                             <td>${(r.cash_to_collect || 0).toLocaleString()} руб.</td>
                             <td>${transferControl}</td>
                         </tr>`;
@@ -1492,8 +1493,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     && !window.adminHasPermission('orders.process');
                 function getCourierForOrder(orderId) {
                     for (const r of routes) {
+                        if (r.status === 'transferred') continue;
                         const stops = r.stops || [];
-                        if (stops.some(s => String(s.order_id) === String(orderId))) {
+                        if (stops.some(s => String(s.order_id) === String(orderId) && s.status !== 'transferred')) {
                             const c = couriers.find(x => x.id === r.courier_id);
                             return c ? c.name : null;
                         }
