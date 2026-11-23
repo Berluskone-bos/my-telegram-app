@@ -161,7 +161,20 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
                 return res.status(403).json({ error: 'Запрос отклонён: чужой источник' });
             }
             if (!isKnownRole(req.admin.role)) return res.status(403).json({ error: 'Недопустимая роль', code: 'FORBIDDEN' });
-            await pool.query('UPDATE admin_sessions SET last_seen = NOW() WHERE token_hash = $1', [hashToken(token)]);
+            // Сессия могла быть отозвана после SELECT (смена роли, отключение или сброс пароля).
+            // Условное обновление — точка повторной авторизации; если строка исчезла/истекла,
+            // не продолжаем запрос с уже устаревшей ролью из предыдущего SELECT.
+            const touched = await pool.query(
+                `UPDATE admin_sessions SET last_seen = NOW()
+                  WHERE token_hash = $1
+                    AND expires_at > NOW()
+                    AND last_seen > NOW() - ($2::text || ' milliseconds')::interval
+                  RETURNING token_hash`,
+                [hashToken(token), String(idleMs)]
+            );
+            if (!touched.rowCount) {
+                return res.status(401).json({ error: 'Сессия отозвана или истекла', code: 'AUTH_REQUIRED' });
+            }
             if (unsafe) res.on('finish', () => {
                 const detail = req.body && typeof req.body === 'object'
                     ? AUDIT_FIELDS.filter(k => req.body[k] !== undefined).map(k => k + '=' + String(req.body[k]).slice(0, 40)).join(' ')

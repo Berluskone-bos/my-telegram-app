@@ -32,8 +32,8 @@ test('сотрудники: индивидуальный вход, роли, о�
     const server = await new Promise(resolve => {
         const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
-    let raceServer = null;
-    t.after(async () => { server.close(); if (raceServer) raceServer.close(); await pool.end(); });
+    let raceServer = null, verifyRaceServer = null;
+    t.after(async () => { server.close(); if (raceServer) raceServer.close(); if (verifyRaceServer) verifyRaceServer.close(); await pool.end(); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const origin = 'https://127.0.0.1:' + server.address().port;
     const call = (path, { method = 'GET', body, cookie, ip = '10.10.10.1' } = {}) => fetch(base + path, {
@@ -173,6 +173,38 @@ test('сотрудники: индивидуальный вход, роли, о�
     assert.equal((await call('/api/admin/login', {
         method: 'POST', body: { login: 'operator.one', password: 'Operator-Password-2026!' }, ip: '10.10.10.6'
     })).status, 401);
+
+    // Отзыв сессии между SELECT и last_seen не должен пропускать запрос со старой ролью.
+    let releaseVerifyRead, signalVerifyRead;
+    const verifyReadPaused = new Promise(resolve => { signalVerifyRead = resolve; });
+    const verifyReadRelease = new Promise(resolve => { releaseVerifyRead = resolve; });
+    const verifyPool = Object.create(pool);
+    verifyPool.query = async (sql, params) => {
+        const result = await pool.query(sql, params);
+        if (String(sql).includes('FROM admin_sessions s LEFT JOIN admin_users u') && params && params[0]) {
+            signalVerifyRead();
+            await verifyReadRelease;
+        }
+        return result;
+    };
+    verifyPool.connect = (...args) => pool.connect(...args);
+    const verifyRaceAuth = createAdminAuth({ pool: verifyPool, getKey: () => process.env.ADMIN_API_KEY, failDelayMs: 0 });
+    const verifyRaceApp = express(); verifyRaceApp.set('trust proxy', 1); verifyRaceApp.use(express.json());
+    let protectedHandlerCalls = 0;
+    verifyRaceApp.get('/api/test/revocation-race', verifyRaceAuth.verifyAdmin, requirePermission('staff.manage'), (_req, res) => {
+        protectedHandlerCalls++;
+        res.json({ ok: true });
+    });
+    verifyRaceServer = await new Promise(resolve => { const srv = verifyRaceApp.listen(0, '127.0.0.1', () => resolve(srv)); });
+    const verifyRaceRequest = fetch('http://127.0.0.1:' + verifyRaceServer.address().port + '/api/test/revocation-race', {
+        headers: { 'x-forwarded-proto': 'https', 'cookie': ownerCookie }
+    });
+    await verifyReadPaused;
+    await pool.query('DELETE FROM admin_sessions WHERE staff_user_id = $1', [owner.id]);
+    releaseVerifyRead();
+    const revokedDuringAuth = await verifyRaceRequest;
+    assert.equal(revokedDuringAuth.status, 401, 'отозванная после SELECT сессия не проходит middleware');
+    assert.equal(protectedHandlerCalls, 0, 'защищённый обработчик не запускается со старой ролью');
 
     // Последнего активного администратора отключить нельзя.
     const lastAdmin = await call('/api/admin/staff/' + owner.id, {
