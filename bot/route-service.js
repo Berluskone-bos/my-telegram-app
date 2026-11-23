@@ -163,9 +163,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             sourceRouteId, expectedSourceCourierId: sourceCourierId, targetCourierId: targetCourier.id,
             routeNumber, routeDate, reason, actorLogin,
             afterTransfer: async ({ client, route: createdRoute, stops }) => {
-                const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\\n');
-                const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\\n` +
-                    `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\\n\\n${stopTextList}`;
+                const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\n');
+                const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
+                    `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\n\n${stopTextList}`;
                 const ll = sequence.map(s => ({ lat: s.lat, lon: s.lon }));
                 const nav = sequence.some(s => s.lat && s.lon) ? MapLinks.allRoute(ll) : null;
                 const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
@@ -177,16 +177,16 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 }
                 for (let i = 0; i < stops.length; i++) {
                     const st = stops[i], old = sequence[i];
-                    const text = `<b>Передача заказа ${i + 1} из ${stops.length}</b>\\n\\nЗаказ: ${escapeHtml(st.order_number || '')}\\nАдрес: ${escapeHtml(st.address || '')}\\n` +
-                        `Сумма: ${Number(st.amount_to_pay || 0).toLocaleString()} руб.${st.payment_status === 'pending' ? ' (оплата на месте)' : ''}\\n` +
-                        (st.phone ? `Телефон: ${escapeHtml(st.phone)}\\n` : '') + (st.comment ? `Комментарий: ${escapeHtml(st.comment)}\\n` : '') +
-                        `\\nСначала получите этот заказ у предыдущего курьера, затем нажмите «Принять заказ».`;
+                    const text = `<b>Передача заказа ${i + 1} из ${stops.length}</b>\n\nЗаказ: ${escapeHtml(st.order_number || '')}\nАдрес: ${escapeHtml(st.address || '')}\n` +
+                        `Сумма: ${Number(st.amount_to_pay || 0).toLocaleString()} руб.${st.payment_status === 'pending' ? ' (оплата на месте)' : ''}\n` +
+                        (st.phone ? `Телефон: ${escapeHtml(st.phone)}\n` : '') + (st.comment ? `Комментарий: ${escapeHtml(st.comment)}\n` : '') +
+                        `\nСначала получите этот заказ у предыдущего курьера, затем нажмите «Принять заказ».`;
                     const buttons = [];
                     if (st.lat && st.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(st.address, st.lat, st.lon) }, { text: '2GIS', url: MapLinks.gis2(st.lat, st.lon) }]);
                     buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${createdRoute.id}_${st.id}_accept` }]);
                     await queue.notify('courier', targetCourier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id }, db: client, throwOnError: true });
                 }
-                if (notifyAdmin) await notifyAdmin(`<b>Передача маршрута завершена</b>\\nСтарый маршрут: ${escapeHtml(source.route_number)}\\nНовый маршрут: ${escapeHtml(createdRoute.route_number)}\\nНовый курьер: ${escapeHtml(targetCourier.name)}\\nПередано заказов: ${stops.length}\\nПричина: ${escapeHtml(reason)}${approx}`, { db: client, dedupKey: `route-transfer:${sourceRouteId}` });
+                if (notifyAdmin) await notifyAdmin(`<b>Передача маршрута завершена</b>\nСтарый маршрут: ${escapeHtml(source.route_number)}\nНовый маршрут: ${escapeHtml(createdRoute.route_number)}\nНовый курьер: ${escapeHtml(targetCourier.name)}\nПередано заказов: ${stops.length}\nПричина: ${escapeHtml(reason)}${approx}`, { db: client, dedupKey: `route-transfer:${sourceRouteId}` });
             }
         });
         if (route.status !== 'transferred') {
