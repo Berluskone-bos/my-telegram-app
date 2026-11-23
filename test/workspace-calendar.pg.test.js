@@ -138,7 +138,7 @@ test('рабочий календарь: задачи видны назначе�
     const managerData = await (await request(path, manager.cookie)).json();
     assert.ok(managerData.items.some(item => item.id === operatorTask.id));
     assert.ok(managerData.items.some(item => item.id === warehouseTask.id));
-    assert.equal(managerData.items.find(item => item.id === meeting.id).amount, 9500,
+    assert.equal(Number(managerData.items.find(item => item.id === meeting.id).amount), 9500,
         'manager with sales.view can see company event amount');
 
     const selfUpdate = await request('/api/admin/workspace/items/' + operatorTask.id, operator.cookie, {
