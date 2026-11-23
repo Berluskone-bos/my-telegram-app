@@ -196,6 +196,7 @@
     }
     let workcalDate = workcalMoscowToday();
     let workcalSelected = null;
+    let workcalOpenedItemId = null;
     let workcalData = { days: [], items: [] };
     let workcalStaff = [];
     let workcalLoadSequence = 0;
@@ -264,7 +265,12 @@
         const tasks=items.filter(x=>x.kind==='task'&&x.status!=='cancelled');
         const completed=tasks.filter(x=>x.status==='done').length;
         const events=items.filter(x=>x.kind!=='task'&&x.status!=='cancelled');
+        const openedItem=workcalOpenedItemId==null?null:items.find(item=>String(item.id)===String(workcalOpenedItemId));
         let html='<div class="workcal-detail-head"><div class="workcal-detail-title">'+esc(workcalFmtDate(dateKey))+'</div>'+(workcalCanManage()?'<button type="button" class="workcal-action workcal-primary" id="workcalAddTask">+ Новая задача / событие</button>':'')+'</div>';
+        if(openedItem){
+            const fields=[['Тип',WORKCAL_KINDS[openedItem.kind]||openedItem.kind],['Статус',WORKCAL_STATUSES[openedItem.status]||openedItem.status],['Приоритет',WORKCAL_PRIORITIES[openedItem.priority]||openedItem.priority],['Исполнитель',openedItem.assigneeName],['Начало',openedItem.startsAt?workcalTime(openedItem.startsAt):''],['Срок',openedItem.dueAt?workcalTime(openedItem.dueAt):''],['Место',openedItem.location],['Контрагент',openedItem.counterparty],['Сумма',openedItem.amount!=null?workcalFmtMoney(openedItem.amount):''],['Показатель KPI',openedItem.metricName],['Значение KPI',openedItem.metricValue],['Цель KPI',openedItem.metricTarget]].filter(([,value])=>value!==undefined&&value!==null&&value!=='');
+            html+='<section class="workcal-opened-item" style="border:1px solid var(--border);border-radius:12px;padding:14px;display:grid;gap:9px"><div class="workcal-detail-head"><div class="workcal-detail-title">Подробности записи</div><button type="button" class="workcal-action" id="workcalCloseOpenedItem">Закрыть</button></div><div style="font-size:15px;font-weight:750">'+esc(openedItem.title)+'</div><div class="workcal-daystats">'+fields.map(([label,value])=>'<span class="workcal-stat">'+esc(label)+': <b>'+esc(value)+'</b></span>').join('')+'</div>'+(openedItem.description?'<div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5">'+esc(openedItem.description)+'</div>':'<div class="workcal-empty">Описание не заполнено.</div>')+'</section>';
+        }
         html+='<div class="workcal-daystats"><span class="workcal-stat">Заказы: <b>'+integer.format(summary.orders||0)+'</b></span><span class="workcal-stat">Выручка: <b>'+esc(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</b></span><span class="workcal-stat">Новые: <b>'+integer.format(summary.newOrders||0)+'</b></span><span class="workcal-stat">В доставке: <b>'+integer.format(summary.shipping||0)+'</b></span><span class="workcal-stat">Доставлено: <b>'+integer.format(summary.delivered||0)+'</b></span><span class="workcal-stat">Отменено: <b>'+integer.format(summary.cancelled||0)+'</b></span><span class="workcal-stat">Движения склада: <b>'+integer.format(summary.stockMovements||0)+'</b></span><span class="workcal-stat">Склад −/+ шт.: <b>'+integer.format(summary.qtyOut||0)+' / '+integer.format(summary.qtyIn||0)+'</b></span><span class="workcal-stat">Задачи: <b>'+completed+'/'+tasks.length+'</b></span><span class="workcal-stat">События: <b>'+events.length+'</b></span></div>';
         if(!items.length)html+='<div class="workcal-empty">На этот день пока нет задач и событий.</div>';
         else html+='<div class="workcal-items">'+items.map(item=>{
@@ -277,6 +283,7 @@
         }).join('')+'</div>';
         target.innerHTML=html;
         target.querySelector('#workcalAddTask')?.addEventListener('click',()=>renderWorkcalForm(dateKey));
+        target.querySelector('#workcalCloseOpenedItem')?.addEventListener('click',()=>{workcalOpenedItemId=null;renderWorkcalDay(dateKey);});
         target.querySelectorAll('[data-task-status]').forEach(button=>button.addEventListener('click',()=>updateWorkcalItem(button.dataset.taskStatus,{status:button.dataset.status})));
         target.querySelectorAll('[data-item-cancel]').forEach(button=>button.addEventListener('click',()=>cancelWorkcalItem(button.dataset.itemCancel)));
     }
@@ -301,13 +308,16 @@
             const overdue=isTask&&date<today&&item.status!=='done';
             const kindLabel=WORKCAL_KINDS[item.kind]||item.kind;
             const assignee=item.assigneeName?' · '+esc(item.assigneeName):'';
-            return '<div class="dash-row"><div><div class="dash-main">'+esc(item.title)+' <span class="dash-pill">'+esc(kindLabel)+'</span></div><div class="dash-sub">'+(overdue?'<b style="color:#dc2626">Просрочено · </b>':'')+esc(date?workcalFmtDate(date):'Без даты')+' · '+esc(WORKCAL_STATUSES[item.status]||item.status)+assignee+'</div></div><div class="dash-value"><button type="button" class="workcal-action" data-open-workcal-date="'+esc(date||'')+'">Открыть</button></div></div>';
+            return '<div class="dash-row"><div><div class="dash-main">'+esc(item.title)+' <span class="dash-pill">'+esc(kindLabel)+'</span></div><div class="dash-sub">'+(overdue?'<b style="color:#dc2626">Просрочено · </b>':'')+esc(date?workcalFmtDate(date):'Без даты')+' · '+esc(WORKCAL_STATUSES[item.status]||item.status)+assignee+'</div></div><div class="dash-value"><button type="button" class="workcal-action" data-open-workcal-item="'+esc(item.id)+'">Открыть</button></div></div>';
         }).join('')+(entries.length>30?'<div class="dash-empty">Показаны первые 30 записей месяца.</div>':'');
-        target.querySelectorAll('[data-open-workcal-date]').forEach(button=>button.addEventListener('click',()=>{
-            const date=button.dataset.openWorkcalDate;
+        target.querySelectorAll('[data-open-workcal-item]').forEach(button=>button.addEventListener('click',()=>{
+            const item=(workcalData.items||[]).find(entry=>String(entry.id)===String(button.dataset.openWorkcalItem));
+            if(!item)return;
+            const date=workcalItemDate(item);
             if(!date)return;
+            workcalOpenedItemId=item.id;
             if(!date.startsWith(workcalMonthKey(workcalDate))){workcalDate=workcalParseDate(date);workcalSelected=date;loadWorkspaceCalendar();}
-            else selectWorkcalDay(date);
+            else{workcalSelected=date;renderWorkcalDay(date);document.getElementById('workcalDetail')?.scrollIntoView({behavior:'smooth',block:'start'});}
         }));
     }
     async function selectWorkcalDay(dateKey) {
