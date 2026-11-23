@@ -27,7 +27,7 @@ test('аварийная передача: история первого кур�
         if (routeIds.length) {
             await pool.query('DELETE FROM route_transfer_events WHERE source_route_id = ANY($1::int[]) OR target_route_id = ANY($1::int[])', [routeIds]);
             await pool.query('UPDATE route_stops SET transferred_to_stop_id = NULL WHERE route_id = ANY($1::int[])', [routeIds]);
-            await pool.query('UPDATE delivery_routes SET transferred_to_route_id = NULL WHERE id = ANY($1::int[])', [routeIds]);
+            await pool.query('UPDATE delivery_routes SET transferred_to_route_id = NULL, transferred_from_route_id = NULL WHERE id = ANY($1::int[])', [routeIds]);
             await pool.query('DELETE FROM route_stops WHERE route_id = ANY($1::int[])', [routeIds]);
             await pool.query('DELETE FROM delivery_routes WHERE id = ANY($1::int[])', [routeIds]);
         }
@@ -120,7 +120,7 @@ test('аварийная передача: история первого кур�
     assert.ok(finalRoute.stops.every(s => s.status === 'pending'));
     assert.equal(queueMessages.filter(m => m.bot === 'courier' && m.chat === String(courierC.telegram_id)).length, 3,
         'третьему курьеру также отправлены маршрутный лист и карточки заказов');
-    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM route_transfer_events')).rows[0].n >= 2, true,
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM route_transfer_events WHERE source_route_id = ANY($1::int[])', [routeIds])).rows[0].n >= 2, true,
         'каждая передача записана в журнал');
 
     for (const stop of finalRoute.stops) {
