@@ -503,6 +503,8 @@ test('курьерский бот: кнопки отменённого зака�
         error => error && error.code === 'COURIER_HAS_ACTIVE_ROUTE',
         'архивирование курьера блокируется, пока у него есть незавершённые доставки');
     await pool.query('UPDATE couriers SET is_active = false WHERE id = $1', [courier.id]);
+    assert.deepEqual(await db.getRoutesByDateAndCourier('2026-11-14', courier.id), [],
+        'после отключения курьер не получает даже историю своих маршрутов через выборку по дате');
     await handlers.message({ chat: { id: 900002, type: 'private' }, from: { id: 900002 }, text: 'ответ после отключения' });
     await new Promise(r => setTimeout(r, 100));
     assert.equal(await orderStatus(disabled.o.id), 'READY_FOR_SHIPMENT', 'отключённый курьер не меняет статус через отложенный ответ');
