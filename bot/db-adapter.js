@@ -807,7 +807,7 @@ class DBAdapter {
                     return { status: 'courier_inactive' };
                 }
             }
-            if (route.rows[0].transferred_from_route_id && !route.rows[0].handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'handoff_required' }; }
+            if (route.rows[0].handoff_required && !route.rows[0].handoff_confirmed_at) { await client.query('ROLLBACK'); return { status: 'handoff_required' }; }
             if (route.rows[0].status === 'in_progress') { await client.query('COMMIT'); return { status: 'already' }; }
             if (route.rows[0].status !== 'assigned') { await client.query('ROLLBACK'); return { status: 'forbidden' }; }
             await client.query(
