@@ -848,3 +848,10 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Railway deployment `966cb9e9-f318-49c4-ba6e-79ebe1b7f0a3` SUCCESS; `gulf-bot` live.
 - Регрессионно подтверждено: `userId` в body заказа и query бонусного API не меняет владельца, который берётся из подписанного Telegram initData.
 - Остальные DB/API helpers и конкурентные сценарии остаются в плане; аудит не закрыт.
+
+
+## 23.11.2026 — admin session revocation TOCTOU
+- Найдено узкое окно в `verifyAdmin`: сессия могла быть удалена между SELECT и UPDATE `last_seen`; прежний код игнорировал `rowCount=0` и продолжал запрос с ролью из старого SELECT.
+- В ветке `security/recheck-admin-session-after-read` добавлено условное обновление с проверкой существования сессии, absolute expiry и idle expiry; если запись отозвана/истекла, middleware возвращает 401.
+- Добавлен детерминированный PostgreSQL race test: middleware останавливается после SELECT, сессия удаляется, затем запрос продолжается; ожидается 401 и ноль вызовов защищённого handler.
+- CI/PR/deploy ожидают; не считать исправление завершённым до прохождения теста и production deploy.
