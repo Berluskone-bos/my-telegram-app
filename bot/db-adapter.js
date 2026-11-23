@@ -502,7 +502,7 @@ class DBAdapter {
             if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
             if (stop.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { status: stop.rows[0].status === 'cancelled' ? 'cancelled' : 'forbidden' }; }
-            const accepted = await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1 RETURNING *", [sid]);
+            const accepted = await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1 AND route_id = $2 RETURNING *", [sid, rid]);
             if (typeof afterAccept === 'function') {
                 const routeDetails = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [rid]);
                 const routeStops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number', [rid]);
@@ -752,8 +752,8 @@ class DBAdapter {
             const updated = await client.query(
                 `UPDATE route_stops
                     SET status = 'failed', fail_reason = $2::text
-                  WHERE id = $1 RETURNING *`,
-                [id, String(reason || 'Не указана').slice(0, 300)]);
+                  WHERE id = $1 AND route_id = $3 RETURNING *`,
+                [id, String(reason || 'Не указана').slice(0, 300), candidate.route_id]);
             // Заказ тоже становится «Не доставлен» (раньше оставался «В пути» и в админке ничего не менялось).
             // Заказ уже заблокирован выше; отменённый и доставленный сюда не попадут (остановка не in_progress).
             await client.query(
@@ -883,8 +883,8 @@ class DBAdapter {
                     SET status = 'delivered',
                         fail_reason = NULL,
                         delivered_at = COALESCE(delivered_at, NOW())
-                  WHERE id = $1
-                  RETURNING *`, [id]);
+                  WHERE id = $1 AND route_id = $2
+                  RETURNING *`, [id, candidate.route_id]);
 
             await this._refreshRouteCompletion(client, stop.route_id);
             const completedRouteRes = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [stop.route_id]);
