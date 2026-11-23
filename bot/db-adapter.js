@@ -497,7 +497,7 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const route = await client.query('SELECT id, courier_id, status FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            const route = await client.query('SELECT id, courier_id, status, handoff_required, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (Number(route.rows[0].courier_id) !== cid) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
             if (!['assigned', 'in_progress'].includes(route.rows[0].status)) { await client.query('ROLLBACK'); return { status: 'route_not_transferable' }; }
@@ -708,7 +708,7 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const route = await client.query('SELECT id, courier_id, status, transferred_from_route_id, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            const route = await client.query('SELECT id, courier_id, status, handoff_required, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             const r = route.rows[0];
             if (String(r.courier_id) !== String(cid)) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
@@ -740,7 +740,7 @@ class DBAdapter {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const route = await client.query('SELECT id, status, courier_id, transferred_from_route_id, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
+            const route = await client.query('SELECT id, status, courier_id, handoff_required, handoff_confirmed_at FROM delivery_routes WHERE id = $1 FOR UPDATE', [rid]);
             if (!route.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (expectedCourierId !== undefined) {
                 if (expectedCourierId === null || String(route.rows[0].courier_id) !== String(expectedCourierId)) {
