@@ -69,9 +69,12 @@ test('аварийная передача: история первого кур�
     const delivered = originalStops[0];
     assert.equal((await db.completeDeliveryStop(delivered.id, { expectedCourierId: courierA.id, expectedRouteId: initial.route.id })).status, 'completed');
 
+    const firstReport = await db.recordRouteTransferRequest(initial.route.id, courierA.id, 'breakdown', 'Площадка у Тестовой улицы, 1');
+    assert.equal(firstReport.status, 'requested');
     const transferArgs = {
         sourceRouteId: initial.route.id, sourceCourierId: courierA.id, targetCourier: courierB,
-        reason: 'breakdown', notifyAdmin: async () => true
+        reason: 'breakdown', handoffLocation: (await db.getRouteById(initial.route.id)).transfer_handoff_location,
+        notifyAdmin: async () => true
     };
     const results = await Promise.allSettled([
         svc.transferRemainingRoute(transferArgs),
@@ -107,8 +110,11 @@ test('аварийная передача: история первого кур�
         'переданные заказы не возвращаются в READY_FOR_SHIPMENT');
 
     // Если второй курьер тоже не может продолжить, те же заказы можно передать третьему.
+    const secondReport = await db.recordRouteTransferRequest(newRoute.id, courierB.id, 'fuel', 'АЗС на перекрёстке');
+    assert.equal(secondReport.status, 'requested');
     const secondTransfer = await svc.transferRemainingRoute({
-        sourceRouteId: newRoute.id, sourceCourierId: courierB.id, targetCourier: courierC, reason: 'fuel'
+        sourceRouteId: newRoute.id, sourceCourierId: courierB.id, targetCourier: courierC, reason: 'fuel',
+        handoffLocation: (await db.getRouteById(newRoute.id)).transfer_handoff_location
     });
     routeIds.push(secondTransfer.route.id);
     const middleRoute = await db.getRouteById(newRoute.id);
