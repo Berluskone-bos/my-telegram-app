@@ -730,3 +730,10 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Rechecked courier callback guard: private-chat sender binding, active courier lookup, route ownership, stop membership, strict callback formats, and transactional owner/route checks on state-changing callbacks. Existing PostgreSQL regressions cover foreign route IDs, cross-route stop substitution, reassignment, inactive couriers, replay/idempotency, order-owner rating and cancellation races.
 - No additional confirmed IDOR/BOLA issue found in this sweep. Full audit remains open: continue less frequently used SQL write helpers, read-side object scope, and concurrency paths that can change route/order ownership.
 - PR #174 CI run 45108299299 SUCCESS; merge commit 7bc58fd6d8e6fb5a6044c4c646a2b8fc4f18e531; Railway deployment 2ebbef02-2d86-4db6-a086-c3154bdf487c SUCCESS; production pendingWork empty.
+
+
+## 23.11.2026 — IDOR/BOLA read-side review
+- Read-side review covered authenticated customer history/profile/loyalty/bonus/referral, admin order list/detail, route/courier reads, catalog/product approvals/stock movements, dashboard/dispatch and Telegram tracker rating.
+- Customer object scope is derived from verified Telegram initData. Courier route commands and callbacks validate private-chat sender, active courier, route ownership and stop membership before exposing route data; deferred failure-reason text handling repeats courier/route checks. Tracker ratings bind message/chat, order owner, delivery status and courier/stop in the DB layer.
+- Admin list/detail/dashboard fields are filtered by role-specific allowlists and permission checks. No new confirmed read-side IDOR/BOLA was found in the reviewed call sites.
+- getRouteById(routeId) remains a generic internal helper without an owner predicate; reviewed Telegram call sites authorize before exposing its result, while mutation methods recheck route/courier scope transactionally. Continue checking every helper call site and concurrent route ownership transitions. Full audit remains open.
