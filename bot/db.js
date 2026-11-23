@@ -266,6 +266,7 @@ async function initDB() {
         await client.query(`
             ALTER TABLE delivery_routes
                 ADD COLUMN IF NOT EXISTS transferred_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS transferred_from_route_id INTEGER REFERENCES delivery_routes(id),
                 ADD COLUMN IF NOT EXISTS transferred_to_route_id INTEGER REFERENCES delivery_routes(id),
                 ADD COLUMN IF NOT EXISTS transfer_reason TEXT;
             ALTER TABLE route_stops
