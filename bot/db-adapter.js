@@ -516,9 +516,10 @@ class DBAdapter {
             let remaining = lockedStops.rows.filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
             if (!remaining.length) { await client.query('ROLLBACK'); return { status: 'nothing_to_transfer' }; }
             if (orderedStopIds != null) {
+                if (!Array.isArray(orderedStopIds)) { await client.query('ROLLBACK'); return { status: 'invalid_stop_order' }; }
                 const requestedOrder = orderedStopIds.map(Number);
                 const currentIds = remaining.map(s => Number(s.id));
-                if (!Array.isArray(orderedStopIds) || requestedOrder.length !== currentIds.length ||
+                if (requestedOrder.length !== currentIds.length ||
                     new Set(requestedOrder).size !== requestedOrder.length ||
                     requestedOrder.some(id => !currentIds.includes(id))) {
                     await client.query('ROLLBACK');
