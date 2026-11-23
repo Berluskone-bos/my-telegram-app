@@ -145,10 +145,11 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                 )
             ]);
             const dayMap = new Map();
+            const canSeeSales = hasPermission(req.admin && req.admin.role, 'sales.view');
             for (const row of orders.rows) dayMap.set(row.day, {
                 date: row.day, orders: row.orders, newOrders: row.new_orders,
                 shipping: row.shipping, delivered: row.delivered, cancelled: row.cancelled,
-                revenue: Number(row.revenue) || 0, tasks: 0, tasksDone: 0,
+                revenue: canSeeSales ? (Number(row.revenue) || 0) : 0, tasks: 0, tasksDone: 0,
                 meetings: 0, contracts: 0, logistics: 0, kpi: 0
             });
             for (const item of items.rows) {
@@ -165,8 +166,9 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
                 if (item.kind === 'task') {
                     summary.tasks++;
                     if (item.status === 'done') summary.tasksDone++;
-                } else if (Object.prototype.hasOwnProperty.call(summary, item.kind + 's')) {
-                    summary[item.kind + 's']++;
+                } else {
+                    const summaryKey = ({ meeting: 'meetings', contract: 'contracts', logistics: 'logistics', kpi: 'kpi' })[item.kind];
+                    if (summaryKey) summary[summaryKey]++;
                 }
             }
             res.set('Cache-Control', 'no-store');
