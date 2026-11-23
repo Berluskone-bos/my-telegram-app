@@ -622,7 +622,7 @@ function applyAdminAccess(me) {
     const rules = {
         delivery: has('settings.manage'),
         orders: has('orders.view'),
-        products: has('products.view'),
+        products: has('products.view') || has('inventory.view'),
         customers: has('customers.view'),
         analytics: has('sales.view'),
         audit: has('staff.manage')
@@ -685,8 +685,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <button class="nav-item" data-view="delivery" title="Доставка" onclick="go('delivery')">
                 <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><span class="lbl">Доставка</span><span class="chip" data-chip="delivery"></span>
             </button>
-            <button class="nav-item" data-view="products" title="Товары" onclick="go('products')">
-                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span><span class="lbl">Товары</span><span class="chip" data-chip="products"></span>
+            <button class="nav-item" data-view="products" title="Склад" onclick="go('products')">
+                <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span><span class="lbl">Склад</span><span class="chip" data-chip="products"></span>
             </button>
             <button class="nav-item" data-view="customers" title="Клиенты" onclick="go('customers')">
                 <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="lbl">Клиенты</span><span class="chip" data-chip="customers"></span>
@@ -966,9 +966,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <!-- Товары -->
             <div class="section" data-sec="products">
                 <div class="section-header">
-                    <div class="section-title">Товары</div>
+                    <div class="section-title">Склад · каталог и остатки</div>
                     <div style="display:flex;gap:8px;">
-                        <button class="btn btn-primary btn-sm" onclick="openProductModal()">Добавить товар</button>
+                        <button class="btn btn-primary btn-sm" onclick="openProductModal()">Добавить позицию</button>
                         <button class="btn btn-outline btn-sm" onclick="loadShopProducts()">Обновить</button>
                     </div>
                 </div>
@@ -1127,7 +1127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboard: { tab: 'dashboard', title: 'Обзор' },
             orders:    { tab: 'shop', title: 'Заказы' },
             delivery:  { tab: 'delivery', title: 'Доставка' },
-            products:  { tab: 'shop', title: 'Товары' },
+            products:  { tab: 'shop', title: 'Склад' },
             customers: { tab: 'shop', title: 'Клиенты' },
             analytics: { tab: 'analytics', title: 'Аналитика' },
             audit:     { tab: 'audit', title: 'Журнал' }
@@ -1181,7 +1181,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (currentView === 'products') {
                 const n = num('shopProductsCount');
-                if (!isNaN(n) && shopLoaded) t = `${n} ${plural(n, 'товар', 'товара', 'товаров')} в каталоге`;
+                if (!isNaN(n) && shopLoaded) t = `${n} ${plural(n, 'позиция', 'позиции', 'позиций')} на складе`;
             } else if (currentView === 'customers') {
                 const n = num('shopCustomersCount');
                 if (!isNaN(n) && shopLoaded) t = `${n} ${plural(n, 'клиент', 'клиента', 'клиентов')} сделали заказ`;
