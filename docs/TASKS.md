@@ -947,3 +947,12 @@
 - [x] Дополнительно просмотрены прямые SQL-записи в `db.js`, `admin-auth.js`, `partsapi-cache.js`: миграции — системные; персонал — `verifyAdmin + staff.manage` и транзакции; PartsAPI пишет кэш по проверенному car ID, не пользовательские данные. `user_garage` не имеет production call sites. Telegram `widget_query` связывает отправителя с личным чатом и конкретным сообщением, проверяет владельца и доставленный статус; DB повторно проверяет оценку.
 - [~] Новый hardening в ветке `security/scope-route-sheet-to-courier`: `route-sheet.loadSheet` и обновление карточки требуют ожидаемый courier ID и активного владельца в SQL; cancellation flow и ETA refresh передают ID из проверенного контекста. PostgreSQL-регрессия запрещает чужому курьеру обновлять карточку. PR/CI/deploy ожидают.
 - [ ] Полный IDOR/BOLA аудит остаётся открытым.
+
+
+## 23.11.2026 — PR #192: ограничение обновления маршрутного листа
+- [x] `route-sheet.loadSheet` теперь требует expectedCourierId и в SQL проверяет маршрут, владельца, активность и отсутствие архива курьера.
+- [x] `queueRouteSheetEdit` работает fail-closed без валидного ID владельца. ETA refresh передаёт ID из проверенного courier callback; cancellation flow берёт courier_id из связанного маршрута в той же транзакции.
+- [x] Добавлена PostgreSQL-регрессия: чужой курьер не может обновить карточку маршрутного листа.
+- [x] GitHub Actions run #723 — SUCCESS. PR #192 merged, merge commit `12cae527533f60113c53449eb2e6c7358fe4af75`; Railway production deployment `0ff0c1cc-730c-47c1-bb80-6b7b5b442f7f` — SUCCESS, `gulf-bot` live.
+- [x] После PR #191 и #192 все проверенные Telegram route read/write paths и route-sheet/ETA helpers используют owner-scoped SQL. Универсальный `getRouteById` в production остаётся только в административном endpoint оптимизации маршрута (`verifyAdmin + settings.manage)); остальные найденные вызовы — тестовые.
+- [ ] Продолжить оставшийся IDOR/BOLA аудит остальных менее частых API/DB helpers и конкурентных сценариев. Полный аудит не закрывать.
