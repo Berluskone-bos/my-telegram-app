@@ -59,6 +59,9 @@ test('рефералы через API: код друга, баланс, спис
     // приглашающий становится клиентом; его код постоянный и привязан к Telegram ID
     const r0 = await order(INV, 1, '+79990003333'); assert.equal(r0.status, 200, log.slice(-800));
     const b0 = await (await fetch(`http://127.0.0.1:${port}/api/bonuses`, { headers: hdr(INV) })).json();
+    const forgedBonusOwner = await (await fetch(`http://127.0.0.1:${port}/api/bonuses?userId=${INV}`, { headers: hdr(FR) })).json();
+    assert.equal(forgedBonusOwner.referralCode, `REF-${FR}`, 'query userId не может подменить владельца бонусного профиля');
+    assert.equal(forgedBonusOwner.balance, 0, 'баланс берётся только из подписанного Telegram ID');
     assert.equal(b0.referralCode, `REF-${INV}`); assert.equal(b0.balance, 0);
     assert.equal(b0.bonusPerOrder, 200); assert.equal(b0.minOrder, 6000); assert.equal(b0.maxSharePct, 20);
 
