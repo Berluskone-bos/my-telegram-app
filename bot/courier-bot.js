@@ -352,6 +352,7 @@ async function showMainScreen(chatId, courier) {
             buttons.push([{ text: 'Поехал!', callback_data: `startroute_${activeRoute.id}` }]);
         }
         buttons.push([{ text: 'Маршрутный лист', callback_data: `showroute_${activeRoute.id}` }]);
+        buttons.push([{ text: 'Не могу продолжить маршрут', callback_data: `reportroute_${activeRoute.id}` }]);
     }
     buttons.push([{ text: 'Обновить', callback_data: 'refresh_main' }]);
 
@@ -380,9 +381,10 @@ bot.onText(/\/today/, async (msg) => {
     todayRoutes.forEach(route => {
         const stops = route.stops || [];
         const delivered = stops.filter(s => s.status === 'delivered').length;
-        text += `<b>${escapeHtml(route.route_number)}</b> — ${stops.length} остановок (${delivered} доставлено)\n`;
+        const routeLabel = route.status === 'transferred' ? ' — передан другому курьеру' : '';
+        text += `<b>${escapeHtml(route.route_number)}</b> — ${stops.length} остановок (${delivered} доставлено)${routeLabel}\n`;
         stops.forEach((stop, idx) => {
-            const icon = stop.status === 'delivered' ? '[OK]' : stop.status === 'failed' ? '[X]' : `[${idx + 1}]`;
+            const icon = stop.status === 'delivered' ? '[OK]' : stop.status === 'failed' ? '[X]' : stop.status === 'transferred' ? '[ПЕРЕДАН]' : `[${idx + 1}]`;
             text += `  ${icon} ${escapeHtml(stop.order_number || '')} ${escapeHtml(stop.address)}\n`;
         });
         text += '\n';
@@ -417,12 +419,16 @@ async function sendRouteDetails(chatId, route) {
 
     let text = `<b>Маршрут ${escapeHtml(route.route_number)}</b>\n`;
     text += `Дата: ${escapeHtml(route.route_date)}\n`;
+    const routeStatusLabel = ({ assigned: 'Назначен', in_progress: 'В пути', completed: 'Завершён', transferred: 'Передан другому курьеру' })[route.status] || route.status;
+    text += `Статус: ${escapeHtml(routeStatusLabel)}\n`;
+    if (route.status === 'transferred') text += 'Этот маршрут закрыт. Оставшиеся заказы переданы другому курьеру; старые действия недоступны.\n';
     text += `Остановок: ${stops.length} | Доставлено: ${completed} | Не доставлено: ${failed}\n\n`;
 
     stops.forEach((stop, idx) => {
         const statusIcon = stop.status === 'delivered' ? '[ДОСТАВЛЕН]' :
                           stop.status === 'failed' ? '[НЕ ДОСТАВЛЕН]' :
-                          stop.status === 'cancelled' ? '[ОТМЕНЁН]' : `[${stop.stop_number || idx + 1}]`;
+                          stop.status === 'cancelled' ? '[ОТМЕНЁН]' :
+                          stop.status === 'transferred' ? '[ПЕРЕДАН]' : `[${stop.stop_number || idx + 1}]`;
         text += `<b>${statusIcon} ${escapeHtml(stop.order_number || '')}</b>\n`;
         text += `Адрес: ${escapeHtml(stop.address)}\n`;
         if (stop.items_count) text += `Товаров: ${escapeHtml(stop.items_count)}\n`;
@@ -538,22 +544,24 @@ bot.on('callback_query', async (query) => {
     console.log('[CALLBACK] Получено действие курьера');
 
     // ── Авторизация: маршрут и остановка должны принадлежать этому курьеру ──
-    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
-    const routeOnlyMatch = /^(showroute|startroute|optimizeroute)_(\d{1,15})$/.exec(data);
+    const ROUTE_ACTIONS = ['showroute_', 'startroute_', 'deliver_', 'optimizeroute_', 'reportroute_', 'routeissue_', 'delivered_', 'quickdelivered_', 'failed_', 'failreason_', 'pickstop_'];
+    const routeOnlyMatch = /^(showroute|startroute|optimizeroute|reportroute)_(\d{1,15})$/.exec(data);
+    const routeIssueMatch = /^routeissue_(\d{1,15})_(breakdown|fuel|accident|other)$/.exec(data);
     const deliveryFlowMatch = /^deliver_(\d{1,15})_(\d{1,15})_(accept|enroute|arrived|done)$/.exec(data);
     const legacyStopMatch = /^(delivered|quickdelivered|failed|pickstop)_(\d{1,15})_(\d{1,15})$/.exec(data);
     const failureReasonMatch = /^failreason_(\d{1,15})_(\d{1,15})_([^_]{1,32})$/.exec(data);
     const isRouteAction = ROUTE_ACTIONS.some(a => data.startsWith(a));
     const validFailureReason = failureReasonMatch &&
         (failureReasonMatch[3] === 'other' || Object.prototype.hasOwnProperty.call(REASONS, failureReasonMatch[3]) || Object.values(REASONS).includes(failureReasonMatch[3]));
-    if (isRouteAction && !routeOnlyMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
+    if (isRouteAction && !routeOnlyMatch && !routeIssueMatch && !deliveryFlowMatch && !legacyStopMatch && !validFailureReason) {
         bot.answerCallbackQuery(query.id, { text: 'Некорректное действие. Обновите маршрут.', show_alert: true }).catch(() => {});
         return;
     }
-    if (routeOnlyMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
+    if (routeOnlyMatch || routeIssueMatch || deliveryFlowMatch || legacyStopMatch || validFailureReason) {
         const rId = Number(routeOnlyMatch ? routeOnlyMatch[2]
-            : failureReasonMatch ? failureReasonMatch[1]
-                : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
+            : routeIssueMatch ? routeIssueMatch[1]
+                : failureReasonMatch ? failureReasonMatch[1]
+                    : deliveryFlowMatch ? deliveryFlowMatch[1] : legacyStopMatch[2]);
         const hasStop = !!(deliveryFlowMatch || legacyStopMatch || failureReasonMatch);
         const sId = hasStop
             ? Number(failureReasonMatch ? failureReasonMatch[2]
@@ -597,6 +605,38 @@ bot.on('callback_query', async (query) => {
         }
     }
 
+    if (data.startsWith('reportroute_')) {
+        const routeId = Number(data.split('_')[1]);
+        const keyboard = [[
+            { text: 'Поломка автомобиля', callback_data: `routeissue_${routeId}_breakdown` },
+            { text: 'Закончилось топливо', callback_data: `routeissue_${routeId}_fuel` }
+        ], [
+            { text: 'ДТП', callback_data: `routeissue_${routeId}_accident` },
+            { text: 'Другая причина', callback_data: `routeissue_${routeId}_other` }
+        ]];
+        await bot.sendMessage(chatId, 'Почему вы не можете продолжить маршрут?', { reply_markup: { inline_keyboard: keyboard } });
+        bot.answerCallbackQuery(query.id);
+        return;
+    }
+
+    if (data.startsWith('routeissue_')) {
+        const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
+        const [, routeId, reason] = data.split('_');
+        const courier = await db.getCourierByTelegramId(query.from.id);
+        const route = courier ? await db.getRouteByIdForCourier(Number(routeId), courier.id) : null;
+        if (!route || !['assigned', 'in_progress'].includes(route.status)) {
+            bot.answerCallbackQuery(query.id, { text: 'Маршрут уже недоступен', show_alert: true }).catch(() => {});
+            return;
+        }
+        const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+        if (!remaining) { bot.answerCallbackQuery(query.id, { text: 'В маршруте нет оставшихся заказов', show_alert: true }).catch(() => {}); return; }
+        pendingReasons.delete(chatId);
+        courierConversations.set(chatId, query.from.id, 'route_issue_location', { routeId: route.id, reason });
+        await bot.sendMessage(chatId,
+            'Укажите место, где второй курьер сможет забрать заказы.\n\nОтправьте геопозицию через скрепку → «Геопозиция» или напишите точный адрес/ориентир. Не отправляйте геопозицию текущего клиента, если вы находитесь не там.');
+        bot.answerCallbackQuery(query.id, { text: 'Ожидаю место передачи' }).catch(() => {});
+        return;
+    }
     if (data.startsWith('showroute_')) {
         const routeId = parseInt(data.split('_')[1]);
         const courier = await db.getCourierByTelegramId(query.from.id);
@@ -1148,6 +1188,37 @@ if (bot) {
         const conversation = courierConversations.take(chatId, telegramId);
         if (conversation) {
             const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+            if (conversation.type === 'route_issue_location') {
+                const courier = await db.getCourierByTelegramId(telegramId);
+                const route = courier ? await db.getRouteByIdForCourier(conversation.payload.routeId, courier.id) : null;
+                if (!route || !['assigned', 'in_progress'].includes(route.status)) {
+                    await bot.sendMessage(chatId, 'Маршрут уже изменился или передан. Обратитесь к диспетчеру.');
+                    return;
+                }
+                const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
+                if (!remaining) { await bot.sendMessage(chatId, 'В маршруте уже нет оставшихся заказов.'); return; }
+                const locationText = text.slice(0, 300);
+                const location = msg.location
+                    ? `геопозиция: ${Number(msg.location.latitude).toFixed(6)}, ${Number(msg.location.longitude).toFixed(6)} (https://yandex.ru/maps/?text=${msg.location.latitude},${msg.location.longitude})`
+                    : locationText;
+                if (!location) {
+                    await bot.sendMessage(chatId, 'Не получил место передачи. Отправьте геопозицию или напишите адрес/ориентир.');
+                    courierConversations.set(chatId, telegramId, 'route_issue_location', conversation.payload);
+                    return;
+                }
+                const reasons = { breakdown: 'Поломка автомобиля', fuel: 'Закончилось топливо', accident: 'ДТП', other: 'Другая причина' };
+                const report = await db.recordRouteTransferRequest(route.id, courier.id, conversation.payload.reason, location);
+                if (report.status !== 'requested') {
+                    await bot.sendMessage(chatId, 'Не удалось зафиксировать запрос передачи: маршрут уже изменился. Обратитесь к диспетчеру.');
+                    return;
+                }
+                await notifyAdmin(
+                    `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[conversation.payload.reason] || conversation.payload.reason)}\nМесто передачи: ${escapeHtml(location)}\n\nОткройте раздел «Доставка» в админ-панели и назначьте свободного курьера.`,
+                    null, `route-issue:${route.id}:${conversation.payload.reason}:${Date.now()}`, null, true
+                );
+                await bot.sendMessage(chatId, 'Диспетчер уведомлён и получил место передачи. Ожидайте подтверждения.');
+                return;
+            }
             if (conversation.type === 'registration') {
                 const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
                 if (lines.length < 2) {
@@ -1436,7 +1507,35 @@ function registerCourierRoutes(app) {
     });
 
 
-    // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,
+    // Аварийная передача оставшихся остановок другому курьеру.
+    app.post('/api/routes/:id/transfer', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
+        const rawRouteId = String(req.params.id || ''), rawCourierId = String(req.body?.courier_id ?? '');
+        if (!/^\d{1,15}$/.test(rawRouteId) || !/^\d{1,15}$/.test(rawCourierId)) return res.status(400).json({ error: 'Некорректный ID маршрута или курьера' });
+        const routeId = Number(rawRouteId), courierId = Number(rawCourierId);
+        if (!Number.isSafeInteger(routeId) || routeId <= 0 || !Number.isSafeInteger(courierId) || courierId <= 0) return res.status(400).json({ error: 'Некорректный ID маршрута или курьера' });
+        const reason = req.body?.reason;
+        if (!['breakdown', 'fuel', 'accident', 'other'].includes(reason)) return res.status(400).json({ error: 'Выберите причину передачи' });
+        try {
+            const couriers = await db.getCouriers();
+            const courier = couriers.find(x => Number(x.id) === courierId && x.is_active && !x.archived_at);
+            if (!courier) return res.status(409).json({ error: 'Новый курьер не активен или не найден' });
+            const sourceRoute = await db.getRouteById(routeId);
+            if (!sourceRoute) return res.status(404).json({ error: 'Исходный маршрут не найден' });
+            const handoffLocation = String(req.body?.handoff_location || '').trim();
+            if (!handoffLocation || handoffLocation.length > 500) return res.status(400).json({ error: 'Укажите место получения заказов (не более 500 символов)' });
+            const out = await routeSvc.transferRemainingRoute({
+                sourceRouteId: routeId, sourceCourierId: Number(sourceRoute.courier_id), targetCourier: courier, reason, handoffLocation,
+                actorLogin: req.admin?.login || req.admin?.username || null,
+                notifyAdmin: (t, options = {}) => notifyAdmin(t, null, options.dedupKey, options.db, true)
+            });
+            return res.json({ success: true, route: filterRouteForRole(out.route, req.admin && req.admin.role), transferred_count: out.transferredCount, sequence: out.sequence });
+        } catch (e) {
+            const status = { BAD_REQUEST: 400, NOT_FOUND: 404, CONFLICT: 409 }[e.code] || 500;
+            console.error('[API /routes/:id/transfer]', errorCode(e));
+            return res.status(status).json({ error: status === 500 ? 'Не удалось передать маршрут' : e.message });
+        }
+    });
+
     // который проверяет READY_FOR_SHIPMENT, исключает самовывоз и защищает от двойного назначения.
     app.post('/api/routes', verifyAdmin, requirePermission('routes.manage'), (req, res) => {
         return res.status(410).json({ error: 'Используйте построение маршрутного листа через /api/routes/build' });

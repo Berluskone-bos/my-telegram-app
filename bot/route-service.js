@@ -141,6 +141,67 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         return { route, plan: { totalMin: plan.totalMin, source: plan.source, factor: plan.factor, start: 'current-location' }, sequence: sequence.map(s => s.order.order_number) };
     }
 
+    // Передать только незавершённые точки активного маршрута другому курьеру.
+    async function transferRemainingRoute({ sourceRouteId, sourceCourierId, targetCourier, reason, handoffLocation, notifyAdmin = null, actorLogin = null }) {
+        const fail = (code, message) => Object.assign(new Error(message), { code });
+        if (!targetCourier || !targetCourier.id) throw fail('NOT_FOUND', 'Новый курьер не найден');
+        if (!['breakdown', 'fuel', 'accident', 'other'].includes(reason)) throw fail('BAD_REQUEST', 'Не указана причина передачи');
+        const source = await db.getRouteByIdForCourier(sourceRouteId, sourceCourierId);
+        if (!source) throw fail('NOT_FOUND', 'Исходный маршрут не найден или уже не принадлежит курьеру');
+        if (!['assigned', 'in_progress'].includes(source.status)) throw fail('CONFLICT', 'Передать можно только назначенный или начатый маршрут');
+        const active = (source.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
+        if (!active.length) throw fail('CONFLICT', 'В маршруте нет оставшихся заказов');
+        const planStops = active.map(s => ({ id: Number(s.id), lat: s.lat == null ? null : Number(s.lat), lon: s.lon == null ? null : Number(s.lon), order: s }));
+        const plan = await planner.planRoute({ start: null, stops: planStops, departAt: now(), serviceMin: serviceMin() });
+        const byId = new Map(planStops.map(s => [s.id, s]));
+        const sequence = plan.ordered.map(p => byId.get(Number(p.id))).filter(Boolean)
+            .concat(plan.unplaced.map(s => byId.get(Number(s.id))).filter(Boolean));
+        const routeNumber = 'TR-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
+        const routeDate = await getMoscowRouteDate(db);
+        const approx = plan.source === 'estimate' ? ' (ориентировочная оценка)' : '';
+        const route = await db.transferRemainingRoute({
+            sourceRouteId, expectedSourceCourierId: sourceCourierId, targetCourierId: targetCourier.id,
+            routeNumber, routeDate, reason, handoffLocation, orderedStopIds: sequence.map(s => s.id), actorLogin,
+            afterTransfer: async ({ client, route: createdRoute, stops, sourceCourier }) => {
+                const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\n');
+                const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
+                    `<b>Место получения заказов:</b> ${escapeHtml(handoffLocation)}\n` +
+                    `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\n\n${stopTextList}`;
+                await queue.notify('courier', targetCourier.telegram_id,
+                    `<b>Место получения заказов:</b> ${escapeHtml(handoffLocation)}`,
+                    { dedupKey: `route-handoff:${createdRoute.id}`, db: client, throwOnError: true });
+                const ll = sequence.filter(s => s.lat != null && s.lon != null).map(s => ({ lat: s.lat, lon: s.lon }));
+                const nav = ll.length ? MapLinks.allRoute(ll) : null;
+                const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
+                if (queue.notifyWidget && widgets.widgetsEnabled()) {
+                    const card = widgets.routeSheetWidget(createdRoute.route_number, stops.map((s, i) => ({ order_number: s.order_number, address: s.address || '', status: 'pending', clock: '' })));
+                    await queue.notifyWidget('courier', targetCourier.telegram_id, card, { kind: 'route', ref: createdRoute.id, state: {}, fallbackText: sheet, buttons: sheetButtons, dedupKey: sheetKey(createdRoute.id), db: client, throwOnError: true });
+                } else {
+                    await queue.notify('courier', targetCourier.telegram_id, sheet, { dedupKey: `route-sheet:${createdRoute.id}`, buttons: sheetButtons, db: client, throwOnError: true });
+                }
+                for (let i = 0; i < stops.length; i++) {
+                    const st = stops[i];
+                    const text = `<b>Передача заказа ${i + 1} из ${stops.length}</b>\n\nЗаказ: ${escapeHtml(st.order_number || '')}\nАдрес: ${escapeHtml(st.address || '')}\n` +
+                        `Сумма: ${Number(st.amount_to_pay || 0).toLocaleString()} руб.${st.payment_status === 'pending' ? ' (оплата на месте)' : ''}\n` +
+                        (st.phone ? `Телефон: ${escapeHtml(st.phone)}\n` : '') + (st.comment ? `Комментарий: ${escapeHtml(st.comment)}\n` : '') +
+                        `\nСначала получите этот заказ у предыдущего курьера, затем нажмите «Принять заказ».`;
+                    const buttons = [];
+                    if (st.lat && st.lon) buttons.push([{ text: 'Яндекс Карты', url: MapLinks.yandex(st.address, st.lat, st.lon) }, { text: '2GIS', url: MapLinks.gis2(st.lat, st.lon) }]);
+                    buttons.push([{ text: 'Принять заказ', callback_data: `deliver_${createdRoute.id}_${st.id}_accept` }]);
+                    await queue.notify('courier', targetCourier.telegram_id, text, { buttons, dedupKey: `assign:${st.id}`, onSent: { stopId: st.id }, db: client, throwOnError: true });
+                }
+                if (sourceCourier?.telegram_id) await queue.notify('courier', sourceCourier.telegram_id,
+                    `<b>Маршрут передан другому курьеру</b>\nМаршрут: ${escapeHtml(source.route_number)}\nОставшиеся заказы переданы. Новые действия по этим заказам в старом маршрутном листе недоступны.`,
+                    { dedupKey: `route-transfer-old:${sourceRouteId}`, db: client, throwOnError: true });
+                if (notifyAdmin) await notifyAdmin(`<b>Передача маршрута завершена</b>\nСтарый маршрут: ${escapeHtml(source.route_number)}\nНовый маршрут: ${escapeHtml(createdRoute.route_number)}\nНовый курьер: ${escapeHtml(targetCourier.name)}\nПередано заказов: ${stops.length}\nПричина: ${escapeHtml(reason)}\nМесто передачи: ${escapeHtml(handoffLocation)}${approx}`, { db: client, dedupKey: `route-transfer:${sourceRouteId}` });
+            }
+        });
+        if (route.status !== 'transferred') {
+            const messages = { invalid: 'Некорректные данные передачи', not_found: 'Маршрут не найден', not_assigned: 'Маршрут уже принадлежит другому курьеру', route_not_transferable: 'Маршрут уже закрыт или передан', source_courier_inactive: 'Первый курьер не активен', target_courier_inactive: 'Второй курьер не активен', target_courier_busy: 'У второго курьера уже есть активный маршрут. Выберите другого курьера', nothing_to_transfer: 'Нет оставшихся заказов', invalid_order_reference: 'В маршруте найдена некорректная ссылка на заказ', invalid_stop_order: 'Изменился состав остановок маршрута. Обновите страницу', order_state_changed: 'Статус одного из заказов изменился. Обновите маршрут', already_transferred: 'Маршрут уже передан' };
+            throw fail(route.status === 'not_found' ? 'NOT_FOUND' : 'CONFLICT', messages[route.status] || 'Не удалось передать маршрут');
+        }
+        return { route: route.route, sourceRouteId: route.sourceRouteId, transferredCount: route.transferredCount, sequence: sequence.map(s => s.order.order_number) };
+    }
     // Пересчитать внутренние ориентиры для маршрутного листа курьера.
     // Расчётное время не отправляем клиентам: оно не учитывает фактические пробки и задержки.
     async function refreshEtas({ routeId, expectedCourierId, firstStopId = null, from = null }) {
@@ -174,7 +235,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         return { plan, sent: [] };
     }
 
-    return { buildRoute, refreshEtas };
+    return { buildRoute, transferRemainingRoute, refreshEtas };
 }
 
 module.exports = { createRouteService };
