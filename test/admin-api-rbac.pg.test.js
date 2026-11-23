@@ -159,6 +159,18 @@ test('admin API: HTTP permission matrix for admin, manager, operator and warehou
          VALUES ($1, CURRENT_DATE, $2, 'assigned', 1) RETURNING id`,
         ['RB' + tag.slice(-10), testCourierId]);
     testRouteId = routeInsert.rows[0].id;
+    for (const role of ['manager', 'warehouse']) {
+        const deniedTransfer = await request('/api/routes/' + testRouteId + '/transfer', roleCookies[role], {
+            method: 'POST', body: { courier_id: testCourierId, reason: 'breakdown' }
+        });
+        assert.equal(deniedTransfer.status, 403, role + ' cannot transfer a route without routes.manage');
+    }
+    const operatorTransferConflict = await request('/api/routes/' + testRouteId + '/transfer', roleCookies.operator, {
+        method: 'POST', body: { courier_id: testCourierId, reason: 'breakdown' }
+    });
+    assert.equal(operatorTransferConflict.status, 409, 'operator with routes.manage reaches the handler but cannot assign the route back to its current courier');
+    assert.equal((await pool.query('SELECT status FROM delivery_routes WHERE id = $1', [testRouteId])).rows[0].status, 'assigned',
+        'rejected transfer requests do not mutate the route');
     const orderInsert = await pool.query(
         `INSERT INTO orders (order_number, user_name, status, delivery_type)
          VALUES ($1, 'RBAC test', 'SHIPPING', 'delivery') RETURNING id`,
