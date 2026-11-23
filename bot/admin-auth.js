@@ -332,7 +332,7 @@ function createAdminAuth({ pool, getKey, absoluteMs = 12 * 3600e3, idleMs = 2 * 
         app.get('/api/admin/me', verifyAdmin, (req, res) => {
             res.set('Cache-Control', 'no-store');
             res.json({
-                ok: true, role: req.admin.role, roleLabel: ROLE_LABELS[req.admin.role],
+                ok: true, userId: req.admin.userId, role: req.admin.role, roleLabel: ROLE_LABELS[req.admin.role],
                 displayName: req.admin.displayName, login: req.admin.login,
                 legacy: req.admin.legacy, permissions: ROLE_PERMISSIONS[req.admin.role] || []
             });
