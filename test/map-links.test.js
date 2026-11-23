@@ -23,7 +23,7 @@ test('аварийная передача включает место получ
     const links = MapLinks.allRoute(stops, pickup);
     assert.match(links.yandex, /rtext=59\.92%2C30\.32~59\.93%2C30\.33~59\.94%2C30\.34~59\.95%2C30\.35/);
     assert.match(links.google, /origin=59\.92%2C30\.32/);
-    assert.match(links.google, /destination=59\.95%2C30\.35/);
+    assert.match(links.google, /destination=59\.95,30\.35/);
     assert.match(links.gis2, /directions\/points\/\|30\.32,59\.92\|30\.33,59\.93/);
 });
 
