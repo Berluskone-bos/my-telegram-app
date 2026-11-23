@@ -650,6 +650,11 @@ bot.on('callback_query', async (query) => {
         catch (e) { console.error('[HANDOFF] Не удалось обновить маршрутный лист:', errorCode(e)); }
         await bot.sendMessage(chatId,
             `Сверка завершена: получено ${result.received} из ${result.total} отправлений. Теперь можно принимать заказы и начинать маршрут.`);
+        const confirmedRoute = await db.getRouteById(routeId).catch(() => null);
+        await notifyAdmin(
+            `[ПЕРЕДАЧА] ${escapeHtml(confirmedRoute?.route_number || routeId)}: курьер ${escapeHtml(courier.name || '')} подтвердил получение всех ${result.total} отправлений.`,
+            null, `route-handoff-confirmed:${routeId}`, null, true
+        ).catch(e => console.error('[HANDOFF] Не удалось уведомить диспетчера:', errorCode(e)));
         bot.answerCallbackQuery(query.id, { text: 'Получение всех отправлений подтверждено' }).catch(() => {});
         return;
     }
