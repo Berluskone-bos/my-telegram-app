@@ -97,6 +97,7 @@ test('аварийная передача: история первого кур�
     assert.equal(oldRemaining.length, 2);
     assert.ok(oldRemaining.every(s => s.transferred_to_stop_id), 'сохраняется связь старых и новых остановок');
     assert.equal(newRoute.status, 'assigned');
+    assert.equal(newRoute.handoff_required, true, 'новый переданный маршрут требует сверки');
     assert.equal(Number(newRoute.courier_id), Number(courierB.id));
     assert.equal(newRoute.stops.length, 2);
     assert.deepEqual(newRoute.stops.map(s => s.order_number), transferred.sequence,
@@ -106,6 +107,16 @@ test('аварийная передача: история первого кур�
         'второму курьеру отправлены место получения, маршрутный лист и две карточки заказов');
     assert.ok(queueMessages.some(m => m.chat === String(courierB.telegram_id) && m.text.includes('Площадка у Тестовой улицы, 1')),
         'маршрутный лист содержит точное место получения отправлений');
+    const routeSheetMessage = queueMessages.find(m => m.chat === String(courierB.telegram_id) && m.text.includes('Переданный маршрут'));
+    assert.ok(routeSheetMessage, 'второй курьер получил маршрутный лист');
+    const routeSheetButtons = (routeSheetMessage.options.buttons || []).flat();
+    assert.ok(routeSheetButtons.some(b => b.text === 'Google Maps' && decodeURIComponent(b.url).includes('origin=Площадка у Тестовой улицы, 1')),
+        'Google Maps строит маршрут от места получения');
+    assert.ok(routeSheetButtons.some(b => b.callback_data === `handoffconfirm_${newRoute.id}`),
+        'в маршрутном листе есть кнопка подтверждения комплекта');
+    assert.ok(queueMessages.some(m => m.chat === String(courierB.telegram_id) &&
+        (m.options.buttons || []).flat().some(b => b.callback_data === `handoffitem_${newRoute.id}_${newRoute.stops[0].id}`)),
+        'на карточке отправления есть отдельная отметка получения');
     assert.equal((await db.acceptRouteStop(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id })).status, 'handoff_required',
         'нельзя принять заказ до сверки всех отправлений');
     assert.equal((await db.startRouteIfAllAccepted(newRoute.id, { expectedCourierId: courierB.id })).status, 'handoff_required',
