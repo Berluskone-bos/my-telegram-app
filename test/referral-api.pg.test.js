@@ -62,6 +62,27 @@ test('рефералы через API: код друга, баланс, спис
     assert.equal(b0.referralCode, `REF-${INV}`); assert.equal(b0.balance, 0);
     assert.equal(b0.bonusPerOrder, 200); assert.equal(b0.minOrder, 6000); assert.equal(b0.maxSharePct, 20);
 
+    // Проверка кода не должна раскрывать, совпадает ли произвольный телефон с телефоном приглашающего.
+    const checkReferral = (code, phone) => fetch(
+        `http://127.0.0.1:${port}/api/referral/check?${new URLSearchParams({ code, phone })}`,
+        { headers: hdr(FR) }
+    );
+    const phoneProbeMatch = await (await checkReferral(`REF-${INV}`, '+79990003333')).json();
+    const phoneProbeOther = await (await checkReferral(`REF-${INV}`, '+79990009999')).json();
+    assert.deepEqual(
+        { valid: phoneProbeMatch.valid, reason: phoneProbeMatch.reason },
+        { valid: true, reason: null },
+        'endpoint не должен выдавать совпадение телефона приглашающего'
+    );
+    assert.deepEqual(
+        { valid: phoneProbeOther.valid, reason: phoneProbeOther.reason },
+        { valid: true, reason: null },
+        'результат проверки кода не зависит от переданного query-телефона'
+    );
+    const selfCodeCheck = await (await checkReferral(`REF-${FR}`, '+79990003333')).json();
+    assert.equal(selfCodeCheck.valid, false);
+    assert.equal(selfCodeCheck.reason, 'own_code');
+
     // свой код — отказ; чужой телефон приглашающего — заказ принят, но без кода
     const own = await order(INV, 1, '+79990003333', { discountCode: `REF-${INV}` });
     assert.equal(own.status, 400); assert.match((await own.json()).error, /own_referral_code/);

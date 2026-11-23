@@ -1,7 +1,7 @@
 'use strict';
 // Бонусы и реферальная программа. Всё считает сервер; приложение лишь показывает.
 //   GET /api/bonuses        — баланс, личный код REF-<Telegram ID>, правила, последние операции
-//   GET /api/referral/check — проверить код друга до оформления заказа (скидки код не даёт)
+//   GET /api/referral/check — проверить существование кода друга; совпадение телефона проверяется только при оформлении заказа
 const { parseReferralCode, referralCodeFor } = require('./referral');
 
 function registerReferralRoutes(app, { db, rateLimit, authenticatedTelegramUser, sanitizeLog = String }) {
@@ -35,8 +35,10 @@ function registerReferralRoutes(app, { db, rateLimit, authenticatedTelegramUser,
             res.set('Cache-Control', 'no-store');
             const refId = parseReferralCode(String(req.query.code || '').trim().slice(0, 50));
             if (!refId) return res.json({ success: true, valid: false, reason: 'bad_code' });
-            const phone = String(req.query.phone || '').slice(0, 30);
-            const r = await db.resolveReferrer(refId, user.id, phone);
+            // Не принимаем телефон из query: иначе любой авторизованный пользователь мог бы
+            // проверять, совпадает ли произвольный номер с телефоном владельца кода.
+            // Проверка совпадения остаётся в серверном процессе оформления заказа.
+            const r = await db.resolveReferrer(refId, user.id, null);
             res.set('Cache-Control', 'no-store');
             return res.json({ success: true, valid: !!r.ok, reason: r.ok ? null : r.reason });
         } catch (e) {
