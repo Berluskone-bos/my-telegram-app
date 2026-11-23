@@ -110,9 +110,14 @@ test('аварийная передача: история первого кур�
         'нельзя принять заказ до сверки всех отправлений');
     assert.equal((await db.startRouteIfAllAccepted(newRoute.id, { expectedCourierId: courierB.id })).status, 'handoff_required',
         'нельзя начать маршрут до сверки всех отправлений');
+    assert.equal((await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierA.id })).status, 'not_assigned',
+        'первый курьер не может отметить получение в маршруте второго');
     const firstReceived = await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id });
     assert.equal(firstReceived.status, 'received');
     assert.equal(firstReceived.received, 1);
+    const duplicateReceived = await db.markRouteHandoffStopReceived(newRoute.id, newRoute.stops[0].id, { expectedCourierId: courierB.id });
+    assert.equal(duplicateReceived.status, 'already', 'повторное нажатие не увеличивает число полученных отправлений');
+    assert.equal(duplicateReceived.received, 1);
     assert.equal((await db.confirmRouteHandoff(newRoute.id, { expectedCourierId: courierB.id })).status, 'incomplete',
         'подтверждение всей передачи блокируется, пока не сверены все отправления');
     for (const stop of newRoute.stops.slice(1)) {
