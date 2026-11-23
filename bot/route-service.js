@@ -142,7 +142,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
     }
 
     // Передать только незавершённые точки активного маршрута другому курьеру.
-    async function transferRemainingRoute({ sourceRouteId, sourceCourierId, targetCourier, reason, notifyAdmin = null, actorLogin = null }) {
+    async function transferRemainingRoute({ sourceRouteId, sourceCourierId, targetCourier, reason, handoffLocation, notifyAdmin = null, actorLogin = null }) {
         const fail = (code, message) => Object.assign(new Error(message), { code });
         if (!targetCourier || !targetCourier.id) throw fail('NOT_FOUND', 'Новый курьер не найден');
         if (!['breakdown', 'fuel', 'accident', 'other'].includes(reason)) throw fail('BAD_REQUEST', 'Не указана причина передачи');
@@ -161,10 +161,11 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const approx = plan.source === 'estimate' ? ' (ориентировочная оценка)' : '';
         const route = await db.transferRemainingRoute({
             sourceRouteId, expectedSourceCourierId: sourceCourierId, targetCourierId: targetCourier.id,
-            routeNumber, routeDate, reason, orderedStopIds: sequence.map(s => s.id), actorLogin,
+            routeNumber, routeDate, reason, handoffLocation, orderedStopIds: sequence.map(s => s.id), actorLogin,
             afterTransfer: async ({ client, route: createdRoute, stops, sourceCourier }) => {
                 const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\n');
                 const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
+                    `<b>Место получения заказов:</b> ${escapeHtml(handoffLocation)}\n` +
                     `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\n\n${stopTextList}`;
                 const ll = sequence.filter(s => s.lat != null && s.lon != null).map(s => ({ lat: s.lat, lon: s.lon }));
                 const nav = ll.length ? MapLinks.allRoute(ll) : null;
