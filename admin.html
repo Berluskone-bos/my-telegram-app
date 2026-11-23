@@ -1492,8 +1492,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pageLimit = document.getElementById('ordersTableWrap').hidden ? BOARD_ORDERS_LIMIT : TABLE_ORDERS_LIMIT;
                 const [ordersResponse, couriers, routes] = await Promise.all([
                     fetch(`${API_BASE}/api/orders?page=${shopOrdersPage}&limit=${pageLimit}&sort=${shopOrdersSort.sort}&direction=${shopOrdersSort.direction}`),
-                    canDispatch ? fetch(`${API_BASE}/api/couriers`).then(r => r.json()) : Promise.resolve([]),
-                    canDispatch ? fetch(`${API_BASE}/api/routes`).then(r => r.json()) : Promise.resolve([])
+                    canDispatch ? fetch(`${API_BASE}/api/couriers`).then(async response => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) throw new Error(data.error || 'Не удалось загрузить список курьеров');
+                        return data;
+                    }) : Promise.resolve([]),
+                    canDispatch ? fetch(`${API_BASE}/api/routes`).then(async response => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) throw new Error(data.error || 'Не удалось загрузить список маршрутов');
+                        return data;
+                    }) : Promise.resolve([])
                 ]);
                 if (!ordersResponse.ok) throw new Error('Не удалось загрузить заказы');
                 // Более старый запрос не должен перерисовать страницу поверх свежего ответа.
@@ -1587,7 +1595,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 window._orders = orders;
                 renderBoard(orders, couriers, getCourierForOrder);
                 refreshPageSub();
-            } catch (e) { console.error('Shop orders error:', e); }
+            } catch (e) {
+                console.error('Shop orders error:', e);
+                const routeCourierSelect = document.getElementById('routeCourier');
+                if (routeCourierSelect) {
+                    routeCourierSelect.innerHTML = '<option value="">Ошибка загрузки курьеров — обновите данные</option>';
+                    selectedRouteCourierId = '';
+                }
+                if (typeof toast === 'function') toast(e.message || 'Не удалось загрузить заказы и список курьеров', true);
+            }
         }
 
         async function assignCourier(orderId, courierId) {
