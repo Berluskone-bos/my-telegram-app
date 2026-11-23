@@ -152,6 +152,15 @@ test('курьерский бот: кнопки отменённого зака�
     const foreignStopId = foreignRoute.stops[0].id;
     assert.equal(await db.getRouteStopAtClient(foreignRoute.id, foreignStopId, courier.id), null,
         'чужой курьер не получает данные остановки через вспомогательное чтение');
+    await pool.query("UPDATE route_stops SET status = 'in_progress', stage = 'arrived' WHERE id = $1", [foreignStopId]);
+    assert.equal((await db.getRouteStopAtClient(foreignRoute.id, foreignStopId, otherCourier.id))?.id, undefined,
+        'метод не возвращает саму остановку, переданную как исключение');
+    const foreignAtClient = await db.getRouteStopAtClient(foreignRoute.id, foreignStopId + 1, otherCourier.id);
+    assert.equal(foreignAtClient?.id, foreignStopId,
+        'активный владелец получает только остановку своего маршрута');
+    assert.equal(await db.getRouteStopAtClient(foreignRoute.id, foreignStopId + 1, courier.id), null,
+        'посторонний курьер не получает остановку, даже если она находится у клиента');
+    await pool.query("UPDATE route_stops SET status = 'pending', stage = NULL WHERE id = $1", [foreignStopId]);
     const foreignActions = ['showroute_' + foreignRoute.id, 'startroute_' + foreignRoute.id, 'deliver_' + foreignRoute.id + '_' + foreignStopId + '_accept'];
     assert.equal(await db.getRouteByIdForCourier(foreignRoute.id, courier.id), null,
         'SQL-метод чтения маршрута не возвращает данные другому курьеру');
