@@ -488,6 +488,62 @@ class DBAdapter {
         return res.rows[0] || null;
     }
 
+    // Атомарная аварийная передача незавершённых остановок другому активному курьеру.
+    // Статус заказа не сбрасывается: маршрут уже отправлен.
+    async transferRemainingRoute({ sourceRouteId, expectedSourceCourierId, targetCourierId, routeNumber, routeDate, reason, actorLogin = null, afterTransfer = null }) {
+        const sourceId = Number(sourceRouteId), sourceCourierId = Number(expectedSourceCourierId), targetId = Number(targetCourierId);
+        const allowedReasons = ['breakdown', 'fuel', 'accident', 'other'];
+        if (!Number.isSafeInteger(sourceId) || sourceId <= 0 || !Number.isSafeInteger(sourceCourierId) || sourceCourierId <= 0 ||
+            !Number.isSafeInteger(targetId) || targetId <= 0 || sourceCourierId === targetId ||
+            typeof routeNumber !== 'string' || !/^TR-[A-Z0-9-]{5,13}$/.test(routeNumber) || !routeDate || !allowedReasons.includes(reason)) return { status: 'invalid' };
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Общий порядок блокировок: orders -> route -> stops.
+            const refs = await client.query('SELECT order_id FROM route_stops WHERE route_id = $1', [sourceId]);
+            const orderIds = [...new Set(refs.rows.map(x => String(x.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+            if (orderIds.length) await client.query('SELECT id FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id FOR UPDATE', [orderIds]);
+            const source = await client.query('SELECT * FROM delivery_routes WHERE id = $1 FOR UPDATE', [sourceId]);
+            if (!source.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+            const sourceRoute = source.rows[0];
+            if (Number(sourceRoute.courier_id) !== sourceCourierId) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
+            if (!['assigned', 'in_progress'].includes(sourceRoute.status) || sourceRoute.transferred_to_route_id) { await client.query('ROLLBACK'); return { status: 'route_not_transferable' }; }
+            const oldCourier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [sourceCourierId]);
+            if (!oldCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'source_courier_inactive' }; }
+            const targetCourier = await client.query('SELECT * FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR UPDATE', [targetId]);
+            if (!targetCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'target_courier_inactive' }; }
+            const lockedStops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number, id FOR UPDATE', [sourceId]);
+            const remaining = lockedStops.rows.filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
+            if (!remaining.length) { await client.query('ROLLBACK'); return { status: 'nothing_to_transfer' }; }
+            const expectedOrderStatus = sourceRoute.status === 'in_progress' ? 'SHIPPING' : 'READY_FOR_SHIPMENT';
+            const ids = [...new Set(remaining.map(s => String(s.order_id || '')).filter(x => /^\\d+$/.test(x)))];
+            if (ids.length !== remaining.length) { await client.query('ROLLBACK'); return { status: 'invalid_order_reference' }; }
+            const orders = await client.query('SELECT id, status, delivery_type FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id', [ids]);
+            if (orders.rowCount !== remaining.length || orders.rows.some(o => o.status !== expectedOrderStatus || o.delivery_type === 'pickup')) {
+                await client.query('ROLLBACK'); return { status: 'order_state_changed' };
+            }
+            const cash = remaining.reduce((sum, s) => sum + (s.payment_status === 'pending' ? Number(s.amount_to_pay || 0) : 0), 0);
+            const created = await client.query(`INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance) VALUES ($1,$2,$3,'assigned',$4,0,0,$5,0,NULL) RETURNING *`,
+                [routeNumber, routeDate, targetId, remaining.length, cash]);
+            const newRoute = created.rows[0], newStops = [], stopMap = new Map();
+            for (let i = 0; i < remaining.length; i++) {
+                const old = remaining[i];
+                const inserted = await client.query(`INSERT INTO route_stops (route_id, order_id, order_number, stop_number, address, city, street, house, lat, lon, time_window, status, payment_status, amount_to_pay, phone, client_name, client_chat_id, items_count, comment, eta_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$13,$14,$15,$16,$17,$18,NULL) RETURNING *`,
+                    [newRoute.id, old.order_id, old.order_number, i + 1, old.address, old.city, old.street, old.house, old.lat, old.lon, old.time_window, old.payment_status, old.amount_to_pay, old.phone, old.client_name, old.client_chat_id, old.items_count, old.comment]);
+                newStops.push(inserted.rows[0]); stopMap.set(Number(old.id), Number(inserted.rows[0].id));
+            }
+            for (const old of remaining) await client.query(`UPDATE route_stops SET status = 'transferred', transferred_to_stop_id = $2 WHERE id = $1 AND route_id = $3 AND status IN ('pending','accepted','in_progress')`,
+                [old.id, stopMap.get(Number(old.id)), sourceId]);
+            await client.query(`UPDATE delivery_routes SET status = 'transferred', transferred_at = NOW(), transferred_to_route_id = $2, transfer_reason = $3 WHERE id = $1`,
+                [sourceId, newRoute.id, reason]);
+            await client.query(`INSERT INTO route_transfer_events (source_route_id, target_route_id, source_courier_id, target_courier_id, reason, transferred_stops, actor_login) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                [sourceId, newRoute.id, sourceCourierId, targetId, reason, newStops.length, typeof actorLogin === 'string' ? actorLogin.slice(0, 100) : null]);
+            if (typeof afterTransfer === 'function') await afterTransfer({ client, sourceRoute, route: newRoute, stops: newStops, sourceCourierId, targetCourier: targetCourier.rows[0], transferredCount: newStops.length, reason });
+            await client.query('COMMIT');
+            return { status: 'transferred', sourceRouteId: sourceId, route: { ...newRoute, stops: newStops }, sourceCourierId, targetCourier: targetCourier.rows[0], transferredCount: newStops.length };
+        } catch (e) { await client.query('ROLLBACK').catch(() => {}); if (e.code === '23505') return { status: 'already_transferred' }; throw e; }
+        finally { client.release(); }
+    }
     async createRoute(route) {
         const client = await pool.connect();
         try {
