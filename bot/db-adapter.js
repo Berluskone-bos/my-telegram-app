@@ -502,7 +502,7 @@ class DBAdapter {
             if (!stop.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
             if (stop.rows[0].status === 'accepted') { await client.query('COMMIT'); return { status: 'already' }; }
             if (stop.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { status: stop.rows[0].status === 'cancelled' ? 'cancelled' : 'forbidden' }; }
-            const accepted = await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1 RETURNING *", [sid]);
+            const accepted = await client.query("UPDATE route_stops SET status = 'accepted' WHERE id = $1 AND route_id = $2 RETURNING *", [sid, rid]);
             if (typeof afterAccept === 'function') {
                 const routeDetails = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [rid]);
                 const routeStops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number', [rid]);
@@ -607,6 +607,13 @@ class DBAdapter {
                 return null;
             }
             const routeId = candidate.rows[0].route_id;
+            const expectedRouteId = options.expectedRouteId === undefined ? undefined : Number(options.expectedRouteId);
+            if ((options.expectedCourierId !== undefined && options.expectedRouteId === undefined) ||
+                (options.expectedRouteId !== undefined &&
+                    (!Number.isSafeInteger(expectedRouteId) || expectedRouteId <= 0 || expectedRouteId !== Number(routeId)))) {
+                await client.query('ROLLBACK');
+                return null;
+            }
             const routeRes = await client.query(
                 'SELECT id, courier_id FROM delivery_routes WHERE id = $1 FOR UPDATE', [routeId]);
             if (!routeRes.rowCount) { await client.query('ROLLBACK'); return null; }
@@ -667,7 +674,7 @@ class DBAdapter {
     // Неудачная попытка доставки — отдельный терминальный результат остановки,
     // но не отмена заказа и не завершение всего маршрута. Заказ получает статус DELIVERY_FAILED
     // («Не доставлен»): он виден в админке отдельной колонкой, оператор решает — повторная отправка или отмена.
-    async failDeliveryStop(stopId, reason, { afterFailure = null, expectedCourierId = undefined } = {}) {
+    async failDeliveryStop(stopId, reason, { afterFailure = null, expectedCourierId = undefined, expectedRouteId = undefined } = {}) {
         const id = Number(stopId);
         if (!Number.isSafeInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -680,6 +687,13 @@ class DBAdapter {
                 return { status: 'not_found' };
             }
             const candidate = candidateRes.rows[0];
+            const expectedRoute = expectedRouteId === undefined ? undefined : Number(expectedRouteId);
+            if ((expectedCourierId !== undefined && expectedRouteId === undefined) ||
+                (expectedRouteId !== undefined &&
+                    (!Number.isSafeInteger(expectedRoute) || expectedRoute <= 0 || expectedRoute !== Number(candidate.route_id)))) {
+                await client.query('ROLLBACK');
+                return { status: 'not_assigned' };
+            }
 
             // Единый порядок блокировок: заказ → маршрут → остановка.
             if (candidate.order_id || candidate.order_number) {
@@ -738,8 +752,8 @@ class DBAdapter {
             const updated = await client.query(
                 `UPDATE route_stops
                     SET status = 'failed', fail_reason = $2::text
-                  WHERE id = $1 RETURNING *`,
-                [id, String(reason || 'Не указана').slice(0, 300)]);
+                  WHERE id = $1 AND route_id = $3 RETURNING *`,
+                [id, String(reason || 'Не указана').slice(0, 300), candidate.route_id]);
             // Заказ тоже становится «Не доставлен» (раньше оставался «В пути» и в админке ничего не менялось).
             // Заказ уже заблокирован выше; отменённый и доставленный сюда не попадут (остановка не in_progress).
             await client.query(
@@ -767,7 +781,7 @@ class DBAdapter {
     // Завершение доставки — одна транзакция: блокировка остановки/заказа,
     // перевод заказа в COMPLETED, обновление маршрута и постановка уведомления в outbox.
     // Повторный callback получает already и не создаёт второе уведомление.
-    async completeDeliveryStop(stopId, { afterComplete = null, expectedCourierId = undefined } = {}) {
+    async completeDeliveryStop(stopId, { afterComplete = null, expectedCourierId = undefined, expectedRouteId = undefined } = {}) {
         const id = Number(stopId);
         if (!Number.isSafeInteger(id) || id <= 0) return { status: 'not_found' };
         const client = await pool.connect();
@@ -781,6 +795,13 @@ class DBAdapter {
                 return { status: 'not_found' };
             }
             const candidate = candidateRes.rows[0];
+            const expectedRoute = expectedRouteId === undefined ? undefined : Number(expectedRouteId);
+            if ((expectedCourierId !== undefined && expectedRouteId === undefined) ||
+                (expectedRouteId !== undefined &&
+                    (!Number.isSafeInteger(expectedRoute) || expectedRoute <= 0 || expectedRoute !== Number(candidate.route_id)))) {
+                await client.query('ROLLBACK');
+                return { status: 'not_assigned' };
+            }
 
             let order = null;
             if (candidate.order_id || candidate.order_number) {
@@ -862,8 +883,8 @@ class DBAdapter {
                     SET status = 'delivered',
                         fail_reason = NULL,
                         delivered_at = COALESCE(delivered_at, NOW())
-                  WHERE id = $1
-                  RETURNING *`, [id]);
+                  WHERE id = $1 AND route_id = $2
+                  RETURNING *`, [id, candidate.route_id]);
 
             await this._refreshRouteCompletion(client, stop.route_id);
             const completedRouteRes = await client.query('SELECT * FROM delivery_routes WHERE id = $1', [stop.route_id]);
