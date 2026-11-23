@@ -170,7 +170,7 @@ class DBAdapter {
                     throw error;
                 }
             }
-            const updated = await client.query('UPDATE couriers SET is_active = $2, activation_token = CASE WHEN $2 = FALSE THEN NULL ELSE activation_token END WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
+            const updated = await client.query('UPDATE couriers SET is_active = $2, activation_token = NULL WHERE id = $1 AND archived_at IS NULL RETURNING *', [id, isActive]);
             await client.query('COMMIT');
             return updated.rows[0] || null;
         } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
