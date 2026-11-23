@@ -895,3 +895,10 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - Менеджер и администратор управляют календарём и назначают задачи. Оператор/кладовщик видят общие события и только свои задачи; менять могут только статус собственной задачи. Денежные показатели скрыты без `sales.view`.
 - Часовой пояс календаря фиксирован Europe/Moscow; формы datetime-local конвертируются из МСК в UTC перед сохранением, чтобы часовой пояс компьютера сотрудника не сдвигал событие.
 - Ветка `feature/admin-workspace-calendar`; CI/PR/deploy ожидаются, не считать production готовым.
+## 23.11.2026 — production release рабочего календаря
+- PR #204 объединён в `main`: `3bb0d38aa5313db33d187094dc6d224f3c858c6e`.
+- CI run #819 — SUCCESS; полный тестовый набор и PostgreSQL integration test прошли.
+- Railway `Gulf_Western_Oil_bot` / `production` / `gulf-bot`: deployment `150369c6-d943-4ece-82c6-3474f5793ee9` — SUCCESS, commit `3bb0d38aa5313db33d187094dc6d224f3c858c6e`.
+- Проверка Railway: `gulf-bot` online (1/1 replica), `Postgres` online, предупреждений/ошибок нет, pendingWork пуст.
+- Логи запуска: `[OK] База данных инициализирована`; бот стартовал, polling lock получен. Миграция `workspace_items` входит в обычный initDB.
+- Осталась ручная проверка UI в браузере под разными ролями и следующий этап разделов задач/KPI/логистики/договоров.
