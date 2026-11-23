@@ -161,7 +161,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         const approx = plan.source === 'estimate' ? ' (ориентировочная оценка)' : '';
         const route = await db.transferRemainingRoute({
             sourceRouteId, expectedSourceCourierId: sourceCourierId, targetCourierId: targetCourier.id,
-            routeNumber, routeDate, reason, actorLogin,
+            routeNumber, routeDate, reason, orderedStopIds: sequence.map(s => s.id), actorLogin,
             afterTransfer: async ({ client, route: createdRoute, stops }) => {
                 const stopTextList = sequence.map((item, i) => `${i + 1}. ${escapeHtml(item.order_number || '')} — ${escapeHtml(item.address || '')}`).join('\n');
                 const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
@@ -190,7 +190,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             }
         });
         if (route.status !== 'transferred') {
-            const messages = { invalid: 'Некорректные данные передачи', not_found: 'Маршрут не найден', not_assigned: 'Маршрут уже принадлежит другому курьеру', route_not_transferable: 'Маршрут уже закрыт или передан', source_courier_inactive: 'Первый курьер не активен', target_courier_inactive: 'Второй курьер не активен', nothing_to_transfer: 'Нет оставшихся заказов', invalid_order_reference: 'В маршруте найдена некорректная ссылка на заказ', order_state_changed: 'Статус одного из заказов изменился. Обновите маршрут', already_transferred: 'Маршрут уже передан' };
+            const messages = { invalid: 'Некорректные данные передачи', not_found: 'Маршрут не найден', not_assigned: 'Маршрут уже принадлежит другому курьеру', route_not_transferable: 'Маршрут уже закрыт или передан', source_courier_inactive: 'Первый курьер не активен', target_courier_inactive: 'Второй курьер не активен', nothing_to_transfer: 'Нет оставшихся заказов', invalid_order_reference: 'В маршруте найдена некорректная ссылка на заказ', invalid_stop_order: 'Изменился состав остановок маршрута. Обновите страницу', order_state_changed: 'Статус одного из заказов изменился. Обновите маршрут', already_transferred: 'Маршрут уже передан' };
             throw fail(route.status === 'not_found' ? 'NOT_FOUND' : 'CONFLICT', messages[route.status] || 'Не удалось передать маршрут');
         }
         return { route: route.route, sourceRouteId: route.sourceRouteId, transferredCount: route.transferredCount, sequence: sequence.map(s => s.order.order_number) };
