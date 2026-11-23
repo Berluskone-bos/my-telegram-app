@@ -820,3 +820,10 @@
 ## 23.11.2026 — PR #171: PR170 completion documentation
 - PR #171 merged; docs/TASKS.md and docs/MEMORY.md now record PR #170 CI run `45073000793`, the login/password-reset race fix, and successful Railway deployment `a5d233a7-febb-45d7-b1da-ad965d0f7560`.
 - Further concurrency coverage in PR #172: deterministic PostgreSQL races for courier accept/start/fail against order cancellation, complementing existing stage-vs-cancel and complete-vs-cancel tests. CI pending.
+
+
+## 23.11.2026 — IDOR/BOLA: привязка courier callback к route ID (в работе)
+- Повторно проверены Telegram callback showroute/startroute/deliver/delivered/failed/failreason/pickstop: callback data разбирается полными regex-форматами, route/stop IDs проверяются как positive safe integers, перед обработкой сверяются активный курьер, владелец маршрута и принадлежность остановки маршруту. Callback оценки клиента отдельно проверяет владельца заказа по Telegram ID и привязку stop к courier.
+- Найдено дополнительное окно TOCTOU: setStopStage, failDeliveryStop, completeDeliveryStop проверяли courier ownership внутри транзакции, но не требовали совпадения route ID из исходного callback. При перемещении stop между маршрутами одного курьера stale callback мог продолжить обработку уже в другом route.
+- В работе: DB mutations требуют expectedRouteId при переданном expectedCourierId; сверка выполняется внутри транзакции с candidate stop до записи. Telegram handlers передают route ID из callback. Добавлены PostgreSQL regressions на отсутствующий и подменённый route ID, включая два маршрута одного курьера.
+- Обновлены тестовые сценарии cancellation races, чтобы передавать оба ожидаемых идентификатора. CI/merge/deploy пока не подтверждены; production не менялся.
