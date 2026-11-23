@@ -855,3 +855,11 @@ PR #119 заменил `setTimeout(..., 3000)` на запись в PostgreSQL o
 - В ветке `security/recheck-admin-session-after-read` добавлено условное обновление с проверкой существования сессии, absolute expiry и idle expiry; если запись отозвана/истекла, middleware возвращает 401.
 - Добавлен детерминированный PostgreSQL race test: middleware останавливается после SELECT, сессия удаляется, затем запрос продолжается; ожидается 401 и ноль вызовов защищённого handler.
 - CI/PR/deploy ожидают; не считать исправление завершённым до прохождения теста и production deploy.
+
+
+## 23.11.2026 — PR #196 production verification
+- PR #196 merged: `cb723c8f661c053eee23043af9b1e22b98d0d6d5`.
+- CI run #731 SUCCESS, включая PostgreSQL integration test на гонку отзыва сессии.
+- Railway deployment `f3c76b75-1f87-4b45-bfd2-99fcaa523d93` SUCCESS; `gulf-bot` live.
+- Middleware теперь делает условный UPDATE `admin_sessions` с absolute/idle TTL и проверяет `rowCount`; если сессия исчезла после SELECT, запрос получает 401 до вызова защищённого обработчика.
+- Продолжить остальные административные и внутренние DB/API операции; полный IDOR/BOLA аудит не закрыт.
