@@ -530,16 +530,17 @@ class DBAdapter {
                 const byId = new Map(remaining.map(s => [Number(s.id), s]));
                 remaining = requestedOrder.map(id => byId.get(id));
             }
-            const expectedOrderStatus = sourceRoute.status === 'in_progress' ? 'SHIPPING' : 'READY_FOR_SHIPMENT';
+            const expectedOrderStatuses = sourceRoute.status === 'in_progress' || sourceRoute.transferred_from_route_id
+                ? ['SHIPPING'] : ['READY_FOR_SHIPMENT'];
             const ids = [...new Set(remaining.map(s => String(s.order_id || '')).filter(x => /^\d+$/.test(x)))];
             if (ids.length !== remaining.length) { await client.query('ROLLBACK'); return { status: 'invalid_order_reference' }; }
             const orders = await client.query('SELECT id, status, delivery_type FROM orders WHERE id::text = ANY($1::text[]) ORDER BY id', [ids]);
-            if (orders.rowCount !== remaining.length || orders.rows.some(o => o.status !== expectedOrderStatus || o.delivery_type === 'pickup')) {
+            if (orders.rowCount !== remaining.length || orders.rows.some(o => !expectedOrderStatuses.includes(o.status) || o.delivery_type === 'pickup')) {
                 await client.query('ROLLBACK'); return { status: 'order_state_changed' };
             }
             const cash = remaining.reduce((sum, s) => sum + (s.payment_status === 'pending' ? Number(s.amount_to_pay || 0) : 0), 0);
-            const created = await client.query(`INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance) VALUES ($1,$2,$3,'assigned',$4,0,0,$5,0,NULL) RETURNING *`,
-                [routeNumber, routeDate, targetId, remaining.length, cash]);
+            const created = await client.query(`INSERT INTO delivery_routes (route_number, route_date, courier_id, status, total_orders, completed, failed, cash_to_collect, cash_collected, total_distance, transferred_from_route_id) VALUES ($1,$2,$3,'assigned',$4,0,0,$5,0,NULL,$6) RETURNING *`,
+                [routeNumber, routeDate, targetId, remaining.length, cash, sourceId]);
             const newRoute = created.rows[0], newStops = [], stopMap = new Map();
             for (let i = 0; i < remaining.length; i++) {
                 const old = remaining[i];
