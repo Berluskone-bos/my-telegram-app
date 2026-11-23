@@ -66,6 +66,7 @@ function normalizeItem(body, { partial = false } = {}) {
             if (!result.assignedTo) return { error: 'Некорректный исполнитель.' };
         }
     } else if (!partial) result.assignedTo = null;
+    if (!partial && result.kind === 'task' && !result.assignedTo) return { error: 'Для задачи выберите сотрудника.' };
     if (Object.prototype.hasOwnProperty.call(result, 'allDay')) result.allDay = result.allDay === true;
     else if (!partial) result.allDay = false;
     if (Object.prototype.hasOwnProperty.call(result, 'companyVisible')) result.companyVisible = result.companyVisible === true;
