@@ -508,7 +508,7 @@ class DBAdapter {
             const sourceRoute = source.rows[0];
             if (Number(sourceRoute.courier_id) !== sourceCourierId) { await client.query('ROLLBACK'); return { status: 'not_assigned' }; }
             if (!['assigned', 'in_progress'].includes(sourceRoute.status) || sourceRoute.transferred_to_route_id) { await client.query('ROLLBACK'); return { status: 'route_not_transferable' }; }
-            const oldCourier = await client.query('SELECT id FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR SHARE', [sourceCourierId]);
+            const oldCourier = await client.query('SELECT id, telegram_id, name FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL AND telegram_id IS NOT NULL FOR SHARE', [sourceCourierId]);
             if (!oldCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'source_courier_inactive' }; }
             const targetCourier = await client.query('SELECT * FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR UPDATE', [targetId]);
             if (!targetCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'target_courier_inactive' }; }
@@ -553,7 +553,7 @@ class DBAdapter {
                 [sourceId, newRoute.id, reason]);
             await client.query(`INSERT INTO route_transfer_events (source_route_id, target_route_id, source_courier_id, target_courier_id, reason, transferred_stops, actor_login) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
                 [sourceId, newRoute.id, sourceCourierId, targetId, reason, newStops.length, typeof actorLogin === 'string' ? actorLogin.slice(0, 100) : null]);
-            if (typeof afterTransfer === 'function') await afterTransfer({ client, sourceRoute, route: newRoute, stops: newStops, sourceCourierId, targetCourier: targetCourier.rows[0], transferredCount: newStops.length, reason });
+            if (typeof afterTransfer === 'function') await afterTransfer({ client, sourceRoute, route: newRoute, stops: newStops, sourceCourierId, sourceCourier: oldCourier.rows[0], targetCourier: targetCourier.rows[0], transferredCount: newStops.length, reason });
             await client.query('COMMIT');
             return { status: 'transferred', sourceRouteId: sourceId, route: { ...newRoute, stops: newStops }, sourceCourierId, targetCourier: targetCourier.rows[0], transferredCount: newStops.length };
         } catch (e) { await client.query('ROLLBACK').catch(() => {}); if (e.code === '23505') return { status: 'already_transferred' }; throw e; }
