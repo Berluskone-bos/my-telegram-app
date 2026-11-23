@@ -18,6 +18,21 @@ test('маршруты навигаторов стартуют от текуще
     assert.match(links.gis2, /directions\/points\/\|30\.33,59\.93\|30\.34,59\.94\|30\.35,59\.95/);
 });
 
+test('аварийная передача включает место получения первой точкой навигации', () => {
+    const pickup = { lat: 59.92, lon: 30.32 };
+    const links = MapLinks.allRoute(stops, pickup);
+    assert.match(links.yandex, /rtext=59\.92%2C30\.32~59\.93%2C30\.33~59\.94%2C30\.34~59\.95%2C30\.35/);
+    assert.match(links.google, /origin=59\.92%2C30\.32/);
+    assert.match(links.google, /destination=59\.95%2C30\.35/);
+    assert.match(links.gis2, /directions\/points\/\|30\.32,59\.92\|30\.33,59\.93/);
+});
+
+test('текстовый адрес места получения становится начальной точкой Яндекс и Google', () => {
+    const links = MapLinks.allRoute(stops, 'Санкт-Петербург, Невский проспект, 1');
+    assert.match(links.yandex, /rtext=Санкт-Петербург%2C%20Невский%20проспект%2C%201/);
+    assert.match(links.google, /origin=Санкт-Петербург%2C%20Невский%20проспект%2C%201/);
+});
+
 test('одна точка доставки остаётся пунктом назначения, а не стартовой точкой', () => {
     const links = MapLinks.allRoute([stops[0]]);
     assert.match(links.yandex, /rtext=~59\.93,30\.33/);
