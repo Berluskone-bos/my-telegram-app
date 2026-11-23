@@ -47,12 +47,15 @@
       .workcal-hover-line{overflow-wrap:anywhere}
 
       .workcal-day:hover{border-color:#00AFC7;background:rgba(0,175,199,.045)}
+      .workcal-day.weekend{background:rgba(220,38,38,.075);border-color:rgba(220,38,38,.16)}
+      .workcal-day.weekend:hover{background:rgba(220,38,38,.12);border-color:rgba(220,38,38,.32)}
+      .workcal-day.weekend.selected{background:rgba(220,38,38,.14);border-color:#00AFC7}
       .workcal-day.other{opacity:.38}.workcal-day.today{border-color:#00AFC7;box-shadow:inset 0 0 0 1px #00AFC7}
       .workcal-day.selected{background:rgba(0,175,199,.09);border-color:#00AFC7}
       .workcal-daynum{font-size:13px;font-weight:750}
       .workcal-daymetrics{display:grid;gap:3px;margin-top:6px;font-size:10px;color:var(--muted);line-height:1.25}
       .workcal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
-      .workcal-dot{width:6px;height:6px;border-radius:50%;background:#00AFC7}.workcal-dot.task{background:#d97706}.workcal-dot.meeting{background:#6366f1}.workcal-dot.contract{background:#0d9488}.workcal-dot.logistics{background:#2563eb}.workcal-dot.kpi{background:#9333ea}
+      .workcal-dot{display:inline-block;box-sizing:border-box;width:6px!important;height:6px!important;min-width:6px;min-height:6px;max-width:6px;max-height:6px;flex:0 0 6px;border-radius:50%;padding:0;margin:0;vertical-align:middle;background:#00AFC7}.workcal-dot.task{background:#d97706}.workcal-dot.meeting{background:#6366f1}.workcal-dot.contract{background:#0d9488}.workcal-dot.logistics{background:#2563eb}.workcal-dot.kpi{background:#9333ea}
       .workcal-legend{display:flex;gap:12px;flex-wrap:wrap;padding:0 18px 14px;color:var(--muted);font-size:11px}
       .workcal-legend span{display:inline-flex;align-items:center;gap:5px}
       .workcal-detail{border-top:1px solid var(--border,#e7eaf0);padding:16px 18px;display:grid;gap:12px}
@@ -195,7 +198,7 @@
     let workcalSelected = null;
     let workcalData = { days: [], items: [] };
     let workcalStaff = [];
-    let workcalLoading = false;
+    let workcalLoadSequence = 0;
     const workcalDateKey = date => date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
     const workcalMonthKey = date => date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0');
     const workcalParseDate = value => { const [y,m,d] = value.split('-').map(Number); return new Date(y,m-1,d); };
@@ -210,7 +213,7 @@
         return new Date(Date.UTC(y, m - 1, d, h - 3, minute)).toISOString();
     }
     const workcalItemDate = item => {
-        const value = item.dueAt || item.startsAt;
+        const value = item.kind === 'task' ? (item.dueAt || item.startsAt) : (item.startsAt || item.dueAt);
         if (!value) return '';
         return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
     };
@@ -237,6 +240,7 @@
             const date=new Date(year,month,dayNum);
             const key=workcalDateKey(date);
             const inMonth=dayNum>=1&&dayNum<=daysInMonth;
+            const weekend=date.getDay()===0||date.getDay()===6;
             const summary=dayMap.get(key)||{};
             const items=itemMap.get(key)||[];
             const taskCount=items.filter(x=>x.kind==='task'&&x.status!=='cancelled').length;
@@ -246,11 +250,11 @@
             const metrics=(summary.orders||summary.revenue!=null)?'<span>'+integer.format(summary.orders||0)+' зак.</span><span>'+(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</span>':'<span>—</span>';
             const hoverItems=items.filter(x=>x.status!=='cancelled').slice(0,6).map(x=>'<span class="workcal-hover-line">'+esc(WORKCAL_KINDS[x.kind]||x.kind)+': '+esc(x.title)+'</span>').join('');
             const hover='<span><b>'+esc(workcalFmtDate(key))+'</b></span><span>Заказы: '+integer.format(summary.orders||0)+' · Новые: '+integer.format(summary.newOrders||0)+'</span><span>Доставка: '+integer.format(summary.shipping||0)+' · Доставлено: '+integer.format(summary.delivered||0)+'</span><span>Отменено: '+integer.format(summary.cancelled||0)+' · Выручка: '+(summary.revenue==null?'—':esc(workcalFmtMoney(summary.revenue)))+'</span><span>Склад: '+integer.format(summary.stockMovements||0)+' движ. · −'+integer.format(summary.qtyOut||0)+' / +'+integer.format(summary.qtyIn||0)+' шт.</span>'+(hoverItems||'<span>Задач и событий нет</span>');
-            html+='<button type="button" class="workcal-day '+(!inMonth?'other ':'')+(key===todayKey?'today ':'')+(key===workcalSelected?'selected':'')+'" data-date="'+key+'" title="'+esc(tooltip)+'" aria-label="'+esc(workcalFmtDate(key)+'. '+tooltip)+'"><span class="workcal-daynum">'+date.getDate()+'</span><span class="workcal-daymetrics">'+metrics+'<span>Задач: '+taskCount+' · Событий: '+eventCount+'</span></span><span class="workcal-dots">'+dots+'</span><span class="workcal-hover">'+hover+'</span></button>';
+            html+='<button type="button" class="workcal-day '+(!inMonth?'other ':'')+(weekend?'weekend ':'')+(key===todayKey?'today ':'')+(key===workcalSelected?'selected':'')+'" data-date="'+key+'" title="'+esc(tooltip)+'" aria-label="'+esc(workcalFmtDate(key)+'. '+tooltip)+'"><span class="workcal-daynum">'+date.getDate()+'</span><span class="workcal-daymetrics">'+metrics+'<span>Задач: '+taskCount+' · Событий: '+eventCount+'</span></span><span class="workcal-dots">'+dots+'</span><span class="workcal-hover">'+hover+'</span></button>';
         }
         grid.innerHTML=html;
         grid.querySelectorAll('button[data-date]').forEach(button=>button.addEventListener('click',()=>selectWorkcalDay(button.dataset.date)));
-        if(workcalSelected)renderWorkcalDay(workcalSelected);
+        if(workcalSelected&&!document.getElementById('workcalCreateForm'))renderWorkcalDay(workcalSelected);
     }
     function renderWorkcalDay(dateKey) {
         const target=document.getElementById('workcalDetail');
@@ -300,12 +304,14 @@
         }));
     }
     async function selectWorkcalDay(dateKey) {
+        document.getElementById('workcalCreateForm')?.remove();
         workcalSelected=dateKey;
         document.querySelectorAll('.workcal-day').forEach(button=>button.classList.toggle('selected',button.dataset.date===dateKey));
         renderWorkcalDay(dateKey);
     }
     function renderWorkcalForm(dateKey) {
         const target=document.getElementById('workcalDetail');
+        if(!target||document.getElementById('workcalCreateForm'))return;
         const defaultDate=dateKey+'T09:00';
         const employeeOptions=workcalStaff.map(user=>'<option value="'+Number(user.id)+'">'+esc(user.displayName)+' · '+esc(user.role)+'</option>').join('');
         target.insertAdjacentHTML('beforeend',`<form class="workcal-create" id="workcalCreateForm">
@@ -341,8 +347,8 @@
             const dueAt=data.get('dueAt');
             const payload={
                 kind,title:data.get('title'),description:data.get('description'),
-                startsAt:workcalMskInputToIso(startsAt),
-                dueAt:workcalMskInputToIso(dueAt),
+                startsAt:kind==='task'?null:workcalMskInputToIso(startsAt),
+                dueAt:kind==='task'?workcalMskInputToIso(dueAt):(dueAt?workcalMskInputToIso(dueAt):null),
                 priority:data.get('priority'),assignedTo:data.get('assignedTo')||null,
                 companyVisible:form.elements.companyVisible.checked,
                 location:data.get('location'),counterparty:data.get('counterparty'),
@@ -356,13 +362,19 @@
         });
     }
     async function createWorkcalItem(payload,form) {
+        const submit=form.querySelector('button[type="submit"]');
+        if(submit){submit.disabled=true;submit.textContent='Сохранение…';}
         try{
             const response=await fetch('/api/admin/workspace/items',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
             const data=await response.json().catch(()=>({}));
             if(!response.ok)throw new Error(data.error||'Не удалось сохранить задачу');
+            form.remove();
             await loadWorkspaceCalendar();
             renderWorkcalDay(workcalSelected);
-        }catch(error){alert(error.message||'Ошибка сохранения');}
+        }catch(error){
+            if(submit){submit.disabled=false;submit.textContent='Сохранить';}
+            alert(error.message||'Ошибка сохранения');
+        }
     }
     async function updateWorkcalItem(id,patch) {
         try{
@@ -382,17 +394,19 @@
         }catch(error){alert(error.message||'Ошибка отмены');}
     }
     async function loadWorkspaceCalendar() {
-        if(workcalLoading)return;
-        workcalLoading=true;
+        const requestSequence=++workcalLoadSequence;
         try{
             if(workcalCanManage()){
                 const staffResponse=await fetch('/api/admin/workspace/staff',{credentials:'same-origin',cache:'no-store'});
                 if(!staffResponse.ok)throw new Error('Не удалось получить список сотрудников');
-                workcalStaff=await staffResponse.json();
+                const staff=await staffResponse.json();
+                if(requestSequence!==workcalLoadSequence)return;
+                workcalStaff=staff;
             }
             const month=workcalMonthKey(workcalDate);
             const response=await fetch('/api/admin/workspace/calendar?month='+encodeURIComponent(month),{credentials:'same-origin',cache:'no-store'});
             const data=await response.json().catch(()=>({}));
+            if(requestSequence!==workcalLoadSequence)return;
             if(!response.ok)throw new Error(data.error||'Не удалось загрузить календарь');
             workcalData=data;
             renderWorkcal();
@@ -400,15 +414,16 @@
                 const today=workcalMoscowToday();
                 workcalSelected=workcalMonthKey(today)===month?workcalDateKey(today):workcalDateKey(new Date(workcalDate.getFullYear(),workcalDate.getMonth(),1));
             }
-            renderWorkcalDay(workcalSelected);
+            if(!document.getElementById('workcalCreateForm'))renderWorkcalDay(workcalSelected);
             renderWorkcalTasks();
         }catch(error){
+            if(requestSequence!==workcalLoadSequence)return;
             const grid=document.getElementById('workcalGrid');
             if(grid)grid.innerHTML='<div class="workcal-empty">'+esc(error.message||'Ошибка загрузки')+'</div>';
-        }finally{workcalLoading=false;}
+        }
     }
-    document.getElementById('workcalPrev')?.addEventListener('click',()=>{workcalDate=new Date(workcalDate.getFullYear(),workcalDate.getMonth()-1,1);loadWorkspaceCalendar();});
-    document.getElementById('workcalNext')?.addEventListener('click',()=>{workcalDate=new Date(workcalDate.getFullYear(),workcalDate.getMonth()+1,1);loadWorkspaceCalendar();});
+    document.getElementById('workcalPrev')?.addEventListener('click',()=>{document.getElementById('workcalCreateForm')?.remove();workcalDate=new Date(workcalDate.getFullYear(),workcalDate.getMonth()-1,1);loadWorkspaceCalendar();});
+    document.getElementById('workcalNext')?.addEventListener('click',()=>{document.getElementById('workcalCreateForm')?.remove();workcalDate=new Date(workcalDate.getFullYear(),workcalDate.getMonth()+1,1);loadWorkspaceCalendar();});
     document.getElementById('workcalToday')?.addEventListener('click',()=>{workcalDate=workcalMoscowToday();workcalSelected=workcalDateKey(workcalDate);loadWorkspaceCalendar();});
     let loading = false;
     window.loadAdminDashboard = async function loadAdminDashboard() {
