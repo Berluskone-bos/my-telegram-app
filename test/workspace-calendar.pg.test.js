@@ -105,7 +105,7 @@ test('рабочий календарь: задачи видны назначе�
     });
     const meeting = await createItem(manager.cookie, {
         kind: 'meeting', title: 'Общее совещание', startsAt: dueAt,
-        companyVisible: true
+        companyVisible: true, amount: 9500
     });
 
     const createdOrder = await db.createOrder({
@@ -127,7 +127,9 @@ test('рабочий календарь: задачи видны назначе�
     assert.equal(operatorCalendar.headers.get('cache-control'), 'no-store');
     const operatorData = await operatorCalendar.json();
     assert.ok(operatorData.items.some(item => item.id === operatorTask.id));
-    assert.ok(operatorData.items.some(item => item.id === meeting.id));
+    const visibleMeeting = operatorData.items.find(item => item.id === meeting.id);
+    assert.ok(visibleMeeting);
+    assert.equal(visibleMeeting.amount, null, 'operator must not receive contract or logistics amounts');
     assert.equal(operatorData.items.some(item => item.id === warehouseTask.id), false,
         'employee must not see another employee private task');
     const orderDay = operatorData.days.find(day => day.orders > 0);
@@ -136,6 +138,8 @@ test('рабочий календарь: задачи видны назначе�
     const managerData = await (await request(path, manager.cookie)).json();
     assert.ok(managerData.items.some(item => item.id === operatorTask.id));
     assert.ok(managerData.items.some(item => item.id === warehouseTask.id));
+    assert.equal(managerData.items.find(item => item.id === meeting.id).amount, 9500,
+        'manager with sales.view can see company event amount');
 
     const selfUpdate = await request('/api/admin/workspace/items/' + operatorTask.id, operator.cookie, {
         method: 'PATCH', body: JSON.stringify({ status: 'in_progress' })
