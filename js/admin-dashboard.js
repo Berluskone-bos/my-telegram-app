@@ -195,6 +195,14 @@
     const workcalParseDate = value => { const [y,m,d] = value.split('-').map(Number); return new Date(y,m-1,d); };
     const workcalFmtDate = value => new Intl.DateTimeFormat('ru-RU',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'}).format(new Date(value+'T00:00:00Z'));
     const workcalFmtMoney = value => rub.format(Number(value)||0);
+    // Значения datetime-local в форме календаря трактуются как московское время независимо от часового пояса устройства.
+    function workcalMskInputToIso(value) {
+        if (!value) return null;
+        const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/.exec(value);
+        if (!match) return null;
+        const [, y, m, d, h, minute] = match.map(Number);
+        return new Date(Date.UTC(y, m - 1, d, h - 3, minute)).toISOString();
+    }
     const workcalItemDate = item => {
         const value = item.dueAt || item.startsAt;
         if (!value) return '';
@@ -302,8 +310,8 @@
             const dueAt=data.get('dueAt');
             const payload={
                 kind,title:data.get('title'),description:data.get('description'),
-                startsAt:startsAt?new Date(startsAt).toISOString():null,
-                dueAt:dueAt?new Date(dueAt).toISOString():null,
+                startsAt:workcalMskInputToIso(startsAt),
+                dueAt:workcalMskInputToIso(dueAt),
                 priority:data.get('priority'),assignedTo:data.get('assignedTo')||null,
                 companyVisible:form.elements.companyVisible.checked,
                 location:data.get('location'),counterparty:data.get('counterparty'),
