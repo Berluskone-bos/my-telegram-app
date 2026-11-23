@@ -167,6 +167,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
                 const sheet = `<b>Переданный маршрут ${escapeHtml(createdRoute.route_number)}</b>: ${stops.length} точек\n` +
                     `<b>Место получения заказов:</b> ${escapeHtml(handoffLocation)}\n` +
                     `Получите отправления у предыдущего курьера. Порядок точек указан ниже.\n\n${stopTextList}`;
+                await queue.notify('courier', targetCourier.telegram_id,
+                    `<b>Место получения заказов:</b> ${escapeHtml(handoffLocation)}`,
+                    { dedupKey: `route-handoff:${createdRoute.id}`, db: client, throwOnError: true });
                 const ll = sequence.filter(s => s.lat != null && s.lon != null).map(s => ({ lat: s.lat, lon: s.lon }));
                 const nav = ll.length ? MapLinks.allRoute(ll) : null;
                 const sheetButtons = nav ? [[{ text: 'Маршрут: Яндекс', url: nav.yandex }, { text: '2GIS', url: nav.gis2 }]] : null;
