@@ -733,7 +733,7 @@ async function handleStartRoute(chatId, routeId, user) {
         // Пересчитываем ETA без массовой рассылки клиентам: каждый клиент получит
         // «Курьер в пути» только когда курьер начнёт именно его заказ.
         // Пересчёт ETA не влияет на доступность уже поставленной в outbox карточки.
-        await routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => {
+        await routeSvc.refreshEtas({ routeId, expectedCourierId: courier.id, notifyNew: false }).catch(e => {
             console.error('[ROUTE] Не удалось обновить ETA после старта:', errorCode(e));
         });
     } catch (e) {
@@ -876,7 +876,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
             const stop = route?.stops?.find(s => parseInt(s.id) === parseInt(stopId));
             try {
                 // Обновляем только внутренние ориентиры курьера; ETA клиенту не отправляем.
-                await routeSvc.refreshEtas({ routeId, firstStopId: stopId });
+                await routeSvc.refreshEtas({ routeId, expectedCourierId: courierForNotice.id, firstStopId: stopId });
             } catch (e) { console.error('[DELIVER] обновление маршрутного листа не удалось:', errorCode(e)); }
             const courier = courierForNotice;
             if (stop?.order_number && stop.status !== 'cancelled') {
@@ -969,7 +969,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
         await renderRouteCard(chatId, msgId, routeId, null);
         bot.answerCallbackQuery(query.id, { text: 'Заказ доставлен!' }).catch(() => {});
 
-        routeSvc.refreshEtas({ routeId, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', errorCode(e)));
+        routeSvc.refreshEtas({ routeId, expectedCourierId: courierForNotice.id, notifyNew: false }).catch(e => console.error('[DELIVER] пересчёт времени не удался:', errorCode(e)));
 
         // Клиентское уведомление уже записано в outbox в той же транзакции, что и доставка.
         // Здесь обновляем карточку и, если её нет, один раз ставим отдельный запрос оценки.
@@ -1124,7 +1124,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
 
     // Та же карточка: заказ отмечен «НЕ ДОСТАВЛЕН», текущим становится следующий активный заказ.
     const shown = await renderRouteCard(chatId, routeMessageId, routeId, null);
-    try { await routeSvc.refreshEtas({ routeId, notifyNew: false }); }
+    try { await routeSvc.refreshEtas({ routeId, expectedCourierId: courier.id, notifyNew: false }); }
     catch (e) { console.error('[DELIVER] пересчёт времени после недоставки не удался:', errorCode(e)); }
 
     toast(failure.status === 'already' ? 'Недоставка уже отмечена.'

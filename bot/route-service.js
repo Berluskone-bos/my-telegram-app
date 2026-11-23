@@ -143,8 +143,9 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
 
     // Пересчитать внутренние ориентиры для маршрутного листа курьера.
     // Расчётное время не отправляем клиентам: оно не учитывает фактические пробки и задержки.
-    async function refreshEtas({ routeId, firstStopId = null, from = null }) {
-        const route = await db.getRouteById(routeId);
+    async function refreshEtas({ routeId, expectedCourierId, firstStopId = null, from = null }) {
+        // ETA-пересчёт вызывается из действий курьера: чтение маршрута ограничено его активным владением.
+        const route = await db.getRouteByIdForCourier(routeId, expectedCourierId);
         if (!route) return null;
         const t = now();
         let pending = (route.stops || []).filter(s => ACTIVE.includes(s.status)).sort((a, b) => a.stop_number - b.stop_number);
@@ -163,7 +164,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         for (const p of plan.ordered) {
             const stop = pending.find(s => Number(s.id) === Number(p.id));
             // ETA остаётся только внутренним ориентиром курьера; клиентам не сообщается.
-            await db.setStopEta(routeId, stop.id, p.etaAt, false);
+            await db.setStopEta(routeId, stop.id, p.etaAt, false, expectedCourierId);
             // Удаляем ETA, оставшееся в карточке клиента от предыдущей версии маршрута.
             await trackerEvent(poolOf(), stop.order_number, { eta: '' }).catch(() => {});
         }
