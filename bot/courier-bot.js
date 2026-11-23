@@ -790,7 +790,7 @@ async function handleDeliveryFlow(chatId, routeId, stopId, action, query) {
     // Для чтения маршрута сначала определяем курьера по Telegram ID, затем ограничиваем SQL его активным владением.
     const courierForNotice = query?.from?.id ? await db.getCourierByTelegramId(query.from.id) : null;
     const currentRoute = courierForNotice ? await db.getRouteByIdForCourier(routeId, courierForNotice.id) : null;
-    if (!courierForNotice || !courierForNotice.is_active || courierForNotice.archived_at || String(currentRoute.courier_id) !== String(courierForNotice.id)) {
+    if (!courierForNotice || !courierForNotice.is_active || courierForNotice.archived_at || !currentRoute || String(currentRoute.courier_id) !== String(courierForNotice.id)) {
         bot.answerCallbackQuery(query.id, { text: getCourierAccessMessage(courierForNotice) || 'Нет доступа к этому маршруту', show_alert: true }).catch(() => {});
         return;
     }
