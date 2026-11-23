@@ -29,8 +29,8 @@ test('аварийная передача включает место получ
 
 test('текстовый адрес места получения становится начальной точкой Яндекс и Google', () => {
     const links = MapLinks.allRoute(stops, 'Санкт-Петербург, Невский проспект, 1');
-    assert.match(links.yandex, /rtext=Санкт-Петербург%2C%20Невский%20проспект%2C%201/);
-    assert.match(links.google, /origin=Санкт-Петербург%2C%20Невский%20проспект%2C%201/);
+    assert.equal(new URL(links.yandex).searchParams.get('rtext').split('~')[0], 'Санкт-Петербург, Невский проспект, 1');
+    assert.equal(new URL(links.google).searchParams.get('origin'), 'Санкт-Петербург, Невский проспект, 1');
 });
 
 test('одна точка доставки остаётся пунктом назначения, а не стартовой точкой', () => {
