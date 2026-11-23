@@ -1100,7 +1100,7 @@ async function handleDeliveryResult(routeId, stopId, status, chatId, callbackQue
         else bot.sendMessage(chatId, accessMessage).catch(() => {});
         return;
     }
-    const route = await db.getRouteById(routeId);
+    const route = courier ? await db.getRouteByIdForCourier(routeId, courier.id) : null;
     if (!courier || !courier.is_active || !route || String(route.courier_id) !== String(courier.id)) {
         if (callbackQueryId) toast('Нет доступа к этому маршруту', true);
         else bot.sendMessage(chatId, 'Доступ к этому маршруту закрыт. Обратитесь к администратору.').catch(() => {});
