@@ -512,6 +512,8 @@ class DBAdapter {
             if (!oldCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'source_courier_inactive' }; }
             const targetCourier = await client.query('SELECT * FROM couriers WHERE id = $1 AND is_active = TRUE AND archived_at IS NULL FOR UPDATE', [targetId]);
             if (!targetCourier.rowCount) { await client.query('ROLLBACK'); return { status: 'target_courier_inactive' }; }
+            const targetBusy = await client.query("SELECT id FROM delivery_routes WHERE courier_id = $1 AND status IN ('assigned', 'in_progress') LIMIT 1 FOR UPDATE", [targetId]);
+            if (targetBusy.rowCount) { await client.query('ROLLBACK'); return { status: 'target_courier_busy' }; }
             const lockedStops = await client.query('SELECT * FROM route_stops WHERE route_id = $1 ORDER BY stop_number, id FOR UPDATE', [sourceId]);
             let remaining = lockedStops.rows.filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status));
             if (!remaining.length) { await client.query('ROLLBACK'); return { status: 'nothing_to_transfer' }; }
