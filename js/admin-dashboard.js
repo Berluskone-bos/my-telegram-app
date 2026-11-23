@@ -238,7 +238,7 @@
             const eventCount=items.filter(x=>x.kind!=='task'&&x.status!=='cancelled').length;
             const tooltip=[(summary.orders||0)+' заказов',(summary.revenue==null?'Выручка скрыта':workcalFmtMoney(summary.revenue)),'Задач: '+taskCount,'Событий: '+eventCount].join(' · ');
             const dots=items.filter(x=>x.status!=='cancelled').slice(0,7).map(x=>'<i class="workcal-dot '+esc(x.kind)+'"></i>').join('');
-            const metrics=(summary.orders||summary.revenue)?'<span>'+integer.format(summary.orders||0)+' зак.</span><span>'+workcalFmtMoney(summary.revenue||0)+'</span>':'<span>—</span>';
+            const metrics=(summary.orders||summary.revenue!=null)?'<span>'+integer.format(summary.orders||0)+' зак.</span><span>'+(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</span>':'<span>—</span>';
             html+='<button type="button" class="workcal-day '+(!inMonth?'other ':'')+(key===todayKey?'today ':'')+(key===workcalSelected?'selected':'')+'" data-date="'+key+'" title="'+esc(tooltip)+'" aria-label="'+esc(workcalFmtDate(key)+'. '+tooltip)+'"><span class="workcal-daynum">'+date.getDate()+'</span><span class="workcal-daymetrics">'+metrics+'<span>Задач: '+taskCount+' · Событий: '+eventCount+'</span></span><span class="workcal-dots">'+dots+'</span></button>';
         }
         grid.innerHTML=html;
