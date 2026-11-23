@@ -150,7 +150,7 @@ function registerWorkspaceCalendarRoutes(app, { pool, verifyAdmin }) {
             for (const row of orders.rows) dayMap.set(row.day, {
                 date: row.day, orders: row.orders, newOrders: row.new_orders,
                 shipping: row.shipping, delivered: row.delivered, cancelled: row.cancelled,
-                revenue: canSeeSales ? (Number(row.revenue) || 0) : 0, tasks: 0, tasksDone: 0,
+                revenue: canSeeSales ? (Number(row.revenue) || 0) : null, tasks: 0, tasksDone: 0,
                 meetings: 0, contracts: 0, logistics: 0, kpi: 0
             });
             for (const item of items.rows) {
