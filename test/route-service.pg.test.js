@@ -85,6 +85,8 @@ test('маршрут из 4 заказов: порядок по времени �
     assert.equal(String(etaAfterScopeProbe), String(etaBeforeScopeProbe), 'foreign route ID cannot change stop ETA');
     assert.equal(await db.setStopEta(out.route.id, stops[1].id, new Date('2026-11-15T01:00:00Z'), false, courier.id + 100000), false,
         'чужой курьер не может изменить ETA остановки даже при известном route ID');
+    assert.equal(await svc.refreshEtas({ routeId: out.route.id, expectedCourierId: courier.id + 100000 }), null,
+        'пересчёт ETA не загружает маршрут для чужого курьера');
     const routeOutbox = await pool.query(
         `SELECT bot, dedup_key FROM notification_outbox WHERE dedup_key = $1 OR dedup_key = $2 OR dedup_key = $3 OR dedup_key = $4 OR dedup_key = $5 OR dedup_key = $6`,
         [`route-sheet:${out.route.id}`, `assign:${stops[0].id}`, `assign:${stops[1].id}`, `assign:${stops[2].id}`, `assign:${stops[3].id}`, `admin-route-assigned:${out.route.id}`]);
