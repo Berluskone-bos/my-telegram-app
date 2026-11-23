@@ -261,6 +261,30 @@ async function initDB() {
                 ADD COLUMN IF NOT EXISTS client_rating SMALLINT CHECK (client_rating BETWEEN 1 AND 5);
         `);
 
+        // Аварийная передача незавершённого маршрута другому курьеру.
+        // История исходного маршрута и остановок сохраняется; новые остановки создаются в новом рейсе.
+        await client.query(`
+            ALTER TABLE delivery_routes
+                ADD COLUMN IF NOT EXISTS transferred_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS transferred_to_route_id INTEGER REFERENCES delivery_routes(id),
+                ADD COLUMN IF NOT EXISTS transfer_reason TEXT;
+            ALTER TABLE route_stops
+                ADD COLUMN IF NOT EXISTS transferred_to_stop_id INTEGER REFERENCES route_stops(id);
+            CREATE TABLE IF NOT EXISTS route_transfer_events (
+                id BIGSERIAL PRIMARY KEY,
+                source_route_id INTEGER NOT NULL REFERENCES delivery_routes(id),
+                target_route_id INTEGER NOT NULL REFERENCES delivery_routes(id),
+                source_courier_id INTEGER NOT NULL REFERENCES couriers(id),
+                target_courier_id INTEGER NOT NULL REFERENCES couriers(id),
+                reason TEXT NOT NULL CHECK (reason IN ('breakdown', 'fuel', 'accident', 'other')),
+                transferred_stops INTEGER NOT NULL CHECK (transferred_stops > 0),
+                actor_login TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (source_route_id)
+            );
+            CREATE INDEX IF NOT EXISTS route_transfer_target_idx ON route_transfer_events(target_route_id);
+        `);
+
         // ─── Интерактивные карточки Telegram (виджеты, см. widgets.js): где лежит сообщение и что на нём показано ───
         //   kind: tracker (ref = номер заказа) | route (ref = id маршрута) | summary (ref = chat_id админа)
         //   active = false — Telegram карточку не принял или она выключена: тогда работают обычные сообщения
