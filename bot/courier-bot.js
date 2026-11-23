@@ -626,7 +626,7 @@ bot.on('callback_query', async (query) => {
         const remaining = (route.stops || []).filter(s => ['pending', 'accepted', 'in_progress'].includes(s.status)).length;
         await notifyAdmin(
             `<b>Курьер не может продолжить маршрут</b>\nКурьер: ${escapeHtml(courier.name)}\nМаршрут: ${escapeHtml(route.route_number)} (ID ${route.id})\nОсталось заказов: ${remaining}\nПричина: ${escapeHtml(reasons[reason] || reason)}\n\nОткройте раздел «Доставка» в админ-панели и выполните передачу оставшихся заказов другому курьеру.`,
-            null, `route-issue:${route.id}:${reason}`, null, true
+            null, `route-issue:${route.id}:${reason}:${query.id}`, null, true
         );
         await bot.sendMessage(chatId, 'Сообщение отправлено диспетчеру. Ожидайте, пока вам сообщат о дальнейших действиях.');
         bot.answerCallbackQuery(query.id, { text: 'Диспетчер уведомлён' }).catch(() => {});
@@ -1471,7 +1471,7 @@ function registerCourierRoutes(app) {
     });
 
 
-    // Старый ручной API отключён: маршруты должны создаваться только через buildRoute,    // Аварийная передача оставшихся остановок другому курьеру.
+    // Аварийная передача оставшихся остановок другому курьеру.
     app.post('/api/routes/:id/transfer', verifyAdmin, requirePermission('routes.manage'), async (req, res) => {
         const rawRouteId = String(req.params.id || ''), rawCourierId = String(req.body?.courier_id ?? '');
         if (!/^\d{1,15}$/.test(rawRouteId) || !/^\d{1,15}$/.test(rawCourierId)) return res.status(400).json({ error: 'Некорректный ID маршрута или курьера' });
