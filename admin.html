@@ -1596,6 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderBoard(orders, couriers, getCourierForOrder);
                 refreshPageSub();
             } catch (e) {
+                if (requestSequence !== shopOrdersLoadSequence) return;
                 console.error('Shop orders error:', e);
                 const routeCourierSelect = document.getElementById('routeCourier');
                 if (routeCourierSelect) {
