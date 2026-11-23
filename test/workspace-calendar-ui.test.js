@@ -41,7 +41,7 @@ test('список сотрудников включает все типы со�
     assert.ok(renderer.includes(".filter(item=>item.status!=='cancelled')"));
     assert.ok(!renderer.includes("item.kind==='task'&&item.status!=='cancelled'"));
     assert.ok(renderer.includes('WORKCAL_KINDS[item.kind]||item.kind'));
-    assert.ok(renderer.includes('data-open-workcal-date'));
+    assert.ok(renderer.includes('data-open-workcal-item'));
     assert.ok(renderer.includes('Задачи и события сотрудников'));
 });
 
