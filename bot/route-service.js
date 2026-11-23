@@ -154,7 +154,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
             if (f) pending = [f, ...pending.filter(s => s !== f)];
         }
         if (!pending.length) {
-            await refreshRouteSheet(poolOf(), routeId, { activeStopId: firstStopId, now: t }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
+            await refreshRouteSheet(poolOf(), routeId, { expectedCourierId, activeStopId: firstStopId, now: t }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
             return null;
         }
         const done = (route.stops || []).filter(s => ['delivered', 'failed'].includes(s.status) && planner.hasCoords(s))
@@ -170,7 +170,7 @@ function createRouteService({ db, geocoder = null, queue, planner = defaultPlann
         }
         // Сначала сохраняем пересчитанные ETA, затем строим и ставим в очередь карточку:
         // иначе курьер может получить старые времена из снимка маршрута.
-        await refreshRouteSheet(poolOf(), routeId, { activeStopId: firstStopId, now: t }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
+        await refreshRouteSheet(poolOf(), routeId, { expectedCourierId, activeStopId: firstStopId, now: t }).catch(() => console.error('[ROUTE] Не удалось обновить карточку маршрута'));
         return { plan, sent: [] };
     }
 

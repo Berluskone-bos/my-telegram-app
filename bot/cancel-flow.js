@@ -17,7 +17,7 @@ const CANCELLED_BUTTON = [[{ text: 'Заказ отменён', disabled: {} }]]
 async function queueCancelNotices(client, order) {
     // 1. маршруты, где есть отменённая остановка этого заказа
     const stops = (await client.query(
-        `SELECT rs.id, rs.route_id, rs.order_number, rs.address, c.telegram_id AS courier_tg
+        `SELECT rs.id, rs.route_id, rs.order_number, rs.address, dr.courier_id, c.telegram_id AS courier_tg
            FROM route_stops rs
            JOIN delivery_routes dr ON dr.id = rs.route_id
            LEFT JOIN couriers c ON c.id = dr.courier_id
@@ -34,7 +34,8 @@ async function queueCancelNotices(client, order) {
                            COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress'))::int AS open
                       FROM route_stops WHERE route_id = $1) x
              WHERE dr.id = $1`, [routeId]);
-        await queueRouteSheetEdit(client, routeId);     // карточка маршрута у курьера: точка станет «отменён»
+        const expectedCourierId = stops.find(s => Number(s.route_id) === Number(routeId))?.courier_id;
+        await queueRouteSheetEdit(client, routeId, { expectedCourierId }); // карточка маршрута только его активному владельцу
     }
 
     // 2. курьеру
