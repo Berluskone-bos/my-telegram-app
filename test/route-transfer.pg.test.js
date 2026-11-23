@@ -53,7 +53,7 @@ test('аварийная передача: история первого кур�
         queueMessages.push({ bot, chat: String(chat), text, options });
         return true;
     } };
-    const planner = { planRoute: async ({ stops }) => ({ ordered: stops, unplaced: [], source: 'estimate', totalMin: 0 }) };
+    const planner = { planRoute: async ({ stops }) => ({ ordered: [...stops].reverse(), unplaced: [], source: 'estimate', totalMin: 0 }) };
     const svc = createRouteService({ db, queue, planner, env: { SERVICE_MINUTES: '5' }, now: () => new Date('2026-11-23T10:00:00Z') });
 
     const initial = await svc.buildRoute({ orderIds: orders.map(o => o.id), courier: courierA });
@@ -93,6 +93,8 @@ test('аварийная передача: история первого кур�
     assert.equal(newRoute.status, 'assigned');
     assert.equal(Number(newRoute.courier_id), Number(courierB.id));
     assert.equal(newRoute.stops.length, 2);
+    assert.deepEqual(newRoute.stops.map(s => s.order_number), transferred.sequence,
+        'порядок в новом маршрутном листе совпадает с результатом оптимизации');
     assert.ok(newRoute.stops.every(s => s.status === 'pending'));
     assert.equal(queueMessages.filter(m => m.bot === 'courier' && m.chat === String(courierB.telegram_id)).length, 3,
         'второму курьеру поставлены маршрутный лист и две карточки заказов');
