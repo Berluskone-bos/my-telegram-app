@@ -23,29 +23,41 @@ class MapLinks {
 
     // Маршрут начинается от текущего местоположения пользователя.
     // Первая координата — уже точка доставки, а не фиктивная точка отправления.
-    static yandexRoute(stops) {
+    static yandexRoute(stops, origin = null) {
         if (!Array.isArray(stops) || stops.length === 0) return 'https://yandex.ru/maps/';
-        const destinations = stops.map(s => `${s.lat},${s.lon}`).join('~');
-        return `https://yandex.ru/maps/?rtext=~${destinations}&rtt=auto`;
+        const destinations = stops.map(s => `${s.lat},${s.lon}`);
+        if (origin !== null && origin !== undefined && String(origin).trim()) {
+            const start = typeof origin === 'object' ? `${origin.lat},${origin.lon}` : String(origin).trim();
+            return `https://yandex.ru/maps/?rtext=${[start, ...destinations].map(encodeURIComponent).join('~')}&rtt=auto`;
+        }
+        return `https://yandex.ru/maps/?rtext=~${destinations.join('~')}&rtt=auto`;
     }
 
     // Google Maps без origin использует текущее местоположение устройства.
     // Все адреса клиентов сохраняются: промежуточные — waypoints, последний — destination.
-    static googleRoute(stops) {
+    static googleRoute(stops, origin = null) {
         if (!Array.isArray(stops) || stops.length === 0) return 'https://www.google.com/maps/';
         const destination = `${stops[stops.length - 1].lat},${stops[stops.length - 1].lon}`;
         const waypoints = stops.slice(0, -1).map(s => `${s.lat},${s.lon}`);
-        let url = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+        let url = 'https://www.google.com/maps/dir/?api=1';
+        if (origin !== null && origin !== undefined && String(origin).trim()) {
+            const start = typeof origin === 'object' ? `${origin.lat},${origin.lon}` : String(origin).trim();
+            url += `&origin=${encodeURIComponent(start)}`;
+        }
+        url += `&destination=${destination}`;
         if (waypoints.length) url += `&waypoints=${encodeURIComponent(waypoints.join('|'))}`;
         return url;
     }
 
     // Актуальный deeplink 2GIS: пустая точка A — старт с текущей геопозиции.
     // Каждая следующая пара координат — адрес доставки, порядок lon,lat.
-    static gis2Route(stops) {
+    static gis2Route(stops, origin = null) {
         if (!Array.isArray(stops) || stops.length === 0) return 'https://2gis.ru/directions/tab/car';
-        const destinations = stops.map(s => `${s.lon},${s.lat}`).join('|');
-        return `https://2gis.ru/directions/points/|${destinations}`;
+        const destinations = stops.map(s => `${s.lon},${s.lat}`);
+        if (origin && typeof origin === 'object' && Number.isFinite(Number(origin.lat)) && Number.isFinite(Number(origin.lon))) {
+            destinations.unshift(`${origin.lon},${origin.lat}`);
+        }
+        return `https://2gis.ru/directions/points/|${destinations.join('|')}`;
     }
 
     // Все три навигатора для одной точки
@@ -58,11 +70,11 @@ class MapLinks {
     }
 
     // Все три навигатора для маршрута
-    static allRoute(stops) {
+    static allRoute(stops, origin = null) {
         return {
-            yandex: MapLinks.yandexRoute(stops),
-            google: MapLinks.googleRoute(stops),
-            gis2: MapLinks.gis2Route(stops)
+            yandex: MapLinks.yandexRoute(stops, origin),
+            google: MapLinks.googleRoute(stops, origin),
+            gis2: MapLinks.gis2Route(stops, origin)
         };
     }
 }
