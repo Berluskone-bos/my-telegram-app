@@ -33,7 +33,8 @@ const Oil = {
               </div>`;
             document.body.appendChild(this.root);
             this.root.addEventListener('click', e => { if (e.target === this.root) this.close(); });
-            this.root.addEventListener('keydown', e => {
+            document.addEventListener('keydown', e => {
+                if (!this.root || !this.root.classList.contains('open')) return;
                 if (e.key === 'Escape') {
                     e.preventDefault();
                     this.close();
