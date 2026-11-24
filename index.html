@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, " />
     <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.min.js"></script>
@@ -13,15 +13,15 @@
 
     <!-- ===== ШАПКА ===== -->
     <div class="header">
-        <div class="burger-btn" onclick="App.toggleMenu(true)">
+        <button type="button" class="burger-btn" onclick="App.toggleMenu(true)" aria-label="Открыть меню">
             <i data-lucide="menu" class="icon-sm"></i>
-        </div>
+        </button>
         <div class="header-logo" id="headerTitle">
             <img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">
         </div>
-        <div class="header-icon" onclick="App.toggleSearch()">
+        <button type="button" class="header-icon" onclick="App.toggleSearch()" aria-label="Открыть поиск">
             <i data-lucide="search" class="icon-sm"></i>
-        </div>
+        </button>
     </div>
 
     <!-- ===== ПОИСК ===== -->
