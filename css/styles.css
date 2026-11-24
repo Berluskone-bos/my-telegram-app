@@ -214,6 +214,8 @@ a, button, input, select { font-family: inherit; }
 }
 .categories-scroll::-webkit-scrollbar { display: none; }
 .cat-badge {
+    appearance: none;
+    -webkit-appearance: none;
     flex-shrink: 0;
     padding: 8px 16px;
     background: var(--bg-secondary);
@@ -408,7 +410,15 @@ a, button, input, select { font-family: inherit; }
     display: block;
 }
 .sort-option {
+    display: block;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
     padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    text-align: left;
     font-size: 13px;
     font-weight: 500;
     color: var(--text-primary);
@@ -594,7 +604,11 @@ a, button, input, select { font-family: inherit; }
     gap: 8px;
 }
 .filter-chip {
+    appearance: none;
+    -webkit-appearance: none;
     padding: 6px 14px;
+    font-family: inherit;
+    line-height: inherit;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: 20px;
@@ -1448,6 +1462,16 @@ a, button, input, select { font-family: inherit; }
     box-shadow: var(--shadow);
 }
 .p-menu-item {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2127,21 +2151,37 @@ a, button, input, select { font-family: inherit; }
 .header-icon:focus-visible,
 .menu-back:focus-visible,
 .menu-item:focus-visible,
+.cat-badge:focus-visible,
+.filter-chip:focus-visible,
+.sort-option:focus-visible,
+.p-menu-item:focus-visible,
 .nav-item:focus-visible {
     outline: 3px solid rgba(0,175,199,.55);
     outline-offset: 2px;
 }
 .menu-back,
 .menu-item {
+    display: block;
     width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
     border: 0;
     background: transparent;
+    color: inherit;
+    font: inherit;
     text-align: left;
+    text-decoration: none;
 }
+.menu-back { display: flex; }
+.menu-item { padding: 16px 24px; font-size: 15px; }
+.menu-item:active { background: var(--bg-secondary); }
 .nav-item {
     min-height: 44px;
+    appearance: none;
+    -webkit-appearance: none;
     border: 0;
     background: transparent;
+    color: var(--text-muted);
     font: inherit;
     -webkit-tap-highlight-color: transparent;
 }
