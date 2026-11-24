@@ -13,7 +13,7 @@
 
     <!-- ===== ШАПКА ===== -->
     <div class="header">
-        <button type="button" class="burger-btn" onclick="App.toggleMenu(true)" aria-label="Открыть меню">
+        <button type="button" class="burger-btn" onclick="App.toggleMenu(true)" aria-label="Открыть меню" aria-expanded="false" aria-controls="sideMenu">
             <i data-lucide="menu" class="icon-sm"></i>
         </button>
         <div class="header-logo" id="headerTitle">
@@ -31,7 +31,7 @@
 
     <!-- ===== БОКОВОЕ МЕНЮ ===== -->
     <div class="menu-overlay" id="menuOverlay" onclick="App.toggleMenu(false)"></div>
-    <div class="side-menu" id="sideMenu">
+    <div class="side-menu" id="sideMenu" aria-hidden="true">
         <button type="button" class="menu-back" onclick="App.toggleMenu(false)">← Назад</button>
         <button type="button" class="menu-item" onclick="App.menuClick('О нас')">О нас</button>
         <button type="button" class="menu-item" onclick="App.menuClick('Доставка и оплата')">Доставка и оплата</button>
@@ -107,7 +107,7 @@
                 <span>Фильтр</span>
             </button>
             <div class="sort-dropdown" id="sortDropdown">
-                <button class="sort-btn" onclick="App.toggleSort()">
+                <button class="sort-btn" id="sortToggle" aria-controls="sortMenu" aria-expanded="false" onclick="App.toggleSort()">
                     <span>Сортировка</span>
                     <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                 </button>
