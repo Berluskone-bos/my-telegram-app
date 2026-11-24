@@ -32,3 +32,24 @@ test('светлые токены админ-панели не содержат 
   assert.doesNotMatch(html, /--tint:\s*var\(--tint\)/);
   assert.doesNotMatch(html, /--tint-2:\s*var\(--tint-2\)/);
 });
+
+test('управление магазином использует семантические кнопки и состояние выбора', () => {
+  const html = read('index.html');
+  const app = read('js/app.js');
+  const products = read('js/products.js');
+  assert.match(html, /<button[^>]+class="cat-badge active"[^>]+aria-pressed="true"/);
+  assert.match(html, /<nav class="bottom-nav" aria-label="Основная навигация">/);
+  assert.match(html, /<button[^>]+class="nav-item active"[^>]+aria-current="page"/);
+  assert.match(html, /<button[^>]+class="sort-option active"[^>]+aria-pressed="true"/);
+  assert.match(app, /setAttribute\('aria-current', 'page'\)/);
+  assert.match(app, /setAttribute\('aria-pressed', String\(active\)\)/);
+  assert.doesNotMatch(app, /container\.addEventListener\('click'/);
+  assert.match(products, /class="btn-buy" data-product-id=/);
+  assert.doesNotMatch(products, /class="btn-buy" onclick=/);
+});
+test('правила темы разделяют магазин и админ-панель', () => {
+  const agents = read('AGENTS.md');
+  const audit = read('docs/DESIGN_AUDIT.md');
+  assert.match(agents, /магазин \(Mini App\) поддерживает только светлую тему; админ-панель поддерживает светлую и тёмную темы/);
+  assert.match(audit, /Админ-панель должна поддерживать две темы/);
+});
