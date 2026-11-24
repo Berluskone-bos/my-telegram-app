@@ -56,7 +56,10 @@ var App = {
             }
             if (!e.target.closest('#zoneSelect')) {
                 const zoneMenu = document.getElementById('zoneMenu');
-                if (zoneMenu) zoneMenu.classList.remove('open');
+                if (zoneMenu) {
+                    zoneMenu.classList.remove('open');
+                    document.getElementById('zoneSelectToggle')?.setAttribute('aria-expanded', 'false');
+                }
             }
         });
 
