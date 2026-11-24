@@ -975,7 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <table aria-label="Заказы магазина">
                         <thead>
                             <tr>
-                                <th title="Итог доставки и выбор заказов в маршрут">Итог / рейс</th>
+                                <th scope="col" title="Итог доставки и выбор заказов в маршрут">Итог / рейс</th>
                                 <th scope="col">Номер</th>
                                 <th scope="col">Клиент</th>
                                 <th scope="col">Адрес</th>
@@ -1273,13 +1273,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const body = document.getElementById('auditBody');
             try {
                 const r = await fetch(`${ADMIN_API}/api/admin/audit?limit=100`);
-                if (!r.ok) { body.innerHTML = '<tr><td colspan="5">Не удалось загрузить журнал</td></tr>'; return; }
+                if (!r.ok) { setTableState('auditBody', 5, 'Не удалось загрузить журнал. Нажмите «Обновить».'); return; }
                 const rows = await r.json();
                 body.innerHTML = rows.length ? rows.map(a => `<tr>
                     <td>${esc(new Date(a.at).toLocaleString('ru-RU'))}</td><td>${esc(a.action)}</td>
                     <td>${esc(a.detail || '')}</td><td>${esc(a.status || '')}</td><td>${esc(a.ip || '')}</td></tr>`).join('')
-                    : '<tr><td colspan="5">Записей пока нет</td></tr>';
-            } catch (e) { body.innerHTML = '<tr><td colspan="5">Сервер недоступен</td></tr>'; }
+                    : '<tr><td colspan="5" class="empty" role="status">Записей пока нет</td></tr>';
+            } catch (e) { setTableState('auditBody', 5, 'Сервер недоступен. Нажмите «Обновить».'); }
         }
 
         // Экранирование для безопасности
