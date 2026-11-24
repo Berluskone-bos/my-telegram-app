@@ -171,3 +171,20 @@ test('форма входа админ-панели имеет подписи, �
   assert.match(html, /error\.textContent = j\.error \|\| 'Не удалось войти/);
   assert.doesNotMatch(html, /addEventListener\('keydown',[\s\S]{0,180}adminLogin\(\)/);
 });
+
+
+test('календарь и динамические элементы заказов имеют доступные имена', () => {
+  const html = read('admin.html');
+  assert.match(html, /id="cal" role="dialog" aria-labelledby="calTitle" aria-label="Календарь на месяц" aria-hidden="true"/);
+  assert.match(html, /function openCal\(\)[\s\S]*?calEl\.setAttribute\('aria-hidden', 'false'\)/);
+  assert.match(html, /function closeCal\(refocus\)[\s\S]*?calEl\.setAttribute\('aria-hidden', 'true'\)/);
+  assert.match(html, /id="routeCourier"[^>]+aria-label="Курьер для нового маршрута"/);
+  assert.match(html, /aria-label="Новый курьер для маршрута ' \+ esc\(r\.route_number\)/);
+  assert.match(html, /aria-label="Причина передачи маршрута ' \+ esc\(r\.route_number\)/);
+  assert.match(html, /aria-label="Место передачи заказов маршрута ' \+ esc\(r\.route_number\)/);
+  assert.match(html, /aria-label="Статус заказа \$\{num\}"/);
+  assert.match(html, /aria-label="Добавить заказ \$\{num\} в маршрут"/);
+  assert.match(html, /aria-label="Отменить заказ \$\{num\}"/);
+  assert.match(html, /aria-label="Изменить товар \$\{esc\(p\.name \|\| p\.id\)\}"/);
+  assert.match(html, /aria-label="Удалить курьера ' \+ esc\(c\.name\)/);
+});
