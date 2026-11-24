@@ -10,6 +10,7 @@ const css = fs.readFileSync(path.join(__dirname, '..', 'css', 'styles.css'), 'ut
 
 test('кнопки изменения количества имеют контекстные подписи и не отправляют форму', () => {
     assert.ok(cartJs.includes('role="group" aria-label="Товар в корзине: ${esc(prod.name)}"'));
+    assert.ok(cartJs.includes('role="group" aria-label="Изменить количество товара"'));
     assert.ok(cartJs.includes('type="button" aria-label="Уменьшить количество или удалить товар: ${esc(prod.name)}"'));
     assert.ok(cartJs.includes('type="button" aria-label="Увеличить количество товара: ${esc(prod.name)}"'));
     assert.ok(cartJs.includes('<output class="qty" aria-label="Количество товара: ${esc(prod.name)}" aria-live="polite" aria-atomic="true">'));
