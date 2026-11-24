@@ -812,7 +812,7 @@ function applyAdminAccess(me) {
                     <span class="clock-meta" id="clockMeta">Москва</span>
                 </span>
             </button>
-            <div class="cal" id="cal" role="dialog" aria-label="Календарь на месяц">
+            <div class="cal" id="cal" role="dialog" aria-labelledby="calTitle" aria-label="Календарь на месяц" aria-hidden="true">
                 <div class="cal-head">
                     <div class="cal-title" id="calTitle" aria-live="polite"></div>
                     <button class="cal-nav" id="calPrev" type="button" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
@@ -995,7 +995,7 @@ function applyAdminAccess(me) {
                         </div>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                        <select id="routeCourier" class="status-select" title="Курьер для маршрута"><option value="">-- курьер --</option></select>
+                        <select id="routeCourier" class="status-select" title="Курьер для маршрута" aria-label="Курьер для нового маршрута"><option value="">-- курьер --</option></select>
                         <button class="btn btn-primary btn-sm" id="buildRouteBtn" onclick="buildRoute()">Собрать маршрут из выбранных</button>
                         <button class="btn btn-primary btn-sm" onclick="loadShopOrders()">Обновить</button>
                     </div>
@@ -1432,10 +1432,10 @@ function applyAdminAccess(me) {
                         const reasonOptions = [['breakdown','Поломка автомобиля'],['fuel','Закончилось топливо'],['accident','ДТП'],['other','Другая причина']]
                             .map(([value,label]) => '<option value="' + value + '"' + (reason === value ? ' selected' : '') + '>' + label + '</option>').join('');
                         const transferControl = canTransfer
-                            ? '<div style="min-width:220px"><select id="transferCourier-' + Number(r.id) + '" class="status-select"><option value="">Новый курьер</option>' + courierOptions + '</select>' +
-                              '<select id="transferReason-' + Number(r.id) + '" class="status-select" style="margin-top:4px">' + reasonOptions + '</select>' +
-                              '<textarea id="transferLocation-' + Number(r.id) + '" rows="2" maxlength="500" class="status-select" style="margin-top:4px;width:100%" placeholder="Место получения заказов (обязательно)">' + esc(r.transfer_handoff_location || '') + '</textarea>' +
-                              '<button class="btn btn-outline btn-sm" style="margin-top:4px" onclick="transferRoute(' + Number(r.id) + ',' + remaining + ')">Передать ' + remaining + ' заказов</button></div>'
+                            ? '<div style="min-width:220px"><select id="transferCourier-' + Number(r.id) + '" class="status-select" aria-label="Новый курьер для маршрута ' + esc(r.route_number) + '"><option value="">Новый курьер</option>' + courierOptions + '</select>' +
+                              '<select id="transferReason-' + Number(r.id) + '" class="status-select" style="margin-top:4px" aria-label="Причина передачи маршрута ' + esc(r.route_number) + '">' + reasonOptions + '</select>' +
+                              '<textarea id="transferLocation-' + Number(r.id) + '" rows="2" maxlength="500" class="status-select" style="margin-top:4px;width:100%" aria-label="Место передачи заказов маршрута ' + esc(r.route_number) + '" placeholder="Место получения заказов (обязательно)">' + esc(r.transfer_handoff_location || '') + '</textarea>' +
+                              '<button class="btn btn-outline btn-sm" style="margin-top:4px" aria-label="Передать ' + remaining + ' оставшихся заказов маршрута ' + esc(r.route_number) + '" onclick="transferRoute(' + Number(r.id) + ',' + remaining + ')">Передать ' + remaining + ' заказов</button></div>'
                             : '—';
                         return `<tr>
                             <td><strong>${esc(r.route_number)}</strong></td>
@@ -1457,8 +1457,8 @@ function applyAdminAccess(me) {
                         const active = !!c.is_active && !archived;
                         const state = archived ? 'Удалён' : active ? 'Активен' : 'Не активен';
                         const controls = canManageCouriers && !archived
-                            ? '<button class="btn btn-outline btn-sm" onclick="setCourierActive(' + Number(c.id) + ',' + (!active) + ')">' + (active ? 'Отключить' : 'Активировать') + '</button> ' +
-                              '<button class="btn btn-outline btn-sm" style="color:#b42318" onclick="archiveCourier(' + Number(c.id) + ')">Удалить</button>'
+                            ? '<button class="btn btn-outline btn-sm" aria-label="' + (active ? 'Отключить' : 'Активировать') + ' курьера ' + esc(c.name) + '" onclick="setCourierActive(' + Number(c.id) + ',' + (!active) + ')">' + (active ? 'Отключить' : 'Активировать') + '</button> ' +
+                              '<button class="btn btn-outline btn-sm" style="color:#b42318" aria-label="Удалить курьера ' + esc(c.name) + '" onclick="archiveCourier(' + Number(c.id) + ')">Удалить</button>'
                             : archived ? '—' : '';
                         return `<tr>
                             <td><strong>${esc(c.name)}</strong></td>
@@ -1705,12 +1705,12 @@ function applyAdminAccess(me) {
                             : '';
                         const canBatch = showAssign && o.delivery_type !== 'pickup' && !courierName;
                         return `<tr>
-                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''} onclick="event.stopPropagation()">` : ''}${outcomeReason}</td>
+                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" aria-label="Добавить заказ ${num} в маршрут" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''} onclick="event.stopPropagation()">` : ''}${outcomeReason}</td>
                             <td><strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
                             <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
                             <td>${esc(o.address || '-')}</td>
                             <td>${(parseFloat(o.total) || 0).toLocaleString()} руб.</td>
-                            <td><select class="status-select" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
+                            <td><select class="status-select" aria-label="Статус заказа ${num}" onclick="event.stopPropagation()" onchange="updateOrderStatus(${o.id}, this.value)">
                 ${Object.entries(statusLabels).filter(([k]) =>
                                     k === o.status ||
                                     (o.status === 'NEW' && k === 'CONFIRMED') ||
@@ -1892,13 +1892,13 @@ function applyAdminAccess(me) {
             let act = '';
             if (col && nextStatus) {
                 const label = warehouseOnly && ['READY_FOR_SHIPMENT', 'READY_FOR_PICKUP'].includes(nextStatus) ? (pickup ? 'Подтвердить готовность к выдаче' : 'Подтвердить готовность к отправке') : (pickup && col.labelPickup ? col.labelPickup : col.label);
-                act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${nextStatus}" data-num="${num}">${esc(label)} →</button></div>`;
+                act += `<div class="bcard-act"><button type="button" class="btn btn-primary btn-sm" data-act="advance" data-id="${Number(o.id)}" data-to="${nextStatus}" data-num="${num}" aria-label="${esc(label)} для заказа ${num}">${esc(label)} →</button></div>`;
             }
             const who = courierName ? `Курьер: ${esc(courierName)}` : (pickup ? '' : '');
             const failed = o.status === 'DELIVERY_FAILED';
             const failReason = failed ? ((ctx.failReasonOf && ctx.failReasonOf(o.id)) || 'причина не указана') : '';
             const canCancel = failed && window.adminHasPermission && window.adminHasPermission('orders.process');
-            if (canCancel) act += `<div class="bcard-act"><button type="button" class="btn btn-outline btn-sm" data-act="cancel" data-id="${Number(o.id)}" data-num="${num}">Отменить заказ</button></div>`;
+            if (canCancel) act += `<div class="bcard-act"><button type="button" class="btn btn-outline btn-sm" data-act="cancel" data-id="${Number(o.id)}" data-num="${num}" aria-label="Отменить заказ ${num}">Отменить заказ</button></div>`;
             return `<div class="bcard" style="--c:${color}" tabindex="0" data-id="${Number(o.id)}" data-status="${esc(o.status)}"${drag ? ' draggable="true"' : ''}>
                 <div class="bcard-top"><span class="bcard-num">${num}</span><span class="bcard-tag${pickup ? ' pickup' : ''}">${pickup ? 'Самовывоз' : 'Курьер'}</span></div>
                 <div class="bcard-name">${esc(o.user_name || '—')}</div>
@@ -1909,7 +1909,7 @@ function applyAdminAccess(me) {
                 ${failed ? `<div class="bcard-note" style="color:#b91c1c"><strong>Не доставлен:</strong> ${esc(failReason)}<br>Верните заказ на склад и отправьте повторно или отмените.</div>` : ''}
                 ${col && col.key === 'DONE' ? `<div class="bcard-done">${o.status === 'PICKED_UP' ? '✓ Выдан клиенту' : (o.status === 'COMPLETED' ? '✓ Выполнен' : 'Доставлен')}</div>` : ''}
                 ${act}
-                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''}> в рейс</label>` : ''}
+                ${canBatch ? `<label class="bcard-pick"><input type="checkbox" class="route-pick" value="${Number(o.id)}" aria-label="Добавить заказ ${num} в маршрут" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''}> в рейс</label>` : ''}
             </div>`;
         }
 
@@ -2341,7 +2341,7 @@ function applyAdminAccess(me) {
                             <td>${p.price == null ? '—' : (parseFloat(p.price)||0).toLocaleString() + ' руб.'}</td>
                             <td>${stock}</td>
                             <td><span class="badge ${stockClass}">${stockLabel}</span></td>
-                            <td><button class="btn btn-outline btn-sm" onclick="editProduct(${Number(p.id)})">Изменить</button></td>
+                            <td><button class="btn btn-outline btn-sm" onclick="editProduct(${Number(p.id)})" aria-label="Изменить товар ${esc(p.name || p.id)}">Изменить</button></td>
                         </tr>`;
                     }).join('');
             } catch (e) {
@@ -2691,9 +2691,10 @@ function applyAdminAccess(me) {
             renderCalendar();
         }
         function calToday() { const t = mskToday(); calView = { y: t.y, m: t.m }; renderCalendar(); }
-        function openCal() { calToday(); calEl.classList.add('open'); clockBtn.setAttribute('aria-expanded', 'true'); }
+        function openCal() { calToday(); calEl.classList.add('open'); calEl.setAttribute('aria-hidden', 'false'); clockBtn.setAttribute('aria-expanded', 'true'); }
         function closeCal(refocus) {
             calEl.classList.remove('open');
+            calEl.setAttribute('aria-hidden', 'true');
             clockBtn.setAttribute('aria-expanded', 'false');
             if (refocus) clockBtn.focus();
         }
