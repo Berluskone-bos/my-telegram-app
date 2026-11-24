@@ -41,6 +41,7 @@ test('управление магазином использует семант�
   assert.match(html, /<button[^>]+class="cat-badge active"[^>]+aria-pressed="true"/);
   assert.match(html, /<nav class="bottom-nav" aria-label="Основная навигация">/);
   assert.match(html, /<button[^>]+class="select-oil-banner"/);
+  assert.match(html, /class="select-oil-banner"[\s\S]*?<span class="select-oil-copy">[\s\S]*?<\/button>/);
   assert.match(html, /id="zoneSelectToggle"[^>]+aria-expanded="false"/);
   assert.match(html, /class="custom-select-option active"[^>]+aria-pressed="true"/);
   assert.match(app, /setAttribute\('aria-pressed', String\(active\)\)/);
