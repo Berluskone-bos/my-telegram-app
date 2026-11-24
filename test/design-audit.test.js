@@ -198,8 +198,8 @@ test('админ-панель использует удобные сенсорн
   assert.match(html, /\.me-out \{ flex: none; width: 44px; height: 44px;/);
   assert.match(html, /\.cal-nav \{ width: 44px; height: 44px;/);
   assert.match(html, /\.route-pick-target \{[^}]*min-width: 44px; min-height: 44px/);
-  assert.match(html, /<label class="route-pick-target" onclick="event\\.stopPropagation\\(\\)">/);
-  assert.match(html, /\.route-pick-target input \\{ width: 18px; height: 18px; cursor: pointer; \\}/);
+  assert.ok(html.includes('<label class="route-pick-target" onclick="event.stopPropagation()">'));
+  assert.ok(html.includes('.route-pick-target input { width: 18px; height: 18px; cursor: pointer; }'));
   assert.match(html, /\.bcard-pick \{[^}]*min-height: 44px/);
   assert.match(html, /\.form-input, \.form-select, \.form-textarea \{\s*width: 100%;\s*min-height: 44px/);
   assert.match(html, /@media \(max-width: 900px\)[\s\S]*?\.btn, \.status-select, \.icon-btn, \.me-out, \.cal-nav, \.cal-today, \.theme-btn, \.clock-btn \{ min-height: 44px; \}/);
