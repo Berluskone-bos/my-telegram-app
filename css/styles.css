@@ -191,12 +191,15 @@ a, button, input, select { font-family: inherit; }
     color: #fff;
 }
 .select-oil-banner:active { transform: scale(0.98); opacity: 0.9; }
+.select-oil-copy { display: block; min-width: 0; }
 .select-oil-title {
+    display: block;
     font-family: var(--font-heading);
     font-size: 15px;
     font-weight: 700;
 }
 .select-oil-sub {
+    display: block;
     font-size: 12px;
     opacity: 0.7;
     margin-top: 2px;
