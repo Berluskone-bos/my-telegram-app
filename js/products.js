@@ -203,7 +203,7 @@ const Products = {
                     </div>
                     <button type="button" class="favorite-btn ${isFavorite ? 'active' : ''}"
                             onclick="event.stopPropagation(); App.toggleFavorite(${product.id})"
-                            aria-label="${isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}"
+                            aria-label="${isFavorite ? 'Убрать из избранного: ' + esc(product.name) : 'Добавить в избранное: ' + esc(product.name)}"
                             aria-pressed="${isFavorite ? 'true' : 'false'}">
                         <i data-lucide="heart"></i>
                     </button>
@@ -240,6 +240,7 @@ const Products = {
         const image = product.main_image || product.image;
         const desc = (product.description || '').trim();
         const inCart = Cart.items.some(i => i.id === product.id);
+        const isFavorite = Favorites.has(product.id);
 
         // Один список характеристик без дублей (Характеристики + specs)
         const rows = [];
@@ -307,9 +308,10 @@ const Products = {
             <div class="product-detail">
                 <div class="product-detail-top">
                     <button type="button" class="btn-back" onclick="App.goBack()" aria-label="Назад">←</button>
-                    <button type="button" class="product-detail-fav ${Favorites.has(product.id) ? 'active' : ''}"
-                        onclick="App.toggleFavorite(${product.id}); this.classList.toggle('active');"
-                        aria-label="Избранное"><i data-lucide="heart"></i></button>
+                    <button type="button" class="product-detail-fav ${isFavorite ? 'active' : ''}"
+                        onclick="App.toggleFavorite(${product.id}); this.classList.toggle('active'); this.setAttribute('aria-pressed', String(this.classList.contains('active')));"
+                        aria-label="${isFavorite ? 'Убрать из избранного: ' + esc(product.name) : 'Добавить в избранное: ' + esc(product.name)}"
+                        aria-pressed="${isFavorite ? 'true' : 'false'}"><i data-lucide="heart"></i></button>
                 </div>
                 <div class="product-detail-image">
                     ${this.getPictureHtml(image, product.name)}

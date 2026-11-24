@@ -230,3 +230,22 @@ test('контраст текста на акцентных элементах �
   assert.match(admin, /\.badge-blue \{[^}]*color: var\(--cyan-text\);/);
   assert.doesNotMatch(admin, /background: var\(--cyan\); color: var\(--white\);/);
 });
+
+
+test('иконки карточек товара имеют достаточный контраст на своих фонах', () => {
+  const css = read('css/styles.css');
+  const products = read('js/products.js');
+  assert.match(css, /\.btn-buy i,[\s\S]*?color: var\(--navy\);[\s\S]*?stroke: var\(--navy\);/);
+  assert.match(css, /\.btn-buy\.added i,[\s\S]*?color: #fff;[\s\S]*?stroke: #fff;/);
+  assert.match(css, /\.favorite-btn i,[\s\S]*?color: var\(--text-secondary\);[\s\S]*?stroke: var\(--text-secondary\);/);
+  assert.match(products, /aria-label="\$\{isFavorite \? 'Убрать из избранного: ' \+ esc\(product\.name\)/);
+  assert.match(products, /aria-pressed="\$\{isFavorite \? 'true' : 'false'\}"/);
+});
+
+test('кнопки избранного и корзины сохраняют сенсорную область не менее 44×44 px', () => {
+  const css = read('css/styles.css');
+  assert.match(css, /\.favorite-btn,[\s\S]*?\.btn-buy\s*\{[^}]*min-height:\s*44px/);
+  assert.match(css, /\.favorite-btn,[\s\S]*?\.btn-buy\s*\{[^}]*min-width:\s*44px/);
+  assert.match(css, /\.product-detail-fav\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px;[^}]*height:\s*44px;[^}]*min-height:\s*44px;/);
+  assert.doesNotMatch(css, /\.btn-buy\s*\{\s*width:\s*30px;\s*height:\s*30px;/);
+});

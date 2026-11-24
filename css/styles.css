@@ -795,11 +795,13 @@ a, button, input, select { font-family: inherit; }
     position: absolute;
     top: 8px;
     right: 8px;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.96);
     border: none;
     border-radius: 50%;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
     cursor: pointer;
     transition: 0.2s;
     display: flex;
@@ -809,11 +811,12 @@ a, button, input, select { font-family: inherit; }
     z-index: 5;
 }
 .favorite-btn i,
-.favorite-btn svg { 
-    width: 18px; 
-    height: 18px; 
-    color: #999; 
-    stroke: #999;
+.favorite-btn i,
+.favorite-btn svg {
+    width: 18px;
+    height: 18px;
+    color: var(--text-secondary);
+    stroke: var(--text-secondary);
     fill: none;
 }
 .favorite-btn.active i,
@@ -936,8 +939,10 @@ a, button, input, select { font-family: inherit; }
     background: var(--accent);
     color: #101B4D;
     border: none;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
     border-radius: 10px;
     cursor: pointer;
     transition: background 0.15s ease, transform 0.15s ease;
@@ -951,12 +956,17 @@ a, button, input, select { font-family: inherit; }
 .btn-buy svg {
     width: 18px;
     height: 18px;
-    color: #fff;
-    stroke: #fff;
+    color: var(--navy);
+    stroke: var(--navy);
 }
 .btn-buy:active { transform: scale(0.92); }
 .btn-buy.added {
     background: #1E8E5A;
+}
+.btn-buy.added i,
+.btn-buy.added svg {
+    color: #fff;
+    stroke: #fff;
 }
 
 /* Детальная: крупная вязкость */
@@ -1013,8 +1023,10 @@ a, button, input, select { font-family: inherit; }
     cursor: pointer;
 }
 .product-detail-fav {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
     border: none;
     border-radius: 50%;
     background: transparent;
@@ -2105,7 +2117,6 @@ a, button, input, select { font-family: inherit; }
     .product-title { font-size: 11px; min-height: 28px; }
     .product-volume { font-size: 11px; }
     .product-price { font-size: 13px; }
-    .btn-buy { width: 30px; height: 30px; }
     .btn-buy i, .btn-buy svg { width: 14px; height: 14px; }
     .section-title { font-size: 18px; padding: 16px 12px 10px; }
     .bottom-nav { padding: 6px 0 env(safe-area-inset-bottom); }
