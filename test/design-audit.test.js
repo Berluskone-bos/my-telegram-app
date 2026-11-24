@@ -94,3 +94,31 @@ test('админ-панель сохраняет светлую и тёмную 
   assert.match(html, /store\.set\('admTheme', next\)/);
   assert.match(html, /b\.setAttribute\('aria-pressed', dark \? 'true' : 'false'\)/);
 });
+
+
+test('модальные окна админ-панели управляют доступностью и фокусом', () => {
+  const html = read('admin.html');
+  assert.match(html, /id="orderModal" aria-hidden="true"/);
+  assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="orderModalTitle" tabindex="-1"/);
+  assert.match(html, /id="productModal" aria-hidden="true"/);
+  assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="productModalTitle" tabindex="-1"/);
+  assert.match(html, /function openModal\(id\)[\s\S]*?modalReturnFocus\.set\(id, document\.activeElement\)/);
+  assert.match(html, /function closeModal\(id\)[\s\S]*?overlay\.setAttribute\('aria-hidden', 'true'\)/);
+  assert.match(html, /event\.key === 'Escape'[\s\S]*?closeModal\(overlay\.id\)/);
+  assert.match(html, /event\.key !== 'Tab'[\s\S]*?focusable/);
+  assert.match(html, /event\.target\.classList\.contains\('modal-overlay'\)/);
+  assert.match(html, /openModal\('orderModal'\)/);
+  assert.match(html, /openModal\('productModal'\)/);
+  assert.match(html, /id="staffModal" aria-hidden="true"/);
+  assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="staffModalTitle"/);
+
+  for (const id of ['productBrand', 'productCategory', 'productName', 'productSku', 'productVolume',
+    'productPrice', 'productOldPrice', 'productStock', 'productMinStock', 'productDescription',
+    'productImage', 'productApprovals']) {
+    assert.match(html, new RegExp('for="' + id + '"'));
+    assert.match(html, new RegExp('id="' + id + '"'));
+  }
+  assert.match(html, /aria-describedby="productApprovalsHelp"/);
+  assert.match(html, /@media \(max-width: 600px\)[\s\S]*?max-height: calc\(100dvh/);
+  assert.match(html, /\.modal-body \{[^}]*overflow-y: auto/);
+});
