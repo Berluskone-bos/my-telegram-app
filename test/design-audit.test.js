@@ -188,3 +188,20 @@ test('календарь и динамические элементы заказ
   assert.match(html, /aria-label="Изменить товар \$\{esc\(p\.name \|\| p\.id\)\}"/);
   assert.match(html, /aria-label="Удалить курьера ' \+ esc\(c\.name\)/);
 });
+
+
+test('админ-панель использует удобные сенсорные области на мобильных экранах', () => {
+  const html = read('admin.html');
+  assert.match(html, /\.btn \{\s*min-height: 40px/);
+  assert.match(html, /\.status-select \{\s*min-height: 40px/);
+  assert.match(html, /\.icon-btn \{ flex: none; width: 44px; height: 44px;/);
+  assert.match(html, /\.me-out \{ flex: none; width: 44px; height: 44px;/);
+  assert.match(html, /\.cal-nav \{ width: 44px; height: 44px;/);
+  assert.match(html, /\.route-pick-target \{[^}]*min-width: 44px; min-height: 44px/);
+  assert.match(html, /<label class="route-pick-target" onclick="event\\.stopPropagation\\(\\)">/);
+  assert.match(html, /\.route-pick-target input \\{ width: 18px; height: 18px; cursor: pointer; \\}/);
+  assert.match(html, /\.bcard-pick \{[^}]*min-height: 44px/);
+  assert.match(html, /\.form-input, \.form-select, \.form-textarea \{\s*width: 100%;\s*min-height: 44px/);
+  assert.match(html, /@media \(max-width: 900px\)[\s\S]*?\.btn, \.status-select, \.icon-btn, \.me-out, \.cal-nav, \.cal-today, \.theme-btn, \.clock-btn \{ min-height: 44px; \}/);
+  assert.match(html, /\.btn-sm \{ min-height: 44px; padding: 8px 12px; \}/);
+});
