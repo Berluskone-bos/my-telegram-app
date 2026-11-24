@@ -133,7 +133,7 @@
         .badge-green { background: rgba(22,163,74,0.1); color: var(--green); }
         .badge-orange { background: rgba(234,88,12,0.1); color: var(--orange); }
         .badge-red { background: rgba(220,38,38,0.1); color: var(--red); }
-        .badge-blue { background: rgba(0,175,199,0.1); color: var(--cyan); }
+        .badge-blue { background: rgba(0,175,199,0.1); color: var(--cyan-text); }
         .badge-grey { background: rgba(107,114,128,0.1); color: var(--muted); }
 
         /* Buttons */
@@ -155,7 +155,7 @@
         }
         .btn:active:not(:disabled) { transform: scale(0.97); }
         .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-        .btn-primary { background: var(--cyan); color: var(--white); }
+        .btn-primary { background: var(--cyan); color: #101B4D; }
         .btn-primary:hover { background: var(--light-cyan); }
         .btn-sm { min-height: 36px; padding: 6px 10px; font-size: 12px; }
         .btn-danger { background: var(--red); color: var(--white); --glow: 220, 38, 38; }
@@ -165,7 +165,7 @@
             border: 1px solid var(--border);
             color: var(--text);
         }
-        .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
+        .btn-outline:hover { border-color: var(--cyan-text); color: var(--cyan-text); }
 
         /* Status select */
         .status-select {
@@ -264,7 +264,7 @@
         .auth-form { display: grid; gap: 10px; width: min(100%, 360px); }
         .auth-label { color: #e7edff; font-size: 13px; font-weight: 600; }
         .auth-input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid rgba(255,255,255,.24); border-radius: 8px; background: #fff; color: #101B4D; font: inherit; font-size: 16px; }
-        .auth-submit { min-height: 48px; padding: 12px 24px; border: 0; border-radius: 8px; background: #00AFC7; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+        .auth-submit { min-height: 48px; padding: 12px 24px; border: 0; border-radius: 8px; background: #00AFC7; color: #101B4D; font: inherit; font-weight: 700; cursor: pointer; }
         .auth-submit:disabled { opacity: .65; cursor: wait; }
         .auth-error { margin: 0; color: #fecaca; font-size: 13px; }
         .auth-input:focus-visible, .auth-submit:focus-visible { outline: 3px solid #66D6E6; outline-offset: 3px; }
@@ -317,7 +317,7 @@
         .icon-btn svg, .nav-item svg, .search svg, .me-out svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
         .search { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; padding: 0 12px; height: 44px; border-radius: 16px; background: var(--field); border: 1px solid var(--border); color: var(--muted); cursor: text; }
-        .search:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,175,199,0.18); }
+        .search:focus-within { border-color: var(--cyan-text); box-shadow: 0 0 0 3px rgba(0,175,199,0.18); }
         .search input { flex: 1; min-width: 0; border: none; outline: none; background: none; font: 500 13.5px 'Inter', sans-serif; color: var(--text); }
         .search kbd { font: 600 11px 'Inter', sans-serif; color: var(--muted); background: var(--bg); border-radius: 7px; padding: 3px 7px; }
 
@@ -339,7 +339,7 @@
         .nav-item:hover .ico { background: rgba(0,175,199,0.18); }
         .nav-item:focus-visible, .icon-btn:focus-visible, .me-out:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 2px; }
         .nav-item.active { background: var(--ink-bg); color: #fff; box-shadow: 0 10px 22px rgba(16,27,77,0.30); }
-        .nav-item.active .ico { background: var(--cyan); color: #fff; box-shadow: 0 0 0 4px rgba(0,175,199,0.22); }
+        .nav-item.active .ico { background: var(--cyan); color: #101B4D; box-shadow: 0 0 0 4px rgba(0,175,199,0.22); }
         .chip { flex: none; min-width: 24px; padding: 3px 9px; border-radius: 12px; background: var(--tint-2); color: var(--muted); font: 600 12px 'Inter', sans-serif; text-align: center; white-space: nowrap; }
         .chip.hot { background: rgba(234,88,12,0.14); color: var(--orange); }
         .nav-item.active .chip { background: rgba(255,255,255,0.16); color: #fff; }
@@ -347,7 +347,7 @@
         .chip:empty { display: none; }
 
         .me { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 8px; border-radius: 22px; background: var(--field); border: 1px solid var(--border); }
-        .me-ava { flex: none; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--light-cyan)); color: #fff; display: grid; place-items: center; font: 800 14px 'Montserrat', sans-serif; }
+        .me-ava { flex: none; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--light-cyan)); color: #101B4D; display: grid; place-items: center; font: 800 14px 'Montserrat', sans-serif; }
         .me-text { flex: 1; min-width: 0; line-height: 1.2; }
         .me-text b { display: block; font-size: 13.5px; color: var(--ink); }
         .me-text span { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
@@ -362,7 +362,7 @@
         .shell[data-collapsed="1"] .nav-item { width: 50px; padding: 0 5px; margin: 0 auto; justify-content: center; }
         .shell[data-collapsed="1"] .nav-item.active { box-shadow: 0 6px 14px rgba(16,27,77,0.30); }
         .shell[data-collapsed="1"] .nav-sep { margin: 6px 10px; }
-        .shell[data-collapsed="1"] .chip { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; line-height: 20px; font-size: 0; background: var(--cyan); color: #fff; box-shadow: 0 0 0 2px var(--ring-bg); }
+        .shell[data-collapsed="1"] .chip { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; line-height: 20px; font-size: 0; background: var(--cyan); color: #101B4D; box-shadow: 0 0 0 2px var(--ring-bg); }
         .shell[data-collapsed="1"] .chip::after { content: attr(data-n); font-size: 11px; }
         .shell[data-collapsed="1"] .chip.hot { background: var(--orange); }
         .shell[data-collapsed="1"] .me { padding: 5px; justify-content: center; background: none; border: none; }
@@ -485,7 +485,7 @@
         .ochart-nav { display: inline-flex; align-items: center; gap: 4px; }
         .ochart-nav button { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--navy); display: grid; place-items: center; cursor: pointer; }
         .ochart-nav button:disabled { opacity: .35; cursor: not-allowed; }
-        .ochart-nav button:not(:disabled):hover { border-color: var(--cyan); color: var(--cyan); }
+        .ochart-nav button:not(:disabled):hover { border-color: var(--cyan-text); color: var(--cyan-text); }
         .ochart-nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .ochart-label { min-width: 150px; text-align: center; font: 800 15px 'Montserrat', sans-serif; color: var(--navy); }
         .ochart-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
@@ -798,7 +798,7 @@ function applyAdminAccess(me) {
                 <label>Логин<input name="login" required minlength="3" maxlength="64" pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="ivanov" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
                 <label>Роль<select name="role" required style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"><option value="manager">Менеджер</option><option value="operator">Оператор</option><option value="warehouse">Кладовщик</option><option value="admin">Администратор</option></select></label>
                 <label>Пароль<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="Не менее 12 символов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
-                <button type="submit" style="padding:11px 14px;border:0;border-radius:8px;background:#00AFC7;color:#fff;font-weight:700;cursor:pointer">Создать сотрудника</button>
+                <button type="submit" style="padding:11px 14px;border:0;border-radius:8px;background:#00AFC7;color:#101B4D;font-weight:700;cursor:pointer">Создать сотрудника</button>
             </form>
             <div id="staffList" style="display:grid;gap:10px"><p>Загрузка списка…</p></div>
             <p style="font-size:12px;color:var(--muted,#667085);margin:16px 0 0">Пароль хранится только в виде криптографического хеша. Изменение роли, логина, статуса или пароля отзывает действующие сессии сотрудника.</p>
@@ -2848,7 +2848,7 @@ async function loadStaffList() {
                 '<label>Роль<select class="staff-role" style="width:100%;padding:8px;border:1px solid #ccd3df;border-radius:7px">' + roleOptions + '</select></label>' +
                 '<label style="display:flex;gap:7px;align-items:center"><input class="staff-active" type="checkbox"' + (user.isActive ? ' checked' : '') + '> Активен</label>' +
                 '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-                '<button type="button" onclick="saveStaff(' + Number(user.id) + ')" style="padding:8px 10px;border:0;border-radius:7px;background:#00AFC7;color:#fff;cursor:pointer">Сохранить</button>' +
+                '<button type="button" onclick="saveStaff(' + Number(user.id) + ')" style="padding:8px 10px;border:0;border-radius:7px;background:#00AFC7;color:#101B4D;cursor:pointer">Сохранить</button>' +
                 '<button type="button" onclick="resetStaffPassword(' + Number(user.id) + ')" style="padding:8px 10px;border:1px solid #ccd3df;border-radius:7px;background:transparent;cursor:pointer">Пароль</button>' +
                 '<button type="button" onclick="revokeStaffSessions(' + Number(user.id) + ')" style="padding:8px 10px;border:1px solid #ccd3df;border-radius:7px;background:transparent;cursor:pointer">Завершить сессии</button>' +
                 '</div></div>';
