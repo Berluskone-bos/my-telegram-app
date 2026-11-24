@@ -43,7 +43,7 @@
     <!-- ================ ЭКРАН 1: ГЛАВНАЯ ================ -->
     <!-- ================================================== -->
     <div id="screen-main" class="app-screen active">
-        <div class="select-oil-banner" onclick="Oil.open()">
+        <button type="button" class="select-oil-banner" onclick="Oil.open()">
             <div class="select-oil-icon" aria-hidden="true">
                 <i data-lucide="droplets" style="width:22px;height:22px;"></i>
             </div>
@@ -226,13 +226,13 @@
                 <div class="form-group">
                     <label>Регион:</label>
                     <div class="custom-select" id="zoneSelect">
-                        <button class="custom-select-btn" type="button" onclick="App.toggleZoneDropdown()">
+                        <button class="custom-select-btn" id="zoneSelectToggle" type="button" aria-controls="zoneMenu" aria-expanded="false" onclick="App.toggleZoneDropdown()">
                             <span id="zoneSelectLabel">Санкт-Петербург (в пределах КАД)</span>
                             <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                         </button>
                         <div class="custom-select-menu" id="zoneMenu">
-                            <div class="custom-select-option active" data-value="spb" onclick="App.selectZone('spb', 'Санкт-Петербург (в пределах КАД)')">Санкт-Петербург (в пределах КАД)</div>
-                            <div class="custom-select-option" data-value="lo" onclick="App.selectZone('lo', 'Ленинградская область')">Ленинградская область</div>
+                            <button type="button" class="custom-select-option active" data-value="spb" aria-pressed="true" onclick="App.selectZone('spb', 'Санкт-Петербург (в пределах КАД)')">Санкт-Петербург (в пределах КАД)</button>
+                            <button type="button" class="custom-select-option" data-value="lo" aria-pressed="false" onclick="App.selectZone('lo', 'Ленинградская область')">Ленинградская область</button>
                         </div>
                         <input type="hidden" id="orderZone" value="spb" />
                     </div>
