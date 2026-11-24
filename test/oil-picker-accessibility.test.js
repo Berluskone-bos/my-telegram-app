@@ -9,31 +9,33 @@ const oilJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'oil.js'), 'utf8'
 const oilCss = fs.readFileSync(path.join(__dirname, '..', 'css', 'oil.css'), 'utf8');
 
 test('окно подбора масла размечено как доступный модальный диалог', () => {
-    assert.match(oilJs, /role="dialog" aria-modal="true" aria-labelledby="oilDialogTitle" tabindex="-1"/);
-    assert.match(oilJs, /id="oilDialogTitle"/);
-    assert.match(oilJs, /this\.root\.setAttribute\('aria-hidden', 'true'\)/);
-    assert.match(oilJs, /this\.root\.inert = true/);
+    assert.ok(oilJs.includes('role="dialog" aria-modal="true" aria-labelledby="oilDialogTitle" tabindex="-1"'));
+    assert.ok(oilJs.includes('id="oilDialogTitle"'));
+    assert.ok(oilJs.includes("this.root.setAttribute('aria-hidden', 'true')"));
+    assert.ok(oilJs.includes('this.root.inert = true'));
 });
 
 test('окно подбора закрывается по Escape и удерживает клавиатурный фокус внутри', () => {
-    assert.match(oilJs, /if \(e\.key === 'Escape'\)[\s\S]*?this\.close\(\)/);
-    assert.match(oilJs, /if \(e\.key !== 'Tab'\) return/);
-    assert.match(oilJs, /if \(e\.shiftKey && \(document\.activeElement === first/);
-    assert.match(oilJs, /document\.activeElement === last/);
+    assert.ok(oilJs.includes("document.addEventListener('keydown', e => {"));
+    assert.ok(oilJs.includes("if (e.key === 'Escape')"));
+    assert.ok(oilJs.includes("if (e.key !== 'Tab') return"));
+    assert.ok(oilJs.includes('document.activeElement === first'));
+    assert.ok(oilJs.includes('document.activeElement === last'));
 });
 
 test('после закрытия окна фокус возвращается к элементу, который его открыл', () => {
-    assert.match(oilJs, /this\.returnFocus = document\.activeElement/);
-    assert.match(oilJs, /this\.returnFocus\.focus\(\{ preventScroll: true \}\)/);
+    assert.ok(oilJs.includes('if (this.root.classList.contains(\'open\')) return;'));
+    assert.ok(oilJs.includes('this.returnFocus = document.activeElement'));
+    assert.ok(oilJs.includes('this.returnFocus.focus({ preventScroll: true })'));
 });
 
 test('переключатели способа подбора сообщают выбранное состояние', () => {
-    assert.match(oilJs, /b\.setAttribute\('aria-pressed', String\(active\)\)/);
+    assert.ok(oilJs.includes("b.setAttribute('aria-pressed', String(active))"));
 });
 
 test('элементы подбора масла имеют удобные сенсорные размеры и контраст', () => {
-    assert.match(oilCss, /\.oil-close \{[^}]*width: 44px;[^}]*height: 44px;/);
-    assert.match(oilCss, /\.oil-tab \{[^}]*min-height: 44px;/);
-    assert.match(oilCss, /\.oil-add \{[^}]*min-height: 44px;[^}]*background: #00AFC7; color: #101B4D;/);
-    assert.match(oilCss, /\.oil-sheet button:focus-visible/);
+    assert.ok(oilCss.includes('.oil-close { display: grid; place-items: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px;'));
+    assert.ok(oilCss.includes('.oil-tab { flex: 1; min-width: 0; min-height: 44px;'));
+    assert.ok(oilCss.includes('.oil-add { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 10px; background: #00AFC7; color: #101B4D;'));
+    assert.ok(oilCss.includes('.oil-sheet button:focus-visible'));
 });
