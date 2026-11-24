@@ -41,6 +41,7 @@ test('управление магазином использует семант�
   assert.match(html, /<nav class="bottom-nav" aria-label="Основная навигация">/);
   assert.match(html, /id="sortToggle" aria-controls="sortMenu" aria-expanded="false"/);
   assert.match(app, /setAttribute\('aria-expanded', String\(isOpen\)\)/);
+  assert.match(app, /setAttribute\('aria-expanded', 'false'\)/);
   assert.match(app, /menu\.setAttribute\('aria-hidden', String\(!open\)\)/);
   assert.match(app, /this\.currentSubcategory = null;/);
   assert.match(app, /this\.renderSubcategories\(\);\s*this\.renderProducts\(\);/);
