@@ -44,8 +44,11 @@ test('управление магазином использует семант�
   assert.match(app, /setAttribute\('aria-current', 'page'\)/);
   assert.match(app, /setAttribute\('aria-pressed', String\(active\)\)/);
   assert.doesNotMatch(app, /container\.addEventListener\('click'/);
+  assert.match(products, /<article class="product-card[^>]+data-product-id=/);
+  assert.doesNotMatch(products, /class="product-card[^>]+onclick=/);
   assert.match(products, /class="btn-buy" data-product-id=/);
   assert.doesNotMatch(products, /class="btn-buy" onclick=/);
+  assert.match(html, /id="btn-nav-main" data-screen="main"/);
 });
 test('правила темы разделяют магазин и админ-панель', () => {
   const agents = read('AGENTS.md');
