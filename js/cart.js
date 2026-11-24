@@ -98,7 +98,7 @@ const Cart = {
                         <div class="cart-item-volume">${esc(prod.volume)}</div>
                         <div class="cart-item-price">${(prod.price * item.quantity).toLocaleString()} ₽</div>
                     </div>
-                    <div class="cart-item-actions" aria-label="Изменить количество">
+                    <div class="cart-item-actions" role="group" aria-label="Изменить количество товара">
                         <button type="button" aria-label="Уменьшить количество или удалить товар: ${esc(prod.name)}" onclick="App.removeFromCart(${item.id})">−</button>
                         <output class="qty" aria-label="Количество товара: ${esc(prod.name)}" aria-live="polite" aria-atomic="true">${item.quantity}</output>
                         <button type="button" aria-label="Увеличить количество товара: ${esc(prod.name)}" onclick="App.addToCart(${item.id})">+</button>
