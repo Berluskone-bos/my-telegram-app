@@ -143,3 +143,30 @@ test('таблицы админ-панели имеют доступные им�
   }
   assert.match(html, /async function fetchAdminJson\(url, options\)[\s\S]*?if \(!response\.ok\) throw new Error/);
 });
+
+
+test('мобильное меню админ-панели скрывает закрытые элементы от клавиатуры', () => {
+  const html = read('admin.html');
+  assert.match(html, /<aside class="side" id="side"[^>]+aria-hidden="false"/);
+  assert.match(html, /class="icon-btn burger"[^>]+aria-expanded="false" aria-controls="side"/);
+  assert.match(html, /const drawerMedia = window\.matchMedia\('\(max-width: 900px\)'\)/);
+  assert.match(html, /side\.inert = mobile && !open/);
+  assert.match(html, /side\.setAttribute\('aria-hidden', String\(mobile && !open\)\)/);
+  assert.match(html, /function openDrawer\(\)[\s\S]*?syncDrawerAccessibility\(\)[\s\S]*?\.focus\(\)/);
+  assert.match(html, /function closeDrawer\(restoreFocus = true\)[\s\S]*?\.burger'\)\?\.focus\(\)/);
+  assert.match(html, /event\.key === 'Escape'[\s\S]*?closeDrawer\(\)/);
+  assert.match(html, /event\.key !== 'Tab'[\s\S]*?focusable/);
+  assert.match(html, /onDrawerBreakpointChange/);
+});
+
+test('форма входа админ-панели имеет подписи, отправку по Enter и доступную ошибку', () => {
+  const html = read('admin.html');
+  assert.match(html, /<form id="adminLoginForm"[^>]+onsubmit="adminLogin\(event\)"/);
+  assert.match(html, /<label class="auth-label" for="adminLoginName">/);
+  assert.match(html, /<label class="auth-label" for="adminPass">/);
+  assert.match(html, /id="adminPass"[^>]+required/);
+  assert.match(html, /id="loginError" role="alert" aria-live="assertive" hidden/);
+  assert.match(html, /button\.disabled = true;[\s\S]*?button\.textContent = 'Входим…'/);
+  assert.match(html, /error\.textContent = j\.error \|\| 'Не удалось войти/);
+  assert.doesNotMatch(html, /addEventListener\('keydown',[\s\S]{0,180}adminLogin\(\)/);
+});
