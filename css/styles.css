@@ -2184,9 +2184,15 @@ a, button, input, select { font-family: inherit; }
 .header-icon:focus-visible,
 .menu-back:focus-visible,
 .menu-item:focus-visible,
+.select-oil-banner:focus-visible,
 .cat-badge:focus-visible,
 .filter-chip:focus-visible,
 .sort-option:focus-visible,
+.custom-select-btn:focus-visible,
+.custom-select-option:focus-visible,
+.favorite-btn:focus-visible,
+.btn-buy:focus-visible,
+.product-title-button:focus-visible,
 .p-menu-item:focus-visible,
 .nav-item:focus-visible {
     outline: 3px solid rgba(0,175,199,.55);
