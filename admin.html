@@ -718,11 +718,7 @@ function applyAdminAccess(me) {
     }
     if (has('settings.manage') && typeof window.loadDeliveryData === 'function') window.loadDeliveryData();
 }
-document.addEventListener('DOMContentLoaded', () => {
-    const login = document.getElementById('adminLoginName');
-    const pass = document.getElementById('adminPass');
-    [login, pass].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); }));
-});
+// Enter отправляет стандартную форму adminLoginForm; отдельный обработчик не нужен.
 (async () => {
     try {
         const r = await _fetch(ADMIN_API + '/api/admin/me');
