@@ -147,7 +147,8 @@ test('таблицы админ-панели имеют доступные им�
 
 test('мобильное меню админ-панели скрывает закрытые элементы от клавиатуры', () => {
   const html = read('admin.html');
-  assert.match(html, /<aside class="side" id="side"[^>]+aria-hidden="false"/);
+  assert.match(html, /<aside class="side" id="side"[^>]+aria-hidden="false" tabindex="-1"/);
+  assert.match(html, /\.find\(element => element\.getClientRects\(\)\.length > 0\)/);
   assert.match(html, /class="icon-btn burger"[^>]+aria-expanded="false" aria-controls="side"/);
   assert.match(html, /const drawerMedia = window\.matchMedia\('\(max-width: 900px\)'\)/);
   assert.match(html, /side\.inert = mobile && !open/);
