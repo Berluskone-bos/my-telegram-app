@@ -69,6 +69,7 @@ test('управление магазином использует семант�
   assert.match(products, /class="btn-buy" data-product-id=/);
   assert.match(products, /aria-pressed="\$\{isFavorite \? 'true' : 'false'\}"/);
   assert.match(css, /\.favorite-btn,[\s\S]*?\.btn-buy \{[\s\S]*?min-width: 44px/);
+  assert.match(css, /\.select-oil-banner:focus-visible,[\s\S]*?\.nav-item:focus-visible/);
 
   assert.doesNotMatch(products, /class="btn-buy" onclick=/);
   assert.match(app, /\.btn-buy\[data-product-id=/);
