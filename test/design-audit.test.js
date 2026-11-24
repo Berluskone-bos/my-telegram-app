@@ -126,18 +126,20 @@ test('модальные окна админ-панели управляют д�
 
 test('таблицы админ-панели имеют доступные имена и адаптивную прокрутку', () => {
   const html = read('admin.html');
-  const tables = [...html.matchAll(/<table\\b[^>]*>/g)].map(match => match[0]);
+  const tables = [...html.matchAll(/<table\b[^>]*>/g)].map(match => match[0]);
   assert.equal(tables.length, 8);
   for (const table of tables) assert.match(table, /aria-label="[^"]+"/);
   assert.equal((html.match(/class="section-body table-scroll"/g) || []).length, 8);
-  assert.doesNotMatch(html, /<th(?:\\s+[^>]*?)?>((?![\\s\\S]*?scope="col"))/);
-  assert.match(html, /\.table-scroll table \\{ min-width: 640px; \\}/);
-  assert.match(html, /#ordersTableWrap table \\{ min-width: 920px; \\}/);
-  assert.match(html, /function setTableState\\(id, colspan, message, state = 'error'\\)/);
+  const headers = [...html.matchAll(/<th\b[^>]*>/g)].map(match => match[0]);
+  assert.ok(headers.length > 0);
+  for (const header of headers) assert.match(header, /scope="col"/);
+  assert.match(html, /\.table-scroll table \{ min-width: 640px; \}/);
+  assert.match(html, /#ordersTableWrap table \{ min-width: 920px; \}/);
+  assert.match(html, /function setTableState\(id, colspan, message, state = 'error'\)/);
   assert.match(html, /role="status" aria-live="polite"/);
   for (const id of ['unassignedTable', 'routesTable', 'couriersTable', 'analyticsCouriersTable',
     'shopOrdersTable', 'shopProductsTable', 'shopCustomersTable', 'auditBody']) {
     assert.match(html, new RegExp("setTableState\\('" + id + "'"));
   }
-  assert.match(html, /async function fetchAdminJson\\(url, options\\)[\\s\\S]*?if \\(!response\\.ok\\) throw new Error/);
+  assert.match(html, /async function fetchAdminJson\(url, options\)[\s\S]*?if \(!response\.ok\) throw new Error/);
 });
