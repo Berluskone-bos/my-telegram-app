@@ -185,6 +185,8 @@
             display: none;
             position: fixed;
             inset: 0;
+            padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+            overflow-y: auto;
             background: rgba(0,0,0,0.4);
             z-index: 1000;
             align-items: center;
@@ -192,15 +194,18 @@
         }
         .modal-overlay.open { display: flex; }
         .modal {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
             background: var(--white);
             border-radius: 16px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
+            width: min(90%, 600px);
+            max-height: min(80vh, 760px);
+            overflow: hidden;
             box-shadow: 0 20px 60px rgba(0,0,0,0.2);
         }
         .modal-header {
+            flex: 0 0 auto;
             padding: 20px 24px;
             border-bottom: 1px solid var(--border);
             display: flex;
@@ -209,6 +214,8 @@
         }
         .modal-header h3 { font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700; color: var(--navy); }
         .modal-close {
+            min-width: 44px;
+            min-height: 44px;
             background: none;
             border: none;
             font-size: 20px;
@@ -216,8 +223,9 @@
             color: var(--muted);
             padding: 4px;
         }
-        .modal-body { padding: 20px 24px; }
+        .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px; }
         .modal-footer {
+            flex: 0 0 auto;
             padding: 16px 24px;
             border-top: 1px solid var(--border);
             display: flex;
@@ -239,7 +247,21 @@
             color: var(--text);
         }
         .form-textarea { resize: vertical; min-height: 80px; }
+        .form-input:focus-visible, .form-select:focus-visible, .form-textarea:focus-visible,
+        .status-select:focus-visible, .modal-close:focus-visible {
+            outline: 3px solid rgba(0,175,199,.55);
+            outline-offset: 2px;
+        }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 600px) {
+            .modal-overlay { align-items: flex-start; }
+            .modal { width: 100%; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px); border-radius: 12px; }
+            .modal-header { padding: 14px 16px; }
+            .modal-body { padding: 16px; }
+            .modal-footer { padding: 12px 16px; flex-wrap: wrap; }
+            .modal-footer .btn { min-height: 44px; flex: 1 1 auto; }
+            .form-input, .form-select, .form-textarea { font-size: 16px; }
+        }
 
 
         /* ===== Боковое меню: узкая полоса с иконками ↔ полная панель ===== */
@@ -712,10 +734,10 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     </aside>
 
-    <div id="staffModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(5,12,32,.72);align-items:center;justify-content:center;padding:16px;">
-        <div style="background:var(--panel,#fff);color:var(--text,#17213a);width:min(920px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);">
+    <div id="staffModal" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(5,12,32,.72);align-items:center;justify-content:center;padding:16px;">
+        <div role="dialog" aria-modal="true" aria-labelledby="staffModalTitle" tabindex="-1" style="background:var(--panel,#fff);color:var(--text,#17213a);width:min(920px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;">
-                <div><h2 style="margin:0">Сотрудники</h2><p style="margin:6px 0 0;color:var(--muted,#667085)">Личные учётные записи и права доступа</p></div>
+                <div><h2 id="staffModalTitle" style="margin:0">Сотрудники</h2><p style="margin:6px 0 0;color:var(--muted,#667085)">Личные учётные записи и права доступа</p></div>
                 <button type="button" onclick="closeStaffModal()" style="border:0;background:transparent;font-size:28px;cursor:pointer" aria-label="Закрыть">×</button>
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 10px"><h3 style="margin:0">Курьеры — заявки и доступ</h3><button type="button" onclick="loadCourierAdminList()" style="padding:7px 10px;border:1px solid #ccd3df;border-radius:8px;background:transparent;cursor:pointer">Обновить</button></div>
@@ -1021,11 +1043,11 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
 
     <!-- Модальное окно: детали заказа -->
-    <div class="modal-overlay" id="orderModal">
-        <div class="modal">
+    <div class="modal-overlay" id="orderModal" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle" tabindex="-1">
             <div class="modal-header">
                 <h3 id="orderModalTitle">Заказ</h3>
-                <button class="modal-close" onclick="closeModal('orderModal')">&times;</button>
+                <button type="button" class="modal-close" onclick="closeModal('orderModal')" aria-label="Закрыть окно заказа">&times;</button>
             </div>
             <div class="modal-body" id="orderModalBody"></div>
             <div class="modal-footer">
@@ -1035,22 +1057,22 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
 
     <!-- Модальное окно: добавление товара -->
-    <div class="modal-overlay" id="productModal">
-        <div class="modal">
+    <div class="modal-overlay" id="productModal" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle" tabindex="-1">
             <div class="modal-header">
                 <h3 id="productModalTitle">Добавить товар</h3>
-                <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
+                <button type="button" class="modal-close" onclick="closeModal('productModal')" aria-label="Закрыть окно товара">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="productForm" onsubmit="saveProduct(event)">
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Бренд</label>
-                            <input class="form-input" name="brand" required>
+                            <label class="form-label" for="productBrand">Бренд</label>
+                            <input class="form-input" id="productBrand" name="brand" autocomplete="organization" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Категория</label>
-                            <select class="form-select" name="category" required>
+                            <label class="form-label" for="productCategory">Категория</label>
+                            <select class="form-select" id="productCategory" name="category" required>
                                 <option value="motor">Моторные масла</option>
                                 <option value="transmission">Трансмиссионные масла</option>
                                 <option value="filter">Фильтры</option>
@@ -1061,51 +1083,51 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Название</label>
-                        <input class="form-input" name="name" required>
+                        <label class="form-label" for="productName">Название</label>
+                        <input class="form-input" id="productName" name="name" required>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Артикул</label>
-                            <input class="form-input" name="sku">
+                            <label class="form-label" for="productSku">Артикул</label>
+                            <input class="form-input" id="productSku" name="sku">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Объём</label>
-                            <input class="form-input" name="volume" placeholder="4 л">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Цена (руб.)</label>
-                            <input class="form-input" type="number" name="price" required min="0">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Старая цена</label>
-                            <input class="form-input" type="number" name="old_price" min="0">
+                            <label class="form-label" for="productVolume">Объём</label>
+                            <input class="form-input" id="productVolume" name="volume" placeholder="4 л">
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Остаток</label>
-                            <input class="form-input" type="number" name="stock" value="0" min="0">
+                            <label class="form-label" for="productPrice">Цена (руб.)</label>
+                            <input class="form-input" id="productPrice" type="number" name="price" required min="0" step="0.01" inputmode="decimal">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Мин. остаток</label>
-                            <input class="form-input" type="number" name="min_stock" value="3" min="0">
+                            <label class="form-label" for="productOldPrice">Старая цена</label>
+                            <input class="form-input" id="productOldPrice" type="number" name="old_price" min="0" step="0.01" inputmode="decimal">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="productStock">Остаток</label>
+                            <input class="form-input" id="productStock" type="number" name="stock" value="0" min="0" step="1" inputmode="numeric">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="productMinStock">Мин. остаток</label>
+                            <input class="form-input" id="productMinStock" type="number" name="min_stock" value="3" min="0" step="1" inputmode="numeric">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Краткое описание</label>
-                        <textarea class="form-textarea" name="description" rows="3"></textarea>
+                        <label class="form-label" for="productDescription">Краткое описание</label>
+                        <textarea class="form-textarea" id="productDescription" name="description" rows="3"></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">URL изображения</label>
-                        <input class="form-input" name="image" placeholder="img/oils/...">
+                        <label class="form-label" for="productImage">Путь к изображению</label>
+                        <input class="form-input" id="productImage" name="image" placeholder="img/oils/...">
                     </div>
                     <div class="form-group" id="productApprovalsGroup">
-                        <label class="form-label">Допуски и одобрения (через запятую)</label>
-                        <textarea class="form-textarea" name="approvals" rows="2" placeholder="VW 504 00, VW 502 00, MB 229.51, ACEA C3, API SP"></textarea>
-                        <small>Только то, что напечатано на этикетке или в сертификате. По ним магазин подбирает масло под машину.</small>
+                        <label class="form-label" for="productApprovals">Допуски и одобрения (через запятую)</label>
+                        <textarea class="form-textarea" id="productApprovals" name="approvals" rows="2" aria-describedby="productApprovalsHelp" placeholder="VW 504 00, VW 502 00, MB 229.51, ACEA C3, API SP"></textarea>
+                        <small id="productApprovalsHelp">Только то, что напечатано на этикетке или в сертификате. По ним магазин подбирает масло под машину.</small>
                     </div>
                     <div class="form-group">
                         <label><input type="checkbox" name="active" checked> Показывать в магазине</label><br>
@@ -1260,8 +1282,55 @@ document.addEventListener('DOMContentLoaded', () => {
         // Экранирование для безопасности
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-        // ====== Модальные окна ======
-        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+        // ====== Модальные окна: управление фокусом и клавиатурой ======
+        const modalReturnFocus = new Map();
+        function openModal(id) {
+            const overlay = document.getElementById(id);
+            const dialog = overlay && overlay.querySelector('[role="dialog"]');
+            if (!overlay || !dialog) return;
+            modalReturnFocus.set(id, document.activeElement);
+            overlay.setAttribute('aria-hidden', 'false');
+            overlay.classList.add('open');
+            requestAnimationFrame(() => dialog.focus());
+        }
+        function closeModal(id) {
+            const overlay = document.getElementById(id);
+            if (!overlay) return;
+            overlay.classList.remove('open');
+            overlay.setAttribute('aria-hidden', 'true');
+            const previous = modalReturnFocus.get(id);
+            modalReturnFocus.delete(id);
+            if (previous && previous.isConnected && typeof previous.focus === 'function') previous.focus();
+        }
+        document.addEventListener('click', event => {
+            if (event.target instanceof HTMLElement && event.target.classList.contains('modal-overlay')) closeModal(event.target.id);
+        });
+        document.addEventListener('keydown', event => {
+            const dialogs = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]'))
+                .filter(dialog => {
+                    const host = dialog.closest('.modal-overlay, #staffModal');
+                    return host && host.getAttribute('aria-hidden') !== 'true' && getComputedStyle(host).display !== 'none';
+                });
+            const dialog = dialogs[dialogs.length - 1];
+            if (!dialog) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                const overlay = dialog.closest('.modal-overlay');
+                if (overlay) closeModal(overlay.id);
+                else if (dialog.closest('#staffModal')) closeStaffModal();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+                .filter(element => element.getClientRects().length > 0);
+            if (!focusable.length) { event.preventDefault(); dialog.focus(); return; }
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+                event.preventDefault(); first.focus();
+            }
+        });
 
         // ====== ДОСТАВКА ======
         async function loadDeliveryData() {
@@ -1672,7 +1741,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Итого:</strong> ${(parseFloat(o.total)||0).toLocaleString()} руб.</p>
                     <p><strong>Дата:</strong> ${fmtDate(o.created_at)}</p>
                 `;
-                document.getElementById('orderModal').classList.add('open');
+                openModal('orderModal');
             } catch (e) { console.error('Order detail error:', e); }
         }
 
@@ -2235,7 +2304,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const child of Array.from(f.children)) child.style.display = '';
             f.active.checked = true; f.coming_soon.checked = false; f.approvals.value = '';
             document.getElementById('productModalTitle').textContent = 'Добавить товар';
-            document.getElementById('productModal').classList.add('open');
+            openModal('productModal');
         }
 
         function editProduct(id) {
@@ -2255,7 +2324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch(`${API_BASE}/api/products/${id}/approvals`).then(r => r.ok ? r.json() : []).then(l => { if (f.dataset.id === String(id)) f.approvals.value = l.join(', '); }).catch(() => {});
             }
             document.getElementById('productModalTitle').textContent = canManageCatalog ? 'Изменить товар №' + id : 'Изменить остатки товара №' + id;
-            document.getElementById('productModal').classList.add('open');
+            openModal('productModal');
         }
 
         async function saveProduct(e) {
@@ -2542,10 +2611,14 @@ document.addEventListener('DOMContentLoaded', () => {
     </script>
     <script>
 
+const staffModalReturnFocus = { element: null };
 async function openStaffModal() {
     const modal = document.getElementById('staffModal');
     if (!modal) return;
+    staffModalReturnFocus.element = document.activeElement;
     modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    modal.querySelector('[role="dialog"]')?.focus();
     await Promise.all([loadStaffList(), loadCourierAdminList()]);
 }
 async function loadCourierAdminList() {
@@ -2614,7 +2687,12 @@ async function archiveCourier(id) {
 
 function closeStaffModal() {
     const modal = document.getElementById('staffModal');
-    if (modal) modal.style.display = 'none';
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    const previous = staffModalReturnFocus.element;
+    staffModalReturnFocus.element = null;
+    if (previous && previous.isConnected && typeof previous.focus === 'function') previous.focus();
 }
 function staffEsc(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({
