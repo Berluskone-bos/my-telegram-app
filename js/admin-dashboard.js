@@ -72,15 +72,23 @@
       .workcal-item-meta{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.45}
       .workcal-item-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
       .workcal-item-actions button{border:1px solid var(--border);background:var(--white);border-radius:8px;padding:6px 8px;font-size:10px;cursor:pointer;color:var(--text)}
-      .workcal-create{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px;background:var(--tint,rgba(0,0,0,.03));border-radius:12px}
-      .workcal-create label{display:grid;gap:5px;font-size:11px;font-weight:650;color:var(--muted)}
-      .workcal-create input,.workcal-create select,.workcal-create textarea{width:100%;min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--white);color:var(--text);padding:9px;font:12px Inter,sans-serif}
-      .workcal-create textarea{min-height:64px;resize:vertical}
+      .workcal-create{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px;background:var(--tint,rgba(0,0,0,.03));border-radius:10px}
+      .workcal-create label{display:grid;gap:4px;font-size:10px;font-weight:650;color:var(--muted);min-width:0}
+      .workcal-create input,.workcal-create select,.workcal-create textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;background:var(--white);color:var(--text);padding:7px 8px;font:11px Inter,sans-serif}
+      .workcal-create textarea{min-height:48px;resize:vertical}
       .workcal-create .wide{grid-column:1/-1}
       .workcal-create-actions{display:flex;gap:8px;justify-content:flex-end;grid-column:1/-1}
+      .workcal-task-entry{border-bottom:1px solid var(--line,#edf0f4)}
+      .workcal-task-entry>.dash-row{border-bottom:0}
+      .workcal-inline-detail{margin:0 0 10px 0;padding:10px 12px;border:1px solid var(--border,#e7eaf0);border-radius:10px;background:var(--tint,rgba(0,0,0,.025));display:grid;gap:8px}
+      .workcal-inline-detail-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .workcal-inline-detail-title{font-size:12px;font-weight:750;color:var(--text)}
+      .workcal-inline-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+      .workcal-inline-detail-field{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+      .workcal-inline-detail-field b{color:var(--text);font-weight:650}
       .workcal-primary{background:#101B4D!important;color:#fff!important;border-color:#101B4D!important}
       .workcal-empty{padding:14px 0;color:var(--muted);font-size:12px}
-      @media(max-width:680px){.workcal-grid{gap:3px;padding:6px}.workcal-day{min-height:75px;padding:5px 3px}.workcal-daymetrics{font-size:9px}.workcal-item{grid-template-columns:48px minmax(0,1fr)}.workcal-item-actions{grid-column:2;justify-content:flex-start}.workcal-create{grid-template-columns:1fr}.workcal-create .wide{grid-column:auto}.workcal-create-actions{grid-column:auto}}
+      @media(max-width:680px){.workcal-grid{gap:3px;padding:6px}.workcal-day{min-height:75px;padding:5px 3px}.workcal-daymetrics{font-size:9px}.workcal-item{grid-template-columns:48px minmax(0,1fr)}.workcal-item-actions{grid-column:2;justify-content:flex-start}.workcal-create{grid-template-columns:repeat(2,minmax(0,1fr))}.workcal-create .wide{grid-column:1/-1}.workcal-create-actions{grid-column:1/-1}.workcal-inline-detail-grid{grid-template-columns:1fr}}
       @media(max-width:900px){.dash-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-columns{grid-template-columns:1fr}}
       @media(max-width:560px){.dash-clocks{grid-template-columns:1fr}.dash-kpi{padding:14px}.dash-panel-body{padding:0 13px}}
     `;
@@ -265,12 +273,7 @@
         const tasks=items.filter(x=>x.kind==='task'&&x.status!=='cancelled');
         const completed=tasks.filter(x=>x.status==='done').length;
         const events=items.filter(x=>x.kind!=='task'&&x.status!=='cancelled');
-        const openedItem=workcalOpenedItemId==null?null:items.find(item=>String(item.id)===String(workcalOpenedItemId));
         let html='<div class="workcal-detail-head"><div class="workcal-detail-title">'+esc(workcalFmtDate(dateKey))+'</div>'+(workcalCanManage()?'<button type="button" class="workcal-action workcal-primary" id="workcalAddTask">+ Новая задача / событие</button>':'')+'</div>';
-        if(openedItem){
-            const fields=[['Тип',WORKCAL_KINDS[openedItem.kind]||openedItem.kind],['Статус',WORKCAL_STATUSES[openedItem.status]||openedItem.status],['Приоритет',WORKCAL_PRIORITIES[openedItem.priority]||openedItem.priority],['Исполнитель',openedItem.assigneeName],['Начало',openedItem.startsAt?workcalTime(openedItem.startsAt):''],['Срок',openedItem.dueAt?workcalTime(openedItem.dueAt):''],['Место',openedItem.location],['Контрагент',openedItem.counterparty],['Сумма',openedItem.amount!=null?workcalFmtMoney(openedItem.amount):''],['Показатель KPI',openedItem.metricName],['Значение KPI',openedItem.metricValue],['Цель KPI',openedItem.metricTarget]].filter(([,value])=>value!==undefined&&value!==null&&value!=='');
-            html+='<section class="workcal-opened-item" style="border:1px solid var(--border);border-radius:12px;padding:14px;display:grid;gap:9px"><div class="workcal-detail-head"><div class="workcal-detail-title">Подробности записи</div><button type="button" class="workcal-action" id="workcalCloseOpenedItem">Закрыть</button></div><div style="font-size:15px;font-weight:750">'+esc(openedItem.title)+'</div><div class="workcal-daystats">'+fields.map(([label,value])=>'<span class="workcal-stat">'+esc(label)+': <b>'+esc(value)+'</b></span>').join('')+'</div>'+(openedItem.description?'<div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5">'+esc(openedItem.description)+'</div>':'<div class="workcal-empty">Описание не заполнено.</div>')+'</section>';
-        }
         html+='<div class="workcal-daystats"><span class="workcal-stat">Заказы: <b>'+integer.format(summary.orders||0)+'</b></span><span class="workcal-stat">Выручка: <b>'+esc(summary.revenue==null?'—':workcalFmtMoney(summary.revenue))+'</b></span><span class="workcal-stat">Новые: <b>'+integer.format(summary.newOrders||0)+'</b></span><span class="workcal-stat">В доставке: <b>'+integer.format(summary.shipping||0)+'</b></span><span class="workcal-stat">Доставлено: <b>'+integer.format(summary.delivered||0)+'</b></span><span class="workcal-stat">Отменено: <b>'+integer.format(summary.cancelled||0)+'</b></span><span class="workcal-stat">Движения склада: <b>'+integer.format(summary.stockMovements||0)+'</b></span><span class="workcal-stat">Склад −/+ шт.: <b>'+integer.format(summary.qtyOut||0)+' / '+integer.format(summary.qtyIn||0)+'</b></span><span class="workcal-stat">Задачи: <b>'+completed+'/'+tasks.length+'</b></span><span class="workcal-stat">События: <b>'+events.length+'</b></span></div>';
         if(!items.length)html+='<div class="workcal-empty">На этот день пока нет задач и событий.</div>';
         else html+='<div class="workcal-items">'+items.map(item=>{
@@ -290,8 +293,7 @@
     function renderWorkcalTasks() {
         const target=document.getElementById('workcalTaskOverview');
         if(!target)return;
-        // В этом блоке показываем не только поручения, но и все доступные
-        // пользователю встречи, договоры, логистику, KPI и заметки.
+        // В этом блоке показываем все доступные пользователю типы задач и событий.
         const entries=(workcalData.items||[]).filter(item=>item.status!=='cancelled')
             .sort((a,b)=>String(workcalItemDate(a)||'').localeCompare(String(workcalItemDate(b)||''))||
                 String(a.startsAt||a.dueAt||'').localeCompare(String(b.startsAt||b.dueAt||'')));
@@ -308,16 +310,27 @@
             const overdue=isTask&&date<today&&item.status!=='done';
             const kindLabel=WORKCAL_KINDS[item.kind]||item.kind;
             const assignee=item.assigneeName?' · '+esc(item.assigneeName):'';
-            return '<div class="dash-row"><div><div class="dash-main">'+esc(item.title)+' <span class="dash-pill">'+esc(kindLabel)+'</span></div><div class="dash-sub">'+(overdue?'<b style="color:#dc2626">Просрочено · </b>':'')+esc(date?workcalFmtDate(date):'Без даты')+' · '+esc(WORKCAL_STATUSES[item.status]||item.status)+assignee+'</div></div><div class="dash-value"><button type="button" class="workcal-action" data-open-workcal-item="'+esc(item.id)+'">Открыть</button></div></div>';
+            const opened=String(item.id)===String(workcalOpenedItemId);
+            const dateTime=value=>value?new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'';
+            const fields=[
+                ['Тип записи',kindLabel],
+                ['Приоритет',WORKCAL_PRIORITIES[item.priority]||item.priority],
+                ['Начало',dateTime(item.startsAt)],
+                ['Срок / дата завершения',dateTime(item.dueAt)],
+                ['Исполнитель',item.assigneeName||'Не назначен']
+            ].filter(([,value])=>value!==undefined&&value!==null&&value!=='');
+            const detail=opened?'<section class="workcal-inline-detail"><div class="workcal-inline-detail-head"><div class="workcal-inline-detail-title">Подробности записи</div><button type="button" class="workcal-action" data-close-workcal-item>Свернуть</button></div><div class="workcal-inline-detail-title">'+esc(item.title)+'</div><div class="workcal-inline-detail-grid">'+fields.map(([label,value])=>'<div class="workcal-inline-detail-field">'+esc(label)+': <b>'+esc(value)+'</b></div>').join('')+'</div><div class="workcal-inline-detail-field">Описание: <b style="white-space:pre-wrap">'+esc(item.description||'Не заполнено')+'</b></div></section>':'';
+            return '<div class="workcal-task-entry" data-workcal-entry="'+esc(item.id)+'"><div class="dash-row"><div><div class="dash-main">'+esc(item.title)+' <span class="dash-pill">'+esc(kindLabel)+'</span></div><div class="dash-sub">'+(overdue?'<b style="color:#dc2626">Просрочено · </b>':'')+esc(date?workcalFmtDate(date):'Без даты')+' · '+esc(WORKCAL_STATUSES[item.status]||item.status)+assignee+'</div></div><div class="dash-value"><button type="button" class="workcal-action" data-open-workcal-item="'+esc(item.id)+'">'+(opened?'Скрыть':'Открыть')+'</button></div></div>'+detail+'</div>';
         }).join('')+(entries.length>30?'<div class="dash-empty">Показаны первые 30 записей месяца.</div>':'');
         target.querySelectorAll('[data-open-workcal-item]').forEach(button=>button.addEventListener('click',()=>{
-            const item=(workcalData.items||[]).find(entry=>String(entry.id)===String(button.dataset.openWorkcalItem));
-            if(!item)return;
-            const date=workcalItemDate(item);
-            if(!date)return;
-            workcalOpenedItemId=item.id;
-            if(!date.startsWith(workcalMonthKey(workcalDate))){workcalDate=workcalParseDate(date);workcalSelected=date;loadWorkspaceCalendar();}
-            else{workcalSelected=date;renderWorkcalDay(date);document.getElementById('workcalDetail')?.scrollIntoView({behavior:'smooth',block:'start'});}
+            const id=button.dataset.openWorkcalItem;
+            workcalOpenedItemId=String(workcalOpenedItemId)===String(id)?null:id;
+            renderWorkcalTasks();
+            if(workcalOpenedItemId!==null)target.querySelector('[data-workcal-entry="'+CSS.escape(String(id))+'"]')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+        }));
+        target.querySelectorAll('[data-close-workcal-item]').forEach(button=>button.addEventListener('click',()=>{
+            workcalOpenedItemId=null;
+            renderWorkcalTasks();
         }));
     }
     async function selectWorkcalDay(dateKey) {
@@ -338,14 +351,7 @@
           <label>Начало<input type="datetime-local" name="startsAt" value="${defaultDate}"></label>
           <label>Срок / дата завершения<input type="datetime-local" name="dueAt" value="${defaultDate}"></label>
           <label class="wide">Исполнитель<select name="assignedTo"><option value="">Не назначен</option>${employeeOptions}</select></label>
-          <label>Место / маршрут<input name="location" maxlength="250" placeholder="Владивосток → Санкт-Петербург"></label>
-          <label>Контрагент<input name="counterparty" maxlength="250" placeholder="Поставщик / клиент"></label>
-          <label>Сумма, ₽<input name="amount" type="number" min="0" step="0.01"></label>
-          <label>Название KPI<input name="metricName" maxlength="120" placeholder="Например: Выполнение плана"></label>
-          <label>Факт KPI<input name="metricValue" type="number" step="0.001"></label>
-          <label>Цель KPI<input name="metricTarget" type="number" step="0.001"></label>
           <label class="wide">Описание<textarea name="description" maxlength="5000" placeholder="Подробности, ожидаемый результат, документы…"></textarea></label>
-          <label class="wide"><span><input type="checkbox" name="companyVisible" checked style="width:auto"> Показывать событие всем сотрудникам</span></label>
           <div class="workcal-create-actions"><button type="button" class="workcal-action" id="workcalFormCancel">Закрыть</button><button class="workcal-action workcal-primary" type="submit">Сохранить</button></div>
         </form>`);
         const form=target.querySelector('#workcalCreateForm');
@@ -367,10 +373,7 @@
                 startsAt:kind==='task'?null:workcalMskInputToIso(startsAt),
                 dueAt:kind==='task'?workcalMskInputToIso(dueAt):(dueAt?workcalMskInputToIso(dueAt):null),
                 priority:data.get('priority'),assignedTo:data.get('assignedTo')||null,
-                companyVisible:form.elements.companyVisible.checked,
-                location:data.get('location'),counterparty:data.get('counterparty'),
-                amount:data.get('amount')||null,metricName:data.get('metricName'),
-                metricValue:data.get('metricValue')||null,metricTarget:data.get('metricTarget')||null
+                companyVisible:true
             };
             if(kind==='task'&&!payload.assignedTo){alert('Для задачи выберите сотрудника.');return;}
             if(kind==='task'&&!payload.dueAt){alert('Для задачи укажите срок.');return;}

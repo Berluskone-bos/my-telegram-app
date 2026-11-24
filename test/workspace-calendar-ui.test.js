@@ -46,12 +46,24 @@ test('список сотрудников включает все типы со�
 });
 
 
-test('кнопка «Открыть» раскрывает подробную карточку конкретной задачи или события', () => {
-    assert.ok(dashboard.includes('data-open-workcal-item'));
-    assert.ok(dashboard.includes('button.dataset.openWorkcalItem'));
-    assert.ok(dashboard.includes('const openedItem=workcalOpenedItemId==null?null:items.find'));
-    assert.ok(dashboard.includes('Подробности записи'));
-    assert.ok(dashboard.includes('openedItem.description'));
-    assert.ok(dashboard.includes('workcalCloseOpenedItem'));
-    assert.ok(!dashboard.includes('data-open-workcal-date'));
+test('кнопка «Открыть» раскрывает подробности прямо в блоке задач и событий', () => {
+    const start = dashboard.indexOf('function renderWorkcalTasks()');
+    const end = dashboard.indexOf('async function selectWorkcalDay', start);
+    const renderer = dashboard.slice(start, end);
+    assert.ok(renderer.includes('data-open-workcal-item'));
+    assert.ok(renderer.includes('Подробности записи'));
+    assert.ok(renderer.includes('workcal-inline-detail'));
+    assert.ok(renderer.includes('data-close-workcal-item'));
+    assert.ok(renderer.includes('openedItem') === false);
+    assert.ok(renderer.includes('Описание:'));
+    assert.ok(!dashboard.includes("const openedItem=workcalOpenedItemId==null?null:items.find"));
+});
+
+test('форма создания содержит только семь согласованных полей и компактную сетку', () => {
+    const start = dashboard.indexOf('function renderWorkcalForm(dateKey)');
+    const end = dashboard.indexOf('async function createWorkcalItem', start);
+    const form = dashboard.slice(start, end);
+    for (const field of ['name="kind"', 'name="priority"', 'name="title"', 'name="startsAt"', 'name="dueAt"', 'name="assignedTo"', 'name="description"']) assert.ok(form.includes(field), field);
+    for (const field of ['name="location"', 'name="counterparty"', 'name="amount"', 'name="metricName"', 'name="metricValue"', 'name="metricTarget"', 'companyVisible:form.elements']) assert.ok(!form.includes(field), field);
+    assert.ok(dashboard.includes('.workcal-create{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))'));
 });
