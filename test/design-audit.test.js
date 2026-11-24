@@ -11,6 +11,7 @@ test('магазин не блокирует масштабирование ст
   assert.ok(viewport);
   assert.doesNotMatch(viewport, /user-scalable\s*=\s*no/i);
   assert.doesNotMatch(viewport, /maximum-scale\s*=\s*1(?:\.0)?(?:[,;\s]|$)/i);
+  assert.doesNotMatch(viewport.match(/content=["']([^"']*)["']/i)?.[1] || "", /,\s*$/);
 });
 test('основные кнопки шапки магазина имеют семантику кнопок и доступные размеры', () => {
   const html = read('index.html'), css = read('css/styles.css');
