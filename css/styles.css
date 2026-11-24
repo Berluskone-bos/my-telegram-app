@@ -2189,6 +2189,22 @@ a, button, input, select { font-family: inherit; }
 .menu-back { display: flex; }
 .menu-item { padding: 16px 24px; font-size: 15px; }
 .menu-item:active { background: var(--bg-secondary); }
+.cat-badge,
+.filter-chip,
+.sort-option,
+.favorite-btn,
+.btn-buy {
+    min-height: 44px;
+}
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.favorite-btn,
+.btn-buy {
+    min-width: 44px;
+}
 .nav-item {
     min-height: 44px;
     appearance: none;
