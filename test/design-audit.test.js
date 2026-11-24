@@ -43,6 +43,8 @@ test('управление магазином использует семант�
   assert.match(app, /setAttribute\('aria-expanded', String\(isOpen\)\)/);
   assert.match(app, /setAttribute\('aria-expanded', 'false'\)/);
   assert.match(app, /menu\.setAttribute\('aria-hidden', String\(!open\)\)/);
+  assert.match(app, /menu\.inert = !open/);
+  assert.match(html, /id="sideMenu" aria-hidden="true" inert/);
   assert.match(app, /this\.currentSubcategory = null;/);
   assert.match(app, /this\.renderSubcategories\(\);\s*this\.renderProducts\(\);/);
   assert.match(html, /<button[^>]+class="nav-item active"[^>]+aria-current="page"/);
