@@ -8,39 +8,83 @@ const Oil = {
         if (!this.root) {
             this.root = document.createElement('div');
             this.root.className = 'oil-overlay';
+            this.root.setAttribute('aria-hidden', 'true');
+            this.root.inert = true;
             this.root.innerHTML = `
-              <div class="oil-sheet" role="dialog" aria-modal="true" aria-label="Подбор масла">
-                <div class="oil-head"><div class="oil-title">Подбор масла</div><button class="oil-close" aria-label="Закрыть" onclick="Oil.close()">&times;</button></div>
-                <div class="oil-tabs">
-                  <button class="oil-tab active" data-tab="vin" onclick="Oil.setTab('vin')">По VIN</button>
-                  <button class="oil-tab" data-tab="car" onclick="Oil.setTab('car')">По марке и модели</button>
+              <div class="oil-sheet" role="dialog" aria-modal="true" aria-labelledby="oilDialogTitle" tabindex="-1">
+                <div class="oil-head"><h2 class="oil-title" id="oilDialogTitle">Подбор масла</h2><button type="button" class="oil-close" aria-label="Закрыть окно подбора масла" onclick="Oil.close()">&times;</button></div>
+                <div class="oil-tabs" aria-label="Способ подбора">
+                  <button type="button" class="oil-tab active" data-tab="vin" aria-pressed="true" onclick="Oil.setTab('vin')">По VIN</button>
+                  <button type="button" class="oil-tab" data-tab="car" aria-pressed="false" onclick="Oil.setTab('car')">По марке и модели</button>
                 </div>
                 <div class="oil-pane" id="oilPaneVin">
                   <label class="oil-label" for="oilVin">VIN-код (17 символов)</label>
                   <input id="oilVin" class="oil-input" maxlength="17" autocomplete="off" autocapitalize="characters" placeholder="например, WAUBH54B11N111054">
                   <p class="oil-hint">VIN указан в СТС и на кузове. Только латиница и цифры, без букв I, O, Q.</p>
-                  <button class="oil-btn" onclick="Oil.byVin()">Подобрать масло</button>
+                  <button type="button" class="oil-btn" onclick="Oil.byVin()">Подобрать масло</button>
                 </div>
                 <div class="oil-pane" id="oilPaneCar" hidden>
                   <label class="oil-label" for="oilMake">Марка</label><select id="oilMake" class="oil-input" onchange="Oil.loadModels()"><option value="">Выберите марку</option></select>
                   <label class="oil-label" for="oilModel">Модель</label><select id="oilModel" class="oil-input" onchange="Oil.loadCars()" disabled><option value="">Сначала марку</option></select>
                   <label class="oil-label" for="oilCar">Модификация</label><select id="oilCar" class="oil-input" disabled><option value="">Сначала модель</option></select>
-                  <button class="oil-btn" onclick="Oil.byCar()">Подобрать масло</button>
+                  <button type="button" class="oil-btn" onclick="Oil.byCar()">Подобрать масло</button>
                 </div>
                 <div id="oilResult" class="oil-result" aria-live="polite"></div>
               </div>`;
             document.body.appendChild(this.root);
             this.root.addEventListener('click', e => { if (e.target === this.root) this.close(); });
+            document.addEventListener('keydown', e => {
+                if (!this.root || !this.root.classList.contains('open')) return;
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.close();
+                    return;
+                }
+                if (e.key !== 'Tab') return;
+                const dialog = this.root.querySelector('[role="dialog"]');
+                const focusable = [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')]
+                    .filter(el => !el.hidden && el.getClientRects().length > 0);
+                if (!focusable.length) {
+                    e.preventDefault();
+                    dialog.focus();
+                    return;
+                }
+                const first = focusable[0], last = focusable[focusable.length - 1];
+                if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            });
         }
+        if (this.root.classList.contains('open')) return;
+        this.returnFocus = document.activeElement;
+        this.previousBodyOverflow = document.body.style.overflow;
+        this.root.inert = false;
+        this.root.setAttribute('aria-hidden', 'false');
         this.root.classList.add('open');
         document.body.style.overflow = 'hidden';
+        const closeButton = this.root.querySelector('.oil-close');
+        if (closeButton) closeButton.focus({ preventScroll: true });
     },
 
-    close() { if (this.root) this.root.classList.remove('open'); document.body.style.overflow = ''; },
+    close() {
+        if (!this.root || !this.root.classList.contains('open')) return;
+        this.root.classList.remove('open');
+        this.root.setAttribute('aria-hidden', 'true');
+        this.root.inert = true;
+        document.body.style.overflow = this.previousBodyOverflow || '';
+        if (this.returnFocus && this.returnFocus.isConnected && typeof this.returnFocus.focus === 'function') {
+            this.returnFocus.focus({ preventScroll: true });
+        }
+        this.returnFocus = null;
+    },
 
     setTab(t) {
         this.tab = t;
-        this.root.querySelectorAll('.oil-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+        this.root.querySelectorAll('.oil-tab').forEach(b => { const active = b.dataset.tab === t; b.classList.toggle('active', active); b.setAttribute('aria-pressed', String(active)); });
         document.getElementById('oilPaneVin').hidden = t !== 'vin';
         document.getElementById('oilPaneCar').hidden = t !== 'car';
         document.getElementById('oilResult').innerHTML = '';
