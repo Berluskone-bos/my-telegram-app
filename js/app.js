@@ -308,6 +308,7 @@ var App = {
             badge.classList.toggle('active', active);
             badge.setAttribute('aria-pressed', String(active));
         });
+        this.renderSubcategories();
         this.renderProducts();
     },
 
