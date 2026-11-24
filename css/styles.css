@@ -811,6 +811,7 @@ a, button, input, select { font-family: inherit; }
     z-index: 5;
 }
 .favorite-btn i,
+.favorite-btn i,
 .favorite-btn svg {
     width: 18px;
     height: 18px;
