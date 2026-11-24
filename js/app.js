@@ -119,7 +119,9 @@ var App = {
     },
 
     toggleSort() {
-        document.getElementById('sortMenu').classList.toggle('open');
+        const menu = document.getElementById('sortMenu');
+        const isOpen = menu.classList.toggle('open');
+        document.getElementById('sortToggle')?.setAttribute('aria-expanded', String(isOpen));
     },
 
     selectSort(value) {
@@ -300,6 +302,7 @@ var App = {
 
     selectCategory(value) {
         this.currentCategory = value;
+        this.currentSubcategory = null;
         document.querySelectorAll('.cat-badge').forEach(badge => {
             const active = badge.dataset.cat === value;
             badge.classList.toggle('active', active);
@@ -541,13 +544,21 @@ var App = {
     toggleMenu(open) {
         const menu = document.getElementById('sideMenu');
         const overlay = document.getElementById('menuOverlay');
+        const trigger = document.querySelector('.burger-btn');
+        menu.setAttribute('aria-hidden', String(!open));
+        trigger?.setAttribute('aria-expanded', String(open));
         if (open) {
             overlay.style.display = 'block';
-            setTimeout(() => { overlay.style.opacity = '1'; menu.style.left = '0'; }, 10);
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                menu.style.left = '0';
+                menu.querySelector('.menu-back')?.focus();
+            }, 10);
         } else {
             menu.style.left = '-300px';
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 300);
+            trigger?.focus();
         }
     },
 
