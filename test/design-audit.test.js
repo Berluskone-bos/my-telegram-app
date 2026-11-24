@@ -205,3 +205,28 @@ test('админ-панель использует удобные сенсорн
   assert.match(html, /@media \(max-width: 900px\)[\s\S]*?\.btn, \.status-select, \.icon-btn, \.me-out, \.cal-nav, \.cal-today, \.theme-btn, \.clock-btn \{ min-height: 44px; \}/);
   assert.match(html, /\.btn-sm \{ min-height: 44px; padding: 8px 12px; \}/);
 });
+
+
+test('контраст текста на акцентных элементах соответствует WCAG AA', () => {
+  const css = read('css/styles.css');
+  const admin = read('admin.html');
+  const luminance = hex => {
+    const rgb = hex.match(/[a-f\d]{2}/gi).map(pair => parseInt(pair, 16) / 255);
+    const linear = rgb.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+  const ratio = (a, b) => {
+    const values = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (values[0] + 0.05) / (values[1] + 0.05);
+  };
+  assert.ok(ratio('#101B4D', '#00AFC7') >= 4.5);
+  assert.ok(ratio('#101B4D', '#1FC3DB') >= 4.5);
+  assert.ok(ratio('#007A8C', '#FFFFFF') >= 4.5);
+  assert.match(css, /--accent-text: #007A8C;/);
+  assert.doesNotMatch(css, /background: var\(--accent\);[^}]*color: #fff;/);
+  assert.match(css, /\.btn-order \{[^}]*color: #101B4D;/);
+  assert.match(css, /\.btn-buy \{[^}]*color: #101B4D;/);
+  assert.match(admin, /\.btn-primary \{ background: var\(--cyan\); color: #101B4D; \}/);
+  assert.match(admin, /\.badge-blue \{[^}]*color: var\(--cyan-text\);/);
+  assert.doesNotMatch(admin, /background: var\(--cyan\); color: var\(--white\);/);
+});
