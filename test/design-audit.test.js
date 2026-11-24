@@ -40,6 +40,11 @@ test('управление магазином использует семант�
   const css = read('css/styles.css');
   assert.match(html, /<button[^>]+class="cat-badge active"[^>]+aria-pressed="true"/);
   assert.match(html, /<nav class="bottom-nav" aria-label="Основная навигация">/);
+  assert.match(html, /<button[^>]+class="select-oil-banner"/);
+  assert.match(html, /id="zoneSelectToggle"[^>]+aria-expanded="false"/);
+  assert.match(html, /class="custom-select-option active"[^>]+aria-pressed="true"/);
+  assert.match(app, /setAttribute\('aria-pressed', String\(active\)\)/);
+  assert.match(app, /zoneSelectToggle[^\n]+setAttribute\('aria-expanded', 'false'\)/);
   assert.match(html, /id="sortToggle" aria-controls="sortMenu" aria-expanded="false"/);
   assert.match(app, /setAttribute\('aria-expanded', String\(isOpen\)\)/);
   assert.match(app, /setAttribute\('aria-expanded', 'false'\)/);
