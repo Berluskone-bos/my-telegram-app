@@ -45,6 +45,7 @@ test('управление магазином использует семант�
   assert.match(html, /class="custom-select-option active"[^>]+aria-pressed="true"/);
   assert.match(app, /setAttribute\('aria-pressed', String\(active\)\)/);
   assert.match(app, /zoneSelectToggle[^\n]+setAttribute\('aria-expanded', 'false'\)/);
+  assert.match(app, /zoneMenu\.classList\.remove\('open'\);\s*document\.getElementById\('zoneSelectToggle'\)/);
   assert.match(html, /id="sortToggle" aria-controls="sortMenu" aria-expanded="false"/);
   assert.match(app, /setAttribute\('aria-expanded', String\(isOpen\)\)/);
   assert.match(app, /setAttribute\('aria-expanded', 'false'\)/);
