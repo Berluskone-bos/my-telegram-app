@@ -2110,3 +2110,48 @@ a, button, input, select { font-family: inherit; }
 .product-card.coming-soon .product-image img { filter: grayscale(.6); }
 .product-soon { font-size: 13px; font-weight: 600; color: #6B7390; }
 .btn-add-cart:disabled { background: #E1E5EE; color: #6B7390; cursor: not-allowed; }
+
+
+/* ===== Доступность и управление касанием ===== */
+.burger-btn,
+.header-icon {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+}
+.burger-btn:focus-visible,
+.header-icon:focus-visible,
+.menu-back:focus-visible,
+.menu-item:focus-visible,
+.nav-item:focus-visible {
+    outline: 3px solid rgba(0,175,199,.55);
+    outline-offset: 2px;
+}
+.menu-back,
+.menu-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+}
+.nav-item {
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+}
