@@ -1703,6 +1703,7 @@ function applyAdminAccess(me) {
                 const rows = orders.length === 0
                     ? '<tr><td colspan="8" class="empty">Нет заказов</td></tr>'
                     : orders.map(o => {
+                        const num = esc(o.order_number || 'AP-' + o.id);
                         const showAssign = canDispatch && o.status === 'READY_FOR_SHIPMENT';
                         const courierName = getCourierForOrder(o.id);
                         const isDelivered = ['DELIVERED', 'COMPLETED', 'PICKED_UP'].includes(o.status);
@@ -1827,6 +1828,20 @@ function applyAdminAccess(me) {
         // true — статус сменился; false — сервер отказал (например, доставленный заказ нельзя вернуть в работу)
         async function updateOrderStatus(id, status) {
             let ok = false;
+            const statusMessages = {
+                CONFIRMED: 'Заказ подтверждён',
+                ASSEMBLING: 'Заказ передан в сборку',
+                READY_FOR_SHIPMENT: 'Заказ готов к отправке',
+                READY_FOR_PICKUP: 'Заказ готов к выдаче',
+                PICKED_UP: 'Заказ выдан клиенту',
+                SHIPPING: 'Заказ передан в доставку',
+                DELIVERY_FAILED: 'Заказ отмечен как недоставленный',
+                DELIVERED: 'Доставка подтверждена',
+                COMPLETED: 'Заказ завершён',
+                CANCELLED: 'Заказ отменён'
+            };
+            const currentOrder = (window._orders || []).find(order => Number(order.id) === Number(id));
+            const orderLabel = currentOrder && (currentOrder.order_number || ('AP-' + currentOrder.id)) || ('AP-' + id);
             try {
                 const res = await fetch(`${API_BASE}/api/orders/${id}/status`, {
                     method: 'PUT',
@@ -1835,6 +1850,7 @@ function applyAdminAccess(me) {
                 });
                 ok = res.ok;
                 if (!ok) { const d = await res.json().catch(() => ({})); toast(d.error || 'Не удалось сменить статус', true); }
+                else toast((statusMessages[status] || 'Статус заказа обновлён') + ' · ' + orderLabel, false);
             } catch (e) { console.error('Status update error:', e); toast('Нет связи с сервером. Попробуйте ещё раз.', true); }
             loadShopOrders();                       // и таблица, и доска показывают то, что реально в базе
             if (window.adminHasPermission && window.adminHasPermission('sales.view')) {
