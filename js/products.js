@@ -201,9 +201,10 @@ const Products = {
                         ${product.is_new ? '<span class="badge-new">NEW</span>' : ''}
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
                     </div>
-                    <button class="favorite-btn ${isFavorite ? 'active' : ''}"
+                    <button type="button" class="favorite-btn ${isFavorite ? 'active' : ''}"
                             onclick="event.stopPropagation(); App.toggleFavorite(${product.id})"
-                            aria-label="Избранное">
+                            aria-label="${isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}"
+                            aria-pressed="${isFavorite ? 'true' : 'false'}">
                         <i data-lucide="heart"></i>
                     </button>
                 </div>
