@@ -50,6 +50,7 @@ test('управление магазином использует семант�
   assert.doesNotMatch(app, /container\.addEventListener\('click'/);
   assert.match(products, /<article class="product-card[^>]+data-product-id=/);
   assert.doesNotMatch(products, /class="product-card[^>]+onclick=/);
+  assert.match(products, /class="product-title-button" onclick="App\.showProduct/);
   assert.match(products, /class="btn-buy" data-product-id=/);
   assert.doesNotMatch(products, /class="btn-buy" onclick=/);
   assert.match(html, /id="btn-nav-main" data-screen="main"/);
