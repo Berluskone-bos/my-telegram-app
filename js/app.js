@@ -52,6 +52,7 @@ var App = {
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#sortDropdown')) {
                 document.getElementById('sortMenu').classList.remove('open');
+                document.getElementById('sortToggle')?.setAttribute('aria-expanded', 'false');
             }
             if (!e.target.closest('#zoneSelect')) {
                 const zoneMenu = document.getElementById('zoneMenu');
@@ -132,6 +133,7 @@ var App = {
             opt.setAttribute('aria-pressed', String(active));
         });
         document.getElementById('sortMenu').classList.remove('open');
+        document.getElementById('sortToggle')?.setAttribute('aria-expanded', 'false');
         this.renderProducts();
     },
 
