@@ -194,7 +194,7 @@ const Products = {
         const volume = product.volume || '';
 
         return `
-            <div class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" onclick="App.showProduct(${product.id})">
+            <article class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" data-product-id="${product.id}">
                 <div class="product-image">
                     ${this.getPictureHtml(image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
@@ -231,7 +231,7 @@ const Products = {
                         </button>`}
                     </div>
                 </div>
-            </div>
+            </article>
         `;
     },
 
