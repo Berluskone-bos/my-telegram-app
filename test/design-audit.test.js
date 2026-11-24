@@ -52,6 +52,9 @@ test('управление магазином использует семант�
   assert.match(html, /<button[^>]+class="sort-option active"[^>]+aria-pressed="true"/);
   assert.match(app, /setAttribute\('aria-current', 'page'\)/);
   assert.match(app, /setAttribute\('aria-pressed', String\(active\)\)/);
+  assert.match(app, /class="filter-chip \$\{isActive \? 'active' : ''\}" data-value=/);
+  assert.match(app, /chip\.setAttribute\('aria-pressed', String\(active\)\)/);
+
   assert.doesNotMatch(app, /container\.addEventListener\('click'/);
   assert.match(products, /<article class="product-card[^>]+data-product-id=/);
   assert.doesNotMatch(products, /class="product-card[^>]+onclick=/);
