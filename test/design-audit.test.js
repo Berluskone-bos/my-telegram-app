@@ -57,6 +57,7 @@ test('управление магазином использует семант�
   assert.match(products, /class="product-title-button" onclick="App\.showProduct/);
   assert.match(products, /class="btn-buy" data-product-id=/);
   assert.doesNotMatch(products, /class="btn-buy" onclick=/);
+  assert.match(app, /\.btn-buy\[data-product-id=/);
   assert.match(html, /id="btn-nav-main" data-screen="main"/);
 });
 test('правила темы разделяют магазин и админ-панель', () => {
