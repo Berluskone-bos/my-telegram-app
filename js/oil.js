@@ -58,6 +58,7 @@ const Oil = {
                 }
             });
         }
+        if (this.root.classList.contains('open')) return;
         this.returnFocus = document.activeElement;
         this.previousBodyOverflow = document.body.style.overflow;
         this.root.inert = false;
