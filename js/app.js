@@ -594,16 +594,20 @@ var App = {
     },
 
     toggleZoneDropdown() {
-        document.getElementById('zoneMenu').classList.toggle('open');
+        const isOpen = document.getElementById('zoneMenu').classList.toggle('open');
+        document.getElementById('zoneSelectToggle')?.setAttribute('aria-expanded', String(isOpen));
     },
 
     selectZone(value, label) {
         document.getElementById('orderZone').value = value;
         document.getElementById('zoneSelectLabel').textContent = label;
         document.querySelectorAll('#zoneMenu .custom-select-option').forEach(opt => {
-            opt.classList.toggle('active', opt.dataset.value === value);
+            const active = opt.dataset.value === value;
+            opt.classList.toggle('active', active);
+            opt.setAttribute('aria-pressed', String(active));
         });
         document.getElementById('zoneMenu').classList.remove('open');
+        document.getElementById('zoneSelectToggle')?.setAttribute('aria-expanded', 'false');
     },
 
     toggleDeliveryType() {
