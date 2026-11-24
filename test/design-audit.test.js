@@ -39,6 +39,10 @@ test('управление магазином использует семант�
   const products = read('js/products.js');
   assert.match(html, /<button[^>]+class="cat-badge active"[^>]+aria-pressed="true"/);
   assert.match(html, /<nav class="bottom-nav" aria-label="Основная навигация">/);
+  assert.match(html, /id="sortToggle" aria-controls="sortMenu" aria-expanded="false"/);
+  assert.match(app, /setAttribute\('aria-expanded', String\(isOpen\)\)/);
+  assert.match(app, /menu\.setAttribute\('aria-hidden', String\(!open\)\)/);
+  assert.match(app, /this\.currentSubcategory = null;/);
   assert.match(html, /<button[^>]+class="nav-item active"[^>]+aria-current="page"/);
   assert.match(html, /<button[^>]+class="sort-option active"[^>]+aria-pressed="true"/);
   assert.match(app, /setAttribute\('aria-current', 'page'\)/);
