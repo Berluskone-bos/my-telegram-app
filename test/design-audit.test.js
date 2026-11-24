@@ -37,6 +37,7 @@ test('управление магазином использует семант�
   const html = read('index.html');
   const app = read('js/app.js');
   const products = read('js/products.js');
+  const css = read('css/styles.css');
   assert.match(html, /<button[^>]+class="cat-badge active"[^>]+aria-pressed="true"/);
   assert.match(html, /<nav class="bottom-nav" aria-label="Основная навигация">/);
   assert.match(html, /id="sortToggle" aria-controls="sortMenu" aria-expanded="false"/);
