@@ -487,7 +487,7 @@ var App = {
         this.updateCartBadge();
 
         // Визуальный фидбек на карточках в каталоге
-        const btns = document.querySelectorAll(`.btn-buy[onclick*="addToCart(${productId})"]`);
+        const btns = document.querySelectorAll(`.btn-buy[data-product-id="${productId}"]`);
         btns.forEach(btn => {
             btn.innerHTML = '<i data-lucide="check"></i>';
             btn.classList.add('added');
