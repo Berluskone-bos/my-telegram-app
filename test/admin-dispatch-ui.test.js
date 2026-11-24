@@ -26,3 +26,25 @@ test('ошибка загрузки списка курьеров показыв
     assert.match(adminHtml, /Ошибка загрузки курьеров — обновите данные/);
     assert.match(adminHtml, /Нет активных курьеров/);
 });
+
+test('рендер таблицы объявляет номер заказа до использования в доступных подписях', () => {
+    const start = adminHtml.indexOf(': orders.map(o => {');
+    const end = adminHtml.indexOf('const pager =', start);
+    assert.ok(start >= 0 && end > start, 'renderer заказов должен быть найден');
+    const renderer = adminHtml.slice(start, end);
+    assert.match(renderer, /const num = esc\(o\.order_number \|\| 'AP-' \+ o\.id\);/);
+    assert.match(renderer, /aria-label="Добавить заказ \$\{num\} в маршрут"/);
+    assert.match(renderer, /aria-label="Статус заказа \$\{num\}"/);
+});
+
+test('успешное изменение статуса показывает отдельное подтверждение для каждого этапа', () => {
+    assert.match(adminHtml, /CONFIRMED: 'Заказ подтверждён'/);
+    assert.match(adminHtml, /ASSEMBLING: 'Заказ передан в сборку'/);
+    assert.match(adminHtml, /READY_FOR_SHIPMENT: 'Заказ готов к отправке'/);
+    assert.match(adminHtml, /READY_FOR_PICKUP: 'Заказ готов к выдаче'/);
+    assert.match(adminHtml, /PICKED_UP: 'Заказ выдан клиенту'/);
+    assert.match(adminHtml, /CANCELLED: 'Заказ отменён'/);
+    assert.match(adminHtml, /else toast\(\(statusMessages\[status\] \|\| 'Статус заказа обновлён'\) \+ ' · ' \+ orderLabel, false\)/);
+    assert.match(adminHtml, /if \(to === 'DELIVERED' && !confirm\(/);
+    assert.match(adminHtml, /if \(confirm\('Отменить заказ '/);
+});
