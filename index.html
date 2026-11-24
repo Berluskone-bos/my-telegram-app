@@ -13,7 +13,7 @@
 
     <!-- ===== ШАПКА ===== -->
     <div class="header">
-        <button type="button" class="burger-btn" onclick="App.toggleMenu(true)" aria-label="Открыть меню">
+        <button type="button" class="burger-btn" onclick="App.toggleMenu(true)" aria-label="Открыть меню" aria-expanded="false" aria-controls="sideMenu">
             <i data-lucide="menu" class="icon-sm"></i>
         </button>
         <div class="header-logo" id="headerTitle">
@@ -31,30 +31,30 @@
 
     <!-- ===== БОКОВОЕ МЕНЮ ===== -->
     <div class="menu-overlay" id="menuOverlay" onclick="App.toggleMenu(false)"></div>
-    <div class="side-menu" id="sideMenu">
-        <div class="menu-back" onclick="App.toggleMenu(false)">← Назад</div>
-        <div class="menu-item" onclick="App.menuClick('О нас')">О нас</div>
-        <div class="menu-item" onclick="App.menuClick('Доставка и оплата')">Доставка и оплата</div>
-        <div class="menu-item" onclick="App.menuClick('Контакты')">Контакты</div>
-        <div class="menu-item" onclick="window.location.href='privacy.html'">Политика конфиденциальности</div>
+    <div class="side-menu" id="sideMenu" aria-hidden="true" inert>
+        <button type="button" class="menu-back" onclick="App.toggleMenu(false)">← Назад</button>
+        <button type="button" class="menu-item" onclick="App.menuClick('О нас')">О нас</button>
+        <button type="button" class="menu-item" onclick="App.menuClick('Доставка и оплата')">Доставка и оплата</button>
+        <button type="button" class="menu-item" onclick="App.menuClick('Контакты')">Контакты</button>
+        <a class="menu-item" href="privacy.html">Политика конфиденциальности</a>
     </div>
 
     <!-- ================================================== -->
     <!-- ================ ЭКРАН 1: ГЛАВНАЯ ================ -->
     <!-- ================================================== -->
     <div id="screen-main" class="app-screen active">
-        <div class="select-oil-banner" onclick="Oil.open()">
-            <div class="select-oil-icon" aria-hidden="true">
+        <button type="button" class="select-oil-banner" onclick="Oil.open()">
+            <span class="select-oil-icon" aria-hidden="true">
                 <i data-lucide="droplets" style="width:22px;height:22px;"></i>
-            </div>
-            <div>
-                <div class="select-oil-title">Подобрать масло</div>
-                <div class="select-oil-sub">По марке и модели автомобиля</div>
-            </div>
-            <div class="select-oil-right">
+            </span>
+            <span class="select-oil-copy">
+                <span class="select-oil-title">Подобрать масло</span>
+                <span class="select-oil-sub">По марке и модели автомобиля</span>
+            </span>
+            <span class="select-oil-right" aria-hidden="true">
                 <i data-lucide="chevron-right" style="width:18px;height:18px;opacity:0.55;"></i>
-            </div>
-        </div>
+            </span>
+        </button>
 
         <!-- ===== ПРОМО-КАРУСЕЛЬ (navy / cyan) ===== -->
         <div class="promo-carousel">
@@ -92,13 +92,13 @@
         </div>
 
         <div class="categories-scroll" id="categoriesScroll">
-            <div class="cat-badge active" data-cat="all" onclick="App.selectCategory('all')">Все товары</div>
-            <div class="cat-badge" data-cat="motor" onclick="App.selectCategory('motor')">Моторные масла</div>
-            <div class="cat-badge" data-cat="transmission" onclick="App.selectCategory('transmission')">Трансмиссионные</div>
-            <div class="cat-badge" data-cat="filter" onclick="App.selectCategory('filter')">Фильтры</div>
-            <div class="cat-badge" data-cat="fluid" onclick="App.selectCategory('fluid')">Тех. жидкости</div>
-            <div class="cat-badge" data-cat="additive" onclick="App.selectCategory('additive')">Присадки</div>
-            <div class="cat-badge" data-cat="special" onclick="App.selectCategory('special')">Спецтехника</div>
+            <button type="button" class="cat-badge active" data-cat="all" aria-pressed="true">Все товары</button>
+            <button type="button" class="cat-badge" data-cat="motor" aria-pressed="false">Моторные масла</button>
+            <button type="button" class="cat-badge" data-cat="transmission" aria-pressed="false">Трансмиссионные</button>
+            <button type="button" class="cat-badge" data-cat="filter" aria-pressed="false">Фильтры</button>
+            <button type="button" class="cat-badge" data-cat="fluid" aria-pressed="false">Тех. жидкости</button>
+            <button type="button" class="cat-badge" data-cat="additive" aria-pressed="false">Присадки</button>
+            <button type="button" class="cat-badge" data-cat="special" aria-pressed="false">Спецтехника</button>
         </div>
 
         <div class="sort-row">
@@ -107,16 +107,16 @@
                 <span>Фильтр</span>
             </button>
             <div class="sort-dropdown" id="sortDropdown">
-                <button class="sort-btn" onclick="App.toggleSort()">
+                <button class="sort-btn" id="sortToggle" aria-controls="sortMenu" aria-expanded="false" onclick="App.toggleSort()">
                     <span>Сортировка</span>
                     <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                 </button>
-                <div class="sort-menu" id="sortMenu">
-                    <div class="sort-option active" data-value="popular" onclick="App.selectSort('popular')">По популярности</div>
-                    <div class="sort-option" data-value="price_asc" onclick="App.selectSort('price_asc')">Цена: по возрастанию</div>
-                    <div class="sort-option" data-value="price_desc" onclick="App.selectSort('price_desc')">Цена: по убыванию</div>
-                    <div class="sort-option" data-value="rating" onclick="App.selectSort('rating')">По рейтингу</div>
-                    <div class="sort-option" data-value="new" onclick="App.selectSort('new')">Новинки</div>
+                <div class="sort-menu" id="sortMenu" role="group" aria-label="Сортировка товаров">
+                    <button type="button" class="sort-option active" data-value="popular" aria-pressed="true" onclick="App.selectSort('popular')">По популярности</button>
+                    <button type="button" class="sort-option" data-value="price_asc" aria-pressed="false" onclick="App.selectSort('price_asc')">Цена: по возрастанию</button>
+                    <button type="button" class="sort-option" data-value="price_desc" aria-pressed="false" onclick="App.selectSort('price_desc')">Цена: по убыванию</button>
+                    <button type="button" class="sort-option" data-value="rating" aria-pressed="false" onclick="App.selectSort('rating')">По рейтингу</button>
+                    <button type="button" class="sort-option" data-value="new" aria-pressed="false" onclick="App.selectSort('new')">Новинки</button>
                 </div>
             </div>
         </div>
@@ -226,13 +226,13 @@
                 <div class="form-group">
                     <label>Регион:</label>
                     <div class="custom-select" id="zoneSelect">
-                        <button class="custom-select-btn" type="button" onclick="App.toggleZoneDropdown()">
+                        <button class="custom-select-btn" id="zoneSelectToggle" type="button" aria-controls="zoneMenu" aria-expanded="false" onclick="App.toggleZoneDropdown()">
                             <span id="zoneSelectLabel">Санкт-Петербург (в пределах КАД)</span>
                             <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                         </button>
                         <div class="custom-select-menu" id="zoneMenu">
-                            <div class="custom-select-option active" data-value="spb" onclick="App.selectZone('spb', 'Санкт-Петербург (в пределах КАД)')">Санкт-Петербург (в пределах КАД)</div>
-                            <div class="custom-select-option" data-value="lo" onclick="App.selectZone('lo', 'Ленинградская область')">Ленинградская область</div>
+                            <button type="button" class="custom-select-option active" data-value="spb" aria-pressed="true" onclick="App.selectZone('spb', 'Санкт-Петербург (в пределах КАД)')">Санкт-Петербург (в пределах КАД)</button>
+                            <button type="button" class="custom-select-option" data-value="lo" aria-pressed="false" onclick="App.selectZone('lo', 'Ленинградская область')">Ленинградская область</button>
                         </div>
                         <input type="hidden" id="orderZone" value="spb" />
                     </div>
@@ -357,33 +357,10 @@
 
 
             <div class="profile-menu">
-                <div class="p-menu-item" onclick="App.openReferral()">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon"><i data-lucide="gift" class="icon-sm"></i></span>
-                        <span class="p-menu-text">Бонусы и приглашение друзей</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-                <div class="p-menu-item" onclick="App.showOrderHistory()">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon"><i data-lucide="package" class="icon-sm"></i></span>
-                        <span class="p-menu-text">История заказов</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-                <div class="p-menu-item" onclick="App.contactSupport()">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span>
-                        <span class="p-menu-text">Связаться с поддержкой</span>
-                    </div>
-                    <span class="p-menu-arrow">›</span>
-                </div>
-                <div class="p-menu-item p-menu-item-danger" onclick="App.logout()">
-                    <div class="p-menu-left">
-                        <span class="p-menu-icon"><i data-lucide="log-out" class="icon-sm"></i></span>
-                        <span class="p-menu-text">Выйти</span>
-                    </div>
-                </div>
+                <button type="button" class="p-menu-item" onclick="App.openReferral()"><span class="p-menu-left"><span class="p-menu-icon"><i data-lucide="gift" class="icon-sm"></i></span><span class="p-menu-text">Бонусы и приглашение друзей</span></span><span class="p-menu-arrow" aria-hidden="true">›</span></button>
+                <button type="button" class="p-menu-item" onclick="App.showOrderHistory()"><span class="p-menu-left"><span class="p-menu-icon"><i data-lucide="package" class="icon-sm"></i></span><span class="p-menu-text">История заказов</span></span><span class="p-menu-arrow" aria-hidden="true">›</span></button>
+                <button type="button" class="p-menu-item" onclick="App.contactSupport()"><span class="p-menu-left"><span class="p-menu-icon"><i data-lucide="message-circle" class="icon-sm"></i></span><span class="p-menu-text">Связаться с поддержкой</span></span><span class="p-menu-arrow" aria-hidden="true">›</span></button>
+                <button type="button" class="p-menu-item p-menu-item-danger" onclick="App.logout()"><span class="p-menu-left"><span class="p-menu-icon"><i data-lucide="log-out" class="icon-sm"></i></span><span class="p-menu-text">Выйти</span></span></button>
             </div>
         </div>
     </div>
@@ -568,25 +545,12 @@
     </div>
 
     <!-- ===== НИЖНЕЕ МЕНЮ ===== -->
-    <div class="bottom-nav">
-        <div class="nav-item active" id="btn-nav-main" onclick="App.switchScreen('main')">
-            <div class="nav-icon"><i data-lucide="home"></i></div>
-            <div class="nav-label">Главная</div>
-        </div>
-        <div class="nav-item" id="btn-nav-favorites" onclick="App.switchScreen('favorites')">
-            <div class="nav-icon"><i data-lucide="heart"></i></div>
-            <div class="nav-label">Избранное</div>
-        </div>
-        <div class="nav-item" id="btn-nav-cart" onclick="App.switchScreen('cart')">
-            <div class="nav-icon"><i data-lucide="shopping-cart"></i></div>
-            <div class="nav-label">Корзина</div>
-            <span class="badge" id="cartBadge">0</span>
-        </div>
-        <div class="nav-item" id="btn-nav-profile" onclick="App.switchScreen('profile')">
-            <div class="nav-icon"><i data-lucide="user"></i></div>
-            <div class="nav-label">Профиль</div>
-        </div>
-    </div>
+    <nav class="bottom-nav" aria-label="Основная навигация">
+        <button type="button" class="nav-item active" id="btn-nav-main" data-screen="main" aria-current="page"><span class="nav-icon"><i data-lucide="home"></i></span><span class="nav-label">Главная</span></button>
+        <button type="button" class="nav-item" id="btn-nav-favorites" data-screen="favorites"><span class="nav-icon"><i data-lucide="heart"></i></span><span class="nav-label">Избранное</span></button>
+        <button type="button" class="nav-item" id="btn-nav-cart" data-screen="cart"><span class="nav-icon"><i data-lucide="shopping-cart"></i></span><span class="nav-label">Корзина</span><span class="badge" id="cartBadge">0</span></button>
+        <button type="button" class="nav-item" id="btn-nav-profile" data-screen="profile"><span class="nav-icon"><i data-lucide="user"></i></span><span class="nav-label">Профиль</span></button>
+    </nav>
 
     <!-- ===== СКРИПТЫ ===== -->
     <script src="js/telegram.js"></script>

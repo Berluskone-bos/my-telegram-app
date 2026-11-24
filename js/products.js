@@ -194,23 +194,24 @@ const Products = {
         const volume = product.volume || '';
 
         return `
-            <div class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" onclick="App.showProduct(${product.id})">
+            <article class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" data-product-id="${product.id}">
                 <div class="product-image">
                     ${this.getPictureHtml(image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
                         ${product.is_new ? '<span class="badge-new">NEW</span>' : ''}
                         ${discount > 0 ? `<span class="badge-sale">-${discount}%</span>` : ''}
                     </div>
-                    <button class="favorite-btn ${isFavorite ? 'active' : ''}"
+                    <button type="button" class="favorite-btn ${isFavorite ? 'active' : ''}"
                             onclick="event.stopPropagation(); App.toggleFavorite(${product.id})"
-                            aria-label="Избранное">
+                            aria-label="${isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}"
+                            aria-pressed="${isFavorite ? 'true' : 'false'}">
                         <i data-lucide="heart"></i>
                     </button>
                 </div>
                 <div class="product-info">
                     <div class="product-brand">${esc(brand)}</div>
                     ${viscosity ? `<div class="product-viscosity">${esc(viscosity)}</div>` : ''}
-                    <div class="product-title">${esc(product.name)}</div>
+                    <button type="button" class="product-title-button" onclick="App.showProduct(${product.id})" aria-label="Подробнее о товаре: ${esc(product.name)}"><span class="product-title">${esc(product.name)}</span></button>
                     <div class="product-meta-row">
                         ${volume ? `<span class="product-volume">${esc(volume)}</span>` : '<span class="product-volume"></span>'}
                         ${product.coming_soon
@@ -226,12 +227,12 @@ const Products = {
                                 : `<span class="product-price">${product.price.toLocaleString('ru-RU')} ₽</span>
                             ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</span>` : ''}`}
                         </div>
-                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})" aria-label="В корзину">
+                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" data-product-id="${product.id}" aria-label="Добавить ${esc(product.name)} в корзину">
                             <i data-lucide="shopping-cart"></i>
                         </button>`}
                     </div>
                 </div>
-            </div>
+            </article>
         `;
     },
 

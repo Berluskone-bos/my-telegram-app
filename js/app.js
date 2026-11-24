@@ -52,10 +52,14 @@ var App = {
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#sortDropdown')) {
                 document.getElementById('sortMenu').classList.remove('open');
+                document.getElementById('sortToggle')?.setAttribute('aria-expanded', 'false');
             }
             if (!e.target.closest('#zoneSelect')) {
                 const zoneMenu = document.getElementById('zoneMenu');
-                if (zoneMenu) zoneMenu.classList.remove('open');
+                if (zoneMenu) {
+                    zoneMenu.classList.remove('open');
+                    document.getElementById('zoneSelectToggle')?.setAttribute('aria-expanded', 'false');
+                }
             }
         });
 
@@ -77,32 +81,34 @@ var App = {
                 this.selectCategory(cat.dataset.cat);
                 return;
             }
-            // Товар (карточка)
+            // Покупка обрабатывается раньше клика по карточке.
+            const btnBuy = e.target.closest('.btn-buy');
+            if (btnBuy) {
+                const pid = btnBuy.dataset.productId;
+                if (pid) this.addToCart(Number(pid));
+                e.preventDefault();
+                return;
+            }
+            // Клики по кнопкам карточки не открывают страницу товара.
             const card = e.target.closest('.product-card');
-            if (card) {
+            if (card && !e.target.closest('button, a')) {
                 e.preventDefault();
                 const pid = card.getAttribute('data-product-id');
                 if (pid) this.showProduct(pid);
                 return;
             }
-            // Фильтр чип
-            const chip = e.target.closest('.filter-chip[data-sub]');
+            // Подкатегория: единый делегированный обработчик для динамического списка.
+            const chip = e.target.closest('#subcategoriesRow .filter-chip[data-sub]');
             if (chip) {
                 e.preventDefault();
                 const container = chip.closest('#subcategoriesRow');
-                if (container) {
-                    container.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-                    chip.classList.add('active');
-                    this.currentSubcategory = chip.dataset.sub === 'all' ? null : chip.dataset.sub;
-                    this.renderProducts();
-                }
-                return;
-            }
-            // Кнопка "В корзине" в карточке (делегирование через onclick уже работает, но добавляем резерв)
-            const btnBuy = e.target.closest('.btn-buy');
-            if (btnBuy) {
-                const pid = btnBuy.getAttribute('data-product-id') || btnBuy.getAttribute('onclick')?.match(/addToCart\((\d+)\)/)?.[1];
-                if (pid) { this.addToCart(parseInt(pid)); e.preventDefault(); }
+                container.querySelectorAll('.filter-chip').forEach(item => {
+                    const active = item === chip;
+                    item.classList.toggle('active', active);
+                    item.setAttribute('aria-pressed', String(active));
+                });
+                this.currentSubcategory = chip.dataset.sub === 'all' ? null : chip.dataset.sub;
+                this.renderProducts();
                 return;
             }
             // Нижняя навигация
@@ -117,15 +123,20 @@ var App = {
     },
 
     toggleSort() {
-        document.getElementById('sortMenu').classList.toggle('open');
+        const menu = document.getElementById('sortMenu');
+        const isOpen = menu.classList.toggle('open');
+        document.getElementById('sortToggle')?.setAttribute('aria-expanded', String(isOpen));
     },
 
     selectSort(value) {
         this.currentSort = value;
         document.querySelectorAll('#sortMenu .sort-option').forEach(opt => {
-            opt.classList.toggle('active', opt.dataset.value === value);
+            const active = opt.dataset.value === value;
+            opt.classList.toggle('active', active);
+            opt.setAttribute('aria-pressed', String(active));
         });
         document.getElementById('sortMenu').classList.remove('open');
+        document.getElementById('sortToggle')?.setAttribute('aria-expanded', 'false');
         this.renderProducts();
     },
 
@@ -189,12 +200,13 @@ var App = {
         container.innerHTML = options.map(opt => {
             const isActive = selectedArray.includes(opt);
             const optSafe = esc(opt);
-            return `<div class="filter-chip ${isActive ? 'active' : ''}" data-value="${optSafe}" onclick="App.toggleFilterChip(this, '${containerId}')">${optSafe}</div>`;
+            return `<button type="button" class="filter-chip ${isActive ? 'active' : ''}" data-value="${optSafe}" aria-pressed="${String(isActive)}" onclick="App.toggleFilterChip(this, '${containerId}')">${optSafe}</button>`;
         }).join('');
     },
 
     toggleFilterChip(chip, containerId) {
-        chip.classList.toggle('active');
+        const active = chip.classList.toggle('active');
+        chip.setAttribute('aria-pressed', String(active));
         const value = chip.dataset.value;
 
         // Определяем массив фильтра по containerId
@@ -296,17 +308,21 @@ var App = {
 
     selectCategory(value) {
         this.currentCategory = value;
+        this.currentSubcategory = null;
         document.querySelectorAll('.cat-badge').forEach(badge => {
-            badge.classList.toggle('active', badge.dataset.cat === value);
+            const active = badge.dataset.cat === value;
+            badge.classList.toggle('active', active);
+            badge.setAttribute('aria-pressed', String(active));
         });
+        this.renderSubcategories();
         this.renderProducts();
     },
 
     renderCategories() {
         const container = document.getElementById('categoriesScroll');
-        let html = '<div class="cat-badge active" data-cat="all">Все товары</div>';
+        let html = '<button type="button" class="cat-badge active" data-cat="all" aria-pressed="true">Все товары</button>';
         Products.categories.forEach(cat => {
-            html += `<div class="cat-badge" data-cat="${cat.id}"><i data-lucide="${cat.icon}"></i> ${cat.name}</div>`;
+            html += `<button type="button" class="cat-badge" data-cat="${cat.id}" aria-pressed="false"><i data-lucide="${cat.icon}" aria-hidden="true"></i> ${cat.name}</button>`;
         });
         container.innerHTML = html;
     },
@@ -329,22 +345,11 @@ var App = {
         }
 
         container.style.display = 'flex';
-        let html = '<div class="filter-chip active" data-sub="all">Все</div>';
+        let html = '<button type="button" class="filter-chip active" data-sub="all" aria-pressed="true">Все</button>';
         subs.forEach(sub => {
-            html += `<div class="filter-chip" data-sub="${sub}">${Products.getSubcategoryName(sub)}</div>`;
+            html += `<button type="button" class="filter-chip" data-sub="${sub}" aria-pressed="false">${Products.getSubcategoryName(sub)}</button>`;
         });
         container.innerHTML = html;
-
-        // Обработчик подкатегорий
-        container.addEventListener('click', (e) => {
-            const chip = e.target.closest('.filter-chip');
-            if (chip) {
-                container.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-                chip.classList.add('active');
-                this.currentSubcategory = chip.dataset.sub === 'all' ? null : chip.dataset.sub;
-                this.renderProducts();
-            }
-        });
     },
 
     renderProducts() {
@@ -423,9 +428,15 @@ var App = {
         document.querySelector('.bottom-nav').style.display = 'flex';
 
         // Обновляем нижнее меню
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => {
+            n.classList.remove('active');
+            n.removeAttribute('aria-current');
+        });
         const navBtn = document.getElementById('btn-nav-' + screenName);
-        if (navBtn) navBtn.classList.add('active');
+        if (navBtn) {
+            navBtn.classList.add('active');
+            navBtn.setAttribute('aria-current', 'page');
+        }
 
         // Меняем заголовок
         const titleEl = document.getElementById('headerTitle');
@@ -480,7 +491,7 @@ var App = {
         this.updateCartBadge();
 
         // Визуальный фидбек на карточках в каталоге
-        const btns = document.querySelectorAll(`.btn-buy[onclick*="addToCart(${productId})"]`);
+        const btns = document.querySelectorAll(`.btn-buy[data-product-id="${productId}"]`);
         btns.forEach(btn => {
             btn.innerHTML = '<i data-lucide="check"></i>';
             btn.classList.add('added');
@@ -540,13 +551,22 @@ var App = {
     toggleMenu(open) {
         const menu = document.getElementById('sideMenu');
         const overlay = document.getElementById('menuOverlay');
+        const trigger = document.querySelector('.burger-btn');
+        menu.setAttribute('aria-hidden', String(!open));
+        menu.inert = !open;
+        trigger?.setAttribute('aria-expanded', String(open));
         if (open) {
             overlay.style.display = 'block';
-            setTimeout(() => { overlay.style.opacity = '1'; menu.style.left = '0'; }, 10);
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                menu.style.left = '0';
+                menu.querySelector('.menu-back')?.focus();
+            }, 10);
         } else {
             menu.style.left = '-300px';
             overlay.style.opacity = '0';
             setTimeout(() => { overlay.style.display = 'none'; }, 300);
+            trigger?.focus();
         }
     },
 
@@ -564,7 +584,10 @@ var App = {
             const target = document.getElementById('screen-' + screen);
             if (target) target.classList.add('active');
             document.querySelector('.bottom-nav').style.display = 'flex';
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => {
+                n.classList.remove('active');
+                n.removeAttribute('aria-current');
+            });
             const titleEl = document.getElementById('headerTitle');
             if (titleEl) {
                 titleEl.innerHTML = '<img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">';
@@ -574,16 +597,20 @@ var App = {
     },
 
     toggleZoneDropdown() {
-        document.getElementById('zoneMenu').classList.toggle('open');
+        const isOpen = document.getElementById('zoneMenu').classList.toggle('open');
+        document.getElementById('zoneSelectToggle')?.setAttribute('aria-expanded', String(isOpen));
     },
 
     selectZone(value, label) {
         document.getElementById('orderZone').value = value;
         document.getElementById('zoneSelectLabel').textContent = label;
         document.querySelectorAll('#zoneMenu .custom-select-option').forEach(opt => {
-            opt.classList.toggle('active', opt.dataset.value === value);
+            const active = opt.dataset.value === value;
+            opt.classList.toggle('active', active);
+            opt.setAttribute('aria-pressed', String(active));
         });
         document.getElementById('zoneMenu').classList.remove('open');
+        document.getElementById('zoneSelectToggle')?.setAttribute('aria-expanded', 'false');
     },
 
     toggleDeliveryType() {
@@ -827,7 +854,10 @@ var App = {
         const target = document.getElementById('screen-orders');
         if (target) target.classList.add('active');
         document.querySelector('.bottom-nav').style.display = 'flex';
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => {
+            n.classList.remove('active');
+            n.removeAttribute('aria-current');
+        });
         document.getElementById('headerTitle').innerHTML = '<img src="img/logo.png" alt="АВТОПРОМОЙЛ" class="header-logo-img">';
         Profile.renderOrderHistory();
         Profile.syncOrders();
