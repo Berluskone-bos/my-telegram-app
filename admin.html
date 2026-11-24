@@ -138,6 +138,7 @@
 
         /* Buttons */
         .btn {
+            min-height: 40px;
             padding: 8px 16px;
             border-radius: 8px;
             border: none;
@@ -156,7 +157,7 @@
         .btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .btn-primary { background: var(--cyan); color: var(--white); }
         .btn-primary:hover { background: var(--light-cyan); }
-        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-sm { min-height: 36px; padding: 6px 10px; font-size: 12px; }
         .btn-danger { background: var(--red); color: var(--white); --glow: 220, 38, 38; }
         .btn-danger:hover { background: #ef4444; }
         .btn-outline {
@@ -168,6 +169,7 @@
 
         /* Status select */
         .status-select {
+            min-height: 40px;
             padding: 4px 8px;
             border: 1px solid var(--border);
             border-radius: 6px;
@@ -242,6 +244,7 @@
         .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
         .form-input, .form-select, .form-textarea {
             width: 100%;
+            min-height: 44px;
             padding: 10px 12px;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -309,7 +312,7 @@
         .brand-name { flex: 1; min-width: 0; line-height: 1.15; }
         .brand-name b { display: block; font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 15px; color: var(--ink); letter-spacing: .2px; }
         .brand-name span { font-size: 11.5px; color: var(--muted); }
-        .icon-btn { flex: none; width: 36px; height: 36px; border-radius: 12px; border: none; background: var(--tint); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .15s; }
+        .icon-btn { flex: none; width: 44px; height: 44px; border-radius: 12px; border: none; background: var(--tint); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .15s; }
         .icon-btn:hover { background: rgba(0,175,199,0.16); }
         .icon-btn svg, .nav-item svg, .search svg, .me-out svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -348,7 +351,7 @@
         .me-text { flex: 1; min-width: 0; line-height: 1.2; }
         .me-text b { display: block; font-size: 13.5px; color: var(--ink); }
         .me-text span { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-        .me-out { flex: none; width: 36px; height: 36px; border-radius: 12px; border: none; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+        .me-out { flex: none; width: 44px; height: 44px; border-radius: 12px; border: none; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
         .me-out:hover { background: rgba(220,38,38,0.1); color: var(--red); }
 
         /* Узкая полоса: только иконки, число — маленьким значком на иконке */
@@ -387,7 +390,7 @@
 
         /* Часы по Москве + календарь на месяц (верхний правый угол) */
         .clock { position: relative; margin-left: auto; }
-        .clock-btn { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px 0 7px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(var(--shadow),0.08); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: box-shadow .2s, background .2s; }
+        .clock-btn { display: flex; align-items: center; gap: 10px; min-height: 44px; height: 46px; padding: 0 16px 0 7px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(var(--shadow),0.08); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: box-shadow .2s, background .2s; }
         .clock-btn:hover, .clock-btn[aria-expanded="true"] { background: var(--glass-solid); box-shadow: 0 8px 22px rgba(var(--shadow),0.14); }
         .clock-btn:focus-visible, .cal-nav:focus-visible, .cal-today:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 2px; }
         .clock-ico { flex: none; width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; background: var(--ink-bg); color: var(--light-cyan); }
@@ -399,7 +402,7 @@
         .cal.open { opacity: 1; visibility: visible; transform: none; transition: opacity .18s, transform .18s; }
         .cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
         .cal-title { flex: 1; font: 800 16px/1.2 'Montserrat', sans-serif; letter-spacing: -0.2px; }
-        .cal-nav { width: 32px; height: 32px; border-radius: 10px; border: none; background: var(--tint); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .15s; }
+        .cal-nav { width: 44px; height: 44px; border-radius: 10px; border: none; background: var(--tint); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .15s; }
         .cal-nav:hover { background: rgba(0,175,199,0.18); }
         .cal-nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
@@ -410,10 +413,10 @@
         .cal-d.other { opacity: 0.32; font-weight: 500; }
         .cal-d.today { background: var(--ink-bg); color: #fff; box-shadow: 0 0 0 3px rgba(0,175,199,0.25); }
         .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--tint-2); font-size: 11.5px; color: var(--muted); }
-        .cal-today { border: none; border-radius: 10px; padding: 7px 12px; background: rgba(0,175,199,0.14); color: var(--cyan-text); font: 700 12px 'Inter', sans-serif; cursor: pointer; transition: background .15s; }
+        .cal-today { min-height: 44px; border: none; border-radius: 10px; padding: 7px 12px; background: rgba(0,175,199,0.14); color: var(--cyan-text); font: 700 12px 'Inter', sans-serif; cursor: pointer; transition: background .15s; }
         .cal-today:hover { background: rgba(0,175,199,0.26); }
         /* Переключатель темы */
-        .theme-btn { flex: none; margin-left: auto; width: 46px; height: 46px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(var(--shadow),0.08); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: box-shadow .2s, background .2s; }
+        .theme-btn { flex: none; margin-left: auto; width: 44px; height: 44px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(var(--shadow),0.08); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: box-shadow .2s, background .2s; }
         .theme-btn:hover { background: var(--glass-solid); box-shadow: 0 0 4px rgba(0,175,199,0.7), 0 0 14px rgba(0,175,199,0.4); }
         .theme-btn:focus-visible { outline: 3px solid rgba(0,175,199,0.55); outline-offset: 2px; }
         .theme-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -449,9 +452,13 @@
             .topbar { padding: 14px 16px 4px; }
             .topbar h1 { font-size: 20px; }
             .clock { position: static; }
-            .theme-btn { width: 40px; height: 40px; border-radius: 14px; }
-            .clock-btn { height: 40px; padding: 0 12px 0 5px; gap: 8px; }
+            .btn, .status-select, .icon-btn, .me-out, .cal-nav, .cal-today, .theme-btn, .clock-btn { min-height: 44px; }
+            .btn-sm { min-height: 44px; padding: 8px 12px; }
+            .icon-btn, .me-out, .cal-nav, .theme-btn { min-width: 44px; }
+            .theme-btn { width: 44px; height: 44px; border-radius: 14px; }
+            .clock-btn { height: 44px; padding: 0 12px 0 5px; gap: 8px; }
             .clock-ico { width: 30px; height: 30px; }
+            .form-input, .form-select, #ochFrom, #ochTo, #staffModal input:not([type="checkbox"]), #staffModal select { min-height: 44px; }
             .clock-time { font-size: 16px; }
             .clock-meta { display: none; }
             .cal { position: fixed; top: 62px; right: 12px; left: 12px; width: auto; max-width: 340px; margin-left: auto; }
@@ -581,7 +588,10 @@
         .bcard-act { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
         .bcard-act .btn { flex: 1; padding: 6px 8px; font-size: 12px; }
         .bcard-act .status-select { min-width: 0; }
-        .bcard-pick { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+        .bcard-pick { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 4px; font-size: 12px; color: var(--muted); margin-top: 6px; cursor: pointer; }
+        .bcard-pick input, .route-pick-target input { width: 18px; height: 18px; cursor: pointer; }
+        .route-pick-target { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; vertical-align: middle; cursor: pointer; }
+        .route-pick:focus-visible { outline: 3px solid rgba(0,175,199,.65); outline-offset: 3px; }
         .bcard-done { color: var(--green); font-weight: 700; font-size: 11.5px; }
         .bcancel { margin-top: 14px; }
         .bcancel summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); padding: 6px 2px; }
@@ -1705,7 +1715,7 @@ function applyAdminAccess(me) {
                             : '';
                         const canBatch = showAssign && o.delivery_type !== 'pickup' && !courierName;
                         return `<tr>
-                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" aria-label="Добавить заказ ${num} в маршрут" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''} onclick="event.stopPropagation()">` : ''}${outcomeReason}</td>
+                            <td style="min-width:100px">${outcomeIcon} ${canBatch ? `<label class="route-pick-target" onclick="event.stopPropagation()"><input type="checkbox" class="route-pick" value="${Number(o.id)}" title="Добавить в маршрут" aria-label="Добавить заказ ${num} в маршрут" ${selectedRouteOrderIds.has(String(o.id)) ? 'checked' : ''} onclick="event.stopPropagation()"></label>` : ''}${outcomeReason}</td>
                             <td><strong>${esc(o.order_number || 'AP-' + o.id)}</strong></td>
                             <td>${esc(o.user_name || '-')}<br><small>${esc(o.phone || '')}</small></td>
                             <td>${esc(o.address || '-')}</td>
