@@ -197,12 +197,13 @@ var App = {
         container.innerHTML = options.map(opt => {
             const isActive = selectedArray.includes(opt);
             const optSafe = esc(opt);
-            return `<div class="filter-chip ${isActive ? 'active' : ''}" data-value="${optSafe}" onclick="App.toggleFilterChip(this, '${containerId}')">${optSafe}</div>`;
+            return `<button type="button" class="filter-chip ${isActive ? 'active' : ''}" data-value="${optSafe}" aria-pressed="${String(isActive)}" onclick="App.toggleFilterChip(this, '${containerId}')">${optSafe}</button>`;
         }).join('');
     },
 
     toggleFilterChip(chip, containerId) {
-        chip.classList.toggle('active');
+        const active = chip.classList.toggle('active');
+        chip.setAttribute('aria-pressed', String(active));
         const value = chip.dataset.value;
 
         // Определяем массив фильтра по containerId
