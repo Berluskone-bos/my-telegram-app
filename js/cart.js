@@ -92,16 +92,16 @@ const Cart = {
             const prod = Products.getById(item.id);
             if (!prod) return;
             html += `
-                <div class="cart-item">
+                <div class="cart-item" role="group" aria-label="Товар в корзине: ${esc(prod.name)}">
                     <div class="cart-item-info">
                         <div class="cart-item-title">${esc(prod.name)}</div>
                         <div class="cart-item-volume">${esc(prod.volume)}</div>
                         <div class="cart-item-price">${(prod.price * item.quantity).toLocaleString()} ₽</div>
                     </div>
-                    <div class="cart-item-actions">
-                        <button onclick="App.removeFromCart(${item.id})">−</button>
-                        <span class="qty">${item.quantity}</span>
-                        <button onclick="App.addToCart(${item.id})">+</button>
+                    <div class="cart-item-actions" role="group" aria-label="Изменить количество товара">
+                        <button type="button" aria-label="Уменьшить количество или удалить товар: ${esc(prod.name)}" onclick="App.removeFromCart(${item.id})">−</button>
+                        <output class="qty" aria-label="Количество товара: ${esc(prod.name)}" aria-live="polite" aria-atomic="true">${item.quantity}</output>
+                        <button type="button" aria-label="Увеличить количество товара: ${esc(prod.name)}" onclick="App.addToCart(${item.id})">+</button>
                     </div>
                 </div>
             `;
