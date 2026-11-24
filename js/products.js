@@ -226,7 +226,7 @@ const Products = {
                                 : `<span class="product-price">${product.price.toLocaleString('ru-RU')} ₽</span>
                             ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</span>` : ''}`}
                         </div>
-                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" onclick="event.stopPropagation(); App.addToCart(${product.id})" aria-label="В корзину">
+                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" data-product-id="${product.id}" aria-label="Добавить ${esc(product.name)} в корзину">
                             <i data-lucide="shopping-cart"></i>
                         </button>`}
                     </div>
