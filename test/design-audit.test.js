@@ -62,3 +62,16 @@ test('правила темы разделяют магазин и админ-п
   assert.match(agents, /магазин \(Mini App\) поддерживает только светлую тему; админ-панель поддерживает светлую и тёмную темы/);
   assert.match(audit, /Админ-панель должна поддерживать две темы/);
 });
+
+test('админ-панель сохраняет светлую и тёмную темы', () => {
+  const html = read('admin.html');
+  const light = html.match(/:root\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
+  const dark = html.match(/:root\[data-theme=["']dark["']\]\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
+  const lightTokens = [...light.matchAll(/(--[\w-]+)\s*:/g)].map(match => match[1]);
+  const darkTokens = new Set([...dark.matchAll(/(--[\w-]+)\s*:/g)].map(match => match[1]));
+  assert.ok(lightTokens.length > 0);
+  assert.ok(darkTokens.size > 0);
+  for (const token of lightTokens) assert.ok(darkTokens.has(token), `Нет тёмного значения для ${token}`);
+  assert.match(html, /store\.set\('admTheme', next\)/);
+  assert.match(html, /b\.setAttribute\('aria-pressed', dark \? 'true' : 'false'\)/);
+});
