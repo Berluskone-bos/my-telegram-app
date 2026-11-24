@@ -549,6 +549,7 @@ var App = {
         const overlay = document.getElementById('menuOverlay');
         const trigger = document.querySelector('.burger-btn');
         menu.setAttribute('aria-hidden', String(!open));
+        menu.inert = !open;
         trigger?.setAttribute('aria-expanded', String(open));
         if (open) {
             overlay.style.display = 'block';
