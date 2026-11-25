@@ -630,6 +630,7 @@
         carousel?.addEventListener('touchend', event => {
             const diff = touchStartX - event.changedTouches[0].clientX;
             if (Math.abs(diff) > 50) goToSlide(currentSlide + (diff > 0 ? 1 : -1));
+            window.setTimeout(startCarousel, 6000);
         }, { passive: true });
         startCarousel();
     </script>
