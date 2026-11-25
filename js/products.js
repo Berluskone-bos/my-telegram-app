@@ -4,8 +4,12 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 const Products = {
     data: [],
     categories: [],
+    loadState: 'loading',
+    loadError: null,
 
     async load() {
+        this.loadState = 'loading';
+        this.loadError = null;
         const API_BASE = window.location.hostname === 'localhost'
             ? 'http://localhost:3001'
             : 'https://gulf-bot-production.up.railway.app';
@@ -24,6 +28,7 @@ const Products = {
                         { id: 'additive', name: 'Присадки', icon: 'beaker' },
                         { id: 'special', name: 'Масла для спецтехники', icon: 'truck' }
                     ];
+                    this.loadState = 'ready';
                     return;
                 }
                 console.warn('API каталога вернул пустой или некорректный список, используем резервный каталог');
@@ -40,10 +45,13 @@ const Products = {
             const catalog = await response.json();
             this.data = (Array.isArray(catalog.products) ? catalog.products : []).map(p => this.normalize(p));
             this.categories = Array.isArray(catalog.categories) ? catalog.categories : [];
+            this.loadState = this.data.length > 0 ? 'ready' : 'empty';
         } catch (e) {
             console.error('Ошибка загрузки каталога:', e);
             this.data = [];
             this.categories = [];
+            this.loadState = 'error';
+            this.loadError = e;
         }
     },
 
