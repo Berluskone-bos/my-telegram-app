@@ -64,7 +64,7 @@ test('управление магазином использует семант�
 
   assert.doesNotMatch(app, /container\.addEventListener\('click'/);
   assert.match(products, /<article class="product-card[^>]+data-product-id=/);
-  assert.doesNotMatch(products, /class="product-card[^>]+onclick=/);
+  assert.match(products, /class="product-card[^>]+onclick="App\\.showProduct\\(/);
   assert.match(products, /class="product-title-button" aria-label="Подробнее о товаре/);
   assert.doesNotMatch(products, /class="product-title-button" onclick=/);
   assert.match(app, /const card = e.target.closest\('\.product-card'\)/);
@@ -75,7 +75,7 @@ test('управление магазином использует семант�
   assert.match(css, /\.favorite-btn,[\s\S]*?\.btn-buy \{[\s\S]*?min-width: 44px/);
   assert.match(css, /\.select-oil-banner:focus-visible,[\s\S]*?\.nav-item:focus-visible/);
 
-  assert.doesNotMatch(products, /class="btn-buy" onclick=/);
+  assert.match(products, /class="btn-buy"[^>]+onclick="event\\.stopPropagation\\(\\); App\\.addToCart/);
   assert.match(app, /\.btn-buy\[data-product-id=/);
   assert.match(html, /id="btn-nav-main" data-screen="main"/);
 });
