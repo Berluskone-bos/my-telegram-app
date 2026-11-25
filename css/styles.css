@@ -1171,7 +1171,7 @@ a, button, input, select { font-family: inherit; }
 }
 .product-detail-viscosity {
     font-family: var(--font-heading);
-    font-size: 40px;
+    font-size: 42px;
     font-weight: 800;
     letter-spacing: -0.04em;
     color: var(--navy);
