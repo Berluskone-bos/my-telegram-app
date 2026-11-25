@@ -2753,3 +2753,33 @@ button:not(:disabled) {
         transform: translateY(-1px);
     }
 }
+
+
+/* Пустое состояние избранного */
+.favorites-empty-description {
+    max-width: 300px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+.favorites-empty-action {
+    min-height: 44px;
+    margin-top: 4px;
+    padding: 12px 20px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: #101B4D;
+    font: 700 15px var(--font-heading);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.favorites-empty-action:hover {
+    filter: brightness(1.04);
+    box-shadow: 0 4px 12px rgba(16, 27, 77, 0.12);
+    transform: translateY(-1px);
+}
+.favorites-empty-action:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 3px;
+}
