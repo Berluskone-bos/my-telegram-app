@@ -80,6 +80,7 @@ test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     assert.match(html, /css\/styles\.css\?v=20261125-sticky-purchase/);
     assert.match(html, /js\/products\.js\?v=20261125-sticky-purchase/);
+    assert.match(html, /js\/app\.js\?v=20261125-sticky-purchase/);
 });
 
 
@@ -162,4 +163,39 @@ test('all enabled interface buttons receive a consistent hover treatment', () =>
     assert.ok(css.includes('filter: brightness(1.035);'));
     assert.ok(css.includes('transform: translateY(-1px);'));
     assert.ok(css.includes('.btn-add-cart:focus-visible'));
+});
+
+
+test('mobile product detail keeps price and purchase action available without covering content', () => {
+    const products = loadProducts();
+    const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
+    const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+    const product = products.normalize({
+        id: 1010, name: 'Syn-Star LV 0W-20', price: 1890, in_stock: true, specs: {}
+    });
+    const html = products.renderDetail(product);
+
+    assert.match(html, /<aside class="product-detail-sticky-purchase" aria-label="Быстрая покупка">/);
+    assert.match(html, /class="product-detail-sticky-price">1[\s\u00a0]890 ₽/);
+    assert.match(html, /class="btn-add-cart product-detail-sticky-add[^"]*" data-product-id="1010"/);
+    assert.match(html, /aria-label="Добавить в корзину: Syn-Star LV 0W-20"/);
+    assert.match(app, /\.product-detail-sticky-add\[data-product-id=/);
+    assert.match(app, /stickyBtn\.textContent = 'В корзине'/);
+    assert.match(app, /stickyBtn\.classList\.add\('in-cart'\)/);
+
+    const unavailable = products.renderDetail(products.normalize({
+        id: 1011, name: 'Нет в наличии', price: 1000, in_stock: false, specs: {}
+    }));
+    assert.match(unavailable, /class="btn-add-cart product-detail-sticky-add" disabled>Нет в наличии/);
+
+    const comingSoon = products.renderDetail(products.normalize({
+        id: 1012, name: 'Скоро в продаже', price: 1000, coming_soon: true, specs: {}
+    }));
+    assert.match(comingSoon, /class="btn-add-cart product-detail-sticky-add" disabled>Скоро в продаже/);
+
+    assert.match(css, /\.product-detail-sticky-purchase \{ display: none; \}/);
+    assert.match(css, /@media \(max-width: 600px\)[\s\S]*?#screen-detail\.active \.product-detail-sticky-purchase[\s\S]*?position: fixed/);
+    assert.match(css, /env\(safe-area-inset-bottom\)/);
+    assert.match(css, /padding-bottom: calc\(104px \+ env\(safe-area-inset-bottom\)\)/);
+    assert.match(css, /\.product-detail-sticky-add:focus-visible/);
 });
