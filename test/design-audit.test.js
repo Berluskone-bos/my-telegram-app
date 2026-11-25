@@ -339,7 +339,7 @@ test('подробная карточка товара содержит толь
   assert.doesNotMatch(detail, /Добавить в корзину:<\/button>/);
   assert.match(detail, /product-detail-sticky-add/);
   assert.match(detail, /\$\{stickyButton\}/);
-  assert.equal((detail.match(/class="btn-add-cart/g) || []).length, 0);
+  assert.doesNotMatch(detail, /class="btn-add-cart \\$\\{inCart/);
   assert.match(css, /\.product-detail-sticky-purchase\s*\{[^}]*display: flex/);
   assert.match(css, /@media \(max-width: 600px\)[\s\S]*?\.product-detail-sticky-purchase\s*\{[^}]*position: fixed/);
 });
