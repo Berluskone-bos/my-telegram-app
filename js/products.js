@@ -213,7 +213,7 @@ const Products = {
             : '';
 
         return `
-            <article class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" data-product-id="${product.id}">
+            <article class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" data-product-id="${product.id}" tabindex="0" aria-label="Открыть товар: ${esc(product.name)}" onclick="App.showProduct(${product.id})" onkeydown="if (event.target === this && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); App.showProduct(${product.id}); }">
                 <div class="product-image">
                     ${this.getPictureHtml(image, product.name, 'loading="lazy"')}
                     <div class="product-badges">
@@ -247,7 +247,7 @@ const Products = {
                                 : `<span class="product-price">${product.price.toLocaleString('ru-RU')} ₽</span>
                             ${product.old_price > 0 ? `<span class="product-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</span>` : ''}`}
                         </div>
-                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" data-product-id="${product.id}" aria-label="Добавить ${esc(product.name)} в корзину">
+                        ${(product.coming_soon || product.in_stock === false) ? '' : `<button type="button" class="btn-buy" data-product-id="${product.id}" aria-label="Добавить ${esc(product.name)} в корзину" onclick="event.stopPropagation(); App.addToCart(${product.id})">
                             <i data-lucide="shopping-cart"></i>
                         </button>`}
                     </div>
