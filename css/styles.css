@@ -2095,6 +2095,10 @@ a, button, input, select { font-family: inherit; }
 .modal-btn:active {
     opacity: 0.9;
 }
+.modal-btn:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 2px;
+}
 
 /* ===== НИЖНЕЕ МЕНЮ (ROSTICS) ===== */
 .bottom-nav {

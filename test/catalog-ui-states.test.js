@@ -44,7 +44,7 @@ test('состояния каталога адаптивны, имеют кла�
 });
 
 test('ресурсы каталога обновляют версии кеша Telegram WebView', () => {
-    assert.ok(indexHtml.includes('css/styles.css?v=20261125-filter-accessibility'));
+    assert.ok(indexHtml.includes('css/styles.css?v=20261125-profile-modal-accessibility'));
     assert.ok(indexHtml.includes('js/products.js?v=20261125-catalog-states'));
-    assert.ok(indexHtml.includes('js/app.js?v=20261125-product-detail-focus'));
+    assert.ok(indexHtml.includes('js/app.js?v=20261125-profile-modal-accessibility'));
 });
