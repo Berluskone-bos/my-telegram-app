@@ -2639,3 +2639,9 @@ a, button, input, select { font-family: inherit; }
     .product-detail-approvals,
     .product-detail-specs { padding: 13px; }
 }
+
+
+/* Telegram Web: небольшой внутренний отступ справа для логотипа в карточке товара. */
+@media (min-width: 600px) {
+    .product-detail-brand-marks { transform: translateX(-14px); }
+}
