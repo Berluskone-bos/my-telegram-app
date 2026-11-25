@@ -391,14 +391,30 @@ a, button, input, select { font-family: inherit; }
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.35);
+    background: transparent;
     cursor: pointer;
-    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.dot.active {
-    background: #fff;
-    width: 20px;
+.dot::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.42);
+    transition: width 0.2s ease, border-radius 0.2s ease, background 0.2s ease;
+}
+.dot.active::before {
+    width: 18px;
+    height: 6px;
     border-radius: 3px;
+    background: #fff;
+}
+.dot:focus-visible {
+    outline: 2px solid #66D6E6;
+    outline-offset: 1px;
 }
 
 /* ===== СОРТИРОВКА И ФИЛЬТРЫ ===== */
@@ -914,7 +930,7 @@ a, button, input, select { font-family: inherit; }
     display: inline-flex;
     align-items: center;
     min-width: 0;
-    max-width: calc(50% - 2px);
+    max-width: calc((100% - 28px) / 2);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
