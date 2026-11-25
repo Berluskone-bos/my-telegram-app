@@ -78,7 +78,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261125-product-detail/);
+    assert.match(html, /css\/styles\.css\?v=20261125-product-logo-spacing/);
     assert.match(html, /js\/products\.js\?v=20261125-product-detail/);
 });
 
@@ -129,4 +129,5 @@ test('product detail keeps the purchase action and sections accessible on narrow
     assert.match(css, /\.product-detail-approvals,[\s\S]*?\.product-detail-specs\s*\{[^}]*border-radius: 16px;/);
     assert.match(css, /@media \(max-width: 600px\)\s*\{[^}]*\.product-detail-image \{ height: 210px; \}/);
     assert.match(css, /\.btn-add-cart:focus-visible/);
+    assert.match(css, /@media \(min-width: 600px\)\s*\{\s*\.product-detail-brand-marks \{ transform: translateX\(-14px\); \}\s*\}/);
 });
