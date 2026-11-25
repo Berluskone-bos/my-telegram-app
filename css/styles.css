@@ -1605,6 +1605,63 @@ a, button, input, select { font-family: inherit; }
 .form-group {
     margin-bottom: 16px;
 }
+.address-extra-fields {
+    margin: 2px 0 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+.address-extra-fields summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 48px;
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+.address-extra-fields summary::-webkit-details-marker {
+    display: none;
+}
+.address-extra-fields summary::after {
+    content: '+';
+    flex: 0 0 auto;
+    color: var(--accent-text);
+    font-size: 22px;
+    line-height: 1;
+}
+.address-extra-fields[open] summary::after {
+    content: '−';
+}
+.address-extra-fields summary:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: -3px;
+}
+.address-extra-fields summary small {
+    margin-left: auto;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+}
+.address-extra-fields[open] > .form-row-3 {
+    padding: 0 12px;
+}
+.address-extra-fields[open] > .form-row-3:last-child {
+    padding-bottom: 2px;
+}
+@media (max-width: 420px) {
+    .address-extra-fields summary {
+        flex-wrap: wrap;
+    }
+    .address-extra-fields summary small {
+        margin-left: 0;
+    }
+}
 .form-group label {
     display: block;
     margin-bottom: 6px;
