@@ -109,8 +109,9 @@ test('product detail separates approvals, purchase, characteristics and descript
     assert.match(html, /product-detail-specs/);
     assert.match(html, /product-detail-description/);
     assert.match(html, /Добавить в корзину: Syn-Star LV 0W-20/);
-    assert.match(html, /1890/);
-    assert.match(html, /2190/);
+    // toLocaleString('ru-RU') inserts a non-breaking space in thousands.
+    assert.match(html, /1\s890/);
+    assert.match(html, /2\s190/);
     assert.match(html, /осталось 8 шт\./);
     for (const approval of approvals) assert.ok(html.includes('>' + approval + '</span>'), 'missing approval chip: ' + approval);
     assert.equal((html.match(/Допуски и одобрения/g) || []).length, 1);
