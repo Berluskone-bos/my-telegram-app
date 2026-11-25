@@ -76,3 +76,8 @@ test('кнопка пустого избранного имеет сенсорн
     assert.match(css, /\.favorites-empty-action\s*\{[^}]*min-height:\s*44px;/);
     assert.ok(css.includes('.favorites-empty-action:focus-visible'));
 });
+
+test('скрипт избранного получает отдельную версию кеша после обновления пустого состояния', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert.ok(html.includes('js/favorites.js?v=20261125-favorites-empty-web'));
+});
