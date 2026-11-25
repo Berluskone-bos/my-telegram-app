@@ -67,8 +67,12 @@ test('управление магазином использует семант�
   assert.doesNotMatch(products, /class="product-card[^>]+onclick=/);
   assert.match(products, /class="product-title-button" aria-label="Подробнее о товаре/);
   assert.doesNotMatch(products, /class="product-title-button" onclick=/);
-  assert.match(app, /const card = e.target.closest\('\.product-card'\)/);
-  assert.match(app, /this\.showProduct\(Number\(productId\)\)/);
+  assert.match(app, /productGrid\?\.addEventListener\('pointerup'/);
+  assert.match(app, /getCardFromEvent/);
+  assert.match(app, /openProductFromEvent\(event\)/);
+  assert.match(app, /this\.showProduct\(productId\)/);
+  assert.match(app, /_productPointerOpenedAt/);
+  assert.match(app, /document\.addEventListener\('click',[\s\S]*?openProductFromEvent\(event\)/);
   assert.match(app, /\}, true\);/);
   assert.match(products, /class="btn-buy" data-product-id=/);
   assert.match(products, /aria-pressed="\$\{isFavorite \? 'true' : 'false'\}"/);
