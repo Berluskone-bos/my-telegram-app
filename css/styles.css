@@ -2783,3 +2783,82 @@ button:not(:disabled) {
     outline: 3px solid var(--accent-text);
     outline-offset: 3px;
 }
+
+
+/* Состояния загрузки, пустого каталога и ошибки каталога */
+.catalog-state {
+    grid-column: 1 / -1;
+    min-width: 0;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 28px 20px 36px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+.catalog-state strong {
+    color: var(--navy);
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 700;
+}
+.catalog-state > span:not(.catalog-state-icon):not(.catalog-state-progress) {
+    max-width: 320px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.catalog-state-icon {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: var(--accent-light);
+    color: var(--accent-text);
+}
+.catalog-state-icon svg { width: 23px; height: 23px; }
+.catalog-state-progress {
+    width: min(180px, 55%);
+    height: 4px;
+    margin-top: 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    position: relative;
+}
+.catalog-state-progress::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 42%;
+    border-radius: inherit;
+    background: var(--accent);
+    animation: catalog-loading 1.2s ease-in-out infinite;
+}
+@keyframes catalog-loading {
+    from { transform: translateX(-105%); }
+    to { transform: translateX(245%); }
+}
+.catalog-state-action {
+    min-height: 44px;
+    margin-top: 4px;
+    padding: 11px 18px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: var(--navy);
+    font: 700 14px var(--font-heading);
+    cursor: pointer;
+}
+.catalog-state-action:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 3px;
+}
+.catalog-state-filtered { min-height: 180px; }
+@media (prefers-reduced-motion: reduce) {
+    .catalog-state-progress::after { animation: none; width: 100%; }
+}
