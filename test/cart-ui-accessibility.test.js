@@ -28,7 +28,7 @@ test('пустая корзина предлагает перейти в кат�
     assert.ok(cartJs.includes('checkout.hidden = isEmpty'));
     assert.ok(cartJs.includes('cart-empty-action'));
     assert.ok(cartJs.includes('Перейти в каталог'));
-    assert.ok(cartJs.includes("App.switchScreen('main')"));
+    assert.ok(cartJs.includes("App.switchScreen(\\'main\\')"));
     assert.match(indexHtml, /<div id="cartCheckout" class="cart-checkout" hidden>/);
     assert.match(indexHtml, /<div id="cartList"><\/div>\s*<div id="cartCheckout"/);
 });
