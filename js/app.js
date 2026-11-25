@@ -8,6 +8,7 @@ var App = {
     currentSort: 'popular',
     searchQuery: '',
     previousScreen: null,
+    _modalReturnFocus: null,
     filters: {
         brand: [],
         viscosity: [],
@@ -50,6 +51,42 @@ var App = {
     },
 
     bindEvents() {
+        // Доступность окна редактирования профиля: Escape, focus trap и закрытие по фону.
+        const profileModal = document.getElementById('modalProfile');
+        profileModal?.addEventListener('click', (event) => {
+            if (event.target === profileModal) this.closeModal('modalProfile');
+        });
+        document.addEventListener('keydown', (event) => {
+            const modal = document.getElementById('modalProfile');
+            if (!modal?.classList.contains('open')) return;
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeModal('modalProfile');
+                return;
+            }
+            if (event.key !== 'Tab') return;
+
+            const focusable = [...modal.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+            )].filter(element => !element.hidden && element.getClientRects().length > 0);
+            if (!focusable.length) {
+                event.preventDefault();
+                modal.focus();
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#sortDropdown')) {
@@ -981,7 +1018,7 @@ var App = {
         const profile = Profile.getProfileData();
         document.getElementById('modalProfileName').value = Profile.getTelegramName() || profile.name || '';
         document.getElementById('modalProfilePhone').value = profile.phone || '';
-        document.getElementById('modalProfile').classList.add('open');
+        this.openModal('modalProfile');
     },
 
     async saveProfile() {
@@ -1004,9 +1041,31 @@ var App = {
         }
     },
 
-    // Модальные окна
+    // Модальные окна профиля: скрытие от вспомогательных технологий и возврат фокуса.
+    openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        this._modalReturnFocus = document.activeElement;
+        modal.inert = false;
+        modal.setAttribute('aria-hidden', 'false');
+        modal.classList.add('open');
+        const initialFocus = modal.querySelector('#modalProfilePhone') || modal.querySelector(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        );
+        (initialFocus || modal).focus();
+    },
+
     closeModal(modalId) {
-        document.getElementById(modalId).classList.remove('open');
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.inert = true;
+        const returnFocus = this._modalReturnFocus;
+        this._modalReturnFocus = null;
+        if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') {
+            returnFocus.focus();
+        }
     },
 
     // Выход
