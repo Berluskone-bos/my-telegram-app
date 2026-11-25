@@ -329,3 +329,31 @@ test('окно редактирования профиля доступно с �
   assert.match(appJs, /returnFocus\.focus\(\)/);
   assert.match(css, /\.modal-btn:focus-visible\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
 });
+
+
+
+test('поля оформления заказа имеют программно связанные подписи', () => {
+  const html = read('index.html');
+  const fieldIds = [
+    'orderName', 'orderPhone', 'orderCity', 'orderStreet', 'orderHouse',
+    'orderBuilding', 'orderStructure', 'orderLetter', 'orderEntrance',
+    'orderFloor', 'orderApartment', 'orderComment', 'orderPayment'
+  ];
+
+  for (const id of fieldIds) {
+    assert.match(html, new RegExp('<label\\s+for="' + id + '">'));
+  }
+
+  assert.match(html, /id="deliveryTypeLabel">Способ получения:<\/label>/);
+  assert.match(html, /class="delivery-toggle" role="group" aria-labelledby="deliveryTypeLabel"/);
+  assert.match(html, /aria-labelledby="orderZoneLabel zoneSelectLabel"/);
+  assert.match(html, /<label class="radio-label active" id="labelDelivery">[\s\S]*?<input type="radio" name="deliveryType"/);
+  assert.match(html, /<label class="radio-label" id="labelPickup">[\s\S]*?<input type="radio" name="deliveryType"/);
+});
+
+test('переключатель способа получения и регион доступны с клавиатуры', () => {
+  const css = read('css/styles.css');
+  assert.match(css, /\.radio-label input\[type="radio"\]\s*\{[^}]*position: absolute;[^}]*clip-path: inset\(50%\);/);
+  assert.match(css, /\.radio-label:focus-within\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
+  assert.match(css, /\.custom-select-btn:focus-visible\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
+});

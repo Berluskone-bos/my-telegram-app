@@ -6,7 +6,7 @@
     <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.min.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261125-product-detail-css-cleanup" />
+    <link rel="stylesheet" href="css/styles.css?v=20261125-checkout-form-accessibility" />
     <link rel="stylesheet" href="css/oil.css" />
 </head>
 <body>
@@ -207,17 +207,17 @@
                 <h3 style="margin-bottom: 15px;">Оформление заказа</h3>
 
             <div class="form-group">
-                <label>Имя:</label>
+                <label for="orderName">Имя:</label>
                 <input type="text" id="orderName" placeholder="Ваше имя" />
             </div>
             <div class="form-group">
-                <label>Телефон:</label>
+                <label for="orderPhone">Телефон:</label>
                 <input type="tel" id="orderPhone" placeholder="+7 (999) 000-00-00" />
             </div>
 
             <div class="form-group">
-                <label>Способ получения:</label>
-                <div class="delivery-toggle">
+                <label id="deliveryTypeLabel">Способ получения:</label>
+                <div class="delivery-toggle" role="group" aria-labelledby="deliveryTypeLabel">
                     <label class="radio-label active" id="labelDelivery">
                         <input type="radio" name="deliveryType" value="delivery" checked onchange="App.toggleDeliveryType()">
                         <span>Доставка</span>
@@ -231,9 +231,9 @@
 
             <div id="deliveryFields">
                 <div class="form-group">
-                    <label>Регион:</label>
+                    <label id="orderZoneLabel">Регион:</label>
                     <div class="custom-select" id="zoneSelect">
-                        <button class="custom-select-btn" id="zoneSelectToggle" type="button" aria-controls="zoneMenu" aria-expanded="false" onclick="App.toggleZoneDropdown()">
+                        <button class="custom-select-btn" id="zoneSelectToggle" type="button" aria-controls="zoneMenu" aria-labelledby="orderZoneLabel zoneSelectLabel" aria-expanded="false" onclick="App.toggleZoneDropdown()">
                             <span id="zoneSelectLabel">Санкт-Петербург (в пределах КАД)</span>
                             <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                         </button>
@@ -245,17 +245,17 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Город:</label>
+                    <label for="orderCity">Город:</label>
                     <input type="text" id="orderCity" placeholder="Санкт-Петербург" value="Санкт-Петербург" />
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Улица:</label>
+                        <label for="orderStreet">Улица:</label>
                         <input type="text" id="orderStreet" placeholder="Улица" />
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Дом:</label>
+                    <label for="orderHouse">Дом:</label>
                     <input type="text" id="orderHouse" placeholder="Дом" />
                 </div>
                 <details class="address-extra-fields">
@@ -265,29 +265,29 @@
                     </summary>
                     <div class="form-row-3">
                         <div class="form-group">
-                            <label>Корпус:</label>
+                            <label for="orderBuilding">Корпус:</label>
                             <input type="text" id="orderBuilding" placeholder="Корп." />
                         </div>
                         <div class="form-group">
-                            <label>Строение:</label>
+                            <label for="orderStructure">Строение:</label>
                             <input type="text" id="orderStructure" placeholder="Стр." />
                         </div>
                         <div class="form-group">
-                            <label>Литера:</label>
+                            <label for="orderLetter">Литера:</label>
                             <input type="text" id="orderLetter" placeholder="Лит." />
                         </div>
                     </div>
                     <div class="form-row-3">
                         <div class="form-group">
-                            <label>Подъезд:</label>
+                            <label for="orderEntrance">Подъезд:</label>
                             <input type="text" id="orderEntrance" placeholder="Под." />
                         </div>
                         <div class="form-group">
-                            <label>Этаж:</label>
+                            <label for="orderFloor">Этаж:</label>
                             <input type="text" id="orderFloor" placeholder="Эт." />
                         </div>
                         <div class="form-group">
-                            <label>Квартира:</label>
+                            <label for="orderApartment">Квартира:</label>
                             <input type="text" id="orderApartment" placeholder="Кв." />
                         </div>
                     </div>
@@ -295,7 +295,7 @@
             </div>
 
             <div class="form-group">
-                <label>Комментарий:</label>
+                <label for="orderComment">Комментарий:</label>
                 <textarea id="orderComment" placeholder="Примечания к заказу..." rows="3"></textarea>
             </div>
 
@@ -313,7 +313,7 @@
             </div>
 
             <div class="form-group">
-                <label>Способ оплаты:</label>
+                <label for="orderPayment">Способ оплаты:</label>
                 <select id="orderPayment">
                     <option value="cash">Наличные при получении</option>
                     <option value="card">Картой при получении</option>

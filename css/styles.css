@@ -523,6 +523,10 @@ a, button, input, select { font-family: inherit; }
     border-color: var(--accent-text);
     background: var(--bg);
 }
+.custom-select-btn:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 2px;
+}
 .custom-select-menu {
     position: absolute;
     top: calc(100% + 4px);
@@ -1694,7 +1698,20 @@ a, button, input, select { font-family: inherit; }
     transition: 0.2s;
 }
 .radio-label input[type="radio"] {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+.radio-label:focus-within {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 3px;
 }
 .radio-label.active {
     background: var(--accent-light);
