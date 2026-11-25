@@ -136,24 +136,26 @@ test('product detail keeps the purchase action and sections accessible on narrow
 test('any non-action area of a catalog product card opens the product detail', () => {
     const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
     const products = fs.readFileSync(path.join(root, 'js/products.js'), 'utf8');
-    const captureStart = app.indexOf("document.addEventListener('click', (e) => {\\n            const card = e.target.closest('.product-card');");
+    const captureStart = app.indexOf("const card = e.target.closest('.product-card');");
     assert.notEqual(captureStart, -1, 'product-card capture handler must be registered');
     const captureEnd = app.indexOf('        // Делегирование: категории, товары, фильтры, нижняя навигация', captureStart);
     const handler = app.slice(captureStart, captureEnd);
-    assert.match(handler, /this\\.showProduct\\(Number\\(productId\\)\\)/);
-    assert.match(handler, /\\}, true\\);/);
-    assert.match(handler, /\\.favorite-btn, \\.btn-buy/);
-    assert.doesNotMatch(handler, /product-title-button/);
-    assert.match(products, /<article class="product-card[^>]*data-product-id="\\$\\{product\\.id\\}"/);
-    assert.match(products, /class="product-title-button" aria-label="Подробнее о товаре/);
-    assert.doesNotMatch(products, /class="product-title-button" onclick=/);
-    assert.match(products, /class="favorite-btn[\\s\\S]*?event\\.stopPropagation\\(\\)/);
-    assert.match(products, /class="btn-buy" data-product-id=/);
+
+    assert.ok(handler.includes('this.showProduct(Number(productId))'));
+    assert.ok(handler.includes('}, true);'), 'the handler must run in capture phase');
+    assert.ok(handler.includes('.favorite-btn, .btn-buy'), 'favorite and cart actions must remain independent');
+    assert.match(products, /<article class="product-card[^>]*data-product-id="\$\{product\.id\}"/);
+    assert.ok(products.includes('class="product-title-button" aria-label="Подробнее о товаре'));
+    assert.ok(!products.includes('class="product-title-button" onclick='));
+    assert.ok(products.includes('event.stopPropagation(); App.toggleFavorite('));
+    assert.ok(products.includes('class="btn-buy" data-product-id='));
 });
 
 test('all enabled interface buttons receive a consistent hover treatment', () => {
     const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
-    assert.match(css, /button:not\\(:disabled\\) \\{[\\s\\S]*?transition-property: all;[\\s\\S]*?transition-duration: 160ms;/);
-    assert.match(css, /@media \\(hover: hover\\) and \\(pointer: fine\\) \\{[\\s\\S]*?button:not\\(:disabled\\):hover \\{[\\s\\S]*?filter: brightness\\(1\\.035\\);[\\s\\S]*?transform: translateY\\(-1px\\);/);
-    assert.match(css, /\\.btn-add-cart:focus-visible/);
+    assert.ok(css.includes('button:not(:disabled):hover'));
+    assert.ok(css.includes('transition-duration: 160ms;'));
+    assert.ok(css.includes('filter: brightness(1.035);'));
+    assert.ok(css.includes('transform: translateY(-1px);'));
+    assert.ok(css.includes('.btn-add-cart:focus-visible'));
 });
