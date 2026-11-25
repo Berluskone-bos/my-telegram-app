@@ -18,6 +18,8 @@ var App = {
     },
 
     async init() {
+        // Сразу показываем состояние загрузки, пока получаем каталог.
+        this.renderProducts();
         // Загружаем данные
         await Products.load();
         Cart.load();
@@ -399,7 +401,8 @@ var App = {
         products = Products.sort(products, this.currentSort);
 
         if (products.length === 0) {
-            grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#666; padding:30px;">Товары не найдены</div>';
+            grid.innerHTML = '<div class="catalog-state catalog-state-filtered" role="status"><span class="catalog-state-icon" aria-hidden="true"><i data-lucide="search-x"></i></span><strong>Товары не найдены</strong><span>Попробуйте изменить поисковый запрос, категорию или параметры фильтра.</span></div>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
 
