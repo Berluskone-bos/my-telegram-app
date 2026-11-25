@@ -37,3 +37,27 @@ test('CTA пустой корзины имеет доступный размер
     assert.match(css, /\.cart-empty-action\s*\{[^}]*min-height:\s*44px;/);
     assert.match(css, /\.cart-empty-action:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--accent-text\)/);
 });
+
+
+test('дополнительные поля адреса сгруппированы в нативный сворачиваемый блок', () => {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const appJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+    assert.match(indexHtml, /<details class="address-extra-fields">\s*<summary>/);
+    assert.match(indexHtml, /Дополнительные детали адреса/);
+    assert.match(indexHtml, /Необязательно/);
+    for (const id of ['orderBuilding', 'orderStructure', 'orderLetter', 'orderEntrance', 'orderFloor', 'orderApartment']) {
+        assert.match(indexHtml, new RegExp('id="' + id + '"'));
+        assert.ok(appJs.includes("getElementById('" + id + "')"), 'Сохранено чтение поля ' + id);
+    }
+    assert.match(indexHtml, /id="orderStreet"/);
+    assert.match(indexHtml, /id="orderHouse"/);
+    assert.match(css, /\.address-extra-fields summary:focus-visible/);
+});
+
+test('сворачивание адресных полей не меняет поля и контракт отправки заказа', () => {
+    const appJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+    for (const field of ['building', 'structure', 'letter', 'entrance', 'floor', 'apartment']) {
+        assert.match(appJs, new RegExp(field + ': ' + field));
+    }
+    assert.ok(appJs.includes('body: JSON.stringify(orderPayload)'));
+});
