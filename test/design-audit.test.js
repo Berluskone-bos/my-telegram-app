@@ -83,6 +83,17 @@ test('управление магазином использует семант�
   assert.match(app, /\.btn-buy\[data-product-id=/);
   assert.match(html, /id="btn-nav-main" data-screen="main"/);
 });
+test('карточка товара управляет фокусом при открытии и возврате', () => {
+  const app = read('js/app.js');
+  const products = read('js/products.js');
+  assert.match(products, /<h1 class="product-detail-name" tabindex="-1">/);
+  assert.match(app, /this\._productReturnProductId = productId;[\s\S]*?this\.showProduct\(productId\)/);
+  assert.match(app, /container\.querySelector\('\.product-detail-name'\)\?\.focus\(\)/);
+  assert.match(app, /const returnProductId = this\._productReturnProductId;[\s\S]*?\.product-title-button/);
+  assert.match(app, /returnTarget \|\| document\.getElementById\('searchInput'\)/);
+  assert.match(app, /this\._productReturnProductId = null;/);
+});
+
 test('правила темы разделяют магазин и админ-панель', () => {
   const agents = read('AGENTS.md');
   const audit = read('docs/DESIGN_AUDIT.md');
