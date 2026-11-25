@@ -1091,26 +1091,23 @@ a, button, input, select { font-family: inherit; }
     overflow-wrap: anywhere;
 }
 .product-detail-brand-marks {
-    flex: 0 0 78px;
-    width: 78px;
+    flex: 0 0 108px;
+    width: 108px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    align-self: center;
 }
 .product-detail-brand-marks img {
     display: block;
-    max-width: 100%;
+    width: 100%;
+    max-width: 108px;
+    max-height: 68px;
+    height: auto;
     object-fit: contain;
 }
 .product-detail-gulf-logo {
-    width: 78px;
-    max-height: 46px;
-}
-.product-detail-australia-logo {
-    width: 48px;
-    max-height: 48px;
+    width: 108px;
 }
 .product-detail-viscosity {
     font-family: var(--font-heading);
@@ -1123,9 +1120,9 @@ a, button, input, select { font-family: inherit; }
 }
 @media (max-width: 360px) {
     .product-detail-heading-row { gap: 8px; }
-    .product-detail-brand-marks { flex-basis: 64px; width: 64px; }
-    .product-detail-gulf-logo { width: 64px; max-height: 40px; }
-    .product-detail-australia-logo { width: 42px; max-height: 42px; }
+    .product-detail-brand-marks { flex-basis: 88px; width: 88px; }
+    .product-detail-brand-marks img,
+    .product-detail-gulf-logo { width: 88px; max-width: 88px; max-height: 56px; }
     .product-detail-viscosity { font-size: 34px; }
 }
 .product-detail-chips {

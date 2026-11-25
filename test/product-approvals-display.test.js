@@ -62,17 +62,16 @@ test('product details display every admin-entered approval, not only API grade',
     assert.equal((html.match(/Допуски и одобрения/g) || []).length, 1);
 });
 
-test('product details include both original Gulf Western Oil and Australian-made marks', () => {
+test('product details show the original Gulf Western Oil logo without the Australian-made mark', () => {
     const products = loadProducts();
     const html = products.renderDetail(products.normalize({
         id: 1002, name: 'Test oil', viscosity: '5W-30', price: 1000, specs: {}
     }));
 
     assert.match(html, /GulfWesternOil_Logo%20%281%29\.png/);
-    assert.match(html, /made-australia%20%281%29\.png/);
+    assert.doesNotMatch(html, /made-australia|product-detail-australia-logo|Произведено в Австралии/);
     assert.match(html, /alt="Gulf Western Oil"/);
-    assert.match(html, /alt="Произведено в Австралии"/);
+    assert.match(html, /aria-label="Логотип Gulf Western Oil"/);
 
     assert.ok(fs.existsSync(path.join(root, 'img', 'GulfWesternOil_Logo (1).png')));
-    assert.ok(fs.existsSync(path.join(root, 'img', 'made-australia (1).png')));
 });

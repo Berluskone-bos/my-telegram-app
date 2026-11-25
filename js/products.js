@@ -335,9 +335,8 @@ const Products = {
                             <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
                             ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
                         </div>
-                        <div class="product-detail-brand-marks" aria-label="Бренд Gulf Western Oil, произведено в Австралии">
+                        <div class="product-detail-brand-marks" aria-label="Логотип Gulf Western Oil">
                             <img class="product-detail-gulf-logo" src="img/GulfWesternOil_Logo%20%281%29.png" alt="Gulf Western Oil" loading="lazy" decoding="async">
-                            <img class="product-detail-australia-logo" src="img/made-australia%20%281%29.png" alt="Произведено в Австралии" loading="lazy" decoding="async">
                         </div>
                     </div>
                     ${chips ? `<div class="product-detail-chips">${chips}</div>` : ''}
