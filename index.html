@@ -199,11 +199,12 @@
         <div class="cart-container">
             <h2>Корзина</h2>
             <div id="cartList"></div>
-            <div id="cartTotal" class="cart-total">Итого: 0 ₽</div>
+            <div id="cartCheckout" class="cart-checkout" hidden>
+                <div id="cartTotal" class="cart-total">Итого: 0 ₽</div>
 
-            <hr style="border-color: var(--border); margin: 20px 0;" />
+                <hr style="border-color: var(--border); margin: 20px 0;" />
 
-            <h3 style="margin-bottom: 15px;">Оформление заказа</h3>
+                <h3 style="margin-bottom: 15px;">Оформление заказа</h3>
 
             <div class="form-group">
                 <label>Имя:</label>
@@ -316,7 +317,8 @@
                 </select>
             </div>
 
-            <button class="btn-order" onclick="App.makeOrder()">Подтвердить заказ</button>
+                <button class="btn-order" type="button" onclick="App.makeOrder()">Подтвердить заказ</button>
+            </div>
         </div>
     </div>
 

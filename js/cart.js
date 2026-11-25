@@ -79,10 +79,14 @@ const Cart = {
     render() {
         const container = document.getElementById('cartList');
         const totalEl = document.getElementById('cartTotal');
+        const checkout = document.getElementById('cartCheckout');
+        const isEmpty = this.isEmpty();
 
-        if (this.isEmpty()) {
-            container.innerHTML = '<div class="empty-state"><i data-lucide="shopping-cart" style="width:48px;height:48px;color:#ccc;"></i><p>Корзина пуста</p></div>';
-            totalEl.textContent = 'Итого: 0 ₽';
+        if (checkout) checkout.hidden = isEmpty;
+
+        if (isEmpty) {
+            container.innerHTML = '<div class="empty-state cart-empty-state"><i data-lucide="shopping-cart" style="width:48px;height:48px;color:#ccc;"></i><p>Корзина пуста</p><span>Выберите товары в каталоге — они появятся здесь.</span><button class="cart-empty-action" type="button" onclick="App.switchScreen(\'main\')">Перейти в каталог</button></div>';
+            if (totalEl) totalEl.textContent = 'Итого: 0 ₽';
             if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
