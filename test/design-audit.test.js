@@ -307,3 +307,25 @@ test('панель фильтров работает как доступный �
   assert.match(app, /panel\.inert = true[\s\S]*?trigger\?\.focus\(\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+
+test('окно редактирования профиля доступно с клавиатуры и возвращает фокус', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('js/app.js');
+  const css = read('css/styles.css');
+
+  assert.match(indexHtml, /id="modalProfile" role="dialog" aria-modal="true" aria-labelledby="modalProfileTitle" aria-describedby="modalProfileDescription" aria-hidden="true" inert tabindex="-1"/);
+  assert.match(indexHtml, /<h3 class="modal-title" id="modalProfileTitle">Мои данные<\/h3>/);
+  assert.match(indexHtml, /<label for="modalProfileName">/);
+  assert.match(indexHtml, /<label for="modalProfilePhone">/);
+  assert.match(indexHtml, /id="modalProfileDescription"/);
+  assert.match(appJs, /this\.openModal\('modalProfile'\)/);
+  assert.match(appJs, /_modalReturnFocus = document\.activeElement/);
+  assert.match(appJs, /modal\.inert = false/);
+  assert.match(appJs, /modal\.setAttribute\('aria-hidden', 'false'\)/);
+  assert.match(appJs, /event\.key === 'Escape'[\s\S]*?closeModal\('modalProfile'\)/);
+  assert.match(appJs, /event\.key !== 'Tab'[\s\S]*?focusable/);
+  assert.match(appJs, /event\.target === profileModal[\s\S]*?closeModal\('modalProfile'\)/);
+  assert.match(appJs, /returnFocus\.focus\(\)/);
+  assert.match(css, /\.modal-btn:focus-visible\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
+});
