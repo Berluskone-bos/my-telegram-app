@@ -381,8 +381,9 @@ var App = {
     },
 
     async retryCatalogLoad() {
+        const loading = Products.load();
         this.renderProducts();
-        await Products.load();
+        await loading;
         this.renderProducts();
     },
 
