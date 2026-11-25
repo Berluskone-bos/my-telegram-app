@@ -195,6 +195,22 @@ const Products = {
         const brand = product.brand || product.brand_name || 'Gulf Western Oil';
         const viscosity = product.viscosity || '';
         const volume = product.volume || '';
+        const approvalSource = Array.isArray(product.approvals) && product.approvals.length
+            ? product.approvals
+            : [product.api, product.acea, product.ilsac].filter(Boolean);
+        const approvals = [...new Map(approvalSource
+            .map(value => String(value).trim())
+            .filter(Boolean)
+            .map(value => [value.toLowerCase(), value])).values()];
+        const approvalChips = approvals.slice(0, 2).map(value =>
+            `<span class="product-approval-chip" title="${esc(value)}">${esc(value)}</span>`
+        ).join('');
+        const approvalMore = approvals.length > 2
+            ? `<span class="product-approval-more" aria-label="Ещё ${approvals.length - 2} допуска">+${approvals.length - 2}</span>`
+            : '';
+        const approvalsHtml = approvals.length
+            ? `<div class="product-approvals" aria-label="Основные допуски: ${esc(approvals.join(', '))}">${approvalChips}${approvalMore}</div>`
+            : '';
 
         return `
             <article class="product-card ${product.coming_soon ? 'coming-soon' : (product.in_stock === false ? 'out-of-stock' : '')}" data-product-id="${product.id}">
@@ -215,6 +231,7 @@ const Products = {
                     <div class="product-brand">${esc(brand)}</div>
                     ${viscosity ? `<div class="product-viscosity">${esc(viscosity)}</div>` : ''}
                     <button type="button" class="product-title-button" onclick="App.showProduct(${product.id})" aria-label="Подробнее о товаре: ${esc(product.name)}"><span class="product-title">${esc(product.name)}</span></button>
+                    ${approvalsHtml}
                     <div class="product-meta-row">
                         ${volume ? `<span class="product-volume">${esc(volume)}</span>` : '<span class="product-volume"></span>'}
                         ${product.coming_soon
