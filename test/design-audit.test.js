@@ -280,3 +280,19 @@ test('каталог показывает до двух допусков из а
   assert.match(css, /\.product-approval-chip,[\s\S]*?background: #E5F7FA;[\s\S]*?color: #00707F;/);
   assert.match(css, /\.btn-buy\s*\{[^}]*width: 44px;[^}]*height: 44px;[^}]*border-radius: 10px;/);
 });
+
+
+test('панель фильтров работает как доступный модальный диалог', () => {
+  const html = read('index.html');
+  const app = read('js/app.js');
+  const css = read('css/styles.css');
+  assert.match(html, /id="filterToggle" aria-controls="filterPanel" aria-expanded="false"/);
+  assert.match(html, /id="filterPanel" role="dialog" aria-modal="true" aria-labelledby="filterPanelTitle" aria-hidden="true" inert/);
+  assert.match(html, /id="filterPanelTitle">Фильтры/);
+  assert.match(html, /class="filter-close" aria-label="Закрыть фильтры"/);
+  assert.match(app, /event\.key === 'Escape'[\s\S]*?this\.toggleFilter\(false\)/);
+  assert.match(app, /event\.key !== 'Tab'[\s\S]*?focusable/);
+  assert.match(app, /panel\.inert = false[\s\S]*?filter-close.*?focus\(\)/);
+  assert.match(app, /panel\.inert = true[\s\S]*?trigger\?\.focus\(\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+});

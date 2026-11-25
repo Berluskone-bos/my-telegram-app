@@ -65,6 +65,38 @@ var App = {
             }
         });
 
+        // Управление панелью фильтров как модальным диалогом.
+        document.addEventListener('keydown', (event) => {
+            const panel = document.getElementById('filterPanel');
+            if (!panel?.classList.contains('open')) return;
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.toggleFilter(false);
+                return;
+            }
+
+            if (event.key !== 'Tab') return;
+            const focusable = [...panel.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+            )].filter(element => !element.hasAttribute('hidden'));
+            if (!focusable.length) {
+                event.preventDefault();
+                panel.focus();
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+
         // Поиск
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
@@ -168,19 +200,30 @@ var App = {
         this.renderProducts();
     },
 
-    toggleFilter() {
+    toggleFilter(forceOpen) {
         const panel = document.getElementById('filterPanel');
         const overlay = document.getElementById('filterOverlay');
+        const trigger = document.getElementById('filterToggle');
         const isOpen = panel.classList.contains('open');
+        const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
 
-        if (isOpen) {
+        if (!shouldOpen) {
             panel.classList.remove('open');
+            panel.setAttribute('aria-hidden', 'true');
+            panel.inert = true;
             overlay.classList.remove('open');
-        } else {
-            this.renderFilterOptions();
-            panel.classList.add('open');
-            overlay.classList.add('open');
+            trigger?.setAttribute('aria-expanded', 'false');
+            trigger?.focus();
+            return;
         }
+
+        this.renderFilterOptions();
+        panel.classList.add('open');
+        panel.setAttribute('aria-hidden', 'false');
+        panel.inert = false;
+        overlay.classList.add('open');
+        trigger?.setAttribute('aria-expanded', 'true');
+        panel.querySelector('.filter-close')?.focus();
     },
 
     renderFilterOptions() {
