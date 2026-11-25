@@ -78,7 +78,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261125-sticky-purchase/);
+    assert.match(html, /css\/styles\.css\?v=20261125-product-detail-css-cleanup/);
     assert.match(html, /js\/products\.js\?v=20261125-sticky-purchase/);
     assert.match(html, /js\/app\.js\?v=20261125-sticky-purchase/);
 });
@@ -198,4 +198,22 @@ test('mobile product detail keeps price and purchase action available without co
     assert.match(css, /env\(safe-area-inset-bottom\)/);
     assert.match(css, /padding-bottom: calc\(104px \+ env\(safe-area-inset-bottom\)\)/);
     assert.match(css, /\.product-detail-sticky-add:focus-visible/);
+});
+
+
+test('повторяющиеся правила подробной карточки объединены без изменения адаптивных значений', () => {
+    const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+    const count = pattern => (css.match(pattern) || []).length;
+
+    assert.equal(count(/^\s*\.product-detail-brand\s*\{/gm), 1);
+    assert.equal(count(/^\s*\.product-detail-viscosity\s*\{/gm), 2);
+    assert.equal(count(/^\s*\.product-detail-chips\s*\{/gm), 1);
+    assert.equal(count(/^\s*\.spec-chip\s*\{/gm), 1);
+    assert.equal(count(/^\s*\.spec-chip-label\s*\{/gm), 1);
+
+    assert.match(css, /\.product-detail-viscosity\s*\{[^}]*font-size:\s*42px;[^}]*margin:\s*6px 0 0;/);
+    assert.match(css, /\.product-detail-chips\s*\{[^}]*margin:\s*2px 0 14px;/);
+    assert.match(css, /\.spec-chip\s*\{[^}]*gap:\s*5px;[^}]*padding:\s*5px 10px;/);
+    assert.match(css, /@media \(max-width: 360px\)[\s\S]*?\.product-detail-viscosity \{ font-size: 34px; \}/);
+    assert.match(css, /\.product-detail-brand-marks \{ flex-basis: 88px; width: 88px; \}/);
 });
