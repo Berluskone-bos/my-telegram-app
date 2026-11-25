@@ -72,6 +72,20 @@ var App = {
             });
         }
 
+        // Открытие карточки в capture-фазе: дочерние обработчики не могут перехватить нажатие.
+        // Самостоятельные действия избранного и корзины остаются независимыми.
+        document.addEventListener('click', (e) => {
+            const card = e.target.closest('.product-card');
+            if (!card) return;
+            if (e.target.closest('.favorite-btn, .btn-buy, a, input, select, textarea, label')) return;
+
+            const productId = card.getAttribute('data-product-id');
+            if (!productId) return;
+
+            e.preventDefault();
+            this.showProduct(Number(productId));
+        }, true);
+
         // Делегирование: категории, товары, фильтры, нижняя навигация
         document.addEventListener('click', (e) => {
             // Категория
@@ -87,14 +101,6 @@ var App = {
                 const pid = btnBuy.dataset.productId;
                 if (pid) this.addToCart(Number(pid));
                 e.preventDefault();
-                return;
-            }
-            // Клики по кнопкам карточки не открывают страницу товара.
-            const card = e.target.closest('.product-card');
-            if (card && !e.target.closest('button, a')) {
-                e.preventDefault();
-                const pid = card.getAttribute('data-product-id');
-                if (pid) this.showProduct(pid);
                 return;
             }
             // Подкатегория: единый делегированный обработчик для динамического списка.

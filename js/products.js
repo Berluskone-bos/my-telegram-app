@@ -230,7 +230,7 @@ const Products = {
                 <div class="product-info">
                     <div class="product-brand">${esc(brand)}</div>
                     ${viscosity ? `<div class="product-viscosity">${esc(viscosity)}</div>` : ''}
-                    <button type="button" class="product-title-button" onclick="App.showProduct(${product.id})" aria-label="Подробнее о товаре: ${esc(product.name)}"><span class="product-title">${esc(product.name)}</span></button>
+                    <button type="button" class="product-title-button" aria-label="Подробнее о товаре: ${esc(product.name)}"><span class="product-title">${esc(product.name)}</span></button>
                     ${approvalsHtml}
                     <div class="product-meta-row">
                         ${volume ? `<span class="product-volume">${esc(volume)}</span>` : '<span class="product-volume"></span>'}

@@ -78,8 +78,8 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261125-product-logo-spacing/);
-    assert.match(html, /js\/products\.js\?v=20261125-product-detail/);
+    assert.match(html, /css\/styles\.css\?v=20261125-button-hover/);
+    assert.match(html, /js\/products\.js\?v=20261125-card-click/);
 });
 
 
@@ -130,4 +130,32 @@ test('product detail keeps the purchase action and sections accessible on narrow
     assert.match(css, /@media \(max-width: 600px\)\s*\{[^}]*\.product-detail-image \{ height: 210px; \}/);
     assert.match(css, /\.btn-add-cart:focus-visible/);
     assert.match(css, /@media \(min-width: 600px\)\s*\{\s*\.product-detail-brand-marks \{ transform: translateX\(-14px\); \}\s*\}/);
+});
+
+
+test('any non-action area of a catalog product card opens the product detail', () => {
+    const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
+    const products = fs.readFileSync(path.join(root, 'js/products.js'), 'utf8');
+    const captureStart = app.indexOf("const card = e.target.closest('.product-card');");
+    assert.notEqual(captureStart, -1, 'product-card capture handler must be registered');
+    const captureEnd = app.indexOf('        // Делегирование: категории, товары, фильтры, нижняя навигация', captureStart);
+    const handler = app.slice(captureStart, captureEnd);
+
+    assert.ok(handler.includes('this.showProduct(Number(productId))'));
+    assert.ok(handler.includes('}, true);'), 'the handler must run in capture phase');
+    assert.ok(handler.includes('.favorite-btn, .btn-buy'), 'favorite and cart actions must remain independent');
+    assert.match(products, /<article class="product-card[^>]*data-product-id="\$\{product\.id\}"/);
+    assert.ok(products.includes('class="product-title-button" aria-label="Подробнее о товаре'));
+    assert.ok(!products.includes('class="product-title-button" onclick='));
+    assert.ok(products.includes('event.stopPropagation(); App.toggleFavorite('));
+    assert.ok(products.includes('class="btn-buy" data-product-id='));
+});
+
+test('all enabled interface buttons receive a consistent hover treatment', () => {
+    const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+    assert.ok(css.includes('button:not(:disabled):hover'));
+    assert.ok(css.includes('transition-duration: 160ms;'));
+    assert.ok(css.includes('filter: brightness(1.035);'));
+    assert.ok(css.includes('transform: translateY(-1px);'));
+    assert.ok(css.includes('.btn-add-cart:focus-visible'));
 });
