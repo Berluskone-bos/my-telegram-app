@@ -249,3 +249,26 @@ test('кнопки избранного и корзины сохраняют с�
   assert.match(css, /\.product-detail-fav\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px;[^}]*height:\s*44px;[^}]*min-height:\s*44px;/);
   assert.doesNotMatch(css, /\.btn-buy\s*\{\s*width:\s*30px;\s*height:\s*30px;/);
 });
+
+
+test('главная не показывает неподтверждённые акции и содержит понятные возможности магазина', () => {
+  const html = read('index.html');
+  assert.match(html, /class="home-proof-strip" role="group" aria-label="Возможности AutoPromoil"/);
+  assert.match(html, /Подбор по авто/);
+  assert.match(html, /Проверка допусков/);
+  assert.match(html, /Новости и полезные материалы AutoPromoil/);
+  assert.doesNotMatch(html, /Скидка 15% на первый заказ|Бесплатно от 5 000 ₽/);
+  assert.match(html, /class="dot active" aria-label="Показать слайд 1" aria-pressed="true"/);
+  assert.match(html, /prefers-reduced-motion: reduce/);
+});
+
+test('каталог показывает до двух допусков из админки и не меняет кнопку покупки', () => {
+  const products = read('js/products.js');
+  const css = read('css/styles.css');
+  assert.match(products, /const approvalSource = Array\.isArray\(product\.approvals\)/);
+  assert.match(products, /approvals\.slice\(0, 2\)/);
+  assert.match(products, /product-approval-more/);
+  assert.match(products, /aria-label="Основные допуски:/);
+  assert.match(css, /\.product-approval-chip,[\s\S]*?background: #E5F7FA;[\s\S]*?color: #00707F;/);
+  assert.match(css, /\.btn-buy\s*\{[^}]*width: 44px;[^}]*height: 44px;[^}]*border-radius: 10px;/);
+});
