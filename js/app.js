@@ -72,19 +72,7 @@ var App = {
             });
         }
 
-        // Открытие карточки в capture-фазе: дочерние обработчики не могут перехватить нажатие.
-        // Самостоятельные действия избранного и корзины остаются независимыми.
-        document.addEventListener('click', (e) => {
-            const card = e.target.closest('.product-card');
-            if (!card) return;
-            if (e.target.closest('.favorite-btn, .btn-buy, a, input, select, textarea, label')) return;
-
-            const productId = card.getAttribute('data-product-id');
-            if (!productId) return;
-
-            e.preventDefault();
-            this.showProduct(Number(productId));
-        }, true);
+        // Открытие товара выполняется непосредственно обработчиком на карточке.
 
         // Делегирование: категории, товары, фильтры, нижняя навигация
         document.addEventListener('click', (e) => {
