@@ -61,3 +61,18 @@ test('сворачивание адресных полей не меняет п�
     }
     assert.ok(appJs.includes('body: JSON.stringify(orderPayload)'));
 });
+
+
+test('пустое избранное предлагает вернуться в каталог', () => {
+    const favoritesJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'favorites.js'), 'utf8');
+    assert.ok(favoritesJs.includes('favorites-empty-action'));
+    assert.ok(favoritesJs.includes('favorites-empty-description'));
+    assert.ok(favoritesJs.includes('У вас пока нет избранных товаров'));
+    assert.ok(favoritesJs.includes("App.switchScreen('main')"));
+    assert.ok(favoritesJs.includes('Перейти в каталог'));
+});
+
+test('кнопка пустого избранного имеет сенсорную область и видимый клавиатурный фокус', () => {
+    assert.match(css, /\.favorites-empty-action\\s*\\{[^}]*min-height:\\s*44px;/);
+    assert.match(css, /\.favorites-empty-action:focus-visible\\s*\\{[^}]*outline:\\s*3px solid var\\(--accent-text\\)/);
+});
