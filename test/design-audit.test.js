@@ -332,6 +332,17 @@ test('окно редактирования профиля доступно с �
 
 
 
+test('подробная карточка товара содержит только одну кнопку добавления в корзину', () => {
+  const products = read('js/products.js');
+  const css = read('css/styles.css');
+  const detail = products.slice(products.indexOf('    renderDetail(product)'));
+  assert.doesNotMatch(detail, /Добавить в корзину:<\/button>/);
+  assert.match(detail, /product-detail-sticky-add/);
+  assert.match(detail, /\$\{stickyButton\}/);
+  assert.equal((detail.match(/class="btn-add-cart/g) || []).length, 0);
+  assert.match(css, /\.product-detail-sticky-purchase\s*\{[^}]*display: flex/);
+  assert.match(css, /@media \(max-width: 600px\)[\s\S]*?\.product-detail-sticky-purchase\s*\{[^}]*position: fixed/);
+});
 test('поля оформления заказа имеют программно связанные подписи', () => {
   const html = read('index.html');
   const fieldIds = [
