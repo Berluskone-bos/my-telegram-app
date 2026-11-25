@@ -253,7 +253,7 @@ test('кнопки избранного и корзины сохраняют с�
 
 test('главная не показывает неподтверждённые акции и содержит понятные возможности магазина', () => {
   const html = read('index.html');
-  assert.match(html, /class="home-proof-strip" aria-label="Возможности AutoPromoil"/);
+  assert.match(html, /class="home-proof-strip" role="group" aria-label="Возможности AutoPromoil"/);
   assert.match(html, /Подбор по авто/);
   assert.match(html, /Проверка допусков/);
   assert.match(html, /Новости и полезные материалы AutoPromoil/);
