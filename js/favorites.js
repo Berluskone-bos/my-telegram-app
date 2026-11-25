@@ -41,6 +41,8 @@ const Favorites = {
                 <div class="empty-state">
                     <i data-lucide="heart" style="width:48px;height:48px;color:#ccc;"></i>
                     <p>У вас пока нет избранных товаров</p>
+                    <span class="favorites-empty-description">Сохраняйте понравившиеся товары, чтобы быстро вернуться к ним позже.</span>
+                    <button class="favorites-empty-action" type="button" onclick="App.switchScreen('main')">Перейти в каталог</button>
                 </div>
             `;
             if (typeof lucide !== 'undefined') lucide.createIcons();
