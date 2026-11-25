@@ -209,7 +209,7 @@ const Products = {
             ? `<span class="product-approval-more" aria-label="Ещё ${approvals.length - 2} допуска">+${approvals.length - 2}</span>`
             : '';
         const approvalsHtml = approvals.length
-            ? `<div class="product-approvals" aria-label="Основные допуски: ${esc(approvals.join(', '))}">${approvalChips}${approvalMore}</div>`
+            ? `<div class="product-approvals" role="group" aria-label="Основные допуски: ${esc(approvals.join(', '))}">${approvalChips}${approvalMore}</div>`
             : '';
 
         return `
