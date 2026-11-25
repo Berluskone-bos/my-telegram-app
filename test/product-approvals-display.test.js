@@ -79,7 +79,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     assert.match(html, /css\/styles\.css\?v=20261125-button-hover/);
-    assert.match(html, /js\/products\.js\?v=20261125-card-click/);
+    assert.match(html, /js\\/products\\.js\\?v=20261125-pointer-card/);
 });
 
 
@@ -136,14 +136,18 @@ test('product detail keeps the purchase action and sections accessible on narrow
 test('any non-action area of a catalog product card opens the product detail', () => {
     const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
     const products = fs.readFileSync(path.join(root, 'js/products.js'), 'utf8');
-    const captureStart = app.indexOf("const card = e.target.closest('.product-card');");
-    assert.notEqual(captureStart, -1, 'product-card capture handler must be registered');
+    const captureStart = app.indexOf("const productGrid = document.getElementById('productGrid');");
+    assert.notEqual(captureStart, -1, 'product grid pointer handler must be registered');
     const captureEnd = app.indexOf('        // Делегирование: категории, товары, фильтры, нижняя навигация', captureStart);
     const handler = app.slice(captureStart, captureEnd);
 
-    assert.ok(handler.includes('this.showProduct(Number(productId))'));
-    assert.ok(handler.includes('}, true);'), 'the handler must run in capture phase');
+    assert.ok(handler.includes("productGrid?.addEventListener('pointerup'"), 'pointerup must be handled on the product grid');
+    assert.ok(handler.includes('openProductFromEvent(event)'), 'pointer events must open the selected product');
+    assert.ok(handler.includes('this.showProduct(productId)'), 'the product detail must be opened by validated product id');
+    assert.ok(handler.includes('}, true);'), 'the pointer handler must run in capture phase');
     assert.ok(handler.includes('.favorite-btn, .btn-buy'), 'favorite and cart actions must remain independent');
+    assert.ok(handler.includes("document.addEventListener('click'"), 'click fallback must remain available');
+    assert.ok(handler.includes('_productPointerOpenedAt'), 'pointerup and click must not open the same product twice');
     assert.match(products, /<article class="product-card[^>]*data-product-id="\$\{product\.id\}"/);
     assert.ok(products.includes('class="product-title-button" aria-label="Подробнее о товаре'));
     assert.ok(!products.includes('class="product-title-button" onclick='));
