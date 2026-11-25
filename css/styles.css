@@ -2866,3 +2866,52 @@ button:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
     .catalog-state-progress::after { animation: none; width: 100%; }
 }
+
+
+/* Закреплённая мобильная покупка в подробной карточке товара. */
+.product-detail-sticky-purchase { display: none; }
+@media (max-width: 600px) {
+    #screen-detail.active .product-detail {
+        padding-bottom: calc(104px + env(safe-area-inset-bottom));
+    }
+    #screen-detail.active .product-detail-sticky-purchase {
+        position: fixed;
+        z-index: 120;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 -6px 22px rgba(16, 27, 77, 0.10);
+    }
+    .product-detail-sticky-price {
+        min-width: 0;
+        color: var(--navy);
+        font-family: var(--font-heading);
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        white-space: nowrap;
+    }
+    .product-detail-sticky-add {
+        flex: 0 1 auto;
+        width: auto;
+        min-width: 142px;
+        max-width: 62%;
+        min-height: 48px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .product-detail-sticky-add:focus-visible {
+        outline: 3px solid var(--accent-text);
+        outline-offset: 3px;
+    }
+}

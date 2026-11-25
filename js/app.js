@@ -654,6 +654,14 @@ var App = {
             detailBtn.textContent = 'В корзине';
             detailBtn.classList.add('in-cart');
         }
+
+        // Синхронизируем мобильную закреплённую кнопку с основной кнопкой товара.
+        const stickyBtn = document.querySelector('.product-detail-sticky-add[data-product-id="' + productId + '"]');
+        if (stickyBtn) {
+            stickyBtn.textContent = 'В корзине';
+            stickyBtn.classList.add('in-cart');
+            stickyBtn.setAttribute('aria-label', 'Добавить ещё в корзину: ' + (prod?.name || 'товар'));
+        }
     },
 
     removeFromCart(productId) {
