@@ -331,6 +331,16 @@ const Products = {
                 : product.stock_left
                     ? `<span class="product-stock ok">В наличии · осталось ${esc(product.stock_left)} шт.</span>`
                     : '<span class="product-stock ok">В наличии</span>';
+        const stickyPrice = product.coming_soon ? 'Скоро' : product.price.toLocaleString('ru-RU') + ' ₽';
+        const stickyButton = product.coming_soon
+            ? '<button type="button" class="btn-add-cart product-detail-sticky-add" disabled>Скоро в продаже</button>'
+            : product.in_stock === false
+                ? '<button type="button" class="btn-add-cart product-detail-sticky-add" disabled>Нет в наличии</button>'
+                : '<button type="button" class="btn-add-cart product-detail-sticky-add ' +
+                    (inCart ? 'in-cart' : '') + '" data-product-id="' + product.id +
+                    '" aria-label="' + (inCart ? 'Добавить ещё в корзину: ' : 'Добавить в корзину: ') +
+                    esc(product.name) + '" onclick="App.addToCart(' + product.id + ')">' +
+                    (inCart ? 'В корзине' : 'В корзину') + '</button>';
 
         const chips = product.volume
             ? `<span class="spec-chip"><span class="spec-chip-label">Объём</span>${esc(product.volume)}</span>`
@@ -400,6 +410,10 @@ const Products = {
                     ${specsHtml}
                     ${descriptionHtml}
                 </div>
+                <aside class="product-detail-sticky-purchase" aria-label="Быстрая покупка">
+                    <span class="product-detail-sticky-price">${stickyPrice}</span>
+                    ${stickyButton}
+                </aside>
             </div>
         `;
     }
