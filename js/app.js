@@ -124,7 +124,6 @@ var App = {
             const productId = Number(card.getAttribute('data-product-id'));
             if (!Number.isInteger(productId) || productId <= 0) return false;
             event.preventDefault();
-            this._productReturnScreen = this.currentScreen || 'main';
             this._productReturnProductId = productId;
             this.showProduct(productId);
             return true;
@@ -523,7 +522,6 @@ var App = {
             (returnTarget || document.getElementById('searchInput'))?.focus();
         }
         this._productReturnProductId = null;
-        this._productReturnScreen = null;
     },
 
     switchScreen(screenName) {
