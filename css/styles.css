@@ -2645,3 +2645,18 @@ a, button, input, select { font-family: inherit; }
 @media (min-width: 600px) {
     .product-detail-brand-marks { transform: translateX(-14px); }
 }
+
+
+/* Единая деликатная обратная связь для всех активных кнопок интерфейса. */
+button:not(:disabled) {
+    transition-property: all;
+    transition-duration: 160ms;
+    transition-timing-function: ease;
+}
+@media (hover: hover) and (pointer: fine) {
+    button:not(:disabled):hover {
+        filter: brightness(1.035);
+        box-shadow: 0 4px 12px rgba(16, 27, 77, 0.10);
+        transform: translateY(-1px);
+    }
+}
