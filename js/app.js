@@ -72,18 +72,38 @@ var App = {
             });
         }
 
-        // Открытие карточки в capture-фазе: дочерние обработчики не могут перехватить нажатие.
-        // Самостоятельные действия избранного и корзины остаются независимыми.
-        document.addEventListener('click', (e) => {
-            const card = e.target.closest('.product-card');
-            if (!card) return;
-            if (e.target.closest('.favorite-btn, .btn-buy, a, input, select, textarea, label')) return;
+        // Telegram Web (особенно desktop WebView) может не доставлять click так же,
+        // как обычный браузер. Поэтому открываем карточку на pointerup внутри сетки,
+        // а click оставляем резервным способом для клавиатуры и старых браузеров.
+        const productGrid = document.getElementById('productGrid');
+        const getCardFromEvent = (event) => {
+            const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+            return target?.closest?.('.product-card') || null;
+        };
+        const isCardAction = (event) => {
+            const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+            return !!target?.closest?.('.favorite-btn, .btn-buy, a, input, select, textarea, label');
+        };
+        const openProductFromEvent = (event) => {
+            const card = getCardFromEvent(event);
+            if (!card || isCardAction(event)) return false;
+            const productId = Number(card.getAttribute('data-product-id'));
+            if (!Number.isInteger(productId) || productId <= 0) return false;
+            event.preventDefault();
+            this.showProduct(productId);
+            return true;
+        };
 
-            const productId = card.getAttribute('data-product-id');
-            if (!productId) return;
+        // Основной путь для мыши, пера и сенсорного ввода.
+        productGrid?.addEventListener('pointerup', (event) => {
+            if (event.isPrimary === false || (typeof event.button === 'number' && event.button !== 0)) return;
+            if (openProductFromEvent(event)) this._productPointerOpenedAt = Date.now();
+        }, true);
 
-            e.preventDefault();
-            this.showProduct(Number(productId));
+        // Резервный click: клавиатурная активация и окружения без Pointer Events.
+        document.addEventListener('click', (event) => {
+            if (this._productPointerOpenedAt && Date.now() - this._productPointerOpenedAt < 800) return;
+            openProductFromEvent(event);
         }, true);
 
         // Делегирование: категории, товары, фильтры, нижняя навигация
