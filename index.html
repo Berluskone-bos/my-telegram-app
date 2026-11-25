@@ -6,7 +6,7 @@
     <title>АВТОПРОМОЙЛ — Магазин автотоваров</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.min.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261125-brandfix" />
+    <link rel="stylesheet" href="css/styles.css?v=20261125-home-catalog" />
     <link rel="stylesheet" href="css/oil.css" />
 </head>
 <body>
@@ -56,38 +56,44 @@
             </span>
         </button>
 
+        <div class="home-proof-strip" aria-label="Возможности AutoPromoil">
+            <div class="home-proof-item"><i data-lucide="car-front" aria-hidden="true"></i><span>Подбор по авто</span></div>
+            <div class="home-proof-item"><i data-lucide="badge-check" aria-hidden="true"></i><span>Проверка допусков</span></div>
+            <div class="home-proof-item"><i data-lucide="clipboard-list" aria-hidden="true"></i><span>Характеристики товаров</span></div>
+        </div>
+
         <!-- ===== ПРОМО-КАРУСЕЛЬ (navy / cyan) ===== -->
-        <div class="promo-carousel">
+        <div class="promo-carousel" role="region" aria-label="Новости и полезные материалы AutoPromoil" aria-roledescription="карусель">
             <div class="carousel-track" id="carouselTrack">
                 <div class="carousel-slide">
                     <div class="slide-content">
-                        <span class="slide-badge">Акция</span>
-                        <h2>Скидка 15% на первый заказ</h2>
-                        <p>Для новых клиентов</p>
-                    </div>
-                    <div class="slide-wave" aria-hidden="true"></div>
-                </div>
-                <div class="carousel-slide">
-                    <div class="slide-content">
-                        <span class="slide-badge">Доставка</span>
-                        <h2>Бесплатно от 5 000 ₽</h2>
-                        <p>В пределах КАД</p>
-                    </div>
-                    <div class="slide-wave" aria-hidden="true"></div>
-                </div>
-                <div class="carousel-slide">
-                    <div class="slide-content">
                         <span class="slide-badge">Подбор</span>
-                        <h2>Масло под ваш автомобиль</h2>
-                        <p>По марке, модели или VIN</p>
+                        <h2>Выбирайте масло по допускам</h2>
+                        <p>Учитывайте требования автопроизводителя</p>
+                    </div>
+                    <div class="slide-wave" aria-hidden="true"></div>
+                </div>
+                <div class="carousel-slide">
+                    <div class="slide-content">
+                        <span class="slide-badge">Полезно знать</span>
+                        <h2>Разбираемся в спецификациях</h2>
+                        <p>API, ACEA и одобрения автопроизводителей</p>
+                    </div>
+                    <div class="slide-wave" aria-hidden="true"></div>
+                </div>
+                <div class="carousel-slide">
+                    <div class="slide-content">
+                        <span class="slide-badge">Каталог</span>
+                        <h2>Gulf Western Oil</h2>
+                        <p>Моторные и трансмиссионные масла</p>
                     </div>
                     <div class="slide-wave" aria-hidden="true"></div>
                 </div>
             </div>
-            <div class="carousel-dots" id="carouselDots">
-                <span class="dot active"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
+            <div class="carousel-dots" id="carouselDots" aria-label="Выбор слайда">
+                <button type="button" class="dot active" aria-label="Показать слайд 1" aria-pressed="true"></button>
+                <button type="button" class="dot" aria-label="Показать слайд 2" aria-pressed="false"></button>
+                <button type="button" class="dot" aria-label="Показать слайд 3" aria-pressed="false"></button>
             </div>
         </div>
 
@@ -554,7 +560,7 @@
 
     <!-- ===== СКРИПТЫ ===== -->
     <script src="js/telegram.js"></script>
-    <script src="js/products.js?v=20261125-brandfix"></script>
+    <script src="js/products.js?v=20261125-home-catalog"></script>
     <script src="js/cart.js"></script>
     <script src="js/favorites.js"></script>
     <script src="js/profile.js"></script>
@@ -572,40 +578,60 @@
             if (typeof lucide !== 'undefined') lucide.createIcons();
         });
 
-        // Автоматическая карусель
+        // Карусель: управляемая клавиатурой, с паузой при взаимодействии.
         let currentSlide = 0;
+        let carouselTimer = null;
         const slides = document.querySelectorAll('.carousel-slide');
         const dots = document.querySelectorAll('.dot');
         const track = document.getElementById('carouselTrack');
+        const carousel = document.querySelector('.promo-carousel');
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
         function goToSlide(index) {
-            currentSlide = index;
-            track.style.transform = `translateX(-${index * 100}%)`;
-            dots.forEach((dot, i) => dot.classList.toggle('active', i === index));
+            if (!slides.length || !track) return;
+            currentSlide = (index + slides.length) % slides.length;
+            track.style.transform = `translateX(-${currentSlide * 100}%)`;
+            dots.forEach((dot, i) => {
+                const active = i === currentSlide;
+                dot.classList.toggle('active', active);
+                dot.setAttribute('aria-pressed', String(active));
+            });
         }
 
-        // Автопрокрутка каждые 4 секунды
-        setInterval(() => {
-            currentSlide = (currentSlide + 1) % slides.length;
-            goToSlide(currentSlide);
-        }, 4000);
+        function stopCarousel() {
+            if (carouselTimer) window.clearInterval(carouselTimer);
+            carouselTimer = null;
+        }
 
-        // Клик по точкам
-        dots.forEach((dot, i) => {
-            dot.addEventListener('click', () => goToSlide(i));
+        function startCarousel() {
+            stopCarousel();
+            if (reduceMotion.matches || document.hidden || slides.length < 2) return;
+            carouselTimer = window.setInterval(() => goToSlide(currentSlide + 1), 5500);
+        }
+
+        dots.forEach((dot, i) => dot.addEventListener('click', () => {
+            goToSlide(i);
+            stopCarousel();
+        }));
+        carousel?.addEventListener('mouseenter', stopCarousel);
+        carousel?.addEventListener('mouseleave', startCarousel);
+        carousel?.addEventListener('focusin', stopCarousel);
+        carousel?.addEventListener('focusout', event => {
+            if (!carousel.contains(event.relatedTarget)) startCarousel();
         });
+        document.addEventListener('visibilitychange', startCarousel);
+        reduceMotion.addEventListener?.('change', startCarousel);
 
-        // Свайп для карусели
         let touchStartX = 0;
-        const carousel = document.querySelector('.promo-carousel');
-        carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
-        carousel.addEventListener('touchend', (e) => {
-            const diff = touchStartX - e.changedTouches[0].clientX;
-            if (Math.abs(diff) > 50) {
-                if (diff > 0 && currentSlide < slides.length - 1) goToSlide(currentSlide + 1);
-                else if (diff < 0 && currentSlide > 0) goToSlide(currentSlide - 1);
-            }
-        });
+        carousel?.addEventListener('touchstart', event => {
+            touchStartX = event.touches[0].clientX;
+            stopCarousel();
+        }, { passive: true });
+        carousel?.addEventListener('touchend', event => {
+            const diff = touchStartX - event.changedTouches[0].clientX;
+            if (Math.abs(diff) > 50) goToSlide(currentSlide + (diff > 0 ? 1 : -1));
+        }, { passive: true });
+        startCarousel();
     </script>
 
     <!-- Модальное окно: Редактирование профиля -->
