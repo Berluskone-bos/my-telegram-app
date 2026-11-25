@@ -73,6 +73,6 @@ test('пустое избранное предлагает вернуться в
 });
 
 test('кнопка пустого избранного имеет сенсорную область и видимый клавиатурный фокус', () => {
-    assert.match(css, /\.favorites-empty-action\\s*\\{[^}]*min-height:\\s*44px;/);
-    assert.match(css, /\.favorites-empty-action:focus-visible\\s*\\{[^}]*outline:\\s*3px solid var\\(--accent-text\\)/);
+    assert.match(css, /\.favorites-empty-action\s*\{[^}]*min-height:\s*44px;/);
+    assert.match(css, /\.favorites-empty-action:focus-visible\s*\{[^}]*outline:\s*3px solid var\\(--accent-text\)/);
 });
