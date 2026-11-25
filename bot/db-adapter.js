@@ -2090,9 +2090,19 @@ class DBAdapter {
     // Публичный каталог для магазина: без закупочных и служебных полей
     async getPublicCatalog() {
         const res = await pool.query(
-            `SELECT id, brand, category, name, full_name, series, sku, viscosity, oil_type, volume, api_std, acea, ilsac,
-                    price, old_price, stock, image, gallery, description, specs, is_new, is_popular, coming_soon, rating, reviews_count
-               FROM products WHERE active = true ORDER BY id`);
+            `SELECT p.id, p.brand, p.category, p.name, p.full_name, p.series, p.sku, p.viscosity, p.oil_type, p.volume,
+                    p.api_std, p.acea, p.ilsac, p.price, p.old_price, p.stock, p.image, p.gallery, p.description,
+                    p.specs, p.is_new, p.is_popular, p.coming_soon, p.rating, p.reviews_count,
+                    COALESCE(
+                        array_agg(pa.approval ORDER BY pa.approval)
+                            FILTER (WHERE pa.approval IS NOT NULL),
+                        '{}'
+                    ) AS approvals
+               FROM products p
+               LEFT JOIN product_approvals pa ON pa.product_id = p.id
+              WHERE p.active = true
+              GROUP BY p.id
+              ORDER BY p.id`);
         const tracking = (await pool.query(
             `SELECT EXISTS(SELECT 1 FROM app_flags WHERE flag = 'stock_tracking_enabled')
                  OR EXISTS(SELECT 1 FROM products WHERE active AND stock > 0) AS enabled`
