@@ -131,3 +131,29 @@ test('product detail keeps the purchase action and sections accessible on narrow
     assert.match(css, /\.btn-add-cart:focus-visible/);
     assert.match(css, /@media \(min-width: 600px\)\s*\{\s*\.product-detail-brand-marks \{ transform: translateX\(-14px\); \}\s*\}/);
 });
+
+
+test('any non-action area of a catalog product card opens the product detail', () => {
+    const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
+    const products = fs.readFileSync(path.join(root, 'js/products.js'), 'utf8');
+    const captureStart = app.indexOf("document.addEventListener('click', (e) => {\\n            const card = e.target.closest('.product-card');");
+    assert.notEqual(captureStart, -1, 'product-card capture handler must be registered');
+    const captureEnd = app.indexOf('        // Делегирование: категории, товары, фильтры, нижняя навигация', captureStart);
+    const handler = app.slice(captureStart, captureEnd);
+    assert.match(handler, /this\\.showProduct\\(Number\\(productId\\)\\)/);
+    assert.match(handler, /\\}, true\\);/);
+    assert.match(handler, /\\.favorite-btn, \\.btn-buy/);
+    assert.doesNotMatch(handler, /product-title-button/);
+    assert.match(products, /<article class="product-card[^>]*data-product-id="\\$\\{product\\.id\\}"/);
+    assert.match(products, /class="product-title-button" aria-label="Подробнее о товаре/);
+    assert.doesNotMatch(products, /class="product-title-button" onclick=/);
+    assert.match(products, /class="favorite-btn[\\s\\S]*?event\\.stopPropagation\\(\\)/);
+    assert.match(products, /class="btn-buy" data-product-id=/);
+});
+
+test('all enabled interface buttons receive a consistent hover treatment', () => {
+    const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+    assert.match(css, /button:not\\(:disabled\\) \\{[\\s\\S]*?transition-property: all;[\\s\\S]*?transition-duration: 160ms;/);
+    assert.match(css, /@media \\(hover: hover\\) and \\(pointer: fine\\) \\{[\\s\\S]*?button:not\\(:disabled\\):hover \\{[\\s\\S]*?filter: brightness\\(1\\.035\\);[\\s\\S]*?transform: translateY\\(-1px\\);/);
+    assert.match(css, /\\.btn-add-cart:focus-visible/);
+});
