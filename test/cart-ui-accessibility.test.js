@@ -21,3 +21,19 @@ test('кнопки количества имеют сенсорную облас
     assert.match(css, /\.cart-item-actions button:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--accent-text\)/);
     assert.doesNotMatch(css, /\.cart-item-actions button\s*\{[^}]*width:\s*30px;[^}]*height:\s*30px;/);
 });
+
+
+test('пустая корзина предлагает перейти в каталог и скрывает оформление заказа', () => {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert.ok(cartJs.includes('checkout.hidden = isEmpty'));
+    assert.ok(cartJs.includes('cart-empty-action'));
+    assert.ok(cartJs.includes('Перейти в каталог'));
+    assert.ok(cartJs.includes("App.switchScreen('main')"));
+    assert.match(indexHtml, /<div id="cartCheckout" class="cart-checkout" hidden>/);
+    assert.match(indexHtml, /<div id="cartList"><\/div>\s*<div id="cartCheckout"/);
+});
+
+test('CTA пустой корзины имеет доступный размер и видимый клавиатурный фокус', () => {
+    assert.match(css, /\.cart-empty-action\s*\{[^}]*min-height:\s*44px;/);
+    assert.match(css, /\.cart-empty-action:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--accent-text\)/);
+});
