@@ -399,11 +399,6 @@ const Products = {
                             </div>
                             ${stockHtml}
                         </div>
-                        ${product.coming_soon
-                            ? '<button type="button" class="btn-add-cart" disabled>Скоро в продаже</button>'
-                            : product.in_stock === false
-                            ? '<button type="button" class="btn-add-cart" disabled>Нет в наличии</button>'
-                            : `<button type="button" class="btn-add-cart ${inCart ? 'in-cart' : ''}" aria-label="${inCart ? 'Товар уже в корзине: ' : 'Добавить в корзину: '}${esc(product.name)}" onclick="App.addToCart(${product.id})">${inCart ? 'В корзине' : 'Добавить в корзину'}</button>`}
                         <button type="button" class="btn-oil-link" onclick="Oil.open()">Подобрать для своего авто</button>
                     </section>
                     ${approvalsHtml}

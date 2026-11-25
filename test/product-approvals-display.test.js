@@ -78,7 +78,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261125-checkout-form-accessibility/);
+    assert.match(html, /css\/styles\.css\?v=20261125-single-product-cart-action/);
     assert.match(html, /js\/products\.js\?v=20261125-sticky-purchase/);
     assert.match(html, /js\/app\.js\?v=20261125-sticky-purchase/);
 });
@@ -126,7 +126,7 @@ test('product detail keeps the purchase action and sections accessible on narrow
     const html = products.renderDetail(products.normalize({
         id: 1004, name: 'Test oil', price: 1000, in_stock: false, specs: {}
     }));
-    assert.match(html, /type="button" class="btn-add-cart" disabled>Нет в наличии/);
+    assert.match(html, /class="btn-add-cart product-detail-sticky-add" disabled>Нет в наличии/);
     assert.match(css, /\.product-detail-approvals,[\s\S]*?\.product-detail-specs\s*\{[^}]*border-radius: 16px;/);
     assert.match(css, /@media \(max-width: 600px\)\s*\{[^}]*\.product-detail-image \{ height: 210px; \}/);
     assert.match(css, /\.btn-add-cart:focus-visible/);
@@ -193,7 +193,7 @@ test('mobile product detail keeps price and purchase action available without co
     }));
     assert.match(comingSoon, /class="btn-add-cart product-detail-sticky-add" disabled>Скоро в продаже/);
 
-    assert.match(css, /\.product-detail-sticky-purchase \{ display: none; \}/);
+    assert.match(css, /\.product-detail-sticky-purchase \{[\s\S]*?display: flex/);
     assert.match(css, /@media \(max-width: 600px\)[\s\S]*?#screen-detail\.active \.product-detail-sticky-purchase[\s\S]*?position: fixed/);
     assert.match(css, /env\(safe-area-inset-bottom\)/);
     assert.match(css, /padding-bottom: calc\(104px \+ env\(safe-area-inset-bottom\)\)/);

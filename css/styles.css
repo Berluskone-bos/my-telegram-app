@@ -2846,7 +2846,20 @@ button:not(:disabled) {
 
 
 /* Закреплённая мобильная покупка в подробной карточке товара. */
-.product-detail-sticky-purchase { display: none; }
+.product-detail-sticky-purchase {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin: 0 16px 24px;
+}
+.product-detail-sticky-price { display: none; }
+.product-detail-sticky-add {
+    width: auto;
+    min-width: 180px;
+    max-width: 260px;
+    min-height: 48px;
+}
 @media (max-width: 600px) {
     #screen-detail.active .product-detail {
         padding-bottom: calc(104px + env(safe-area-inset-bottom));
@@ -2867,6 +2880,7 @@ button:not(:disabled) {
         box-shadow: 0 -6px 22px rgba(16, 27, 77, 0.10);
     }
     .product-detail-sticky-price {
+        display: inline;
         min-width: 0;
         color: var(--navy);
         font-family: var(--font-heading);
