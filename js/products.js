@@ -371,7 +371,7 @@ const Products = {
                     <div class="product-detail-brand">${esc(product.brand || 'Gulf Western Oil')}</div>
                     <div class="product-detail-heading-row">
                         <div class="product-detail-heading-copy">
-                            <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
+                            <h1 class="product-detail-name" tabindex="-1">${esc(product.name || product.full_name || '')}</h1>
                             ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
                         </div>
                         <div class="product-detail-brand-marks" aria-label="Логотип Gulf Western Oil">
