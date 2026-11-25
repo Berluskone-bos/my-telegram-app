@@ -380,8 +380,29 @@ var App = {
         container.innerHTML = html;
     },
 
+    async retryCatalogLoad() {
+        const loading = Products.load();
+        this.renderProducts();
+        await loading;
+        this.renderProducts();
+    },
+
     renderProducts() {
         const grid = document.getElementById('productGrid');
+        if (!grid) return;
+
+        if (!Products.data.length) {
+            if (Products.loadState === 'loading') {
+                grid.innerHTML = '<div class="catalog-state" role="status" aria-live="polite"><span class="catalog-state-icon" aria-hidden="true"><i data-lucide="package-search"></i></span><strong>Загружаем каталог</strong><span>Подготавливаем товары и характеристики.</span><span class="catalog-state-progress" aria-hidden="true"></span></div>';
+            } else if (Products.loadState === 'error') {
+                grid.innerHTML = '<div class="catalog-state" role="alert"><span class="catalog-state-icon" aria-hidden="true"><i data-lucide="cloud-off"></i></span><strong>Не удалось загрузить каталог</strong><span>Проверьте подключение к интернету и попробуйте ещё раз.</span><button type="button" class="catalog-state-action" onclick="App.retryCatalogLoad()">Повторить загрузку</button></div>';
+            } else {
+                grid.innerHTML = '<div class="catalog-state" role="status"><span class="catalog-state-icon" aria-hidden="true"><i data-lucide="package-open"></i></span><strong>Каталог пока пуст</strong><span>Ассортимент скоро появится. Загляните сюда немного позже.</span></div>';
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
+
         let products;
 
         // Поиск
