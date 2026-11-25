@@ -1484,6 +1484,42 @@ a, button, input, select { font-family: inherit; }
 .cart-container {
     padding: 16px;
 }
+.cart-checkout[hidden] {
+    display: none !important;
+}
+.cart-empty-state {
+    margin: 44px 0 32px;
+    padding: 0 12px;
+}
+.cart-empty-state span {
+    max-width: 280px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+.cart-empty-action {
+    min-height: 44px;
+    margin-top: 4px;
+    padding: 12px 20px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: #101B4D;
+    font: 700 15px var(--font-heading);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.cart-empty-action:focus-visible {
+    outline: 3px solid var(--accent-text);
+    outline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+    .cart-empty-action:hover {
+        filter: brightness(1.04);
+        box-shadow: 0 5px 14px rgba(16, 27, 77, 0.16);
+        transform: translateY(-1px);
+    }
+}
 .cart-container h2 {
     font-family: var(--font-heading);
     font-size: 22px;
