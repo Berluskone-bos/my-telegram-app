@@ -211,6 +211,37 @@ a, button, input, select { font-family: inherit; }
     align-items: center;
     gap: 4px;
 }
+.home-proof-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin: 4px 12px 10px;
+}
+.home-proof-item {
+    min-width: 0;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 4px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text-secondary);
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.home-proof-item svg {
+    width: 17px;
+    height: 17px;
+    color: var(--accent-text);
+    stroke: currentColor;
+    flex: none;
+}
 
 /* ===== КАТЕГОРИИ (ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ) ===== */
 .categories-scroll {
@@ -353,8 +384,12 @@ a, button, input, select { font-family: inherit; }
     border-radius: 0 0 20px 20px;
 }
 .dot {
-    width: 6px;
-    height: 6px;
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0;
+    border: 0;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     background: rgba(255,255,255,0.35);
     cursor: pointer;
@@ -863,6 +898,46 @@ a, button, input, select { font-family: inherit; }
     outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 4px;
+}
+.product-approvals {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 19px;
+    max-width: 100%;
+    overflow: hidden;
+    margin: 2px 0 3px;
+}
+.product-approval-chip,
+.product-approval-more {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: calc(50% - 2px);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: #E5F7FA;
+    color: #00707F;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.product-approval-more {
+    flex: none;
+    max-width: none;
+    background: #F3F5F9;
+    color: #6B7390;
+}
+@media (hover: hover) and (pointer: fine) {
+    .product-card:hover {
+        border-color: rgba(0, 175, 199, 0.42);
+        box-shadow: 0 8px 22px rgba(16, 27, 77, 0.08);
+        transform: translateY(-2px);
+    }
 }
 .product-title {
     font-size: 12px;
