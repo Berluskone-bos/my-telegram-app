@@ -77,6 +77,9 @@ const Products = {
             image: image,
             description: p.description || '',
             specs,
+            approvals: Array.isArray(p.approvals)
+                ? p.approvals.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim())
+                : [],
             is_new: !!p.is_new,
             is_popular: !!p.is_popular,
             coming_soon: !!p.coming_soon,
@@ -261,8 +264,16 @@ const Products = {
 
         if (product.volume) add('Объём', product.volume);
         if (product.oil_type) add('Тип масла', product.oil_type);
-        const admits = [product.api, product.acea, product.ilsac].filter(Boolean).join(', ');
-        if (admits) add('Допуски и спецификации', admits);
+        // Список из product_approvals — источник полного набора, введённого в админке.
+        // Старые поля API/ACEA/ILSAC оставляем запасным вариантом для товаров без списка.
+        const approvalValues = Array.isArray(product.approvals) && product.approvals.length
+            ? product.approvals
+            : [product.api, product.acea, product.ilsac].filter(Boolean);
+        const uniqueApprovals = [...new Map(approvalValues
+            .map(value => String(value).trim())
+            .filter(Boolean)
+            .map(value => [value.toLowerCase(), value])).values()];
+        if (uniqueApprovals.length) add('Допуски и одобрения', uniqueApprovals.join(', '));
         if (product.sku) add('Артикул', product.sku);
         if (product.series) add('Серия', product.series);
 
@@ -297,10 +308,11 @@ const Products = {
                     ? `<span class="product-stock ok">В наличии · осталось ${esc(product.stock_left)} шт.</span>`
                     : '<span class="product-stock ok">В наличии</span>';
 
+        const hasAdminApprovals = Array.isArray(product.approvals) && product.approvals.length > 0;
         const chips = [
             product.viscosity ? '' : '', // viscosity is hero, not chip
-            product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : '',
-            product.acea ? `<span class="spec-chip">${esc(product.acea)}</span>` : '',
+            !hasAdminApprovals && product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : '',
+            !hasAdminApprovals && product.acea ? `<span class="spec-chip">${esc(product.acea)}</span>` : '',
             product.volume ? `<span class="spec-chip">${esc(product.volume)}</span>` : ''
         ].filter(Boolean).join('');
 
@@ -318,8 +330,16 @@ const Products = {
                 </div>
                 <div class="product-detail-body">
                     <div class="product-detail-brand">${esc(product.brand || 'Gulf Western Oil')}</div>
-                    <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
-                    ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
+                    <div class="product-detail-heading-row">
+                        <div class="product-detail-heading-copy">
+                            <div class="product-detail-name">${esc(product.name || product.full_name || '')}</div>
+                            ${product.viscosity ? `<div class="product-detail-viscosity">${esc(product.viscosity)}</div>` : ''}
+                        </div>
+                        <div class="product-detail-brand-marks" aria-label="Бренд Gulf Western Oil, произведено в Австралии">
+                            <img class="product-detail-gulf-logo" src="img/GulfWesternOil_Logo%20%281%29.png" alt="Gulf Western Oil" loading="lazy" decoding="async">
+                            <img class="product-detail-australia-logo" src="img/made-australia%20%281%29.png" alt="Произведено в Австралии" loading="lazy" decoding="async">
+                        </div>
+                    </div>
                     ${chips ? `<div class="product-detail-chips">${chips}</div>` : ''}
                     <div class="product-detail-price-row">
                         ${product.coming_soon
