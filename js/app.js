@@ -124,6 +124,8 @@ var App = {
             const productId = Number(card.getAttribute('data-product-id'));
             if (!Number.isInteger(productId) || productId <= 0) return false;
             event.preventDefault();
+            this._productReturnScreen = this.currentScreen || 'main';
+            this._productReturnProductId = productId;
             this.showProduct(productId);
             return true;
         };
@@ -496,17 +498,32 @@ var App = {
         document.querySelector('.bottom-nav').style.display = 'none';
 
         if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Объявляем переход к товару для скринридеров и клавиатуры.
+        container.querySelector('.product-detail-name')?.focus();
     },
 
     goBack() {
+        const returnScreen = this.previousScreen || 'main';
+        const returnProductId = this._productReturnProductId;
         document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
-        const target = document.getElementById('screen-' + (this.previousScreen || 'main'));
+        const target = document.getElementById('screen-' + returnScreen);
         if (target) target.classList.add('active');
 
         // Показываем нижнее меню
         document.querySelector('.bottom-nav').style.display = 'flex';
 
-        this.switchScreen(this.previousScreen || 'main');
+        this.switchScreen(returnScreen);
+
+        // Возвращаем клавиатурный фокус к товару, с которого открыли подробности.
+        if (returnScreen === 'main' && Number.isInteger(returnProductId)) {
+            const returnTarget = document.querySelector(
+                '#productGrid .product-card[data-product-id="' + returnProductId + '"] .product-title-button'
+            );
+            (returnTarget || document.getElementById('searchInput'))?.focus();
+        }
+        this._productReturnProductId = null;
+        this._productReturnScreen = null;
     },
 
     switchScreen(screenName) {
