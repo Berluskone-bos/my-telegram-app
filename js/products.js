@@ -290,7 +290,6 @@ const Products = {
             .map(value => String(value).trim())
             .filter(Boolean)
             .map(value => [value.toLowerCase(), value])).values()];
-        if (uniqueApprovals.length) add('Допуски и одобрения', uniqueApprovals.join(', '));
         if (product.sku) add('Артикул', product.sku);
         if (product.series) add('Серия', product.series);
 
@@ -326,12 +325,28 @@ const Products = {
                     : '<span class="product-stock ok">В наличии</span>';
 
         const hasAdminApprovals = Array.isArray(product.approvals) && product.approvals.length > 0;
-        const chips = [
-            product.viscosity ? '' : '', // viscosity is hero, not chip
-            !hasAdminApprovals && product.api ? `<span class="spec-chip">${esc(product.api)}</span>` : '',
-            !hasAdminApprovals && product.acea ? `<span class="spec-chip">${esc(product.acea)}</span>` : '',
-            product.volume ? `<span class="spec-chip">${esc(product.volume)}</span>` : ''
-        ].filter(Boolean).join('');
+        const chips = product.volume
+            ? `<span class="spec-chip"><span class="spec-chip-label">Объём</span>${esc(product.volume)}</span>`
+            : '';
+        const approvalsHtml = uniqueApprovals.length
+            ? `<section class="product-detail-section product-detail-approvals" aria-labelledby="productApprovalsTitle">
+                <h3 id="productApprovalsTitle">Допуски и одобрения</h3>
+                <div class="product-approval-list">${uniqueApprovals.map(value =>
+                    `<span class="product-detail-approval">${esc(value)}</span>`
+                ).join('')}</div>
+            </section>`
+            : '';
+        const specsHtml = rows.length
+            ? `<section class="product-detail-section product-detail-specs" aria-labelledby="productSpecsTitle">
+                <h3 id="productSpecsTitle">Характеристики</h3>
+                ${rowsHtml}
+            </section>`
+            : '';
+        const descriptionHtml = desc
+            ? `<section class="product-detail-section product-detail-description" aria-labelledby="productDescriptionTitle">
+                <h3 id="productDescriptionTitle">О товаре</h3><p>${esc(desc)}</p>
+            </section>`
+            : '';
 
         return `
             <div class="product-detail">
@@ -357,21 +372,26 @@ const Products = {
                         </div>
                     </div>
                     ${chips ? `<div class="product-detail-chips">${chips}</div>` : ''}
-                    <div class="product-detail-price-row">
+                    <section class="product-detail-purchase" aria-label="Цена и наличие">
+                        <div class="product-detail-price-row">
+                            <div class="product-detail-price-main">
+                                ${product.coming_soon
+                                    ? '<div class="product-soon">Скоро в продаже</div>'
+                                    : `<div class="product-detail-price">${product.price.toLocaleString('ru-RU')} ₽</div>`}
+                                ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</div>` : ''}
+                            </div>
+                            ${stockHtml}
+                        </div>
                         ${product.coming_soon
-                            ? '<div class="product-soon">Скоро в продаже</div>'
-                            : `<div class="product-detail-price">${product.price.toLocaleString('ru-RU')} ₽</div>`}
-                        ${product.old_price > 0 ? `<div class="product-detail-old-price">${product.old_price.toLocaleString('ru-RU')} ₽</div>` : ''}
-                        ${stockHtml}
-                    </div>
-                    ${rowsHtml ? `<div class="product-detail-specs">${rowsHtml}</div>` : ''}
-                    ${desc ? `<div class="product-detail-description"><p>${esc(desc)}</p></div>` : ''}
-                    ${product.coming_soon
-                        ? '<button class="btn-add-cart" disabled>Скоро в продаже</button>'
-                        : product.in_stock === false
-                        ? '<button class="btn-add-cart" disabled>Нет в наличии</button>'
-                        : `<button class="btn-add-cart ${inCart ? 'in-cart' : ''}" onclick="App.addToCart(${product.id})">${inCart ? 'В корзине' : 'Добавить в корзину'}</button>`}
-                    <button type="button" class="btn-oil-link" onclick="Oil.open()">Подобрать для своего авто</button>
+                            ? '<button type="button" class="btn-add-cart" disabled>Скоро в продаже</button>'
+                            : product.in_stock === false
+                            ? '<button type="button" class="btn-add-cart" disabled>Нет в наличии</button>'
+                            : `<button type="button" class="btn-add-cart ${inCart ? 'in-cart' : ''}" aria-label="${inCart ? 'Товар уже в корзине: ' : 'Добавить в корзину: '}${esc(product.name)}" onclick="App.addToCart(${product.id})">${inCart ? 'В корзине' : 'Добавить в корзину'}</button>`}
+                        <button type="button" class="btn-oil-link" onclick="Oil.open()">Подобрать для своего авто</button>
+                    </section>
+                    ${approvalsHtml}
+                    ${specsHtml}
+                    ${descriptionHtml}
                 </div>
             </div>
         `;
