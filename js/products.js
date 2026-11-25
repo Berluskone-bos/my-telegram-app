@@ -324,7 +324,6 @@ const Products = {
                     ? `<span class="product-stock ok">В наличии · осталось ${esc(product.stock_left)} шт.</span>`
                     : '<span class="product-stock ok">В наличии</span>';
 
-        const hasAdminApprovals = Array.isArray(product.approvals) && product.approvals.length > 0;
         const chips = product.volume
             ? `<span class="spec-chip"><span class="spec-chip-label">Объём</span>${esc(product.volume)}</span>`
             : '';
