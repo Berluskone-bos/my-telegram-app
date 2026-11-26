@@ -393,11 +393,11 @@ test('янтарный акцент заметен на главном экра�
   const css = read('css/styles.css');
   const html = read('index.html');
   const design = read('docs/DESIGN.md');
-  assert.match(css, /\.select-oil-banner::before\\s*\\{[^}]*background:\\s*var\\(--accent-amber\\)/);
-  assert.match(css, /\.slide-badge\\s*\\{[^}]*background:\\s*var\\(--accent-amber\\)/);
-  assert.match(css, /\.badge-new\\s*\\{[^}]*background:\\s*var\\(--accent-amber\\)/);
-  assert.match(css, /\.badge-sale\\s*\\{[^}]*background:\\s*var\\(--accent-amber\\)/);
-  assert.match(css, /\.btn-buy\\s*\\{[^}]*background:\\s*var\\(--accent\\)/);
-  assert.match(html, /styles\\.css\\?v=20261126-amber-home-catalog/);
-  assert.match(design, /полоса на главном баннере[\\s\\S]*метки «NEW» и скидки/);
+  assert.match(css, /\.select-oil-banner::before\s*\{[^}]*background:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.slide-badge\s*\{[^}]*background:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.badge-new\s*\{[^}]*background:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.badge-sale\s*\{[^}]*background:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.btn-buy\s*\{[^}]*background:\s*var\(--accent\)/);
+  assert.match(html, /styles\.css\?v=20261126-amber-home-catalog/);
+  assert.match(design, /полоса на главном баннере[\s\S]*метки «NEW» и скидки/);
 });
