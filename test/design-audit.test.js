@@ -378,7 +378,7 @@ test('дополнительный янтарный акцент AutoPromoil с�
   const dark = html.match(/:root\[data-theme=["']dark["']\]\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
   assert.match(css, /--accent-amber:\s*#D97706/i);
   assert.match(css, /--accent-amber-text:\s*#9A4D00/i);
-  assert.match(css, /\.order-status-shipped[\s\S]*?color:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.order-status-shipped[\s\S]*?color:\s*var\(--accent-amber-text\)/);
   assert.match(light, /--amber:\s*#D97706/i);
   assert.match(light, /--amber-text:\s*#9A4D00/i);
   assert.match(dark, /--amber:\s*#F4A340/i);
