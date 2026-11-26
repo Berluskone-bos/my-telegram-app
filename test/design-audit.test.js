@@ -293,6 +293,15 @@ test('каталог показывает до двух допусков из а
 });
 
 
+test('карточки каталога сохраняют читаемую типографику на узких экранах', () => {
+  const css = read('css/styles.css');
+  assert.match(css, /\.product-title\\s*\\{[^}]*font-size:\\s*13px;[^}]*min-height:\\s*33px;/);
+  assert.match(css, /\.product-approval-chip,[\\s\\S]*?font-size:\\s*10px;[^}]*min-height:\\s*20px;/);
+  assert.match(css, /@media \\(max-width: 360px\\)[\\s\\S]*?\.product-title \\{ font-size: 12px; min-height: 30px; \\}/);
+  assert.match(css, /@media \\(min-width: 361px\\) and \\(max-width: 420px\\)[\\s\\S]*?\.product-title \\{ font-size: 13px; min-height: 33px; \\}/);
+  assert.match(css, /@media \\(min-width: 600px\\)[\\s\\S]*?\.product-title \\{ font-size: 14px; min-height: 35px; \\}/);
+});
+
 test('панель фильтров работает как доступный модальный диалог', () => {
   const html = read('index.html');
   const app = read('js/app.js');
