@@ -400,7 +400,8 @@ test('склад показывает миниатюру фотографии т
   const html = read('admin.html');
   const stockTable = html.slice(html.indexOf('<table aria-label="Каталог товаров и остатки">'));
   const headerRow = stockTable.slice(0, stockTable.indexOf('</thead>'));
-  assert.match(headerRow, /<th scope="col" aria-label="Фотография"><\/th>\s*<th scope="col">ID<\/th>/);
+  assert.match(headerRow, /<th scope="col">ID<\/th>\s*<th scope="col" aria-label="Фотография"><\/th>/);
+  assert.match(html, /<td>\$\{esc\(p\.id \|\| '-'\)\}<\/td>\s*<td class="product-thumb-cell">\$\{imageCell\}<\/td>/);
   assert.match(html, /const image = typeof p\.image === 'string' \? p\.image\.trim\(\) : ''/);
   assert.match(html, /class="product-thumb-cell">\$\{imageCell\}/);
   assert.match(html, /loading="lazy" decoding="async"/);

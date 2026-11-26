@@ -1115,8 +1115,8 @@ function applyAdminAccess(me) {
                     <table aria-label="Каталог товаров и остатки">
                         <thead>
                             <tr>
-                                <th scope="col" aria-label="Фотография"></th>
                                 <th scope="col">ID</th>
+                                <th scope="col" aria-label="Фотография"></th>
                                 <th scope="col">Название</th>
                                 <th scope="col">Категория</th>
                                 <th scope="col">Цена</th>
@@ -2442,8 +2442,8 @@ function applyAdminAccess(me) {
                             ? `<span class="product-thumb"><img src="${esc(image)}" alt="${esc(p.name || 'Фото товара')}" loading="lazy" decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="product-thumb-placeholder" hidden aria-hidden="true">📦</span></span>`
                             : '<span class="product-thumb" aria-label="Фотография не добавлена"><span class="product-thumb-placeholder" aria-hidden="true">📦</span></span>';
                         return `<tr>
-                            <td class="product-thumb-cell">${imageCell}</td>
                             <td>${esc(p.id || '-')}</td>
+                            <td class="product-thumb-cell">${imageCell}</td>
                             <td><strong>${esc(p.name || '-')}</strong><br><small>${esc(p.brand || '')} ${esc(p.volume || '')}</small></td>
                             <td>${esc(p.category || '-')}</td>
                             <td>${p.price == null ? '—' : (parseFloat(p.price)||0).toLocaleString() + ' руб.'}</td>
