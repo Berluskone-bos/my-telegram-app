@@ -1880,7 +1880,7 @@ function registerCourierRoutes(app) {
         if (!/^products\/[a-f0-9-]+\.(jpg|png|webp)$/.test(objectKey)) return res.status(404).end();
         try {
             const signed = createPresignedUrl({ operation: 'get', objectKey, expiresIn: 600 });
-            res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+            res.set('Cache-Control', 'private, max-age=300');
             return res.redirect(302, signed.url);
         } catch (e) {
             console.error('[PRODUCT_IMAGE]', errorCode(e));
@@ -1962,7 +1962,7 @@ function registerCourierRoutes(app) {
     // Удаление из каталога — мягкое: товар скрывается, а заказы и история остатков сохраняются.
     app.delete('/api/products/:id', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
         const rawId = String(req.params.id || '');
-        if (!/^\\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
         try {
