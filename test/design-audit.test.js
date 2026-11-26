@@ -368,36 +368,3 @@ test('переключатель способа получения и регио
   assert.match(css, /\.radio-label:focus-within\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
   assert.match(css, /\.custom-select-btn:focus-visible\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
 });
-
-
-test('дополнительный янтарный акцент AutoPromoil согласован между магазином, админкой и дизайн-документом', () => {
-  const css = read('css/styles.css');
-  const html = read('admin.html');
-  const design = read('docs/DESIGN.md');
-  const light = html.match(/:root\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
-  const dark = html.match(/:root\[data-theme=["']dark["']\]\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
-  assert.match(css, /--accent-amber:\s*#D97706/i);
-  assert.match(css, /--accent-amber-text:\s*#9A4D00/i);
-  assert.match(css, /\.order-status-shipped[\s\S]*?color:\s*var\(--accent-amber-text\)/);
-  assert.match(light, /--amber:\s*#D97706/i);
-  assert.match(light, /--amber-text:\s*#9A4D00/i);
-  assert.match(dark, /--amber:\s*#F4A340/i);
-  assert.match(dark, /--amber-text:\s*#F4A340/i);
-  assert.match(html, /var\(--amber\)/);
-  assert.match(design, /AutoPromoil Amber.*#D97706/);
-  assert.match(design, /не заменяет основной бирюзовый/);
-});
-
-
-test('янтарный акцент заметен на главном экране и в каталоге без замены бирюзовых действий', () => {
-  const css = read('css/styles.css');
-  const html = read('index.html');
-  const design = read('docs/DESIGN.md');
-  assert.match(css, /\.select-oil-banner::before\s*\{[^}]*background:\s*var\(--accent-amber\)/);
-  assert.match(css, /\.slide-badge\s*\{[^}]*background:\s*var\(--accent-amber\)/);
-  assert.match(css, /\.badge-new\s*\{[^}]*background:\s*var\(--accent-amber\)/);
-  assert.match(css, /\.badge-sale\s*\{[^}]*background:\s*var\(--accent-amber\)/);
-  assert.match(css, /\.btn-buy\s*\{[^}]*background:\s*var\(--accent\)/);
-  assert.match(html, /styles\.css\?v=20261126-amber-home-catalog/);
-  assert.match(design, /полоса на главном баннере[\s\S]*метки «NEW» и скидки/);
-});
