@@ -398,7 +398,7 @@ test('янтарный акцент заметен на главном экра�
   assert.match(css, /\.badge-new\s*\{[^}]*background:\s*var\(--accent-amber\)/);
   assert.match(css, /\.badge-sale\s*\{[^}]*background:\s*var\(--accent-amber\)/);
   assert.match(css, /\.btn-buy\s*\{[^}]*background:\s*var\(--accent\)/);
-  assert.match(html, /styles\.css\?v=20261126-amber-home-catalog/);
+  assert.match(html, /styles\.css\?v=20261126-amber-brand-visibility/);
   assert.match(design, /полоса на главном баннере[\s\S]*метки «NEW» и скидки/);
 });
 
