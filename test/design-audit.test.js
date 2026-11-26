@@ -398,6 +398,23 @@ test('янтарный акцент заметен на главном экра�
   assert.match(css, /\.badge-new\s*\{[^}]*background:\s*var\(--accent-amber\)/);
   assert.match(css, /\.badge-sale\s*\{[^}]*background:\s*var\(--accent-amber\)/);
   assert.match(css, /\.btn-buy\s*\{[^}]*background:\s*var\(--accent\)/);
-  assert.match(html, /styles\.css\?v=20261126-amber-home-catalog/);
+  assert.match(html, /styles\.css\?v=20261126-amber-brand-visibility/);
   assert.match(design, /полоса на главном баннере[\s\S]*метки «NEW» и скидки/);
+});
+
+
+test('AutoPromoil Amber заметен в магазине и админ-панели, не заменяя основные бирюзовые действия', () => {
+  const css = read('css/styles.css');
+  const admin = read('admin.html');
+  const html = read('index.html');
+  const design = read('docs/DESIGN.md');
+  assert.match(css, /\.header\s*\{[^}]*border-top:\s*3px solid var\(--accent-amber\)/);
+  assert.match(css, /\.cat-badge\.active\s*\{[^}]*background:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.section-title::before\s*\{[^}]*background:\s*var\(--accent-amber\)/);
+  assert.match(css, /\.promo-carousel\s*\{[^}]*border: 1px solid rgba\(217, 119, 6/);
+  assert.match(admin, /\.nav-item\.active\s*\{[^}]*var\(--amber\)/);
+  assert.match(admin, /\.section\s*\{[^}]*border-top: 2px solid rgba\(217,119,6/);
+  assert.match(html, /styles\.css\?v=20261126-amber-brand-visibility/);
+  assert.match(design, /Янтарный стал заметным системным акцентом|Янтарный акцент заметен/);
+  assert.match(css, /\.btn-buy\s*\{[^}]*background:\s*var\(--accent\)/);
 });
