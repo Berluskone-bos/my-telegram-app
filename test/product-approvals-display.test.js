@@ -78,7 +78,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261126-detail-approval-readable/);
+    assert.match(html, /css\/styles\.css\?v=20261126-detail-spec-wrap/);
     assert.match(html, /js\/products\.js\?v=20261125-sticky-purchase/);
     assert.match(html, /js\/app\.js\?v=20261125-sticky-purchase/);
 });
@@ -229,4 +229,28 @@ test('detailed approval chips remain readable and wrap long technical names', ()
         assert.match(rule, /line-height:\s*1\.4/);
         assert.match(rule, /overflow-wrap:\s*anywhere/);
     }
+});
+
+
+test('long characteristic labels and values wrap inside the product detail columns', () => {
+    const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+    const products = loadProducts();
+    const longLabel = 'Дополнительные технические требования производителя';
+    const longValue = 'FORD-WSS-M2C952-A1-CHRYSLER-MS-6395-MB-APPROVAL-229.71';
+    const product = products.normalize({
+        id: 1020,
+        name: 'Syn-Star LV 0W-20',
+        price: 1890,
+        specs: { [longLabel]: longValue }
+    });
+    const html = products.renderDetail(product);
+    assert.ok(html.includes(longLabel));
+    assert.ok(html.includes(longValue));
+
+    const labelRule = css.match(/\.spec-label\s*\{([^}]*)\}/);
+    const valueRule = css.match(/\.spec-value\s*\{([^}]*)\}/);
+    assert.ok(labelRule, 'characteristic label rule must exist');
+    assert.ok(valueRule, 'characteristic value rule must exist');
+    assert.match(labelRule[1], /overflow-wrap:\s*anywhere/);
+    assert.match(valueRule[1], /overflow-wrap:\s*anywhere/);
 });
