@@ -22,6 +22,7 @@ const { getCourierAccessMessage } = require('./courier-access');
 const { createConversationStore } = require('./courier-conversations');
 const courierConversations = createConversationStore({ ttlMs: 15 * 60_000 });
 const crypto = require('crypto');
+const { validateImage, createPresignedUrl } = require('./product-image-storage');
 
 // Конфигурация
 const COURIER_BOT_TOKEN = process.env.COURIER_BOT_TOKEN;
@@ -1850,6 +1851,43 @@ function registerCourierRoutes(app) {
     });;
 
     // ====== Admin: управление товарами ======
+    // Загрузка изображений: файл принимает API, а в S3 отправляет сервер — браузеру не выдаются ключи хранилища.
+    app.post('/api/products/images', verifyAdmin, requirePermission('settings.manage'),
+        express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '5mb' }), async (req, res) => {
+            const contentType = String(req.get('content-type') || '').split(';')[0].trim().toLowerCase();
+            const checked = validateImage(req.body, contentType);
+            if (!checked.ok) return res.status(400).json({ error: checked.error });
+            const objectKey = 'products/' + crypto.randomUUID() + '.' + checked.extension;
+            try {
+                const signed = createPresignedUrl({ operation: 'put', objectKey, contentType });
+                const uploaded = await fetch(signed.url, { method: signed.method, headers: signed.headers, body: req.body });
+                if (!uploaded.ok) {
+                    console.error('[PRODUCT_IMAGE] upload failed:', uploaded.status);
+                    return res.status(502).json({ error: 'Не удалось сохранить фотографию в хранилище' });
+                }
+                const image = 'https://' + req.get('host') + '/api/product-images/' + objectKey;
+                return res.status(201).json({ image });
+            } catch (e) {
+                console.error('[PRODUCT_IMAGE]', errorCode(e));
+                return res.status(e.code === 'IMAGE_STORAGE_NOT_CONFIGURED' ? 503 : 500)
+                    .json({ error: e.code === 'IMAGE_STORAGE_NOT_CONFIGURED' ? 'Хранилище фотографий ещё не подключено' : 'Не удалось загрузить фотографию' });
+            }
+        });
+
+    // Каталог публичный: отдаём короткоживущую подписанную ссылку, не раскрывая ключи S3.
+    app.get('/api/product-images/*', async (req, res) => {
+        const objectKey = String(req.params[0] || '');
+        if (!/^products\/[a-f0-9-]+\.(jpg|png|webp)$/.test(objectKey)) return res.status(404).end();
+        try {
+            const signed = createPresignedUrl({ operation: 'get', objectKey, expiresIn: 600 });
+            res.set('Cache-Control', 'private, max-age=300');
+            return res.redirect(302, signed.url);
+        } catch (e) {
+            console.error('[PRODUCT_IMAGE]', errorCode(e));
+            return res.status(503).end();
+        }
+    });
+
     app.get('/api/products', verifyAdmin, requirePermission('products.view'), async (req, res) => {
         try {
             let catalog = await db.getAllProducts();
@@ -1919,6 +1957,22 @@ function registerCourierRoutes(app) {
             if (validated.data.coming_soon === true) product = await db.updateProduct(product.id, { coming_soon: true });
             res.status(201).json(product);
         } catch (e) { { console.error('[API]', errorCode(e)); res.status(500).json({ error: 'Internal error' }); }; }
+    });
+
+    // Удаление из каталога — мягкое: товар скрывается, а заказы и история остатков сохраняются.
+    app.delete('/api/products/:id', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {
+        const rawId = String(req.params.id || '');
+        if (!/^\d{1,15}$/.test(rawId)) return res.status(400).json({ error: 'bad id' });
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+        try {
+            const product = await db.updateProduct(id, { active: false });
+            if (!product) return res.status(404).json({ error: 'not found' });
+            return res.json({ ok: true, product });
+        } catch (e) {
+            console.error('[API]', errorCode(e));
+            return res.status(500).json({ error: 'Internal error' });
+        }
     });
 
     app.put('/api/products/:id', verifyAdmin, requirePermission('settings.manage'), async (req, res) => {

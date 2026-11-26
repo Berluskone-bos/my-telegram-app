@@ -101,6 +101,10 @@ const Products = {
     getPictureHtml(imagePath, altText, extraAttrs = '') {
         const safePath = esc(imagePath);
         const safeAlt = esc(altText);
+        // Uploaded product images are served by the API as absolute URLs; keep their original format.
+        if (/^https?:\/\//i.test(String(imagePath || ''))) {
+            return `<img src="${safePath}" alt="${safeAlt}" ${extraAttrs}>`;
+        }
         const fallback = safePath.replace('/webp/', '/').replace('.webp', '.png');
         return `<picture>
             <source srcset="${safePath}" type="image/webp">
