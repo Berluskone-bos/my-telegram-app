@@ -120,6 +120,10 @@
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th { background: var(--bg); padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
         td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+        .product-thumb-cell { width: 76px; min-width: 76px; padding: 6px 10px; text-align: center; }
+        .product-thumb { display: inline-flex; width: 52px; height: 52px; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--muted); }
+        .product-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+        .product-thumb-placeholder { font-size: 22px; line-height: 1; }
         tr:hover { background: rgba(0,175,199,0.03); }
 
         /* Badges */
@@ -1111,6 +1115,7 @@ function applyAdminAccess(me) {
                     <table aria-label="Каталог товаров и остатки">
                         <thead>
                             <tr>
+                                <th scope="col" aria-label="Фотография"></th>
                                 <th scope="col">ID</th>
                                 <th scope="col">Название</th>
                                 <th scope="col">Категория</th>
@@ -1120,7 +1125,7 @@ function applyAdminAccess(me) {
                                 <th scope="col"></th>
                             </tr>
                         </thead>
-                        <tbody id="shopProductsTable"><tr><td colspan="7" class="empty" role="status" aria-live="polite">Загрузка...</td></tr></tbody>
+                        <tbody id="shopProductsTable"><tr><td colspan="8" class="empty" role="status" aria-live="polite">Загрузка...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -2425,14 +2430,19 @@ function applyAdminAccess(me) {
                 refreshPageSub();
 
                 document.getElementById('shopProductsTable').innerHTML = products.length === 0
-                    ? '<tr><td colspan="7" class="empty">Каталог пуст</td></tr>'
+                    ? '<tr><td colspan="8" class="empty">Каталог пуст</td></tr>'
                     : products.slice(0, 200).map(p => {
                         const stock = p.stock != null ? p.stock : '-';
                         const min = p.min_stock != null ? p.min_stock : 3;
                         const hidden = p.active === false;
                         const stockClass = hidden ? 'badge-red' : p.stock === 0 ? 'badge-red' : (p.stock > 0 && p.stock <= min) ? 'badge-orange' : 'badge-green';
                         const stockLabel = hidden ? 'Скрыт' : p.coming_soon ? 'Скоро' : p.stock === 0 ? 'Нет в наличии' : (p.stock > 0 && p.stock <= min) ? 'Мало' : 'В наличии';
+                        const image = typeof p.image === 'string' ? p.image.trim() : '';
+                        const imageCell = image
+                            ? `<span class="product-thumb"><img src="${esc(image)}" alt="${esc(p.name || 'Фото товара')}" loading="lazy" decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="product-thumb-placeholder" hidden aria-hidden="true">📦</span></span>`
+                            : '<span class="product-thumb" aria-label="Фотография не добавлена"><span class="product-thumb-placeholder" aria-hidden="true">📦</span></span>';
                         return `<tr>
+                            <td class="product-thumb-cell">${imageCell}</td>
                             <td>${esc(p.id || '-')}</td>
                             <td><strong>${esc(p.name || '-')}</strong><br><small>${esc(p.brand || '')} ${esc(p.volume || '')}</small></td>
                             <td>${esc(p.category || '-')}</td>
@@ -2444,7 +2454,7 @@ function applyAdminAccess(me) {
                     }).join('');
             } catch (e) {
                 console.error('Products error:', e);
-                setTableState('shopProductsTable', 7, 'Не удалось загрузить каталог. Нажмите «Обновить».');
+                setTableState('shopProductsTable', 8, 'Не удалось загрузить каталог. Нажмите «Обновить».');
             }
         }
 
