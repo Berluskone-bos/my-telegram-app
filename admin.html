@@ -1232,11 +1232,11 @@ function applyAdminAccess(me) {
                         <textarea class="form-textarea" id="productDescription" name="description" rows="3"></textarea>
                     </div>
                     <div class="form-group" id="productImageGroup">
-                        <label class="form-label" for="productImageFile">Фотография товара</label>
+                        <label class="form-label" for="productImage">Фотография товара</label>
                         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
                             <img id="productImagePreview" alt="Предпросмотр фотографии товара" style="display:none;width:112px;height:112px;object-fit:contain;border:1px solid var(--border-color,#d9e0e8);border-radius:10px;background:var(--surface,#fff);padding:6px">
                             <div style="flex:1;min-width:190px">
-                                <input class="form-input" id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp" onchange="uploadProductImage(this.files[0])">
+                                <input class="form-input" id="productImageFile" type="file" aria-label="Выбрать фотографию товара" accept="image/jpeg,image/png,image/webp" onchange="uploadProductImage(this.files[0])">
                                 <small id="productImageStatus" style="display:block;margin-top:6px;color:var(--text-secondary,#687386)">JPG, PNG или WebP, до 5 МБ. Фото сохранится в облаке и будет доступно с любого компьютера.</small>
                                 <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="clearProductImage()">Убрать фотографию</button>
                             </div>
