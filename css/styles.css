@@ -942,9 +942,10 @@ a, button, input, select { font-family: inherit; }
     border-radius: 999px;
     background: #E5F7FA;
     color: #00707F;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     line-height: 1.2;
+    min-height: 20px;
 }
 .product-approval-more {
     flex: none;
@@ -960,7 +961,7 @@ a, button, input, select { font-family: inherit; }
     }
 }
 .product-title {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     font-family: var(--font-heading);
     color: var(--text-primary);
@@ -970,7 +971,7 @@ a, button, input, select { font-family: inherit; }
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    min-height: 0;
+    min-height: 33px;
 }
 .product-meta-row {
     display: flex;
@@ -981,7 +982,7 @@ a, button, input, select { font-family: inherit; }
     margin-bottom: 6px;
 }
 .product-volume {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-muted);
     font-weight: 500;
     margin-bottom: 0;
@@ -2449,8 +2450,8 @@ a, button, input, select { font-family: inherit; }
     .cat-badge { padding: 6px 12px; font-size: 12px; }
     .products-grid { gap: 6px; padding: 0 6px 16px; }
     .product-image { height: 110px; }
-    .product-title { font-size: 11px; min-height: 28px; }
-    .product-volume { font-size: 11px; }
+    .product-title { font-size: 12px; min-height: 30px; }
+    .product-volume { font-size: 12px; }
     .product-price { font-size: 13px; }
     .btn-buy i, .btn-buy svg { width: 14px; height: 14px; }
     .section-title { font-size: 18px; padding: 16px 12px 10px; }
@@ -2481,7 +2482,7 @@ a, button, input, select { font-family: inherit; }
 @media (min-width: 361px) and (max-width: 420px) {
     .products-grid { gap: 8px; padding: 0 8px 16px; }
     .product-image { height: 130px; }
-    .product-title { font-size: 12px; min-height: 32px; }
+    .product-title { font-size: 13px; min-height: 33px; }
     .product-price { font-size: 14px; }
     .carousel-slide { min-height: 140px; }
     .slide-content h2 { font-size: 18px; }
@@ -2498,7 +2499,7 @@ a, button, input, select { font-family: inherit; }
 @media (min-width: 600px) {
     .products-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 0 16px 20px; }
     .product-image { height: 170px; }
-    .product-title { font-size: 14px; }
+    .product-title { font-size: 14px; min-height: 35px; }
     .product-price { font-size: 16px; }
     .carousel-slide { min-height: 140px; }
     .section-title { font-size: 24px; }
