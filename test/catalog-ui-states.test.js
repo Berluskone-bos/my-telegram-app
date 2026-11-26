@@ -44,7 +44,7 @@ test('состояния каталога адаптивны, имеют кла�
 });
 
 test('ресурсы каталога обновляют версии кеша Telegram WebView', () => {
-    assert.ok(indexHtml.includes('css/styles.css?v=20261126-amber-brand-visibility'));
+    assert.ok(indexHtml.includes('css/styles.css?v=20261126-amber-home-catalog'));
     assert.ok(indexHtml.includes('js/products.js?v=20261125-sticky-purchase'));
     assert.ok(indexHtml.includes('js/app.js?v=20261125-sticky-purchase'));
 });
