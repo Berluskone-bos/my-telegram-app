@@ -26,7 +26,8 @@
             --text: #1a1a2e;
             --muted: #6b7280;
             --green: #16a34a;
-            --orange: #ea580c;
+            --amber: #D97706;
+            --amber-text: #9A4D00;
             --red: #dc2626;
             /* оттенки, которые различаются в светлой и тёмной теме */
             --ink: #101B4D;
@@ -58,7 +59,8 @@
             --text: #E4E8F7;
             --muted: #9AA4C2;
             --green: #34d27b;
-            --orange: #fb8a3c;
+            --amber: #F4A340;
+            --amber-text: #F4A340;
             --red: #f26b6b;
             --ink: #E8EDFF;
             --ink-bg: #22318A;
@@ -97,7 +99,7 @@
         .stat-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
         .stat-value { font-family: 'Montserrat', sans-serif; font-size: 28px; font-weight: 800; color: var(--navy); }
         .stat-value.green { color: var(--green); }
-        .stat-value.orange { color: var(--orange); }
+        .stat-value.orange { color: var(--amber-text); }
         .stat-value.red { color: var(--red); }
 
         /* Sections */
@@ -131,7 +133,7 @@
             font-weight: 600;
         }
         .badge-green { background: rgba(22,163,74,0.1); color: var(--green); }
-        .badge-orange { background: rgba(234,88,12,0.1); color: var(--orange); }
+        .badge-orange { background: rgba(217,119,6,0.1); color: var(--amber-text); }
         .badge-red { background: rgba(220,38,38,0.1); color: var(--red); }
         .badge-blue { background: rgba(0,175,199,0.1); color: var(--cyan-text); }
         .badge-grey { background: rgba(107,114,128,0.1); color: var(--muted); }
@@ -341,9 +343,9 @@
         .nav-item.active { background: var(--ink-bg); color: #fff; box-shadow: 0 10px 22px rgba(16,27,77,0.30); }
         .nav-item.active .ico { background: var(--cyan); color: #101B4D; box-shadow: 0 0 0 4px rgba(0,175,199,0.22); }
         .chip { flex: none; min-width: 24px; padding: 3px 9px; border-radius: 12px; background: var(--tint-2); color: var(--muted); font: 600 12px 'Inter', sans-serif; text-align: center; white-space: nowrap; }
-        .chip.hot { background: rgba(234,88,12,0.14); color: var(--orange); }
+        .chip.hot { background: rgba(217,119,6,0.14); color: var(--amber-text); }
         .nav-item.active .chip { background: rgba(255,255,255,0.16); color: #fff; }
-        .nav-item.active .chip.hot { background: var(--orange); color: #fff; }
+        .nav-item.active .chip.hot { background: var(--amber); color: #fff; }
         .chip:empty { display: none; }
 
         .me { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 8px; border-radius: 22px; background: var(--field); border: 1px solid var(--border); }
@@ -364,7 +366,7 @@
         .shell[data-collapsed="1"] .nav-sep { margin: 6px 10px; }
         .shell[data-collapsed="1"] .chip { position: absolute; top: 0; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; line-height: 20px; font-size: 0; background: var(--cyan); color: #101B4D; box-shadow: 0 0 0 2px var(--ring-bg); }
         .shell[data-collapsed="1"] .chip::after { content: attr(data-n); font-size: 11px; }
-        .shell[data-collapsed="1"] .chip.hot { background: var(--orange); }
+        .shell[data-collapsed="1"] .chip.hot { background: var(--amber); }
         .shell[data-collapsed="1"] .me { padding: 5px; justify-content: center; background: none; border: none; }
 
         /* Всплывающая карточка при наведении (как «Энергия» на образце): число и столбики за день */
@@ -407,9 +409,9 @@
         .cal-nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
         .cal-w { padding: 6px 0; font-size: 11.5px; font-weight: 600; color: var(--muted); }
-        .cal-w.we { color: rgba(234,88,12,0.8); }
+        .cal-w.we { color: var(--amber-text); }
         .cal-d { height: 36px; display: grid; place-items: center; border-radius: 12px; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
-        .cal-d.we { color: var(--orange); }
+        .cal-d.we { color: var(--amber-text); }
         .cal-d.other { opacity: 0.32; font-weight: 500; }
         .cal-d.today { background: var(--ink-bg); color: #fff; box-shadow: 0 0 0 3px rgba(0,175,199,0.25); }
         .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--tint-2); font-size: 11.5px; color: var(--muted); }
@@ -443,9 +445,9 @@
             .shell[data-collapsed="1"] .chip, .shell[data-collapsed="1"] .chip.hot { position: static; min-width: 24px; height: auto; padding: 3px 9px; line-height: normal; font-size: 12px; box-shadow: none; }
             .shell[data-collapsed="1"] .chip::after { content: none; }
             .shell[data-collapsed="1"] .chip { background: var(--tint-2); color: var(--muted); }
-            .shell[data-collapsed="1"] .chip.hot { background: rgba(234,88,12,0.14); color: var(--orange); }
+            .shell[data-collapsed="1"] .chip.hot { background: rgba(217,119,6,0.14); color: var(--amber-text); }
             .shell[data-collapsed="1"] .nav-item.active .chip { background: rgba(255,255,255,0.16); color: #fff; }
-            .shell[data-collapsed="1"] .nav-item.active .chip.hot { background: var(--orange); color: #fff; }
+            .shell[data-collapsed="1"] .nav-item.active .chip.hot { background: var(--amber); color: #fff; }
             .section-body { overflow-x: auto; }
             .section-header { flex-wrap: wrap; gap: 8px; }
             .shell[data-collapsed="1"] .me { padding: 8px; justify-content: flex-start; background: var(--field); border: 1px solid var(--border); }
@@ -578,10 +580,10 @@
         .bcard-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
         .bcard-num { font: 800 13px 'Montserrat', sans-serif; color: var(--navy); }
         .bcard-tag { margin-left: auto; padding: 1px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; background: rgba(0,175,199,0.12); color: var(--cyan-text); }
-        .bcard-tag.pickup { background: rgba(234,88,12,0.12); color: var(--orange); }
+        .bcard-tag.pickup { background: rgba(217,119,6,0.12); color: var(--amber-text); }
         .bcard-name { font-weight: 600; }
         .bcard-line { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .bcard-note { color: var(--orange); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bcard-note { color: var(--amber-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .bcard-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
         .bcard-sum { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .bcard-time { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: auto; }
@@ -1509,7 +1511,7 @@ function applyAdminAccess(me) {
         }
         // ====== Аналитика магазина: топ товаров и способы получения ======
         const an = { period: '30', seq: 0 };
-        const DELIVERY_LABELS = { delivery: ['Курьером', '#00AFC7'], pickup: ['Самовывоз', '#ea580c'] };
+        const DELIVERY_LABELS = { delivery: ['Курьером', '#00AFC7'], pickup: ['Самовывоз', '#D97706'] };
 
         async function loadShopAnalytics() {
             if (!window.adminHasPermission || !window.adminHasPermission('sales.view')) return;
@@ -1877,7 +1879,7 @@ function applyAdminAccess(me) {
         const BOARD_COLS = [
             { key: 'NEW',        title: 'Новые',        st: ['NEW'],                    color: '#00AFC7', drop: 'NEW',        next: 'CONFIRMED',  label: 'Подтвердить' },
             { key: 'CONFIRMED',  title: 'Подтверждены', st: ['CONFIRMED'],              color: '#6366f1', drop: 'CONFIRMED',  next: 'ASSEMBLING', label: 'В сборку' },
-            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#ea580c', drop: 'ASSEMBLING', next: 'READY_FOR_SHIPMENT', label: 'Готово к отправке', labelPickup: 'Готов к выдаче' },
+            { key: 'ASSEMBLING', title: 'Сборка',       st: ['ASSEMBLING'],             color: '#D97706', drop: 'ASSEMBLING', next: 'READY_FOR_SHIPMENT', label: 'Готово к отправке', labelPickup: 'Готов к выдаче' },
             { key: 'READY_FOR_SHIPMENT', title: 'Готовы к отправке', st: ['READY_FOR_SHIPMENT'], color: '#0d9488', drop: 'READY_FOR_SHIPMENT', next: null, label: 'Назначить маршрут' },
             { key: 'READY_FOR_PICKUP', title: 'Готовы к выдаче', st: ['READY_FOR_PICKUP'], color: '#0d9488', drop: 'READY_FOR_PICKUP', next: 'PICKED_UP', label: 'Выдан клиенту' },
             { key: 'SHIPPING',   title: 'В пути',       st: ['SHIPPING'],               color: '#3b82f6', drop: 'SHIPPING',   next: null },
