@@ -613,6 +613,68 @@
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .form-row { grid-template-columns: 1fr; }
         }
+    
+        /* Управление сотрудниками: безопасная высота окна и удобные мобильные поля. */
+        #staffModal.staff-modal-overlay {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        #staffModal.staff-modal-overlay[aria-hidden="false"] { display: flex; }
+        #staffModal .staff-modal-dialog {
+            box-sizing: border-box;
+            width: min(920px, 100%);
+            max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);
+            min-height: 0;
+            overflow: auto;
+            overscroll-behavior: contain;
+            border-radius: 16px;
+            padding: 22px;
+            background: var(--panel, #fff);
+            color: var(--text, #17213a);
+            box-shadow: 0 24px 80px rgba(0,0,0,.35);
+        }
+        #staffModal .staff-modal-close,
+        #staffModal .staff-modal-refresh {
+            box-sizing: border-box;
+            min-width: 44px;
+            min-height: 44px;
+            flex: none;
+        }
+        #staffModal .staff-form-control,
+        #staffModal .staff-role {
+            box-sizing: border-box;
+            display: block;
+            width: 100%;
+            min-height: 44px;
+            font: inherit;
+        }
+        #staffModal .staff-create-form { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+        #staffModal .staff-create-submit { min-height: 44px; }
+        #staffModal label:has(.staff-active) {
+            box-sizing: border-box;
+            min-height: 44px;
+            padding: 6px 8px;
+        }
+        #staffModal .staff-active { width: 20px; height: 20px; flex: none; }
+        @media (max-width: 600px) {
+            #staffModal.staff-modal-overlay { align-items: flex-start; }
+            #staffModal .staff-modal-dialog {
+                width: 100%;
+                max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);
+                border-radius: 12px;
+                padding: 16px;
+            }
+            #staffModal .staff-create-form {
+                grid-template-columns: minmax(0, 1fr);
+                align-items: stretch;
+            }
+            #staffModal .staff-create-submit { width: 100%; }
+        }
+
     </style>
 </head>
 <body>
@@ -784,21 +846,21 @@ function applyAdminAccess(me) {
         </div>
     </aside>
 
-    <div id="staffModal" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(5,12,32,.72);align-items:center;justify-content:center;padding:16px;">
-        <div role="dialog" aria-modal="true" aria-labelledby="staffModalTitle" tabindex="-1" style="background:var(--panel,#fff);color:var(--text,#17213a);width:min(920px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);">
+    <div id="staffModal" class="staff-modal-overlay" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(5,12,32,.72);">
+        <div class="staff-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="staffModalTitle" tabindex="-1">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;">
                 <div><h2 id="staffModalTitle" style="margin:0">Сотрудники</h2><p style="margin:6px 0 0;color:var(--muted,#667085)">Личные учётные записи и права доступа</p></div>
-                <button type="button" onclick="closeStaffModal()" style="border:0;background:transparent;font-size:28px;cursor:pointer" aria-label="Закрыть">×</button>
+                <button type="button" class="staff-modal-close" onclick="closeStaffModal()" style="border:0;background:transparent;font-size:28px;cursor:pointer" aria-label="Закрыть">×</button>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 10px"><h3 style="margin:0">Курьеры — заявки и доступ</h3><button type="button" onclick="loadCourierAdminList()" style="padding:7px 10px;border:1px solid #ccd3df;border-radius:8px;background:transparent;cursor:pointer">Обновить</button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 10px"><h3 style="margin:0">Курьеры — заявки и доступ</h3><button type="button" class="staff-modal-refresh" onclick="loadCourierAdminList()" style="padding:7px 10px;border:1px solid #ccd3df;border-radius:8px;background:transparent;cursor:pointer">Обновить</button></div>
             <div id="courierAdminList" style="display:grid;gap:10px;margin-bottom:20px"><p>Загрузка списка курьеров…</p></div>
             <div style="border-top:1px solid var(--line,#d8deea);padding-top:16px;margin-top:8px"><h3 style="margin:0 0 10px">Сотрудники админ-панели</h3></div>
-            <form id="staffCreateForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;padding:14px;border:1px solid var(--line,#d8deea);border-radius:12px;margin-bottom:18px;">
-                <label>Имя сотрудника<input name="displayName" required maxlength="100" placeholder="Иван Иванов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
-                <label>Логин<input name="login" required minlength="3" maxlength="64" pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="ivanov" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
-                <label>Роль<select name="role" required style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"><option value="manager">Менеджер</option><option value="operator">Оператор</option><option value="warehouse">Кладовщик</option><option value="admin">Администратор</option></select></label>
-                <label>Пароль<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="Не менее 12 символов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
-                <button type="submit" style="padding:11px 14px;border:0;border-radius:8px;background:#00AFC7;color:#101B4D;font-weight:700;cursor:pointer">Создать сотрудника</button>
+            <form id="staffCreateForm" class="staff-create-form" style="display:grid;gap:10px;align-items:end;padding:14px;border:1px solid var(--line,#d8deea);border-radius:12px;margin-bottom:18px;">
+                <label>Имя сотрудника<input class="staff-form-control" name="displayName" required maxlength="100" placeholder="Иван Иванов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
+                <label>Логин<input class="staff-form-control" name="login" required minlength="3" maxlength="64" pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="ivanov" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
+                <label>Роль<select class="staff-form-control" name="role" required style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"><option value="manager">Менеджер</option><option value="operator">Оператор</option><option value="warehouse">Кладовщик</option><option value="admin">Администратор</option></select></label>
+                <label>Пароль<input class="staff-form-control" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="Не менее 12 символов" style="display:block;width:100%;padding:10px;margin-top:5px;border:1px solid #ccd3df;border-radius:8px"></label>
+                <button type="submit" class="staff-create-submit" style="padding:11px 14px;border:0;border-radius:8px;background:#00AFC7;color:#101B4D;font-weight:700;cursor:pointer">Создать сотрудника</button>
             </form>
             <div id="staffList" style="display:grid;gap:10px"><p>Загрузка списка…</p></div>
             <p style="font-size:12px;color:var(--muted,#667085);margin:16px 0 0">Пароль хранится только в виде криптографического хеша. Изменение роли, логина, статуса или пароля отзывает действующие сессии сотрудника.</p>
