@@ -395,3 +395,17 @@ test('окно сотрудников удобно использовать на
   assert.match(html, /#staffModal label:has\(\.staff-active\) \{[\s\S]*?min-height: 44px/);
   assert.match(html, /@media \(max-width: 600px\)[\s\S]*?#staffModal \.staff-create-form \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
 });
+
+test('склад показывает миниатюру фотографии товара слева от ID', () => {
+  const html = read('admin.html');
+  const stockTable = html.slice(html.indexOf('<table aria-label="Каталог товаров и остатки">'));
+  const headerRow = stockTable.slice(0, stockTable.indexOf('</thead>'));
+  assert.match(headerRow, /<th scope="col" aria-label="Фотография"><\/th>\s*<th scope="col">ID<\/th>/);
+  assert.match(html, /const image = typeof p\.image === 'string' \? p\.image\.trim\(\) : ''/);
+  assert.match(html, /class="product-thumb-cell">\$\{imageCell\}/);
+  assert.match(html, /loading="lazy" decoding="async"/);
+  assert.match(html, /this\.hidden=true;this\.nextElementSibling\.hidden=false/);
+  assert.match(html, /product-thumb-placeholder/);
+  assert.match(html, /shopProductsTable"><tr><td colspan="8"/);
+  assert.match(html, /setTableState\('shopProductsTable', 8,/);
+});
