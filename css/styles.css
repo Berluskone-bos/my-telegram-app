@@ -1290,14 +1290,14 @@ a, button, input, select { font-family: inherit; }
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    padding: 7px 10px;
+    padding: 8px 11px;
     border: 1px solid #CBEAF0;
     border-radius: 9px;
     background: #EFF9FB;
     color: #006B7B;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 650;
-    line-height: 1.35;
+    line-height: 1.4;
     overflow-wrap: anywhere;
 }
 .product-detail-specs {
@@ -2686,14 +2686,14 @@ a, button, input, select { font-family: inherit; }
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    padding: 7px 10px;
+    padding: 8px 11px;
     border: 1px solid #CBEAF0;
     border-radius: 9px;
     background: #EFF9FB;
     color: #006B7B;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 650;
-    line-height: 1.35;
+    line-height: 1.4;
     overflow-wrap: anywhere;
 }
 .product-detail-specs { border-top: 1px solid var(--border); }
