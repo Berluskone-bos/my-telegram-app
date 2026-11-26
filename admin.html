@@ -615,7 +615,47 @@
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .form-row { grid-template-columns: 1fr; }
         }
-    </style>
+    
+/* ===== AUTO PROMOIL AMBER: заметные фирменные акценты админ-панели ===== */
+/* Навигация и ключевые панели получают янтарные маркеры, бирюзовые действия сохранены. */
+.nav-item.active {
+    box-shadow: inset 4px 0 0 var(--amber), 0 5px 16px rgba(217,119,6,0.10);
+}
+.nav-item.active .nav-icon,
+.nav-item.active svg {
+    color: var(--amber-text);
+    stroke: currentColor;
+}
+.nav-item .chip.hot,
+.chip.hot {
+    background: rgba(217,119,6,0.18);
+    color: var(--amber-text);
+    border: 1px solid rgba(217,119,6,0.30);
+}
+.section {
+    border-top: 2px solid rgba(217,119,6,0.34);
+}
+.kpi:first-child,
+.an-card:first-child {
+    box-shadow: inset 0 3px 0 rgba(217,119,6,0.78);
+}
+.stat-value.orange,
+.badge-orange,
+.bcard-tag.pickup {
+    color: var(--amber-text);
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline-color: var(--amber);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .nav-item.active { transition: box-shadow .18s ease, background .18s ease; }
+}
+
+</style>
 </head>
 <body>
 <div id="adminAuth" style="position:fixed;inset:0;z-index:9999;background:#101B4D;display:flex;align-items:center;justify-content:center;flex-direction:column;">
