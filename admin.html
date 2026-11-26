@@ -1231,9 +1231,17 @@ function applyAdminAccess(me) {
                         <label class="form-label" for="productDescription">Краткое описание</label>
                         <textarea class="form-textarea" id="productDescription" name="description" rows="3"></textarea>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="productImage">Путь к изображению</label>
-                        <input class="form-input" id="productImage" name="image" placeholder="img/oils/...">
+                    <div class="form-group" id="productImageGroup">
+                        <label class="form-label" for="productImageFile">Фотография товара</label>
+                        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                            <img id="productImagePreview" alt="Предпросмотр фотографии товара" style="display:none;width:112px;height:112px;object-fit:contain;border:1px solid var(--border-color,#d9e0e8);border-radius:10px;background:var(--surface,#fff);padding:6px">
+                            <div style="flex:1;min-width:190px">
+                                <input class="form-input" id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp" onchange="uploadProductImage(this.files[0])">
+                                <small id="productImageStatus" style="display:block;margin-top:6px;color:var(--text-secondary,#687386)">JPG, PNG или WebP, до 5 МБ. Фото сохранится в облаке и будет доступно с любого компьютера.</small>
+                                <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="clearProductImage()">Убрать фотографию</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="productImage" name="image">
                     </div>
                     <div class="form-group" id="productApprovalsGroup">
                         <label class="form-label" for="productApprovals">Допуски и одобрения (через запятую)</label>
@@ -1242,11 +1250,13 @@ function applyAdminAccess(me) {
                     </div>
                     <div class="form-group">
                         <label><input type="checkbox" name="active" checked> Показывать в магазине</label><br>
-                        <label><input type="checkbox" name="coming_soon"> «Скоро в продаже» (нельзя купить)</label>
+                        <label><input type="checkbox" name="coming_soon"> «Скоро в продаже» (нельзя купить)</label><br>
+                        <label><input type="checkbox" name="is_new"> Новый товар (показывать метку NEW)</label>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-outline" id="deleteProductButton" style="display:none;margin-right:auto" onclick="archiveProduct()">Удалить товар</button>
                 <button class="btn btn-outline" onclick="closeModal('productModal')">Отмена</button>
                 <button class="btn btn-primary" onclick="document.getElementById('productForm').requestSubmit()">Сохранить</button>
             </div>
@@ -2465,7 +2475,11 @@ function applyAdminAccess(me) {
             if (!window.adminHasPermission || !window.adminHasPermission('settings.manage')) return;
             const f = document.getElementById('productForm'); f.reset(); f.dataset.id = '';
             for (const child of Array.from(f.children)) child.style.display = '';
-            f.active.checked = true; f.coming_soon.checked = false; f.approvals.value = '';
+            f.active.checked = true; f.coming_soon.checked = false; f.is_new.checked = false; f.approvals.value = '';
+            document.getElementById('productImageFile').value = '';
+            setProductImagePreview('');
+            document.getElementById('productImageStatus').textContent = 'JPG, PNG или WebP, до 5 МБ. Фото сохранится в облаке и будет доступно с любого компьютера.';
+            document.getElementById('deleteProductButton').style.display = 'none';
             document.getElementById('productModalTitle').textContent = 'Добавить товар';
             openModal('productModal');
         }
@@ -2482,12 +2496,90 @@ function applyAdminAccess(me) {
             }
             f.dataset.expectedStock = String(Number(p.stock) || 0);
             if (canManageCatalog) {
-                f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon;
+                f.active.checked = p.active !== false; f.coming_soon.checked = !!p.coming_soon; f.is_new.checked = p.is_new === true;
+                document.getElementById('productImageFile').value = '';
+                setProductImagePreview(p.image || '');
+                document.getElementById('productImageStatus').textContent = p.image ? 'Текущая фотография товара. Можно загрузить замену.' : 'Фотография ещё не добавлена.';
+                document.getElementById('deleteProductButton').style.display = '';
                 f.approvals.value = '';
                 fetch(`${API_BASE}/api/products/${id}/approvals`).then(r => r.ok ? r.json() : []).then(l => { if (f.dataset.id === String(id)) f.approvals.value = l.join(', '); }).catch(() => {});
             }
             document.getElementById('productModalTitle').textContent = canManageCatalog ? 'Изменить товар №' + id : 'Изменить остатки товара №' + id;
             openModal('productModal');
+        }
+
+        function setProductImagePreview(url) {
+            const preview = document.getElementById('productImagePreview');
+            if (!preview) return;
+            preview.onerror = () => { preview.style.display = 'none'; };
+            if (!url) {
+                preview.removeAttribute('src');
+                preview.style.display = 'none';
+                return;
+            }
+            preview.src = url;
+            preview.style.display = 'block';
+        }
+
+        function clearProductImage() {
+            document.getElementById('productImage').value = '';
+            document.getElementById('productImageFile').value = '';
+            setProductImagePreview('');
+            document.getElementById('productImageStatus').textContent = 'Фотография будет удалена из карточки товара после сохранения.';
+        }
+
+        async function uploadProductImage(file) {
+            if (!file) return;
+            const status = document.getElementById('productImageStatus');
+            const input = document.getElementById('productImageFile');
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Размер фотографии не должен превышать 5 МБ.');
+                input.value = '';
+                return;
+            }
+            status.textContent = 'Загружаем фотографию в облачное хранилище…';
+            input.disabled = true;
+            try {
+                const response = await fetch(API_BASE + '/api/products/images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': file.type },
+                    body: file
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result.image) throw new Error(result.error || 'Не удалось загрузить фотографию');
+                document.getElementById('productImage').value = result.image;
+                setProductImagePreview(result.image);
+                status.textContent = 'Фотография сохранена в облаке. Не забудьте сохранить карточку товара.';
+            } catch (error) {
+                console.error('Product image upload error:', error);
+                status.textContent = error.message || 'Ошибка загрузки фотографии.';
+                alert(error.message || 'Не удалось загрузить фотографию.');
+            } finally {
+                input.disabled = false;
+            }
+        }
+
+        async function archiveProduct() {
+            const form = document.getElementById('productForm');
+            const id = form.dataset.id;
+            if (!id || !window.adminHasPermission || !window.adminHasPermission('settings.manage')) return;
+            const product = (window._products || []).find(item => String(item.id) === String(id));
+            const name = product && product.name ? product.name : 'этот товар';
+            if (!confirm('Скрыть товар «' + name + '» из магазина? Заказы и история остатков сохранятся. Товар можно будет снова включить через «Показывать в магазине».')) return;
+            const button = document.getElementById('deleteProductButton');
+            button.disabled = true;
+            try {
+                const response = await fetch(API_BASE + '/api/products/' + encodeURIComponent(id), { method: 'DELETE' });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.error || 'Не удалось скрыть товар');
+                closeModal('productModal');
+                form.reset();
+                loadShopProducts();
+            } catch (error) {
+                alert(error.message || 'Не удалось скрыть товар.');
+            } finally {
+                button.disabled = false;
+            }
         }
 
         async function saveProduct(e) {
@@ -2512,7 +2604,8 @@ function applyAdminAccess(me) {
                 description: form.description.value,
                 image: form.image.value,
                 active: form.active.checked,
-                coming_soon: form.coming_soon.checked
+                coming_soon: form.coming_soon.checked,
+                is_new: form.is_new.checked
             } : {
                 stock: Number(form.stock.value),
                 expected_stock: Number(form.dataset.expectedStock),
