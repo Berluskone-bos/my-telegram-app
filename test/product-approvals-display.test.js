@@ -78,7 +78,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261126-catalog-card-readable/);
+    assert.match(html, /css\/styles\.css\?v=20261126-detail-approval-readable/);
     assert.match(html, /js\/products\.js\?v=20261125-sticky-purchase/);
     assert.match(html, /js\/app\.js\?v=20261125-sticky-purchase/);
 });
@@ -216,4 +216,17 @@ test('повторяющиеся правила подробной карточ�
     assert.match(css, /\.spec-chip\s*\{[^}]*gap:\s*5px;[^}]*padding:\s*5px 10px;/);
     assert.match(css, /@media \(max-width: 360px\)[\s\S]*?\.product-detail-viscosity \{ font-size: 34px; \}/);
     assert.match(css, /\.product-detail-brand-marks \{ flex-basis: 88px; width: 88px; \}/);
+});
+
+
+test('detailed approval chips remain readable and wrap long technical names', () => {
+    const css = fs.readFileSync(path.join(root, 'css/styles.css'), 'utf8');
+    const rules = [...css.matchAll(/\.product-detail-approval\s*\{([^}]*)\}/g)];
+    assert.equal(rules.length, 2, 'base and final detail approval rules must stay synchronized');
+    for (const [, rule] of rules) {
+        assert.match(rule, /font-size:\s*13px/);
+        assert.match(rule, /padding:\s*8px 11px/);
+        assert.match(rule, /line-height:\s*1\.4/);
+        assert.match(rule, /overflow-wrap:\s*anywhere/);
+    }
 });
