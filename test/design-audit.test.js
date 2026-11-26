@@ -380,3 +380,18 @@ test('переключатель способа получения и регио
   assert.match(css, /\.radio-label:focus-within\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
   assert.match(css, /\.custom-select-btn:focus-visible\s*\{[^}]*outline: 3px solid var\(--accent-text\)/);
 });
+
+
+test('окно сотрудников удобно использовать на мобильных экранах', () => {
+  const html = read('admin.html');
+  assert.match(html, /id="staffModal" class="staff-modal-overlay"/);
+  assert.match(html, /class="staff-modal-dialog" role="dialog" aria-modal="true"/);
+  assert.match(html, /class="staff-form-control" name="displayName"/);
+  assert.match(html, /class="staff-form-control" name="login"/);
+  assert.match(html, /class="staff-form-control" name="password"/);
+  assert.match(html, /#staffModal \.staff-modal-dialog \{[\s\S]*?max-height: calc\(100dvh - env\(safe-area-inset-top\)/);
+  assert.match(html, /#staffModal \.staff-form-control,[\s\S]*?min-height: 44px/);
+  assert.match(html, /#staffModal \.staff-modal-close,[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px/);
+  assert.match(html, /#staffModal label:has\(\.staff-active\) \{[\s\S]*?min-height: 44px/);
+  assert.match(html, /@media \(max-width: 600px\)[\s\S]*?#staffModal \.staff-create-form \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+});
