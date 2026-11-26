@@ -128,7 +128,7 @@ test('модальные окна админ-панели управляют д�
   assert.match(html, /event\.target\.classList\.contains\('modal-overlay'\)/);
   assert.match(html, /openModal\('orderModal'\)/);
   assert.match(html, /openModal\('productModal'\)/);
-  assert.match(html, /id="staffModal" aria-hidden="true"/);
+  assert.match(html, /id="staffModal" class="staff-modal-overlay" aria-hidden="true"/);
   assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="staffModalTitle"/);
 
   for (const id of ['productBrand', 'productCategory', 'productName', 'productSku', 'productVolume',
