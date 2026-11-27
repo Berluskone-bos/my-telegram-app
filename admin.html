@@ -89,12 +89,12 @@
         .theme-pull-overlay[hidden] { display: none !important; }
         .theme-pull-overlay { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 20px; }
         .theme-pull-backdrop { position: absolute; inset: 0; background: rgba(5,10,28,.58); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); animation: themePullFade .2s ease both; }
-        .theme-pull-dialog { position: relative; z-index: 1; width: min(100%, 390px); min-height: 440px; padding: 30px 24px 24px; overflow: hidden; border: 1px solid var(--glass-border); border-radius: 26px; background: var(--glass-solid); color: var(--text); box-shadow: 0 28px 90px rgba(0,0,0,.32); text-align: center; animation: themePullRise .28s cubic-bezier(.2,.8,.2,1) both; }
+        .theme-pull-dialog { position: relative; z-index: 1; width: min(100%, 390px); min-height: 500px; padding: 30px 24px 24px; overflow: hidden; border: 1px solid var(--glass-border); border-radius: 26px; background: var(--glass-solid); color: var(--text); box-shadow: 0 28px 90px rgba(0,0,0,.32); text-align: center; animation: themePullRise .28s cubic-bezier(.2,.8,.2,1) both; }
         .theme-pull-close { position: absolute; top: 12px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--tint); color: var(--text); font: 400 28px/1 Inter,sans-serif; cursor: pointer; }
         .theme-pull-close:focus-visible, .theme-lamp-pull:focus-visible { outline: 3px solid var(--cyan); outline-offset: 4px; }
         .theme-pull-eyebrow { margin: 4px 0 8px; color: var(--cyan-text); font: 700 10px/1.2 Inter,sans-serif; letter-spacing: 2px; }
         .theme-pull-dialog h2 { margin: 0; color: var(--ink); font: 800 20px/1.3 Montserrat,sans-serif; }
-        .theme-lamp-scene { position: relative; height: 260px; margin: 4px auto 0; width: 100%; isolation: isolate; }
+        .theme-lamp-scene { position: relative; height: 300px; margin: 4px auto 0; width: 100%; isolation: isolate; }
         .theme-lamp-glow { position: absolute; z-index: -1; top: 78px; left: 50%; width: 230px; height: 170px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(255,221,125,.65), rgba(255,221,125,0) 70%); opacity: 0; transition: opacity .3s ease; }
         .theme-lamp-scene[data-lit="true"] .theme-lamp-glow { opacity: 1; }
         .theme-lamp-cord { position: absolute; top: 0; left: 50%; width: 3px; height: 70px; transform: translateX(-50%); border-radius: 3px; background: #8d98a9; }
@@ -102,19 +102,19 @@
         .theme-lamp-shade span { position: absolute; left: 10px; right: 10px; bottom: -3px; height: 8px; border-radius: 50%; background: #7d899b; }
         .theme-lamp-bulb { position: absolute; top: 125px; left: 50%; width: 24px; height: 28px; transform: translateX(-50%); border-radius: 50% 50% 45% 45%; background: #aab5c5; box-shadow: 0 0 0 5px rgba(130,145,165,.10); transition: background .25s, box-shadow .25s; }
         .theme-lamp-scene[data-lit="true"] .theme-lamp-bulb { background: #ffe08a; box-shadow: 0 0 24px 10px rgba(255,207,93,.7); }
-        .theme-lamp-pull { position: absolute; top: 133px; left: calc(50% + 33px); width: 44px; height: 116px; padding: 0; border: 0; background: transparent; cursor: grab; touch-action: none; user-select: none; }
+        .theme-lamp-pull { position: absolute; top: 133px; left: calc(50% + 33px); width: 44px; height: 180px; padding: 0; border: 0; background: transparent; cursor: grab; touch-action: none; user-select: none; }
         .theme-lamp-pull:active { cursor: grabbing; }
         .theme-lamp-string { position: absolute; top: 0; left: 50%; width: 2px; height: 83px; transform: translateX(-50%); background: #8793a6; transform-origin: top center; }
         .theme-lamp-knob { position: absolute; top: 78px; left: 50%; width: 15px; height: 24px; transform: translateX(-50%); border-radius: 8px 8px 10px 10px; background: linear-gradient(90deg,#66758b,#d8e0e9 48%,#718097); box-shadow: 0 3px 6px rgba(0,0,0,.2); }
-        .theme-lamp-pull.is-pulling .theme-lamp-string, .theme-lamp-pull.is-pulling .theme-lamp-knob { transform: translate(-50%, var(--theme-pull-y, 0px)); }
         .theme-lamp-pull.is-pulling .theme-lamp-string { height: calc(83px + var(--theme-pull-y, 0px)); }
+        .theme-lamp-pull.is-pulling .theme-lamp-knob { top: calc(78px + var(--theme-pull-y, 0px)); }
         .theme-lamp-scene[data-lit="true"] .theme-lamp-shade { animation: themeLampSwing .65s ease-in-out; }
         .theme-pull-hint { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
         .theme-pull-state { min-height: 18px; margin: 7px 0 0; color: var(--cyan-text); font-size: 12px; font-weight: 700; }
         @keyframes themePullFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes themePullRise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
         @keyframes themeLampSwing { 0%,100% { transform: translateX(-50%) rotate(0); } 25% { transform: translateX(-50%) rotate(5deg); } 65% { transform: translateX(-50%) rotate(-4deg); } }
-        @media (max-width: 480px) { .theme-pull-dialog { min-height: 420px; padding: 28px 18px 20px; } .theme-lamp-scene { height: 245px; } }
+        @media (max-width: 480px) { .theme-pull-dialog { min-height: 480px; padding: 28px 18px 20px; } .theme-lamp-scene { height: 285px; } }
         @media (prefers-reduced-motion: reduce) { .theme-pull-backdrop, .theme-pull-dialog, .theme-lamp-shade { animation: none !important; } .theme-lamp-glow, .theme-lamp-bulb { transition: none !important; } }
 
         /* Layout */
@@ -2723,7 +2723,9 @@ function applyAdminAccess(me) {
             }
         }
         let themePullReturnFocus = null;
+        let themePullCloseTimer = null;
         function toggleTheme() {
+            if (themePullCloseTimer !== null) { clearTimeout(themePullCloseTimer); themePullCloseTimer = null; }
             const overlay = document.getElementById('themePullOverlay');
             const trigger = document.getElementById('themeBtn');
             if (!overlay || !trigger) return;
@@ -2736,6 +2738,7 @@ function applyAdminAccess(me) {
             document.getElementById('themeLampPull').focus();
         }
         function closeThemePull() {
+            if (themePullCloseTimer !== null) { clearTimeout(themePullCloseTimer); themePullCloseTimer = null; }
             const overlay = document.getElementById('themePullOverlay');
             const trigger = document.getElementById('themeBtn');
             if (!overlay || overlay.hidden) return;
@@ -2751,6 +2754,8 @@ function applyAdminAccess(me) {
             scene?.setAttribute('data-lit', next === 'light' ? 'true' : 'false');
             const state = document.getElementById('themePullState');
             if (state) state.textContent = next === 'dark' ? 'Тёмная тема включена' : 'Светлая тема включена';
+            if (themePullCloseTimer !== null) clearTimeout(themePullCloseTimer);
+            themePullCloseTimer = window.setTimeout(() => { themePullCloseTimer = null; closeThemePull(); }, 1500);
         }
         (function initThemePull() {
             const overlay = document.getElementById('themePullOverlay');
