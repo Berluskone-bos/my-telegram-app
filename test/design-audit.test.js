@@ -449,5 +449,5 @@ test('верхняя шапка админки использует лампу �
   assert.doesNotMatch(html, /\.clock-btn|\.clock-time|\.cal-nav|function tickClock|setInterval\(tickClock/);
   assert.match(html, /clip-path: polygon\(34% 0, 66% 0, 100% 100%, 0 100%\)/);
   assert.match(html, /\.theme-lamp-shade span \{ position: absolute; left: 0; right: 0; bottom: -1px;/);
-  assert.match(html, /id="tab-work-calendar"|рабочий календарь/i);
+  assert.match(html, /id="tab-delivery"/);
 });
