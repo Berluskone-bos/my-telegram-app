@@ -192,11 +192,8 @@ test('форма входа админ-панели имеет подписи, �
 });
 
 
-test('календарь и динамические элементы заказов имеют доступные имена', () => {
+test('динамические элементы заказов имеют доступные имена', () => {
   const html = read('admin.html');
-  assert.match(html, /id="cal" role="dialog" aria-labelledby="calTitle" aria-label="Календарь на месяц" aria-hidden="true"/);
-  assert.match(html, /function openCal\(\)[\s\S]*?calEl\.setAttribute\('aria-hidden', 'false'\)/);
-  assert.match(html, /function closeCal\(refocus\)[\s\S]*?calEl\.setAttribute\('aria-hidden', 'true'\)/);
   assert.match(html, /id="routeCourier"[^>]+aria-label="Курьер для нового маршрута"/);
   assert.match(html, /aria-label="Новый курьер для маршрута ' \+ esc\(r\.route_number\)/);
   assert.match(html, /aria-label="Причина передачи маршрута ' \+ esc\(r\.route_number\)/);
@@ -215,13 +212,12 @@ test('админ-панель использует удобные сенсорн
   assert.match(html, /\.status-select \{\s*min-height: 40px/);
   assert.match(html, /\.icon-btn \{ flex: none; width: 44px; height: 44px;/);
   assert.match(html, /\.me-out \{ flex: none; width: 44px; height: 44px;/);
-  assert.match(html, /\.cal-nav \{ width: 44px; height: 44px;/);
   assert.match(html, /\.route-pick-target \{[^}]*min-width: 44px; min-height: 44px/);
   assert.ok(html.includes('<label class="route-pick-target" onclick="event.stopPropagation()">'));
   assert.ok(html.includes('.route-pick-target input { width: 18px; height: 18px; cursor: pointer; }'));
   assert.match(html, /\.bcard-pick \{[^}]*min-height: 44px/);
   assert.match(html, /\.form-input, \.form-select, \.form-textarea \{\s*width: 100%;\s*min-height: 44px/);
-  assert.match(html, /@media \(max-width: 900px\)[\s\S]*?\.btn, \.status-select, \.icon-btn, \.me-out, \.cal-nav, \.cal-today, \.theme-btn, \.clock-btn \{ min-height: 44px; \}/);
+  assert.match(html, /@media \(max-width: 900px\)[\s\S]*?\.btn, \.status-select, \.icon-btn, \.me-out, \.theme-btn \{ min-height: 44px; \}/);
   assert.match(html, /\.btn-sm \{ min-height: 44px; padding: 8px 12px; \}/);
 });
 
@@ -437,4 +433,17 @@ test('верёвка лампы растягивается без отрыва, 
   assert.doesNotMatch(html, /\.theme-lamp-pull\.is-pulling \.theme-lamp-string, \.theme-lamp-pull\.is-pulling \.theme-lamp-knob \{ transform:/);
   assert.match(html, /themePullCloseTimer = window\.setTimeout\(\(\) => \{ themePullCloseTimer = null; closeThemePull\(\); \}, 1500\)/);
   assert.match(html, /function closeThemePull\(\)[\s\S]*?clearTimeout\(themePullCloseTimer\)/);
+});
+
+
+test('верхняя шапка админки использует лампу справа, без часов и отдельного календаря', () => {
+  const html = read('admin.html');
+  const topbar = html.slice(html.indexOf('<div class="topbar">'), html.indexOf('<!-- ==================== ВКЛАДКА: ДОСТАВКА'));
+  assert.match(topbar, /id="themeBtn"/);
+  assert.doesNotMatch(topbar, /id="clock"|id="clockBtn"|id="cal"/);
+  assert.match(html, /\.theme-btn\s*\{[^}]*margin-left:\s*auto;/);
+  assert.doesNotMatch(html, /\.clock-btn|\.clock-time|\.cal-nav|function tickClock|setInterval\(tickClock/);
+  assert.match(html, /clip-path: polygon\(34% 0, 66% 0, 100% 100%, 0 100%\)/);
+  assert.match(html, /\.theme-lamp-shade span \{ position: absolute; left: 0; right: 0; bottom: -1px;/);
+  assert.match(html, /id="tab-delivery"/);
 });
