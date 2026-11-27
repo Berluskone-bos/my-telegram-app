@@ -410,3 +410,19 @@ test('склад показывает миниатюру фотографии т
   assert.match(html, /shopProductsTable"><tr><td colspan="8"/);
   assert.match(html, /setTableState\('shopProductsTable', 8,/);
 });
+
+test('переключатель темы админ-панели открывает лампу с интерактивной верёвкой', () => {
+  const html = read('admin.html');
+  assert.match(html, /id="themeBtn"[^>]+aria-haspopup="dialog"[^>]+aria-controls="themePullOverlay"/);
+  assert.match(html, /id="themePullOverlay"[^>]+aria-hidden="true" hidden/);
+  assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="themePullTitle"/);
+  assert.match(html, /id="themeLampPull"[^>]+aria-label="Потяните вниз за верёвку/);
+  assert.match(html, /function toggleTheme\(\)[\s\S]*?overlay\.hidden = false/);
+  assert.match(html, /function commitThemePull\(\)[\s\S]*?store\.set\('admTheme', next\)/);
+  assert.match(html, /pull\.addEventListener\('pointerdown'/);
+  assert.match(html, /pull\.addEventListener\('pointermove'/);
+  assert.match(html, /distance >= 42/);
+  assert.match(html, /event\.key === 'Escape'[\s\S]*?closeThemePull\(\)/);
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?theme-pull-dialog/);
+  assert.match(html, /\.theme-pull-overlay\[hidden\] \{ display: none !important; \}/);
+});
