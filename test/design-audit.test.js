@@ -423,6 +423,8 @@ test('переключатель темы админ-панели открыва
   assert.match(html, /pull\.addEventListener\('pointermove'/);
   assert.match(html, /distance >= 42/);
   assert.match(html, /event\.key === 'Escape'[\s\S]*?closeThemePull\(\)/);
+  assert.match(html, /b\.setAttribute\('aria-label', 'Открыть переключатель темы'\)/);
+  assert.match(html, /event\.key === 'Tab'[\s\S]*?focusable/);
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?theme-pull-dialog/);
   assert.match(html, /\.theme-pull-overlay\[hidden\] \{ display: none !important; \}/);
 });
