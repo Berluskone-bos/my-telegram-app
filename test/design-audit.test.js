@@ -438,3 +438,16 @@ test('верёвка лампы растягивается без отрыва, 
   assert.match(html, /themePullCloseTimer = window\.setTimeout\(\(\) => \{ themePullCloseTimer = null; closeThemePull\(\); \}, 1500\)/);
   assert.match(html, /function closeThemePull\(\)[\s\S]*?clearTimeout\(themePullCloseTimer\)/);
 });
+
+
+test('верхняя шапка админки использует лампу справа, без часов и отдельного календаря', () => {
+  const html = read('admin.html');
+  const topbar = html.slice(html.indexOf('<div class="topbar">'), html.indexOf('<!-- ==================== ВКЛАДКА: ДОСТАВКА'));
+  assert.match(topbar, /id="themeBtn"/);
+  assert.doesNotMatch(topbar, /id="clock"|id="clockBtn"|id="cal"/);
+  assert.match(html, /\.theme-btn \{ margin-left: auto; \}/);
+  assert.doesNotMatch(html, /\.clock-btn|\.clock-time|\.cal-nav|function tickClock|setInterval\(tickClock/);
+  assert.match(html, /clip-path: polygon\(34% 0, 66% 0, 100% 100%, 0 100%\)/);
+  assert.match(html, /\.theme-lamp-shade span \{ position: absolute; left: 0; right: 0; bottom: -1px;/);
+  assert.match(html, /id="tab-work-calendar"|рабочий календарь/i);
+});
