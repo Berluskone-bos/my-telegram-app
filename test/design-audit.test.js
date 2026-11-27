@@ -428,3 +428,13 @@ test('переключатель темы админ-панели открыва
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?theme-pull-dialog/);
   assert.match(html, /\.theme-pull-overlay\[hidden\] \{ display: none !important; \}/);
 });
+
+
+test('верёвка лампы растягивается без отрыва, окно закрывается через 1,5 секунды после переключения', () => {
+  const html = read('admin.html');
+  assert.match(html, /\.theme-lamp-pull\.is-pulling \.theme-lamp-string \{ height: calc\(83px \+ var\(--theme-pull-y, 0px\)\); \}/);
+  assert.match(html, /\.theme-lamp-pull\.is-pulling \.theme-lamp-knob \{ top: calc\(78px \+ var\(--theme-pull-y, 0px\)\); \}/);
+  assert.doesNotMatch(html, /\.theme-lamp-pull\.is-pulling \.theme-lamp-string, \.theme-lamp-pull\.is-pulling \.theme-lamp-knob \{ transform:/);
+  assert.match(html, /themePullCloseTimer = window\.setTimeout\(\(\) => \{ themePullCloseTimer = null; closeThemePull\(\); \}, 1500\)/);
+  assert.match(html, /function closeThemePull\(\)[\s\S]*?clearTimeout\(themePullCloseTimer\)/);
+});
