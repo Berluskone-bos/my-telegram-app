@@ -115,7 +115,7 @@
         @keyframes themePullRise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
         @keyframes themeLampSwing { 0%,100% { transform: translateX(-50%) rotate(0); } 25% { transform: translateX(-50%) rotate(5deg); } 65% { transform: translateX(-50%) rotate(-4deg); } }
         @media (max-width: 480px) { .theme-pull-dialog { min-height: 420px; padding: 28px 18px 20px; } .theme-lamp-scene { height: 245px; } }
-        @media (prefers-reduced-motion: reduce) { .theme-pull-backdrop, .theme-pull-dialog, .theme-lamp-shade { animation: none !important; } .theme-pull-glow, .theme-lamp-bulb { transition: none !important; } }
+        @media (prefers-reduced-motion: reduce) { .theme-pull-backdrop, .theme-pull-dialog, .theme-lamp-shade { animation: none !important; } .theme-lamp-glow, .theme-lamp-bulb { transition: none !important; } }
 
         /* Layout */
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -2718,8 +2718,8 @@ function applyAdminAccess(me) {
             if (b) {
                 const dark = t === 'dark';
                 b.setAttribute('aria-pressed', dark ? 'true' : 'false');
-                b.title = dark ? 'Светлая тема' : 'Тёмная тема';
-                b.setAttribute('aria-label', dark ? 'Включить светлую тему' : 'Включить тёмную тему');
+                b.title = 'Открыть переключатель темы';
+                b.setAttribute('aria-label', 'Открыть переключатель темы');
             }
         }
         let themePullReturnFocus = null;
@@ -2759,7 +2759,15 @@ function applyAdminAccess(me) {
             overlay.querySelectorAll('[data-theme-pull-close]').forEach(el => el.addEventListener('click', closeThemePull));
             document.addEventListener('keydown', event => {
                 if (overlay.hidden) return;
-                if (event.key === 'Escape') { event.preventDefault(); closeThemePull(); }
+                if (event.key === 'Escape') { event.preventDefault(); closeThemePull(); return; }
+                if (event.key === 'Tab') {
+                    const dialog = overlay.querySelector('.theme-pull-dialog');
+                    const focusable = Array.from(dialog.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
+                    if (!focusable.length) return;
+                    const first = focusable[0], last = focusable[focusable.length - 1];
+                    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+                    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+                }
             });
             let startY = null, pointerId = null, committed = false;
             const resetPull = () => {
