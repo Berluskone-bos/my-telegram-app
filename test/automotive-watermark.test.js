@@ -11,13 +11,13 @@ const admin = fs.readFileSync(path.join(root, 'admin.html'), 'utf8');
 test('Mini App uses a light automotive watermark instead of the notebook grid', () => {
     assert.match(styles, /background-image:\s*none;/);
     assert.match(styles, /body::before\s*\{[^}]*car-watermark\.webp/s);
-    assert.match(styles, /opacity:\s*0\.105/);
+    assert.match(styles, /opacity:\s*0\.055/);
     assert.match(index, /css\/styles\.css\?v=20261128-light-car-watermark/);
 });
 
 test('Admin dashboard uses the same subtle watermark without removing theme support', () => {
     assert.match(admin, /body::before\s*\{[^}]*car-watermark\.webp/s);
-    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.045;\s*\}/);
+    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.025;\s*\}/);
     assert.match(admin, /:root\[data-theme="dark"\]/);
 });
 

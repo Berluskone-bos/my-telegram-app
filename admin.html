@@ -336,17 +336,17 @@
             height: min(78vh, 760px);
             pointer-events: none;
             background: url("img/car-watermark.webp") right top / contain no-repeat;
-            opacity: .075;
+            opacity: .02;
             filter: saturate(.55);
         }
-        :root[data-theme="dark"] body::before { opacity: .045; }
+        :root[data-theme="dark"] body::before { opacity: .025; }
         @media (max-width: 600px) {
             body::before {
                 top: 112px;
                 right: -72px;
                 width: min(76vw, 330px);
                 height: 62vh;
-                opacity: .065;
+                opacity: .035;
             }
             :root[data-theme="dark"] body::before { opacity: .04; }
         }
