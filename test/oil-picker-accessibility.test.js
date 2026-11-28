@@ -49,7 +49,13 @@ test('окно подбора масла не расширяет мобильн�
     assert.match(oilCss, /\.oil-tab\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;/s);
 });
 
-test('страница ограничена шириной мобильного экрана, а логотип не разрастается', () => {
-    assert.match(stylesCss, /html, body\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*overflow-x:\s*clip;/s);
-    assert.match(stylesCss, /\.header-logo-img\s*\{[^}]*height:\s*40px;[^}]*max-width:\s*min\(180px, 48vw\);/s);
+test('шапка восстановлена к размеру логотипа до увеличения', () => {
+    assert.match(stylesCss, /\.header-logo-img\s*\{[^}]*height:\s*40px;[^}]*max-width:\s*min\(220px, 58vw\);/s);
+    assert.doesNotMatch(stylesCss, /\.header-logo-img\s*\{[^}]*height:\s*54px;/s);
+    assert.doesNotMatch(stylesCss, /\.header::before\s*\{/);
+});
+
+test('лента категорий прокручивается внутри ширины приложения', () => {
+    assert.match(stylesCss, /\.app-screen\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*overflow-x:\s*hidden;/s);
+    assert.match(stylesCss, /\.categories-scroll\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*overflow-x:\s*auto;[^}]*overscroll-behavior-x:\s*contain;/s);
 });
