@@ -447,3 +447,18 @@ test('верхняя шапка админки использует лампу �
   assert.match(html, /\.theme-lamp-shade span \{ position: absolute; left: 0; right: 0; bottom: -1px;/);
   assert.match(html, /id="tab-delivery"/);
 });
+
+
+test('шапка магазина использует увеличенный логотип и мягкий объёмный фон', () => {
+  const html = read('index.html');
+  const css = read('css/styles.css');
+  assert.match(html, /css\/styles\.css\?v=20261128-premium-header/);
+  assert.match(css, /\.header-logo-img\s*\{[^}]*height:\s*54px/);
+  assert.match(css, /@media\s*\(max-width:\s*360px\)[\s\S]*?\.header-logo-img\s*\{\s*height:\s*54px/);
+  assert.match(css, /\.header::before[\s\S]*?radial-gradient\(ellipse at 12% 125%/);
+  assert.match(css, /\.header::after[\s\S]*?rgba\(0,175,199,0\.11\)/);
+  assert.match(css, /\.header\s*\{[\s\S]*?isolation:\s*isolate/);
+  assert.match(css, /\.header\s*>\s*\*\s*\{\s*position:\s*relative;\s*z-index:\s*1/);
+  assert.match(css, /\.carousel-slide\s*\{[^}]*min-height:\s*132px/);
+  assert.match(css, /\.promo-carousel\s*\{[^}]*margin:\s*8px 12px 4px/);
+});
