@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const oilJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'oil.js'), 'utf8');
 const oilCss = fs.readFileSync(path.join(__dirname, '..', 'css', 'oil.css'), 'utf8');
+const stylesCss = fs.readFileSync(path.join(__dirname, '..', 'css', 'styles.css'), 'utf8');
 
 test('окно подбора масла размечено как доступный модальный диалог', () => {
     assert.ok(oilJs.includes('role="dialog" aria-modal="true" aria-labelledby="oilDialogTitle" tabindex="-1"'));
@@ -35,7 +36,20 @@ test('переключатели способа подбора сообщают 
 
 test('элементы подбора масла имеют удобные сенсорные размеры и контраст', () => {
     assert.ok(oilCss.includes('.oil-close { display: grid; place-items: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px;'));
-    assert.ok(oilCss.includes('.oil-tab { flex: 1; min-width: 0; min-height: 44px;'));
+    assert.match(oilCss, /\.oil-tab\s*\{[^}]*flex:\s*1(?:\s+1\s+0)?;[^}]*min-width:\s*0;[^}]*min-height:\s*44px;/s);
     assert.ok(oilCss.includes('.oil-add { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 10px; background: #00AFC7; color: #101B4D;'));
     assert.ok(oilCss.includes('.oil-sheet button:focus-visible'));
+});
+
+
+test('окно подбора масла не расширяет мобильный экран по горизонтали', () => {
+    assert.match(oilCss, /\.oil-overlay\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100vw;[^}]*overflow-x:\s*hidden;/s);
+    assert.match(oilCss, /\.oil-sheet\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;[^}]*overflow-x:\s*hidden;/s);
+    assert.match(oilCss, /\.oil-tabs\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
+    assert.match(oilCss, /\.oil-tab\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;/s);
+});
+
+test('страница ограничена шириной мобильного экрана, а логотип не разрастается', () => {
+    assert.match(stylesCss, /html, body\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*overflow-x:\s*clip;/s);
+    assert.match(stylesCss, /\.header-logo-img\s*\{[^}]*height:\s*40px;[^}]*max-width:\s*min\(180px, 48vw\);/s);
 });
