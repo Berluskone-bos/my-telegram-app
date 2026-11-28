@@ -18,9 +18,9 @@ test('Mini App uses a light automotive watermark instead of the notebook grid', 
 
 test('Admin dashboard uses the same subtle watermark without removing theme support', () => {
     assert.match(admin, /body::before\s*\{[^}]*car-watermark\.webp/s);
-    assert.match(admin, /body::before\s*\{[^}]*opacity:\s*\.04;/s);
-    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.025;\s*\}/);
-    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.02;\s*\}/);
+    assert.match(admin, /body::before\s*\{[^}]*opacity:\s*\.085;/s);
+    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.05;\s*\}/);
+    assert.match(admin, /@media\s*\(max-width:\s*760px\)[\s\S]*?body::before\s*\{[^}]*opacity:\s*\.065;/);
     assert.match(admin, /:root\[data-theme="dark"\]/);
 });
 
