@@ -26,6 +26,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body { width: 100%; max-width: 100%; overflow-x: clip; }
+
 body {
     font-family: var(--font);
     background-color: var(--bg);
@@ -36,7 +38,7 @@ body {
     background-position: 0 0;
     color: var(--text-primary);
     padding-bottom: 80px;
-    overflow-x: hidden;
+    overflow-x: clip;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
 }
@@ -93,7 +95,7 @@ a, button, input, select { font-family: inherit; }
 .header-logo-img {
     height: 40px;
     width: auto;
-    max-width: min(220px, 58vw);
+    max-width: min(180px, 48vw);
     object-fit: contain;
     flex-shrink: 0;
 }
@@ -2463,7 +2465,7 @@ a, button, input, select { font-family: inherit; }
 /* Маленькие смартфоны (320-360px) */
 @media (max-width: 360px) {
     .header { padding: 6px 6px; }
-    .header-logo-img { height: 40px; max-width: min(220px, 58vw); }
+    .header-logo-img { height: 40px; max-width: min(180px, 48vw); }
     .promo-carousel { margin: 8px; }
     .carousel-slide { min-height: 132px; padding: 16px 16px 26px; }
     .slide-content h2 { font-size: 17px; }
