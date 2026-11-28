@@ -78,7 +78,7 @@ test('product details show the original Gulf Western Oil logo without the Austra
 
 test('Telegram WebView receives cache-busted product detail assets', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-    assert.match(html, /css\/styles\.css\?v=20261126-detail-spec-wrap/);
+    assert.match(html, /css\/styles\.css\?v=20261128-logo-size-40/);
     assert.match(html, /js\/products\.js\?v=20261125-sticky-purchase/);
     assert.match(html, /js\/app\.js\?v=20261125-sticky-purchase/);
 });
