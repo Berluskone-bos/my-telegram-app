@@ -50,7 +50,7 @@ body::before {
     height: min(76vh, 760px);
     pointer-events: none;
     background: url("../img/car-watermark.webp") right top / contain no-repeat;
-    opacity: 0.055;
+    opacity: 0.18;
     filter: saturate(0.62);
 }
 @media (max-width: 600px) {
@@ -59,7 +59,7 @@ body::before {
         right: -48px;
         width: min(74vw, 310px);
         height: 62vh;
-        opacity: 0.045;
+        opacity: 0.15;
     }
 }
 @media (prefers-reduced-motion: reduce) {
