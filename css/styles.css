@@ -91,9 +91,9 @@ a, button, input, select { font-family: inherit; }
     min-width: 0;
 }
 .header-logo-img {
-    height: 54px;
+    height: 40px;
     width: auto;
-    max-width: min(297px, 70vw);
+    max-width: min(220px, 58vw);
     object-fit: contain;
     flex-shrink: 0;
 }
@@ -2463,7 +2463,7 @@ a, button, input, select { font-family: inherit; }
 /* Маленькие смартфоны (320-360px) */
 @media (max-width: 360px) {
     .header { padding: 6px 6px; }
-    .header-logo-img { height: 54px; max-width: min(297px, 70vw); }
+    .header-logo-img { height: 40px; max-width: min(220px, 58vw); }
     .promo-carousel { margin: 8px; }
     .carousel-slide { min-height: 132px; padding: 16px 16px 26px; }
     .slide-content h2 { font-size: 17px; }
