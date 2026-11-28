@@ -27,18 +27,43 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
+    position: relative;
+    isolation: isolate;
     font-family: var(--font);
     background-color: var(--bg);
-    background-image:
-        linear-gradient(rgba(16, 27, 77, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(16, 27, 77, 0.03) 1px, transparent 1px);
-    background-size: 24px 24px;
-    background-position: 0 0;
+    background-image: none;
     color: var(--text-primary);
     padding-bottom: 80px;
     overflow-x: hidden;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+}
+
+/* Ненавязчивый автомобильный водяной знак из фирменного изображения */
+body::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    top: 150px;
+    right: -34px;
+    width: min(66vw, 430px);
+    height: min(76vh, 760px);
+    pointer-events: none;
+    background: url("../img/car-watermark.webp") right top / contain no-repeat;
+    opacity: 0.055;
+    filter: saturate(0.62);
+}
+@media (max-width: 600px) {
+    body::before {
+        top: 138px;
+        right: -48px;
+        width: min(74vw, 310px);
+        height: 62vh;
+        opacity: 0.045;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    body::before { transition: none; }
 }
 a, button, input, select { font-family: inherit; }
 

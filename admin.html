@@ -317,11 +317,38 @@
         /* ===== Боковое меню: узкая полоса с иконками ↔ полная панель ===== */
         :root { --rail: 76px; --panel: 272px; --ink: #0c1440; --glass: rgba(255,255,255,0.74); }
         body {
+            position: relative;
+            isolation: isolate;
             background: var(--bg);
             background-image:
                 radial-gradient(520px 420px at 6% 8%, var(--bg-glow-a), transparent 70%),
                 radial-gradient(640px 520px at 96% 100%, var(--bg-glow-b), transparent 70%);
             background-attachment: fixed;
+        }
+        /* Тот же автомобильный мотив, но с меньшей интенсивностью для рабочих экранов */
+        body::before {
+            content: "";
+            position: fixed;
+            z-index: -1;
+            top: 96px;
+            right: -54px;
+            width: clamp(280px, 34vw, 520px);
+            height: min(78vh, 760px);
+            pointer-events: none;
+            background: url("/img/car-watermark.webp") right top / contain no-repeat;
+            opacity: .04;
+            filter: saturate(.55);
+        }
+        :root[data-theme="dark"] body::before { opacity: .025; }
+        @media (max-width: 600px) {
+            body::before {
+                top: 112px;
+                right: -72px;
+                width: min(76vw, 330px);
+                height: 62vh;
+                opacity: .035;
+            }
+            :root[data-theme="dark"] body::before { opacity: .02; }
         }
         .shell { display: flex; min-height: 100vh; }
         .side {
