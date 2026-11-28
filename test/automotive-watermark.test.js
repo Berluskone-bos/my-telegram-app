@@ -20,7 +20,7 @@ test('Admin dashboard uses the same subtle watermark without removing theme supp
     assert.match(admin, /body::before\s*\{[^}]*car-watermark\.webp/s);
     assert.match(admin, /body::before\s*\{[^}]*opacity:\s*\.085;/s);
     assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.05;\s*\}/);
-    assert.match(admin, /@media\s*\(max-width:\s*760px\)[\s\S]*?body::before\s*\{[^}]*opacity:\s*\.065;/);
+    assert.match(admin, /@media\s*\(max-width:\s*600px\)[\s\S]*?body::before\s*\{[^}]*opacity:\s*\.065;/);
     assert.match(admin, /:root\[data-theme="dark"\]/);
 });
 
