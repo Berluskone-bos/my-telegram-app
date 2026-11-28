@@ -12,15 +12,15 @@ const carAssetPath = path.join(root, 'img', 'car-watermark.webp');
 test('Mini App uses a light automotive watermark instead of the notebook grid', () => {
     assert.match(styles, /background-image:\s*none;/);
     assert.match(styles, /body::before\s*\{[^}]*car-watermark\.webp/s);
-    assert.match(styles, /opacity:\s*0\.055/);
-    assert.match(index, /css\/styles\.css\?v=20261128-light-car-watermark/);
+    assert.match(styles, /opacity:\s*0\.18/);
+    assert.match(index, /css\/styles\.css\?v=20261128-full-color-car-background/);
 });
 
 test('Admin dashboard uses the same subtle watermark without removing theme support', () => {
     assert.match(admin, /body::before\s*\{[^}]*car-watermark\.webp/s);
-    assert.match(admin, /body::before\s*\{[^}]*opacity:\s*\.04;/s);
-    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.025;\s*\}/);
-    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.02;\s*\}/);
+    assert.match(admin, /body::before\s*\{[^}]*opacity:\s*\.085;/s);
+    assert.match(admin, /:root\[data-theme="dark"\]\s+body::before\s*\{\s*opacity:\s*\.05;\s*\}/);
+    assert.match(admin, /@media\s*\(max-width:\s*600px\)[\s\S]*?body::before\s*\{[^}]*opacity:\s*\.065;/);
     assert.match(admin, /:root\[data-theme="dark"\]/);
 });
 

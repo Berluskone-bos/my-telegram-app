@@ -336,19 +336,19 @@
             height: min(78vh, 760px);
             pointer-events: none;
             background: url("/img/car-watermark.webp") right top / contain no-repeat;
-            opacity: .04;
+            opacity: .085;
             filter: saturate(.55);
         }
-        :root[data-theme="dark"] body::before { opacity: .025; }
+        :root[data-theme="dark"] body::before { opacity: .05; }
         @media (max-width: 600px) {
             body::before {
                 top: 112px;
                 right: -72px;
                 width: min(76vw, 330px);
                 height: 62vh;
-                opacity: .035;
+                opacity: .065;
             }
-            :root[data-theme="dark"] body::before { opacity: .02; }
+            :root[data-theme="dark"] body::before { opacity: .04; }
         }
         .shell { display: flex; min-height: 100vh; }
         .side {
