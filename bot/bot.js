@@ -795,6 +795,15 @@ app.get('/js/admin-dashboard.js', (req, res, next) => {
     });
 });
 
+// Автомобильный фон админ-панели хранится в корневом img/, а не в STATIC_DIR (public).
+// Отдаём только этот публичный ресурс, не открывая весь каталог исходников.
+app.get('/img/car-watermark.webp', (req, res, next) => {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.sendFile(path.join(__dirname, '..', 'img', 'car-watermark.webp'), err => {
+        if (err && !res.headersSent) next(err);
+    });
+});
+
 // Статика
 if (fs.existsSync(STATIC_DIR)) {
     app.use(express.static(STATIC_DIR, { dotfiles: 'deny', index: false }));
