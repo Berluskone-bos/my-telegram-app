@@ -26,8 +26,6 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { width: 100%; max-width: 100%; overflow-x: clip; }
-
 body {
     font-family: var(--font);
     background-color: var(--bg);
@@ -38,7 +36,7 @@ body {
     background-position: 0 0;
     color: var(--text-primary);
     padding-bottom: 80px;
-    overflow-x: clip;
+    overflow-x: hidden;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
 }
@@ -50,31 +48,11 @@ a, button, input, select { font-family: inherit; }
     justify-content: space-between;
     align-items: center;
     padding: 8px 8px;
-    min-height: 70px;
-    background: #fff;
+    background: var(--bg);
     position: sticky;
     top: 0;
     z-index: 50;
-    isolation: isolate;
-    border-bottom: 1px solid rgba(16, 27, 77, 0.10);
-    box-shadow: 0 3px 14px rgba(16, 27, 77, 0.045);
-}
-.header::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: -28px -8% -34px;
-    pointer-events: none;
-    background:
-        radial-gradient(ellipse 42% 105% at 12% 8%, rgba(0, 175, 199, 0.13) 0%, rgba(0, 175, 199, 0.045) 42%, transparent 72%),
-        radial-gradient(ellipse 38% 115% at 82% 100%, rgba(16, 27, 77, 0.11) 0%, rgba(16, 27, 77, 0.035) 48%, transparent 76%),
-        radial-gradient(ellipse 26% 80% at 55% 0%, rgba(102, 214, 230, 0.16) 0%, transparent 75%),
-        linear-gradient(112deg, rgba(255,255,255,0.98) 0%, rgba(248,251,253,0.96) 52%, rgba(255,255,255,0.98) 100%);
-    filter: saturate(0.92);
-}
-.header > * {
-    position: relative;
-    z-index: 1;
+    border-bottom: 1px solid var(--border);
 }
 .burger-btn {
     cursor: pointer;
@@ -95,7 +73,7 @@ a, button, input, select { font-family: inherit; }
 .header-logo-img {
     height: 40px;
     width: auto;
-    max-width: min(180px, 48vw);
+    max-width: min(220px, 58vw);
     object-fit: contain;
     flex-shrink: 0;
 }
@@ -186,6 +164,10 @@ a, button, input, select { font-family: inherit; }
 /* ===== ЭКРАНЫ (SPA) ===== */
 .app-screen {
     display: none;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
     animation: fadeIn 0.2s ease;
 }
 .app-screen.active { display: block; }
@@ -268,9 +250,14 @@ a, button, input, select { font-family: inherit; }
 /* ===== КАТЕГОРИИ (ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ) ===== */
 .categories-scroll {
     display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     gap: 8px;
     padding: 12px 16px 4px;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -2465,7 +2452,7 @@ a, button, input, select { font-family: inherit; }
 /* Маленькие смартфоны (320-360px) */
 @media (max-width: 360px) {
     .header { padding: 6px 6px; }
-    .header-logo-img { height: 40px; max-width: min(180px, 48vw); }
+    .header-logo-img { height: 40px; }
     .promo-carousel { margin: 8px; }
     .carousel-slide { min-height: 132px; padding: 16px 16px 26px; }
     .slide-content h2 { font-size: 17px; }
