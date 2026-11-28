@@ -36,7 +36,7 @@ test('переключатели способа подбора сообщают 
 
 test('элементы подбора масла имеют удобные сенсорные размеры и контраст', () => {
     assert.ok(oilCss.includes('.oil-close { display: grid; place-items: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px;'));
-    assert.ok(oilCss.includes('.oil-tab { flex: 1; min-width: 0; min-height: 44px;'));
+    assert.match(oilCss, /\.oil-tab\s*\{[^}]*flex:\s*1(?:\s+1\s+0)?;[^}]*min-width:\s*0;[^}]*min-height:\s*44px;/s);
     assert.ok(oilCss.includes('.oil-add { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 10px; background: #00AFC7; color: #101B4D;'));
     assert.ok(oilCss.includes('.oil-sheet button:focus-visible'));
 });
